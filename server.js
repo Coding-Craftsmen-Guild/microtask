@@ -186,6 +186,52 @@ async function handleApi(req, res, segments) {
 
     if (rest.length === 2 && method === 'GET') return sendJson(res, 200, clientView(project, link));
 
+    // Everything below mutates, so a read-only link stops here. The check is
+    // repeated inside each lock against the freshly-read link, because a link
+    // can be downgraded between the read above and the write below.
+    const requireWrite = (link) => {
+      if (link?.permission !== 'write') throw new HttpError(403, 'This link is read-only');
+    };
+
+    // POST /api/share/:token/tabs -- create a tab (read & write links only)
+    if (at(2) === 'tabs' && rest.length === 3 && method === 'POST') {
+      const body = await readBody(req);
+      const name = cleanName(body.name);
+      return store.withLock(async () => {
+        const fresh = await store.readByToken(token);
+        if (!fresh) notFound('This share link is no longer available');
+        requireWrite(store.findShareLink(store.normalizeShareLinks(fresh), token));
+        store.normalize(fresh);
+        if (fresh.tabs.length >= 40) bad('Too many tabs');
+        const tab = store.newTab(name, fresh.tabs.length);
+        fresh.tabs.push(tab);
+        await store.save(store.normalize(fresh));
+        return sendJson(res, 201, {
+          tab,
+          project: clientView(fresh, store.findShareLink(fresh, token)),
+        });
+      });
+    }
+
+    // PATCH /api/share/:token/tabs/:tabId -- rename a tab (read & write links only)
+    if (at(2) === 'tabs' && rest.length === 4 && method === 'PATCH') {
+      const body = await readBody(req);
+      const name = body.name === undefined ? undefined : cleanName(body.name);
+      return store.withLock(async () => {
+        const fresh = await store.readByToken(token);
+        if (!fresh) notFound('This share link is no longer available');
+        requireWrite(store.findShareLink(store.normalizeShareLinks(fresh), token));
+        const tab = findTab(store.normalize(fresh), at(3));
+        if (name !== undefined) tab.name = name;
+        tab.updatedAt = new Date().toISOString();
+        await store.save(fresh);
+        return sendJson(res, 200, {
+          tab,
+          project: clientView(fresh, store.findShareLink(fresh, token)),
+        });
+      });
+    }
+
     // PUT /api/share/:token/tabs/:tabId/document -- read & write links only
     if (at(2) === 'tabs' && at(4) === 'document' && method === 'PUT') {
       const { document } = await readBody(req);
@@ -193,10 +239,7 @@ async function handleApi(req, res, segments) {
       return store.withLock(async () => {
         const fresh = await store.readByToken(token);
         if (!fresh) notFound('This share link is no longer available');
-        const freshLink = store.findShareLink(store.normalizeShareLinks(fresh), token);
-        if (freshLink?.permission !== 'write') {
-          throw new HttpError(403, 'This link is read-only');
-        }
+        requireWrite(store.findShareLink(store.normalizeShareLinks(fresh), token));
         // The tab has to belong to THIS token's project.
         const tab = findTab(store.normalize(fresh), at(3));
         tab.document = document;

@@ -90,6 +90,24 @@ function renderTabProgress() {
   );
 }
 
+async function addTab() {
+  const name = await promptDialog({
+    title: 'New tab',
+    placeholder: 'Tab name',
+    submitLabel: 'Create',
+  });
+  if (!name) return;
+  await flush();
+  try {
+    const { tab } = await api(`/api/share/${token}/tabs`, { method: 'POST', body: { name } });
+    data.tabs.push(tab);
+    await selectTab(tab.id);
+    toast(`Added "${tab.name}"`);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
 function renderTabs() {
   $('#tabbar').replaceChildren(
     ...data.tabs.map((tab) => {
@@ -105,6 +123,13 @@ function renderTabs() {
         total ? el('span', { class: 'count' }, `${done}/${total}`) : null,
       );
     }),
+    canWrite
+      ? el(
+          'button',
+          { class: 'tab-add', type: 'button', title: 'New tab', onClick: () => void addTab() },
+          '+',
+        )
+      : null,
   );
 }
 

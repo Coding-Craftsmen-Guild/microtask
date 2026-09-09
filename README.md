@@ -96,14 +96,28 @@ token can never reach another project's tabs.
 | Level | The client can |
 | --- | --- |
 | **Read only** | switch tabs, read, click links. Checkboxes don't move. |
-| **Read & write** | all of the above, plus edit the tab content and tick checklist items. |
+| **Read & write** | all of the above, plus edit tab content, tick checklist items, and add or rename tabs. |
 
 Per link you can rename it, switch it between read and read & write, or revoke it — revoking
 takes effect immediately. Tokens are 32-char random strings and unlisted; treat a link as the
 credential.
 
-No client, at any level, can create, rename, reorder or delete tabs, reach the admin API, or
-make share links. That's enforced server-side, not just hidden in the UI.
+A read & write link manages the project's contents: its holder can add and rename tabs as
+well as edit them. No client, at any level, can reorder or delete tabs, reach the admin API, or
+make share links — and a read-only link can change nothing at all. That's enforced server-side,
+not just hidden in the UI.
+
+### Client API
+
+A share token is the only credential these need, so automation can drive a project without an
+admin session. Read & write links only, except the first:
+
+| | |
+| --- | --- |
+| `GET /api/share/:token` | the project as the client sees it |
+| `POST /api/share/:token/tabs` | `{ name }` — append a tab |
+| `PATCH /api/share/:token/tabs/:tabId` | `{ name }` — rename a tab |
+| `PUT /api/share/:token/tabs/:tabId/document` | `{ document }` — replace a tab's Tiptap doc |
 
 ## Layout
 
