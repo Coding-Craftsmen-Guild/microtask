@@ -1,0 +1,44 @@
+services:
+  microtask:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Required — the app refuses to start without it.
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      - PORT=3000
+      - DATA_DIR=/data
+    volumes:
+      # Project JSON lives here; keep it out of the image so deploys don't wipe it.
+      - microtask-data:/data
+    # No SERVICE_FQDN_* var on purpose: the domain is created and pointed at
+    # this service by hand, so Coolify must not generate one. The container
+    # only listens on the internal network.
+    expose:
+      - '3000'
+    # If the proxy that terminates TLS runs outside Docker, publish the port
+    # for it instead (keep it on loopback):
+    # ports:
+    #   - '127.0.0.1:4321:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  microtask-data:
+# If your proxy lives in another Docker network, attach this service to it so it
+# can be reached by service name, then set that domain to point here:
+# networks:
+#   default:
+#     name: coolify
+#     external: true

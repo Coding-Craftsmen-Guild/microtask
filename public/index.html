@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Projects · CC Guild Microtask</title>
+    <link rel="icon" href="/img/logo.webp" />
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <header class="appbar">
+      <div class="appbar-inner">
+        <a class="brand" href="/">
+          <img src="/img/logo.webp" alt="CC Guild logo" />
+          <span class="brand-text">
+            <span class="brand-name">Microtask</span>
+            <span class="brand-sub">CC Guild</span>
+          </span>
+        </a>
+        <span class="spacer"></span>
+        <a class="appbar-link" href="#" id="logout">Sign out</a>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <div>
+          <h1>Projects</h1>
+          <div class="sub">Each project is a set of tabs you can share with a client.</div>
+        </div>
+      </div>
+
+      <form class="card new-project" id="new-project">
+        <input type="text" name="name" placeholder="New project name — e.g. ACME Website" maxlength="80" required />
+        <button class="btn btn-gold" type="submit">Create project</button>
+      </form>
+
+      <div class="project-list" id="list"></div>
+    </main>
+
+    <script type="module" src="/js/projects.js"></script>
+  </body>
+</html>

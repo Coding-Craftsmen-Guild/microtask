@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign in · CC Guild Microtask</title>
+    <link rel="icon" href="/img/logo.webp" />
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <div class="login-wrap">
+      <img src="/img/logo.webp" alt="CC Guild logo" />
+      <h1>Microtask admin</h1>
+      <form id="login">
+        <input type="password" name="password" placeholder="Admin password" autofocus required />
+        <button class="btn btn-primary" type="submit">Sign in</button>
+        <div class="login-error" id="error"></div>
+      </form>
+    </div>
+    <script type="module">
+      import { api, $ } from '/js/util.js';
+
+      $('#login').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        $('#error').textContent = '';
+        try {
+          await api('/api/login', {
+            method: 'POST',
+            body: { password: event.target.elements.password.value },
+          });
+          location.href = '/';
+        } catch (err) {
+          $('#error').textContent = err.message;
+        }
+      });
+    </script>
+  </body>
+</html>
