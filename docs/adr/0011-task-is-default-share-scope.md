@@ -21,6 +21,12 @@ Both scopes exist. **Task is the default** for a new link.
 - A task-scoped link sees only its task — never sibling task names, never the folder tree, never the
   project's other contents, including through search (ADR 0009).
 
+One consequence, verified when the policy was implemented: because a `folder` target is refused
+outright for a task scope, a task-scoped link cannot read folder **names** either — so it cannot
+render a breadcrumb showing where its task sits. That is the correct default, since a folder name
+can itself identify another client. If a breadcrumb is ever wanted, it needs an explicit narrow
+read grant, **not** a relaxation of scope containment.
+
 ## Consequences
 
 - The common case — share one checklist with one client — is the default and needs no thought.

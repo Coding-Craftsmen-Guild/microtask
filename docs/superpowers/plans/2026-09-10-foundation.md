@@ -1394,7 +1394,13 @@ export function can(principal: Principal, action: Action, target: Target): boole
 pnpm --filter @repo/kernel test policy
 ```
 
-Expected: PASS — 12 tests.
+Expected: PASS — **13 tests**. Ten literal `it(...)` calls, one of which sits inside
+`for (const role of ROLES)` and so expands to three.
+
+Also confirm the matrix is not **vacuous**, which no assertion above can catch: a loop iterating
+nothing passes every assertion and proves nothing. The role-by-action tests must make
+`ROLES.length × ACTIONS.length` = 3 × 25 = **75** `can()` calls, covering 75 distinct
+`(role, action)` pairs and every entry in `ACTIONS`.
 
 - [ ] **Step 5: Commit**
 
