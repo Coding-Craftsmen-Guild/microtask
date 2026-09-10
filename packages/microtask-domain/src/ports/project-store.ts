@@ -10,7 +10,7 @@ export interface ProjectStore {
   /** Reads one project manifest, or null when the project does not exist. */
   readManifest(product: Product, projectId: string): Promise<ProjectManifest | null>
 
-  /** Reads one task's tabs, or null when the task file is missing or unreadable. */
+  /** Reads one task's tabs, or null when the task file is missing or unparseable. */
   readTask(product: Product, projectId: string, taskId: string): Promise<TaskDocument | null>
 
   /** Writes the manifest alone, for changes that touch no task file. */
