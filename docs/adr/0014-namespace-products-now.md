@@ -21,8 +21,9 @@ The product dimension goes in everywhere now, while nothing depends on it.
 /v1/macroplan/…                   data/macroplan/…
 /v1/auth, /v1/openapi.json, /healthz     shared, product-agnostic
 
-packages/kernel             roles, AccessPolicy, ids, errors, repository ports, transfer framework
-packages/microtask-domain   Project, Folder, Task, Tab and their services
+packages/kernel             roles, AccessPolicy, ids, errors, generic ports, transfer framework
+packages/store              generic adapters only — NodeFileSystem, QueueLock
+packages/microtask-domain   Project, Folder, Task, Tab, the ProjectStore port, its adapter, services
 packages/macroplan-domain   stub — the seam, reserved
 ```
 
@@ -32,9 +33,19 @@ Macroplan holds **no credentials for Microtask's data** until it has a screen th
 
 - `packages/macroplan-domain` is nearly empty for a while. That is the cost of the seam, and it is
   cheap.
-- The split forces an early answer to "what is genuinely shared?" — and the answer becomes
-  `packages/kernel`: roles, ids, errors, ports, import/export. That is the reusability requirement
-  made concrete rather than aspirational.
+- The split forces an early answer to "what is genuinely shared?" — and the answer turned out to be
+  narrower than this ADR first claimed: roles, ids, errors, import/export and the *generic* ports.
+  That is the reusability requirement made concrete rather than aspirational.
+- **A port lives with the types it is expressed in.** This ADR originally assigned "repository ports"
+  to `packages/kernel`. Executing the split disproved it: `ProjectStore` is typed in
+  `ProjectManifest` and `TaskDocument`, so a shared port would have kept this product's entities
+  shared too — the exact coupling the seam exists to prevent. Kernel keeps only the ports typed in
+  primitives: `Clock`, `IdGenerator`, `Lock`, `FileSystem`. The Liskov contract suite moved with
+  the port, so that guarantee is now per product rather than workspace-wide (ADR 0027).
+- **The seam is enforced, not documented.** `packages/kernel` and `packages/store` each ban imports
+  of either domain package by name via `no-restricted-imports`. The rule is duplicated per package
+  on purpose: a `files:` glob in the *shared* config resolves relative to that config file's own
+  directory, which silently disabled an equivalent rule earlier in this project.
 - Route paths are one segment longer. Worth it.
 - Share tokens stay globally unique across products, so the token index needs no product dimension.
 - Two `data/` subtrees means the API resolves a product root per request; the path helpers in ADR

@@ -10,7 +10,10 @@ no server to run.
 
 ## Decision
 
-Storage stays JSON files on disk, behind repository interfaces defined in `packages/kernel`.
+Storage stays JSON files on disk, behind repository interfaces owned by the package that defines
+the entities those interfaces carry — so this product's `ProjectStore` lives in
+`packages/microtask-domain`, not in `packages/kernel`. ADR 0014 records why a port cannot outlive
+its types.
 
 ## Consequences
 

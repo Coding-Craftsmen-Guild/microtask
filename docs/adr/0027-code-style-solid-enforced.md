@@ -49,19 +49,25 @@ Slogans do not constrain anything, so each letter gets a rule with a mechanism:
   `packages/*`; types and private helpers may accompany it.
 - **Open/closed** — a new role or action extends the `AccessPolicy` matrix (ADR 0008). Route handlers
   are never edited to add a permission case.
-- **Liskov** — repository implementations are interchangeable. `packages/kernel` ships a shared
-  contract test suite that every adapter must pass, so swapping the filesystem store for SQLite later
-  (ADR 0003) is a package, not a rewrite.
+- **Liskov** — repository implementations are interchangeable. The package that owns a port ships the
+  contract test suite every adapter must pass — `@repo/microtask-domain/testing` for `ProjectStore` —
+  so swapping the filesystem store for SQLite later (ADR 0003) is a package, not a rewrite.
 - **Interface segregation** — narrow ports. `ProjectRepository`, `TaskRepository`, `Clock`,
   `IdGenerator`, `Lock` — never one store interface that everything depends on.
-- **Dependency inversion** — `packages/kernel` defines ports; `packages/store` implements them.
-  Services take their dependencies through the constructor. **No module-level singletons and no
+- **Dependency inversion** — a port is declared by the package that owns its types and implemented
+  elsewhere: `FileSystem` in `packages/kernel` and `NodeFileSystem` in `packages/store`;
+  `ProjectStore` and `FsProjectStore` both in `packages/microtask-domain`, the adapter reaching the
+  disk only through the injected `FileSystem` (ADR 0014). Services take their dependencies through
+  the constructor. **No module-level singletons and no
   `process.env` reads inside a service** — enforced with `n/no-process-env` outside designated config
   modules, which also backs the single-`API_KEY`-reader rule in ADR 0012.
 
 ### Architectural boundaries, enforced
 
-`import/no-restricted-paths` makes the dependency graph in the spec real:
+`no-restricted-imports`, matching on **package names**, makes the dependency graph in the spec real.
+The path-based `import/no-restricted-paths` is deliberately not used: its `files:` globs resolve
+relative to the config file's own directory, so a rule written once in the shared config is silently
+inert in every package that consumes it. Each package therefore carries its own block:
 
 - `apps/microtask` and `apps/macroplan` may import `contracts`, `api-client`, `ui` — **nothing else**.
   Importing `packages/store` from a Next app would create a second writer to the data volume and

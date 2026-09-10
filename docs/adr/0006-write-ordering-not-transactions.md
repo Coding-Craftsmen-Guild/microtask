@@ -19,7 +19,8 @@ No journal, no commit marker, no `fsync`. Two ordering rules instead:
 A crash can then only ever leave a file that nothing references — harmless garbage — never a manifest
 entry pointing at a missing file.
 
-Defensively, `packages/store` treats a manifest entry whose task file is missing or unparseable as a
+Defensively, `packages/microtask-domain/src/storage` treats a manifest entry whose task file is
+missing or unparseable as a
 **single unreadable task**. It renders as broken in the UI; it never fails the whole project.
 
 A bulk import writes many files at once, so it stages into a temporary directory and moves the
@@ -44,7 +45,8 @@ project directory into place as its final step.
   is not: concurrent same-process writers share one temp path, and the first rename pulls it out
   from under the rest — 19 of 20 writers failed with `ENOENT` before this was fixed. The pid still
   matters for cross-process safety, so the name carries both the pid and a monotonic counter.
-- Every mutation in `packages/store` must respect the ordering. This is exactly the kind of rule
+- Every mutation in `packages/microtask-domain/src/storage` must respect the ordering. This is
+  exactly the kind of rule
   someone "tidies up" later, so it is tested directly — crash-ordering tests kill between the two
   writes of each mutation and assert the self-healing rule holds.
 
