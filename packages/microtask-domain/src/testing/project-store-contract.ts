@@ -36,6 +36,12 @@ export interface StoreHarness {
   makeStrayProjectDir?(product: Product, name: string): Promise<void>
 }
 
+function renameInPlace(target: { readonly name: string } | undefined, name: string): void {
+  if (!target) throw new Error('nothing to rename: the store did not hand back what it was given')
+  const mutable = target as { name: string }
+  mutable.name = name
+}
+
 /** Runs the behaviour every ProjectStore adapter must exhibit. */
 export function describeProjectStore(name: string, makeHarness: () => StoreHarness): void {
   describe(`${name} — ProjectStore contract`, () => {
@@ -138,5 +144,38 @@ export function describeProjectStore(name: string, makeHarness: () => StoreHarne
         expect((await store.listManifests('microtask')).map((m) => m.id)).toEqual([P1])
       },
     )
+
+    it('copies a manifest deeply on the way out, so mutating a nested entry of the one it handed back cannot corrupt the store', async () => {
+      await fresh()
+      await store.saveManifest('microtask', manifest(P1, { tasks: [taskEntry(T1, 'Go-live')] }))
+      const handed = await store.readManifest('microtask', P1)
+      renameInPlace(handed?.tasks[0], 'Corrupted')
+      expect((await store.readManifest('microtask', P1))?.tasks[0]?.name).toBe('Go-live')
+    })
+
+    it('copies a manifest deeply on the way in, so a caller mutating a nested entry of what it saved cannot corrupt the store', async () => {
+      await fresh()
+      const saved = manifest(P1, { tasks: [taskEntry(T1, 'Go-live')] })
+      await store.saveManifest('microtask', saved)
+      renameInPlace(saved.tasks[0], 'Corrupted')
+      expect((await store.readManifest('microtask', P1))?.tasks[0]?.name).toBe('Go-live')
+    })
+
+    it('copies a task deeply on the way out, so mutating a nested tab of the one it handed back cannot corrupt the store', async () => {
+      await fresh()
+      const entry = manifest(P1, { tasks: [taskEntry(T1, 'Go-live')] })
+      await store.saveTask('microtask', entry, taskDocument(T1, TAB1))
+      const handed = await store.readTask('microtask', P1, T1)
+      renameInPlace(handed?.tabs[0], 'Corrupted')
+      expect((await store.readTask('microtask', P1, T1))?.tabs[0]?.name).toBe('General')
+    })
+
+    it('copies a task deeply on the way in, so a caller mutating a nested tab of what it saved cannot corrupt the store', async () => {
+      await fresh()
+      const task = taskDocument(T1, TAB1)
+      await store.saveTask('microtask', manifest(P1, { tasks: [taskEntry(T1, 'Go-live')] }), task)
+      renameInPlace(task.tabs[0], 'Corrupted')
+      expect((await store.readTask('microtask', P1, T1))?.tabs[0]?.name).toBe('General')
+    })
   })
 }
