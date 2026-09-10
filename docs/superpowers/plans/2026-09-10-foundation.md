@@ -3075,7 +3075,7 @@ git commit -m "feat(store): add share-token index enforcing one-token-one-projec
 **Files:**
 - Modify: `docs/superpowers/plans/2026-09-10-foundation.md` (tick the boxes)
 
-- [ ] **Step 1: Build everything**
+- [x] **Step 1: Build everything**
 
 ```bash
 pnpm build
@@ -3083,7 +3083,7 @@ pnpm build
 
 Expected: `@repo/kernel`, `@repo/contracts` and `@repo/store` all build. No TypeScript errors.
 
-- [ ] **Step 2: Typecheck everything**
+- [x] **Step 2: Typecheck everything**
 
 ```bash
 pnpm typecheck
@@ -3091,7 +3091,7 @@ pnpm typecheck
 
 Expected: exit 0.
 
-- [ ] **Step 3: Lint everything**
+- [x] **Step 3: Lint everything**
 
 ```bash
 pnpm lint
@@ -3101,7 +3101,7 @@ Expected: exit 0. Any `max-lines` failure is fixed by splitting the file, and an
 `tsdoc-comments-only` failure by deleting the comment and recording the rationale in an ADR or a
 test name — never by disabling the rule.
 
-- [ ] **Step 4: Test everything**
+- [x] **Step 4: Test everything**
 
 ```bash
 pnpm test
@@ -3115,7 +3115,7 @@ Sanity-check the count rather than trusting it: `pnpm test 2>&1 | grep -E "Tests
 kernel policy suite reports fewer cases than `ACTIONS.length × ROLES.length`, the matrix loop is
 not running and the most important test in this plan is silently vacuous.
 
-- [ ] **Step 5: Assert there is still exactly one physical Zod**
+- [x] **Step 5: Assert there is still exactly one physical Zod**
 
 ```bash
 pnpm why zod -r
@@ -3126,7 +3126,7 @@ Expected: a single version, count exactly `1`. Re-checked here because every tas
 has added dependencies, and `auto-install-peers=true` is precisely the mechanism that could pull
 in a second copy.
 
-- [ ] **Step 6: Confirm the legacy app still runs, against the real dataset**
+- [x] **Step 6: Confirm the legacy app still runs, against the real dataset**
 
 `lib/store.js` resolves `DATA_DIR` relative to the current working directory, so running from
 `apps/legacy` would read an empty `apps/legacy/data` rather than the existing dataset at the
@@ -3140,7 +3140,7 @@ Expected: `CC GUILD Microtask  ->  http://localhost:4321`, and the projects list
 existing projects. Stop it with Ctrl-C. This is the reference implementation for the parity
 inventory in later plans, which is why it is kept — and it is only useful pointed at real data.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A
