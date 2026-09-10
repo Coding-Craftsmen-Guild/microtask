@@ -9,6 +9,24 @@ import tsdocCommentsOnly from './rules/tsdoc-comments-only.js'
 /** ESLint plugin exposing this workspace only rules under the local namespace. */
 export const local = { rules: { 'tsdoc-comments-only': tsdocCommentsOnly } }
 
+/**
+ * The package-name globs that identify a product package, as one `no-restricted-imports`
+ * pattern group. Exported on its own so a package needing further bans can concatenate it
+ * into its single options object: the rule's options do not merge across flat-config
+ * objects, and a second matching block replaces the first outright.
+ */
+export const productImportPatterns = [
+  {
+    group: ['@repo/*-domain', '@repo/*-domain/*'],
+    message: 'shared code must not depend on a product (ADR 0014)',
+  },
+]
+
+/** Bans product packages from shared code (ADR 0014). Spread into a `files`-scoped block. */
+export const noProductImports = {
+  'no-restricted-imports': ['error', { patterns: productImportPatterns }],
+}
+
 const SIZE_RULES = {
   'max-lines-per-function': ['error', { max: 50, skipBlankLines: true, skipComments: true }],
   complexity: ['error', 10],

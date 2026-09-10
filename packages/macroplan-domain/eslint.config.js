@@ -1,3 +1,9 @@
-import base from '@repo/eslint-config'
+import base, { noProductImports } from '@repo/eslint-config'
 
-export default base
+export default [
+  ...base,
+  {
+    files: ['src/**/*.ts'],
+    rules: { ...noProductImports },
+  },
+]

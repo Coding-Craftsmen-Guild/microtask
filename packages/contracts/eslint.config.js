@@ -1,4 +1,4 @@
-import base from '@repo/eslint-config'
+import base, { productImportPatterns } from '@repo/eslint-config'
 
 export default [
   ...base,
@@ -12,6 +12,7 @@ export default [
           { name: 'hono', message: 'contracts must stay framework-free (ADR 0024)' },
           { name: '@asteasolutions/zod-to-openapi', message: 'contracts must stay framework-free (ADR 0024)' },
         ],
+        patterns: productImportPatterns,
       }],
     },
   },
