@@ -7,7 +7,7 @@ const TASKS = 'tasks'
 function contained(parent: string, target: string): string {
   const base = path.resolve(parent)
   const resolved = path.resolve(target)
-  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+  if (!resolved.startsWith(base + path.sep)) {
     throw new Invalid('Path escapes its parent directory')
   }
   return resolved
