@@ -39,6 +39,7 @@ which references these by number.
 | [0027](0027-code-style-solid-enforced.md) | Code style: SOLID, small files, TSDoc only, enforced by ESLint | Accepted |
 | [0028](0028-autosave-under-keepalive-cap.md) | Autosave does not rely on flush-on-unload for large documents | Accepted |
 | [0029](0029-document-sanitised-at-the-boundary.md) | A document is sanitised at the boundary, by walking it | Accepted |
+| [0030](0030-service-context-of-ports.md) | Services take one context of ports; a double never re-implements a correctness component | Accepted |
 
 ## Verification
 
