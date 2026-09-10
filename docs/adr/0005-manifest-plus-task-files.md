@@ -32,6 +32,28 @@ tabs. No field is duplicated, so there is nothing to drift.
 - A task file is not independently meaningful — it carries no name. This is why import must sniff by
   directory group rather than per file (ADR 0018).
 
+### What each path guard actually buys
+
+Measured, not assumed — by stripping each guard in turn and re-running the traversal set. The two
+guards in `paths.ts` are not redundant, and knowing which does what matters for ADR 0019, where
+import feeds bundle-supplied ids into these builders:
+
+- **`isUlid` / `isProduct` decide *which* entity.** They are the only thing forbidding a
+  multi-segment id, so they alone prevent `<ULID>/../OTHER` from reaching a **sibling** project.
+  That case is invisible to any containment check, because the result is strictly inside the
+  intended parent. The same holds one level up: `product = "<anything>/.."` resolves to
+  `root/projects`, which is legitimately inside `root` — so `isProduct` is load-bearing for *which
+  product* in exactly the way `isUlid` is for *which project*. Both matter, because import supplies
+  a product name as well as ids.
+- **Containment bounds the blast radius.** Each builder contains its result against its *immediate
+  parent* — not merely against the data root. Containing only against the root was measurably too
+  weak: with `isUlid` bypassed, `projectId="../../secret"` still resolved inside the root and
+  passed. Containment is also strict: a path resolving to the parent *itself* is rejected, since no
+  legitimate call ever produces one.
+
+So an id that fails validation is **rejected, never sanitised**, and containment is the backstop
+that keeps a future code path from reopening the hole rather than the primary defence.
+
 ## Alternatives considered
 
 **One file per project.** Keeps atomicity for free. Rejected on write amplification and file size.

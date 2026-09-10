@@ -29,7 +29,21 @@ project directory into place as its final step.
 
 - Crash recovery needs no repair step and no startup scan.
 - Orphaned task files accumulate slowly. They are invisible and harmless; a sweeper can be a later
-  ADR if it ever matters.
+  ADR if it ever matters. The same applies to `.tmp` files: a hard kill between the write and the
+  rename leaves one behind, and nothing sweeps them. Under normal failure the writer removes its
+  own temp and rethrows, so litter only survives a kill.
+- **Atomic replace is not concurrent-safe on Windows, so `QueueLock` is a requirement rather than a
+  convention.** Measured on win32 / Node 22: 20 concurrent renames onto one destination give 4
+  successes and 16 `EPERM` — `MoveFileEx(REPLACE_EXISTING)` refuses a destination another rename is
+  holding. Verified with raw `fs.rename` and no adapter involved, so it is the platform and not the
+  store. Every write to the same path must therefore go through the lock. Retrying inside the
+  filesystem adapter was considered and rejected: contention compensation belongs at the lock, and
+  putting it in a port method would change write-latency semantics for every caller to paper over a
+  case the lock already prevents.
+- **Temp filenames must be unique per call, not per process.** `${file}.${pid}.tmp` looks safe and
+  is not: concurrent same-process writers share one temp path, and the first rename pulls it out
+  from under the rest — 19 of 20 writers failed with `ENOENT` before this was fixed. The pid still
+  matters for cross-process safety, so the name carries both the pid and a monotonic counter.
 - Every mutation in `packages/store` must respect the ordering. This is exactly the kind of rule
   someone "tidies up" later, so it is tested directly — crash-ordering tests kill between the two
   writes of each mutation and assert the self-healing rule holds.

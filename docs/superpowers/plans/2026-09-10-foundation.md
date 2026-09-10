@@ -2356,7 +2356,7 @@ export function tasksDir(root: string, product: Product, projectId: string): str
 pnpm --filter @repo/store test paths
 ```
 
-Expected: PASS — 13 tests.
+Expected: PASS — **16 tests**. The two `it.each` blocks expand to 6 and 3 cases.
 
 - [ ] **Step 9: Create `packages/store/src/node-file-system.ts`**
 
