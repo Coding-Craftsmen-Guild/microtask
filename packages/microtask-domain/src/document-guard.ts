@@ -81,7 +81,7 @@ function assertTree(root: Record<string, unknown>): void {
   }
 }
 
-/** Throws Invalid unless a document is safe to store and render (ADR 0019). */
+/** Throws Invalid unless a document is safe to store and render (ADR 0029). */
 export function assertSafeDocument(document: unknown): asserts document is DocumentJson {
   assertShape(document)
   assertTree(document)

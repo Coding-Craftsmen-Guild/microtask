@@ -38,6 +38,10 @@ describe('cleanName', () => {
   it('rejects a non-string', () => {
     expect(() => cleanName(undefined)).toThrow(Invalid)
   })
+
+  it.each([42, {}, true, []])('throws for %o, where the legacy app coerced it to a string', (value) => {
+    expect(() => cleanName(value)).toThrow(Invalid)
+  })
 })
 
 describe('assertWithin', () => {

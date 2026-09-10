@@ -38,6 +38,7 @@ which references these by number.
 | [0026](0026-docker-turbo-prune-standalone.md) | Three images via one `turbo prune` per image and Next standalone output | Accepted |
 | [0027](0027-code-style-solid-enforced.md) | Code style: SOLID, small files, TSDoc only, enforced by ESLint | Accepted |
 | [0028](0028-autosave-under-keepalive-cap.md) | Autosave does not rely on flush-on-unload for large documents | Accepted |
+| [0029](0029-document-sanitised-at-the-boundary.md) | A document is sanitised at the boundary, by walking it | Accepted |
 
 ## Verification
 
