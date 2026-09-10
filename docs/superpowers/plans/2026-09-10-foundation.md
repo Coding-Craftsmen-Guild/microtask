@@ -11,6 +11,19 @@
 **Spec:** [`../specs/2026-09-10-monorepo-restructure-design.md`](../specs/2026-09-10-monorepo-restructure-design.md)
 **Decisions:** [`../../adr/README.md`](../../adr/README.md)
 
+**Status: ✅ complete** — 87 tests across four packages; `build`, `typecheck`, `lint` and `test`
+all green from a genuinely cold tree.
+
+> **This plan was corrected while it was executed.** Twelve of its predictions turned out wrong —
+> four test counts, a config count, a missing dependency, and several steps whose code failed a
+> gate the step itself never ran. Every one was found by an implementer reporting the discrepancy
+> instead of bending code to match, and the text below now reflects what actually works rather
+> than what was first written. So a ticked box means "this step, as it now reads, was run and
+> verified" — not "the original text was right".
+>
+> The recurring root cause is worth carrying into Plans 2–5: **a task that only runs `test` will
+> ship code that fails `lint` or `typecheck`.** Run all four gates after every task.
+
 ---
 
 ## File structure
@@ -58,7 +71,7 @@ behaviour comparison during the port. Plan 5 removes it.
 - Modify: `package.json` (becomes the workspace root), `.gitignore`, `Dockerfile`
 - Move: `server.js`, `lib/`, `public/`, `src/` → `apps/legacy/`
 
-- [ ] **Step 1: Install pnpm**
+- [x] **Step 1: Install pnpm**
 
 ```bash
 npm install -g pnpm@12.3.4
@@ -67,7 +80,7 @@ pnpm --version
 
 Expected: `12.3.4`
 
-- [ ] **Step 2: Move the legacy app**
+- [x] **Step 2: Move the legacy app**
 
 ```bash
 mkdir -p apps/legacy
@@ -76,7 +89,7 @@ git mv package.json apps/legacy/package.json
 git rm -q package-lock.json
 ```
 
-- [ ] **Step 3: Name the legacy package**
+- [x] **Step 3: Name the legacy package**
 
 Edit `apps/legacy/package.json` — change only the `name` field, leave scripts and
 devDependencies untouched:
@@ -85,7 +98,7 @@ devDependencies untouched:
   "name": "legacy",
 ```
 
-- [ ] **Step 4: Create the workspace root `package.json`**
+- [x] **Step 4: Create the workspace root `package.json`**
 
 ```json
 {
@@ -106,7 +119,7 @@ devDependencies untouched:
 }
 ```
 
-- [ ] **Step 5: Create `pnpm-workspace.yaml`**
+- [x] **Step 5: Create `pnpm-workspace.yaml`**
 
 One catalog entry per shared dependency, so a second copy of Zod cannot appear (ADR 0024). Task 3
 extends the catalog with the toolchain pins.
@@ -134,14 +147,14 @@ overrides:
 `@esbuild/<platform>` dependency, not the postinstall. The entry is **workspace-wide and outlives
 the legacy app** — vitest depends on vite, which depends on esbuild.
 
-- [ ] **Step 6: Create `.npmrc`**
+- [x] **Step 6: Create `.npmrc`**
 
 ```ini
 strict-peer-dependencies=true
 auto-install-peers=true
 ```
 
-- [ ] **Step 7: Create `turbo.json`**
+- [x] **Step 7: Create `turbo.json`**
 
 ```json
 {
@@ -155,7 +168,7 @@ auto-install-peers=true
 }
 ```
 
-- [ ] **Step 8: Extend `.gitignore`**
+- [x] **Step 8: Extend `.gitignore`**
 
 Append:
 
@@ -167,7 +180,7 @@ package-lock.json
 yarn.lock
 ```
 
-- [ ] **Step 9: Repoint the legacy Dockerfile**
+- [x] **Step 9: Repoint the legacy Dockerfile**
 
 In `Dockerfile`, replace the five source `COPY` lines so the legacy image still builds:
 
@@ -188,7 +201,7 @@ COPY apps/legacy/src ./src
 COPY apps/legacy/public ./public
 ```
 
-- [ ] **Step 10: Install and verify the workspace resolves**
+- [x] **Step 10: Install and verify the workspace resolves**
 
 ```bash
 pnpm install
@@ -197,7 +210,7 @@ pnpm ls -r --depth -1
 
 Expected: lists `ccg-workspace` and `legacy`. No error about a missing workspace package.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add -A
@@ -211,7 +224,7 @@ git commit -m "chore: bootstrap pnpm + turborepo workspace, move legacy app to a
 **Files:**
 - Create: `packages/typescript-config/package.json`, `packages/typescript-config/base.json`
 
-- [ ] **Step 1: Create the package manifest**
+- [x] **Step 1: Create the package manifest**
 
 ```json
 {
@@ -222,7 +235,7 @@ git commit -m "chore: bootstrap pnpm + turborepo workspace, move legacy app to a
 }
 ```
 
-- [ ] **Step 2: Create `base.json`**
+- [x] **Step 2: Create `base.json`**
 
 `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` are required by ADR 0023.
 
@@ -250,7 +263,7 @@ git commit -m "chore: bootstrap pnpm + turborepo workspace, move legacy app to a
 }
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/typescript-config
@@ -271,7 +284,7 @@ express that, so the config ships a local rule — written test-first.
 - Create: `packages/eslint-config/rules/tsdoc-comments-only.test.js`
 - Create: `packages/eslint-config/index.js`
 
-- [ ] **Step 1: Extend the catalog with the toolchain pins**
+- [x] **Step 1: Extend the catalog with the toolchain pins**
 
 **Do not use `"latest"` anywhere.** `.npmrc` sets `strict-peer-dependencies=true`, and the current
 `latest` of two of these packages does not satisfy the others' peer ranges — verified on
@@ -302,7 +315,7 @@ pnpm's default minimum release age. That is pnpm recording your consent to use a
 **commit it** as part of this task rather than reverting it, or the tree stays dirty for every
 task that follows.
 
-- [ ] **Step 2: Create the package manifest**
+- [x] **Step 2: Create the package manifest**
 
 ```json
 {
@@ -333,7 +346,7 @@ task that follows.
 `@eslint/js` is pinned to `9.39.5` rather than `catalog:` because it must track the `eslint` major
 exactly — it peers on `eslint: ^10.0.0` at version 10.
 
-- [ ] **Step 3: Write the failing test**
+- [x] **Step 3: Write the failing test**
 
 Create `packages/eslint-config/rules/tsdoc-comments-only.test.js`:
 
@@ -365,7 +378,7 @@ describe('tsdoc-comments-only', () => {
 })
 ```
 
-- [ ] **Step 4: Run the test to verify it fails**
+- [x] **Step 4: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/eslint-config test
@@ -373,7 +386,7 @@ pnpm --filter @repo/eslint-config test
 
 Expected: FAIL — cannot resolve `./tsdoc-comments-only.js`.
 
-- [ ] **Step 5: Write the rule**
+- [x] **Step 5: Write the rule**
 
 Create `packages/eslint-config/rules/tsdoc-comments-only.js`:
 
@@ -428,7 +441,7 @@ inside `export class A`), which is legitimate. The rule catches every case that 
 comments, commented-out code, section banners, trailing comments, and TSDoc on top-level
 non-exported declarations.
 
-- [ ] **Step 6: Run the test to verify it passes**
+- [x] **Step 6: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/eslint-config test
@@ -436,7 +449,7 @@ pnpm --filter @repo/eslint-config test
 
 Expected: PASS — 1 test.
 
-- [ ] **Step 7: Write the shared config**
+- [x] **Step 7: Write the shared config**
 
 Create `packages/eslint-config/index.js`:
 
@@ -532,7 +545,7 @@ a Next app must not import `packages/store` — is expressed as `no-restricted-i
 **package name** in each app's own config, which requires no path resolution. Do not reach for
 `import/no-restricted-paths` and rediscover this.
 
-- [ ] **Step 8: Add the package's own flat config so it lints itself**
+- [x] **Step 8: Add the package's own flat config so it lints itself**
 
 The config package is the one whose correctness every other package inherits, so it eats its own
 food. Create `packages/eslint-config/eslint.config.js`:
@@ -546,7 +559,7 @@ export default base
 If a rule proves genuinely unworkable on plain JavaScript, add the narrowest override to **this**
 file with a one-line reason — never weaken `index.js`.
 
-- [ ] **Step 9: Verify the config loads**
+- [x] **Step 9: Verify the config loads**
 
 ```bash
 pnpm --filter @repo/eslint-config exec node -e "import('./index.js').then(m => console.log('configs:', m.default.length))"
@@ -555,7 +568,7 @@ pnpm --filter @repo/eslint-config exec node -e "import('./index.js').then(m => c
 Expected: `configs: 7` — `tseslint.configs.strict` spreads to three entries, plus
 `js.configs.recommended` and the three own layers.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add packages/eslint-config pnpm-workspace.yaml pnpm-lock.yaml
@@ -575,7 +588,7 @@ every task that follows.
   `vitest.config.ts`, `eslint.config.js`
 - Create: `packages/kernel/src/product.ts`, `src/ids.ts`, `src/ids.test.ts`
 
-- [ ] **Step 1: Create the package manifest**
+- [x] **Step 1: Create the package manifest**
 
 ```json
 {
@@ -608,7 +621,7 @@ every task that follows.
 `node_modules` means nothing else supplies those types. Without it, Task 7 Step 8's typecheck
 cannot pass and the root `pnpm typecheck` gate fails.
 
-- [ ] **Step 2: Create two tsconfigs — one that checks tests, one that builds without them**
+- [x] **Step 2: Create two tsconfigs — one that checks tests, one that builds without them**
 
 A single tsconfig excluding `**/*.test.ts` would mean `typecheck` never sees the tests, and
 Vitest strips types without checking them. In a plan whose deliverable is mostly tests, that
@@ -636,7 +649,7 @@ So `tsconfig.json` includes everything (this is also what your editor reads), an
 }
 ```
 
-- [ ] **Step 3: Create `packages/kernel/vitest.config.ts`**
+- [x] **Step 3: Create `packages/kernel/vitest.config.ts`**
 
 ```ts
 import { defineConfig } from 'vitest/config'
@@ -644,7 +657,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({ test: { include: ['src/**/*.test.ts'] } })
 ```
 
-- [ ] **Step 4: Create `packages/kernel/eslint.config.js`**
+- [x] **Step 4: Create `packages/kernel/eslint.config.js`**
 
 ```js
 import base from '@repo/eslint-config'
@@ -652,7 +665,7 @@ import base from '@repo/eslint-config'
 export default base
 ```
 
-- [ ] **Step 5: Write the failing test for ids**
+- [x] **Step 5: Write the failing test for ids**
 
 Create `packages/kernel/src/ids.test.ts`:
 
@@ -706,7 +719,7 @@ describe('shareToken', () => {
 })
 ```
 
-- [ ] **Step 6: Run the test to verify it fails**
+- [x] **Step 6: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/kernel test
@@ -714,7 +727,7 @@ pnpm --filter @repo/kernel test
 
 Expected: FAIL — cannot find module `./ids.js`.
 
-- [ ] **Step 7: Create `packages/kernel/src/product.ts`**
+- [x] **Step 7: Create `packages/kernel/src/product.ts`**
 
 ```ts
 /** The products sharing this API, each with its own entities and data root. */
@@ -728,7 +741,7 @@ export const isProduct = (value: unknown): value is Product =>
   typeof value === 'string' && (PRODUCTS as readonly string[]).includes(value)
 ```
 
-- [ ] **Step 8: Create `packages/kernel/src/ids.ts`**
+- [x] **Step 8: Create `packages/kernel/src/ids.ts`**
 
 ```ts
 import { randomBytes } from 'node:crypto'
@@ -771,7 +784,7 @@ export const isShareToken = (value: unknown): value is string =>
   typeof value === 'string' && TOKEN.test(value)
 ```
 
-- [ ] **Step 9: Run the test to verify it passes**
+- [x] **Step 9: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/kernel test
@@ -779,7 +792,7 @@ pnpm --filter @repo/kernel test
 
 Expected: PASS — 12 tests.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add packages/kernel
@@ -793,7 +806,7 @@ git commit -m "feat(kernel): add product namespace and id generation"
 **Files:**
 - Create: `packages/kernel/src/errors.ts`, `src/errors.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/kernel/src/errors.test.ts`:
 
@@ -826,7 +839,7 @@ describe('errors', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/kernel test errors
@@ -834,7 +847,7 @@ pnpm --filter @repo/kernel test errors
 
 Expected: FAIL — cannot find module `./errors.js`.
 
-- [ ] **Step 3: Create `packages/kernel/src/errors.ts`**
+- [x] **Step 3: Create `packages/kernel/src/errors.ts`**
 
 ```ts
 /** An error carrying the HTTP status and stable code the API should report. */
@@ -877,7 +890,7 @@ export class Conflict extends AppError {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/kernel test errors
@@ -885,7 +898,7 @@ pnpm --filter @repo/kernel test errors
 
 Expected: PASS — 6 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/kernel/src/errors.ts packages/kernel/src/errors.test.ts
@@ -901,7 +914,7 @@ These come before the entities because `ShareLink` carries a `Role` and a `Scope
 **Files:**
 - Create: `packages/kernel/src/access/role.ts`, `action.ts`, `scope.ts`, `principal.ts`, `target.ts`
 
-- [ ] **Step 1: Create `packages/kernel/src/access/role.ts`**
+- [x] **Step 1: Create `packages/kernel/src/access/role.ts`**
 
 ```ts
 /** The authority levels a share link can carry, weakest first. */
@@ -915,7 +928,7 @@ export const isRole = (value: unknown): value is Role =>
   typeof value === 'string' && (ROLES as readonly string[]).includes(value)
 ```
 
-- [ ] **Step 2: Create `packages/kernel/src/access/action.ts`**
+- [x] **Step 2: Create `packages/kernel/src/access/action.ts`**
 
 Create actions target their container; read and mutate actions target the thing itself.
 
@@ -953,7 +966,7 @@ export const ACTIONS = [
 export type Action = (typeof ACTIONS)[number]
 ```
 
-- [ ] **Step 3: Create `packages/kernel/src/access/scope.ts`**
+- [x] **Step 3: Create `packages/kernel/src/access/scope.ts`**
 
 ```ts
 /** What a share link may reach. */
@@ -962,7 +975,7 @@ export type Scope =
   | { readonly kind: 'task'; readonly projectId: string; readonly taskId: string }
 ```
 
-- [ ] **Step 4: Create `packages/kernel/src/access/principal.ts`**
+- [x] **Step 4: Create `packages/kernel/src/access/principal.ts`**
 
 ```ts
 import type { Role } from './role.js'
@@ -979,7 +992,7 @@ export type Principal =
     }
 ```
 
-- [ ] **Step 5: Create `packages/kernel/src/access/target.ts`**
+- [x] **Step 5: Create `packages/kernel/src/access/target.ts`**
 
 ```ts
 /** What a request is acting on. `workspace` covers collections and top-level actions. */
@@ -991,7 +1004,7 @@ export type Target =
   | { readonly kind: 'tab'; readonly projectId: string; readonly taskId: string }
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/kernel/src/access
@@ -1009,7 +1022,7 @@ file holds only tabs (ADR 0005, ADR 0007).
 - Create: `packages/kernel/src/entities/progress.ts`, `document.ts`, `tab.ts`, `task.ts`,
   `folder.ts`, `share-link.ts`, `manifest.ts`
 
-- [ ] **Step 1: Create `packages/kernel/src/entities/progress.ts`**
+- [x] **Step 1: Create `packages/kernel/src/entities/progress.ts`**
 
 ```ts
 /** Counted checklist state. Derived from a document, cached in the manifest. */
@@ -1022,7 +1035,7 @@ export interface Progress {
 export const NO_PROGRESS: Progress = { done: 0, total: 0 }
 ```
 
-- [ ] **Step 2: Create `packages/kernel/src/entities/document.ts`**
+- [x] **Step 2: Create `packages/kernel/src/entities/document.ts`**
 
 ```ts
 /** A Tiptap/ProseMirror document, stored as JSON and never as HTML. */
@@ -1045,7 +1058,7 @@ document parsed by contracts is **not assignable** to this type, and every adapt
 input and returns a domain object needs a hand-written mapping. Verified: with it, `z.infer` of the
 contracts `DocumentJson`, `Tab` and `TaskDocument` schemas all assign cleanly.
 
-- [ ] **Step 3: Create `packages/kernel/src/entities/tab.ts`**
+- [x] **Step 3: Create `packages/kernel/src/entities/tab.ts`**
 
 ```ts
 import type { DocumentJson } from './document.js'
@@ -1061,7 +1074,7 @@ export interface Tab {
 }
 ```
 
-- [ ] **Step 4: Create `packages/kernel/src/entities/task.ts`**
+- [x] **Step 4: Create `packages/kernel/src/entities/task.ts`**
 
 ```ts
 import type { Tab } from './tab.js'
@@ -1075,7 +1088,7 @@ export interface TaskDocument {
 }
 ```
 
-- [ ] **Step 5: Create `packages/kernel/src/entities/folder.ts`**
+- [x] **Step 5: Create `packages/kernel/src/entities/folder.ts`**
 
 ```ts
 /** A one-level grouping of tasks inside a project. Folders never nest. */
@@ -1088,7 +1101,7 @@ export interface Folder {
 }
 ```
 
-- [ ] **Step 6: Create `packages/kernel/src/entities/share-link.ts`**
+- [x] **Step 6: Create `packages/kernel/src/entities/share-link.ts`**
 
 ```ts
 import type { Role } from '../access/role.js'
@@ -1105,7 +1118,7 @@ export interface ShareLink {
 }
 ```
 
-- [ ] **Step 7: Create `packages/kernel/src/entities/manifest.ts`**
+- [x] **Step 7: Create `packages/kernel/src/entities/manifest.ts`**
 
 ```ts
 import type { Folder } from './folder.js'
@@ -1133,7 +1146,7 @@ export interface ProjectManifest {
 }
 ```
 
-- [ ] **Step 8: Verify the entities compile against the access types**
+- [x] **Step 8: Verify the entities compile against the access types**
 
 ```bash
 pnpm --filter @repo/kernel typecheck
@@ -1142,7 +1155,7 @@ pnpm --filter @repo/kernel typecheck
 Expected: exit 0. `share-link.ts` imports `Role` and `Scope` from Task 6, so this fails if the
 tasks were done out of order.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add packages/kernel/src/entities
@@ -1159,7 +1172,7 @@ classified (ADR 0008, ADR 0009).
 **Files:**
 - Create: `packages/kernel/src/access/policy.ts`, `src/access/policy.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/kernel/src/access/policy.test.ts`:
 
@@ -1309,7 +1322,7 @@ describe('can — scope containment', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/kernel test policy
@@ -1317,7 +1330,7 @@ pnpm --filter @repo/kernel test policy
 
 Expected: FAIL — cannot find module `./policy.js`.
 
-- [ ] **Step 3: Create `packages/kernel/src/access/policy.ts`**
+- [x] **Step 3: Create `packages/kernel/src/access/policy.ts`**
 
 ```ts
 import type { Action } from './action.js'
@@ -1396,7 +1409,7 @@ export function can(principal: Principal, action: Action, target: Target): boole
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/kernel test policy
@@ -1410,7 +1423,7 @@ nothing passes every assertion and proves nothing. The role-by-action tests must
 `ROLES.length × ACTIONS.length` = 3 × 25 = **75** `can()` calls, covering 75 distinct
 `(role, action)` pairs and every entry in `ACTIONS`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/kernel/src/access/policy.ts packages/kernel/src/access/policy.test.ts
@@ -1427,7 +1440,7 @@ Interfaces only. Nothing here imports `node:fs` — that is the inversion (ADR 0
 - Create: `packages/kernel/src/ports/clock.ts`, `id-generator.ts`, `lock.ts`, `file-system.ts`,
   `project-store.ts`
 
-- [ ] **Step 1: Create `packages/kernel/src/ports/clock.ts`**
+- [x] **Step 1: Create `packages/kernel/src/ports/clock.ts`**
 
 ```ts
 /** Supplies the current time, so services never read it themselves. */
@@ -1437,7 +1450,7 @@ export interface Clock {
 }
 ```
 
-- [ ] **Step 2: Create `packages/kernel/src/ports/id-generator.ts`**
+- [x] **Step 2: Create `packages/kernel/src/ports/id-generator.ts`**
 
 ```ts
 /** Supplies new identifiers, so services never generate them themselves. */
@@ -1450,7 +1463,7 @@ export interface IdGenerator {
 }
 ```
 
-- [ ] **Step 3: Create `packages/kernel/src/ports/lock.ts`**
+- [x] **Step 3: Create `packages/kernel/src/ports/lock.ts`**
 
 ```ts
 /** Serialises read-modify-write cycles against the same data. */
@@ -1460,7 +1473,7 @@ export interface Lock {
 }
 ```
 
-- [ ] **Step 4: Create `packages/kernel/src/ports/file-system.ts`**
+- [x] **Step 4: Create `packages/kernel/src/ports/file-system.ts`**
 
 ```ts
 /** The whole filesystem surface the store is allowed to use. */
@@ -1485,7 +1498,7 @@ export interface FileSystem {
 }
 ```
 
-- [ ] **Step 5: Create `packages/kernel/src/ports/project-store.ts`**
+- [x] **Step 5: Create `packages/kernel/src/ports/project-store.ts`**
 
 The two-file write ordering of ADR 0006 belongs to this port, which is why `saveTask` and
 `deleteTask` take the manifest rather than callers writing it separately.
@@ -1520,7 +1533,7 @@ export interface ProjectStore {
 }
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/kernel/src/ports
@@ -1539,7 +1552,7 @@ package rather than a rewrite. This suite is the definition of correct storage b
 - Create: `packages/kernel/src/testing/index.ts`
 - Create: `packages/kernel/src/testing/fixtures.ts`
 
-- [ ] **Step 1: Create `packages/kernel/src/testing/fixtures.ts`**
+- [x] **Step 1: Create `packages/kernel/src/testing/fixtures.ts`**
 
 ```ts
 import type { ProjectManifest, TaskEntry } from '../entities/manifest.js'
@@ -1578,7 +1591,7 @@ export function manifest(id: string, overrides: Partial<ProjectManifest> = {}): 
 }
 ```
 
-- [ ] **Step 2: Create `packages/kernel/src/testing/project-store-contract.ts`**
+- [x] **Step 2: Create `packages/kernel/src/testing/project-store-contract.ts`**
 
 ```ts
 import { describe, expect, it } from 'vitest'
@@ -1683,14 +1696,14 @@ export function describeProjectStore(name: string, makeHarness: () => StoreHarne
 }
 ```
 
-- [ ] **Step 3: Create `packages/kernel/src/testing/index.ts`**
+- [x] **Step 3: Create `packages/kernel/src/testing/index.ts`**
 
 ```ts
 export { describeProjectStore, type StoreHarness } from './project-store-contract.js'
 export { manifest, taskDocument, taskEntry, STAMP } from './fixtures.js'
 ```
 
-- [ ] **Step 4: Verify it compiles**
+- [x] **Step 4: Verify it compiles**
 
 ```bash
 pnpm --filter @repo/kernel typecheck
@@ -1698,7 +1711,7 @@ pnpm --filter @repo/kernel typecheck
 
 Expected: no output, exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/kernel/src/testing
@@ -1712,7 +1725,7 @@ git commit -m "feat(kernel): add ProjectStore contract test suite"
 **Files:**
 - Create: `packages/kernel/src/index.ts`
 
-- [ ] **Step 1: Create `packages/kernel/src/index.ts`**
+- [x] **Step 1: Create `packages/kernel/src/index.ts`**
 
 ```ts
 export { isProduct, PRODUCTS, type Product } from './product.js'
@@ -1741,7 +1754,7 @@ export type { FileSystem } from './ports/file-system.js'
 export type { ProjectStore } from './ports/project-store.js'
 ```
 
-- [ ] **Step 2: Build and verify the declaration output exists**
+- [x] **Step 2: Build and verify the declaration output exists**
 
 ```bash
 pnpm --filter @repo/kernel build
@@ -1750,7 +1763,7 @@ ls packages/kernel/dist/index.d.ts packages/kernel/dist/testing/index.d.ts
 
 Expected: both paths listed.
 
-- [ ] **Step 3: Run lint to confirm the size caps and comment rule pass on real code**
+- [x] **Step 3: Run lint to confirm the size caps and comment rule pass on real code**
 
 ```bash
 pnpm --filter @repo/kernel lint
@@ -1758,7 +1771,7 @@ pnpm --filter @repo/kernel lint
 
 Expected: no output, exit 0. If `max-lines` fires, split the offending file — do not raise the cap.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add packages/kernel
@@ -1777,7 +1790,7 @@ spike proved is the only defence against silently collapsed schemas.
 - Create: `packages/contracts/src/{progress,document,tab,folder,task,share-link,project}.ts`
 - Create: `packages/contracts/src/index.ts`, `src/index.test.ts`
 
-- [ ] **Step 1: Create the package manifest**
+- [x] **Step 1: Create the package manifest**
 
 ```json
 {
@@ -1803,7 +1816,7 @@ spike proved is the only defence against silently collapsed schemas.
 }
 ```
 
-- [ ] **Step 2: Create the two tsconfigs**
+- [x] **Step 2: Create the two tsconfigs**
 
 `packages/contracts/tsconfig.json`:
 
@@ -1824,7 +1837,7 @@ spike proved is the only defence against silently collapsed schemas.
 }
 ```
 
-- [ ] **Step 3: Create `packages/contracts/vitest.config.ts`**
+- [x] **Step 3: Create `packages/contracts/vitest.config.ts`**
 
 ```ts
 import { defineConfig } from 'vitest/config'
@@ -1832,7 +1845,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({ test: { include: ['src/**/*.test.ts'] } })
 ```
 
-- [ ] **Step 4: Create `packages/contracts/eslint.config.js`**
+- [x] **Step 4: Create `packages/contracts/eslint.config.js`**
 
 Two things live here. The import ban is the enforcement ADR 0024 depends on. The `max-lines: off`
 override is required by ADR 0027 and **must** be in this file rather than the shared base, because
@@ -1860,7 +1873,7 @@ export default [
 ]
 ```
 
-- [ ] **Step 5: Write the failing test**
+- [x] **Step 5: Write the failing test**
 
 Create `packages/contracts/src/index.test.ts`:
 
@@ -1918,7 +1931,7 @@ describe('contracts', () => {
 })
 ```
 
-- [ ] **Step 6: Run the test to verify it fails**
+- [x] **Step 6: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/contracts test
@@ -1926,7 +1939,7 @@ pnpm --filter @repo/contracts test
 
 Expected: FAIL — cannot find module `./index.js`.
 
-- [ ] **Step 7: Create `packages/contracts/src/progress.ts`**
+- [x] **Step 7: Create `packages/contracts/src/progress.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -1937,7 +1950,7 @@ export const Progress = z
   .meta({ id: 'Progress', description: 'Counted checklist state, derived from a document' })
 ```
 
-- [ ] **Step 8: Create `packages/contracts/src/document.ts`**
+- [x] **Step 8: Create `packages/contracts/src/document.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -1968,7 +1981,7 @@ export const DocumentJson = z
   .meta({ id: 'DocumentJson', description: 'A Tiptap document, stored as JSON and never as HTML' })
 ```
 
-- [ ] **Step 9: Create `packages/contracts/src/tab.ts`**
+- [x] **Step 9: Create `packages/contracts/src/tab.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -1987,7 +2000,7 @@ export const Tab = z
   .meta({ id: 'Tab', description: 'One tab inside a task, owning its own document' })
 ```
 
-- [ ] **Step 10: Create `packages/contracts/src/folder.ts`**
+- [x] **Step 10: Create `packages/contracts/src/folder.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -2005,7 +2018,7 @@ export const Folder = z
   .meta({ id: 'Folder', description: 'A one-level grouping of tasks; folders never nest' })
 ```
 
-- [ ] **Step 11: Create `packages/contracts/src/task.ts`**
+- [x] **Step 11: Create `packages/contracts/src/task.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -2035,7 +2048,7 @@ export const TaskDocument = z
   .meta({ id: 'TaskDocument', description: 'One task file: its tabs and nothing else' })
 ```
 
-- [ ] **Step 12: Create `packages/contracts/src/share-link.ts`**
+- [x] **Step 12: Create `packages/contracts/src/share-link.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -2067,7 +2080,7 @@ export const ShareLink = z
   .meta({ id: 'ShareLink', description: 'One person’s access, and who granted it' })
 ```
 
-- [ ] **Step 13: Create `packages/contracts/src/project.ts`**
+- [x] **Step 13: Create `packages/contracts/src/project.ts`**
 
 ```ts
 import { z } from 'zod'
@@ -2090,7 +2103,7 @@ export const ProjectManifest = z
   .meta({ id: 'ProjectManifest', description: 'A project manifest: folders, tasks and share links' })
 ```
 
-- [ ] **Step 14: Create `packages/contracts/src/index.ts`**
+- [x] **Step 14: Create `packages/contracts/src/index.ts`**
 
 ```ts
 export { EntityId, EntityName, DocumentJson, ShareToken } from './document.js'
@@ -2102,7 +2115,7 @@ export { Role, Scope, ShareLink } from './share-link.js'
 export { ProjectManifest } from './project.js'
 ```
 
-- [ ] **Step 15: Run the test to verify it passes**
+- [x] **Step 15: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/contracts test
@@ -2110,7 +2123,7 @@ pnpm --filter @repo/contracts test
 
 Expected: PASS — **8 tests**.
 
-- [ ] **Step 16: Prove the framework-free rule is enforced, not just intended**
+- [x] **Step 16: Prove the framework-free rule is enforced, not just intended**
 
 ```bash
 cd packages/contracts
@@ -2122,7 +2135,7 @@ cd ../..
 
 Expected: an error mentioning "contracts must stay framework-free", and `exit=1`.
 
-- [ ] **Step 17: Assert there is exactly one physical Zod**
+- [x] **Step 17: Assert there is exactly one physical Zod**
 
 This is the first task where anything actually depends on Zod, so it is the first point at which
 the catalog pin and `overrides` from ADR 0024 are more than decoration. A second copy is the
@@ -2137,7 +2150,7 @@ ls node_modules/.pnpm | grep -c '^zod@'
 Expected: `pnpm why zod -r` reports a single version, and the count is exactly `1`. If it is
 more, fix the catalog rather than continuing — every later task inherits the problem.
 
-- [ ] **Step 18: Commit**
+- [x] **Step 18: Commit**
 
 ```bash
 git add packages/contracts
@@ -2155,7 +2168,7 @@ resolved-prefix containment check (ADR 0005). Nothing else may call `path.join`.
 - Create: `packages/store/package.json`, `tsconfig.json`, `vitest.config.ts`, `eslint.config.js`
 - Create: `packages/store/src/paths.ts`, `src/paths.test.ts`, `src/node-file-system.ts`
 
-- [ ] **Step 1: Create the package manifest**
+- [x] **Step 1: Create the package manifest**
 
 ```json
 {
@@ -2182,7 +2195,7 @@ resolved-prefix containment check (ADR 0005). Nothing else may call `path.join`.
 }
 ```
 
-- [ ] **Step 2: Create the two tsconfigs**
+- [x] **Step 2: Create the two tsconfigs**
 
 `packages/store/tsconfig.json`:
 
@@ -2203,7 +2216,7 @@ resolved-prefix containment check (ADR 0005). Nothing else may call `path.join`.
 }
 ```
 
-- [ ] **Step 3: Create `packages/store/vitest.config.ts`**
+- [x] **Step 3: Create `packages/store/vitest.config.ts`**
 
 ```ts
 import { defineConfig } from 'vitest/config'
@@ -2211,7 +2224,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({ test: { include: ['src/**/*.test.ts'] } })
 ```
 
-- [ ] **Step 4: Create `packages/store/eslint.config.js`**
+- [x] **Step 4: Create `packages/store/eslint.config.js`**
 
 ```js
 import base from '@repo/eslint-config'
@@ -2219,7 +2232,7 @@ import base from '@repo/eslint-config'
 export default base
 ```
 
-- [ ] **Step 5: Write the failing test**
+- [x] **Step 5: Write the failing test**
 
 Create `packages/store/src/paths.test.ts`:
 
@@ -2289,7 +2302,7 @@ describe('taskFile', () => {
 })
 ```
 
-- [ ] **Step 6: Run the test to verify it fails**
+- [x] **Step 6: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/store test paths
@@ -2297,7 +2310,7 @@ pnpm --filter @repo/store test paths
 
 Expected: FAIL — cannot find module `./paths.js`.
 
-- [ ] **Step 7: Create `packages/store/src/paths.ts`**
+- [x] **Step 7: Create `packages/store/src/paths.ts`**
 
 ```ts
 import path from 'node:path'
@@ -2350,7 +2363,7 @@ export function tasksDir(root: string, product: Product, projectId: string): str
 }
 ```
 
-- [ ] **Step 8: Run the test to verify it passes**
+- [x] **Step 8: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/store test paths
@@ -2358,7 +2371,7 @@ pnpm --filter @repo/store test paths
 
 Expected: PASS — **16 tests**. The two `it.each` blocks expand to 6 and 3 cases.
 
-- [ ] **Step 9: Create `packages/store/src/node-file-system.ts`**
+- [x] **Step 9: Create `packages/store/src/node-file-system.ts`**
 
 ```ts
 import { promises as fs } from 'node:fs'
@@ -2428,7 +2441,7 @@ export class NodeFileSystem implements FileSystem {
 }
 ```
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add packages/store
@@ -2442,7 +2455,7 @@ git commit -m "feat(store): add path chokepoint and Node filesystem adapter"
 **Files:**
 - Create: `packages/store/src/queue-lock.ts`, `src/queue-lock.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/store/src/queue-lock.test.ts`:
 
@@ -2501,7 +2514,7 @@ describe('QueueLock', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/store test queue-lock
@@ -2509,7 +2522,7 @@ pnpm --filter @repo/store test queue-lock
 
 Expected: FAIL — cannot find module `./queue-lock.js`.
 
-- [ ] **Step 3: Create `packages/store/src/queue-lock.ts`**
+- [x] **Step 3: Create `packages/store/src/queue-lock.ts`**
 
 ```ts
 import type { Lock } from '@repo/kernel'
@@ -2530,7 +2543,7 @@ export class QueueLock implements Lock {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/store test queue-lock
@@ -2538,7 +2551,7 @@ pnpm --filter @repo/store test queue-lock
 
 Expected: PASS — 4 tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/store/src/queue-lock.ts packages/store/src/queue-lock.test.ts
@@ -2557,7 +2570,7 @@ makes the crash test in Task 16 possible.
 - Create: `packages/store/src/index.ts`
 - Create: `packages/store/src/fs-project-store.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/store/src/fs-project-store.test.ts`:
 
@@ -2585,7 +2598,7 @@ describeProjectStore('FsProjectStore', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/store test fs-project-store
@@ -2593,7 +2606,7 @@ pnpm --filter @repo/store test fs-project-store
 
 Expected: FAIL — cannot find module `./fs-project-store.js`.
 
-- [ ] **Step 3: Create `packages/store/src/fs-project-store.ts`**
+- [x] **Step 3: Create `packages/store/src/fs-project-store.ts`**
 
 ```ts
 import {
@@ -2704,7 +2717,7 @@ export class FsProjectStore implements ProjectStore {
 }
 ```
 
-- [ ] **Step 4: Create `packages/store/src/index.ts`**
+- [x] **Step 4: Create `packages/store/src/index.ts`**
 
 ```ts
 export { FsProjectStore, type FsProjectStoreOptions } from './fs-project-store.js'
@@ -2713,7 +2726,7 @@ export { QueueLock } from './queue-lock.js'
 export { manifestFile, projectDir, projectsDir, taskFile, tasksDir } from './paths.js'
 ```
 
-- [ ] **Step 5: Build kernel so the `/testing` subpath resolves, then run the contract suite**
+- [x] **Step 5: Build kernel so the `/testing` subpath resolves, then run the contract suite**
 
 ```bash
 pnpm --filter @repo/kernel build
@@ -2722,7 +2735,7 @@ pnpm --filter @repo/store test fs-project-store
 
 Expected: PASS — 10 tests, all from the kernel contract suite.
 
-- [ ] **Step 6: Run the whole store suite**
+- [x] **Step 6: Run the whole store suite**
 
 ```bash
 pnpm --filter @repo/store test
@@ -2732,7 +2745,7 @@ Expected: PASS across `paths`, `node-file-system`, `queue-lock` and the contract
 "rejects an identifier that is not a ULID" case proves `Invalid` propagates through the store
 surface and not just the path builder.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/store
@@ -2748,7 +2761,7 @@ ADR 0006's guarantee is a claim about what a kill leaves behind. This proves it.
 **Files:**
 - Create: `packages/store/src/fs-project-store.ordering.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/store/src/fs-project-store.ordering.test.ts`:
 
@@ -2853,7 +2866,7 @@ describe('write ordering (ADR 0006)', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails or passes for the right reason**
+- [x] **Step 2: Run the test to verify it fails or passes for the right reason**
 
 ```bash
 pnpm --filter @repo/store test ordering
@@ -2877,7 +2890,7 @@ existence checks across two arrays, with no ordering between them — so it pass
 `deleteTask` while its name claimed otherwise, leaving delete ordering pinned by a single test.
 The single ordered `log` above is what fixed that.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/store/src/fs-project-store.ordering.test.ts
@@ -2895,7 +2908,7 @@ the component that enforces it.
 - Create: `packages/store/src/share-index.ts`, `src/share-index.test.ts`
 - Modify: `packages/store/src/index.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `packages/store/src/share-index.test.ts`:
 
@@ -2985,7 +2998,7 @@ describe('ShareIndex', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/store test share-index
@@ -2993,7 +3006,7 @@ pnpm --filter @repo/store test share-index
 
 Expected: FAIL — cannot find module `./share-index.js`.
 
-- [ ] **Step 3: Create `packages/store/src/share-index.ts`**
+- [x] **Step 3: Create `packages/store/src/share-index.ts`**
 
 ```ts
 import { Conflict, type Product, type ProjectManifest } from '@repo/kernel'
@@ -3045,7 +3058,7 @@ export class ShareIndex {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/store test share-index
@@ -3053,7 +3066,7 @@ pnpm --filter @repo/store test share-index
 
 Expected: PASS — 7 tests.
 
-- [ ] **Step 5: Export it**
+- [x] **Step 5: Export it**
 
 Add to `packages/store/src/index.ts`:
 
@@ -3061,7 +3074,7 @@ Add to `packages/store/src/index.ts`:
 export { ShareIndex, type TokenOwner } from './share-index.js'
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/store
@@ -3075,13 +3088,32 @@ git commit -m "feat(store): add share-token index enforcing one-token-one-projec
 **Files:**
 - Modify: `docs/superpowers/plans/2026-09-10-foundation.md` (tick the boxes)
 
-- [x] **Step 1: Build everything**
+- [x] **Step 1: Build everything, from cold**
+
+Run in sequence after the earlier tasks, a bare `pnpm build` is a 100 % cache replay — `FULL TURBO`
+in ~50 ms — which proves nothing. And "a cache hit that restores nothing" is a defect this very
+plan already hit (see *Known issues carried forward*). So force a real build:
 
 ```bash
+find . -type d \( -name dist -o -name .turbo \) -not -path './node_modules/*' -prune -exec rm -rf {} +
+rm -rf apps/legacy/public/vendor
 pnpm build
 ```
 
-Expected: `@repo/kernel`, `@repo/contracts` and `@repo/store` all build. No TypeScript errors.
+Expected: exit 0 with `0 cached` — every task a genuine cache miss.
+
+Then confirm every declared `exports` target actually exists on disk, which is the check that
+would have caught the earlier cache bug:
+
+```bash
+ls -l packages/kernel/dist/index.js packages/kernel/dist/index.d.ts \
+      packages/kernel/dist/testing/index.js packages/kernel/dist/testing/index.d.ts \
+      packages/contracts/dist/index.js packages/store/dist/index.js \
+      apps/legacy/public/vendor/tiptap.js
+```
+
+Expected: all seven present. `apps/legacy` declares no `exports` — it is an app, not a consumed
+package — but its bundle is the artifact the cache bug lost, so it is checked here too.
 
 - [x] **Step 2: Typecheck everything**
 
@@ -3111,9 +3143,23 @@ Expected: PASS, with no suite skipped. Four packages report: `@repo/eslint-confi
 comment rule), `@repo/kernel` (ids, errors, policy), `@repo/contracts` (schema guards) and
 `@repo/store` (paths, queue lock, the contract suite, write ordering, share index).
 
-Sanity-check the count rather than trusting it: `pnpm test 2>&1 | grep -E "Tests +[0-9]+"`. If the
-kernel policy suite reports fewer cases than `ACTIONS.length × ROLES.length`, the matrix loop is
-not running and the most important test in this plan is silently vacuous.
+Sanity-check the count rather than trusting it. Vitest emits ANSI escapes between the label and
+the number, so a naive `grep -E "Tests +[0-9]+"` matches **nothing** and reads as "nothing to see"
+rather than as a broken command:
+
+```bash
+pnpm test 2>&1 | grep -aE "Tests +.*[0-9]+ passed"
+```
+
+**Do not compare that count to `ACTIONS.length × ROLES.length`.** The policy suite reports **13**
+test cases while making **75** `can()` calls, because the cross product runs inside loops within
+three of those cases. 13 is correctly fewer than 75. Task 8 states this properly; the check that
+matters for vacuity is the `can()`-call count in Task 8's own step, not the case count here.
+
+Better still, verify by **mutation**, which is the only check that cannot pass vacuously: widen one
+role's grants in `policy.ts` — say `GRANTS.view` from `VIEW` to `WRITE` — and confirm the matrix
+test fails naming the newly-allowed action, then revert. A suite that survives that mutation is not
+testing the matrix.
 
 - [x] **Step 5: Assert there is still exactly one physical Zod**
 
@@ -3184,6 +3230,13 @@ hard way.
   **Generalise this:** the root `turbo.json` declares `outputs: ["dist/**"]` for every package, so
   any package whose build emits elsewhere hits the identical trap. Check `outputs` as each package
   lands.
+
+  **This trap is documented but not enforced, and it is still armed for Plans 2-5.** "Check
+  `outputs` as each package lands" is a human habit, not a gate, and nothing in the repository
+  distinguishes *built* from *the cache says built*. **Plan 2 should add a real check**: after
+  `build`, assert that every `exports` target declared by every package exists on disk. That is
+  mechanical, cheap, and would have caught the original bug on the first run instead of after it
+  bit. Task 18 Step 1 does this by hand; it belongs in CI.
 - **Turbo 2 runs in strict env mode, and no `env`/`globalEnv` is declared.** Verified: a task
   observes an ambient variable as `null` while system vars pass through. Harmless in Plan 1, but
   ADR 0026 requires `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` at build time **and stable across
