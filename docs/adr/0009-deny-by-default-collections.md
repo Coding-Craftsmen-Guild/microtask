@@ -19,11 +19,35 @@ or the workspace itself names its required principal explicitly:
 
 - `GET /projects`, `POST /projects`, `POST /imports` — admin only.
 - `GET /search` — results are filtered to the caller's scope; a link principal never receives an
-  unfiltered list, and a search result never reveals a name outside its scope.
+  unfiltered list, and a search result never reveals a name outside its scope. **Its gate asks
+  about the caller's own scope root, not about the workspace** — see below.
 - `GET /export` — `manage` within its own scope, admin for the workspace.
 
 A link principal calling a collection route gets scope-filtered results or a 403. Never an
 unfiltered list.
+
+## What the search route is gated on
+
+Gating search on `workspace:search` would refuse every link principal outright: that action is in
+`ADMIN_ONLY_ACTIONS`, so `can()` returns false for every role and both scopes — measured. The
+filtered results this ADR promises a link holder could then never be reached, and the scope
+filtering built for them would be dead code.
+
+The fix is not to weaken the action. `workspace:search` genuinely is admin authority: it means
+"search across everything". A link principal is not asking that question — it is asking to search
+the one thing it already holds. So the gate asks about the caller's scope root, which is what
+ADR 0013 already has the API doing when it resolves two principal kinds against one route tree:
+
+| principal | action | target |
+| --- | --- | --- |
+| admin | `workspace:search` | `{ kind: 'workspace' }` |
+| project-scoped link | `project:read` | `{ kind: 'project', projectId }` |
+| task-scoped link | `task:read` | `{ kind: 'task', projectId, taskId }` |
+
+`ADMIN_ONLY_ACTIONS` stays honest, the kernel needs no change, and the gate now asks a question
+with a real target rather than a targetless one — which is this ADR's whole complaint about
+collection routes. `SearchService`'s own per-result filtering then becomes defence in depth
+rather than the only defence.
 
 ## Where the filtering predicate lives
 

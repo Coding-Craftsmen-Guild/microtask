@@ -10,7 +10,21 @@ just a task called SSL.
 
 ## Decision
 
-Search matches **names only**: project, folder, task and tab names. Document content is not searched.
+Search matches **names only**: project, folder and task names. Document content is not searched,
+and **neither are tab names**.
+
+Tab names were in this decision originally and had to come out, because ADR 0005 makes them
+unreachable at this cost. A tab name lives only inside its task file; the manifest holds a
+task's id, name, position, folder and progress, and ADR 0005 forbids duplicating a field into
+the manifest precisely so nothing can drift. So searching tab names means opening every task
+file in every project on every query — up to `tasksPerProject` reads per project, against the
+one manifest read this decision is built on. The manifest split is what makes search cheap, and
+tab names are the one thing it puts out of reach.
+
+The alternative, copying tab names into the manifest, buys a second place for a name to be
+wrong and a write amplification on every tab rename. Not worth it for the least identifying of
+the four name kinds: a tab is "General" or "Content" far more often than it is anything a
+person would search for.
 
 - Within a project, search is a client-side filter over the manifest the page already holds.
 - Across projects, `GET /v1/microtask/search` reads one manifest per project.
