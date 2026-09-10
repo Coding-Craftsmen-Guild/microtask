@@ -7,12 +7,15 @@ import { MemoryProjectStore } from '../testing/memory-project-store.js'
 import { manifest } from '../testing/fixtures.js'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
 import { LIMITS } from '../limits.js'
+import type { ProjectRef } from './refs.js'
 import { ProjectService } from './project-service.js'
 
 const NOW = '2026-09-10T12:00:00.000Z'
 const EARLIER = '2026-01-01T00:00:00.000Z'
 const TOKEN = 'tok_launchlaunchlau'
 const ABSENT = '01M240ERCRWWCN16Q5AHP1FZAQ'
+
+const ref = (projectId: string): ProjectRef => ({ product: 'microtask', projectId })
 
 const build = () => {
   const store = new MemoryProjectStore()
@@ -61,13 +64,13 @@ describe('ProjectService.create', () => {
   it('is readable straight back', async () => {
     const { service } = build()
     const created = await service.create('microtask', 'Launch')
-    await expect(service.read('microtask', created.id)).resolves.toEqual(created)
+    await expect(service.read(ref(created.id))).resolves.toEqual(created)
   })
 
   it('keeps products apart', async () => {
     const { service } = build()
     const created = await service.create('microtask', 'Launch')
-    await expect(service.read('macroplan', created.id)).rejects.toThrow(NotFound)
+    await expect(service.read({ product: 'macroplan', projectId: created.id })).rejects.toThrow(NotFound)
   })
 })
 
@@ -91,7 +94,7 @@ describe('ProjectService.rename', () => {
     const { service, store } = build()
     const created = await service.create('microtask', 'Old')
     await store.saveManifest('microtask', { ...created, updatedAt: EARLIER })
-    const renamed = await service.rename('microtask', created.id, 'New')
+    const renamed = await service.rename(ref(created.id), 'New')
     expect(renamed.name).toBe('New')
     expect(renamed.updatedAt).toBe(NOW)
     expect(renamed.createdAt).toBe(created.createdAt)
@@ -100,19 +103,19 @@ describe('ProjectService.rename', () => {
   it('renames twice in a row, so reading inside the lock has not wedged the queue', async () => {
     const { service } = build()
     const created = await service.create('microtask', 'Old')
-    await service.rename('microtask', created.id, 'Mid')
-    const renamed = await service.rename('microtask', created.id, 'End')
+    await service.rename(ref(created.id), 'Mid')
+    const renamed = await service.rename(ref(created.id), 'End')
     expect(renamed.name).toBe('End')
   })
 
   it('rejects an unknown project', async () => {
-    await expect(build().service.rename('microtask', ABSENT, 'New')).rejects.toThrow(NotFound)
+    await expect(build().service.rename(ref(ABSENT), 'New')).rejects.toThrow(NotFound)
   })
 
   it('rejects an empty name', async () => {
     const { service } = build()
     const created = await service.create('microtask', 'Old')
-    await expect(service.rename('microtask', created.id, '  ')).rejects.toThrow(Invalid)
+    await expect(service.rename(ref(created.id), '  ')).rejects.toThrow(Invalid)
   })
 })
 
@@ -120,12 +123,12 @@ describe('ProjectService.remove', () => {
   it('removes the project', async () => {
     const { service } = build()
     const created = await service.create('microtask', 'Launch')
-    await service.remove('microtask', created.id)
-    await expect(service.read('microtask', created.id)).rejects.toThrow(NotFound)
+    await service.remove(ref(created.id))
+    await expect(service.read(ref(created.id))).rejects.toThrow(NotFound)
   })
 
   it('rejects an unknown project rather than reporting success', async () => {
-    await expect(build().service.remove('microtask', ABSENT)).rejects.toThrow(NotFound)
+    await expect(build().service.remove(ref(ABSENT))).rejects.toThrow(NotFound)
   })
 
   it('drops the share tokens of a removed project, so they stop resolving', async () => {
@@ -135,7 +138,7 @@ describe('ProjectService.remove', () => {
     await store.saveManifest('microtask', shared)
     tokens.add('microtask', shared)
     expect(tokens.find(TOKEN)).toEqual({ product: 'microtask', projectId: created.id })
-    await service.remove('microtask', created.id)
+    await service.remove(ref(created.id))
     expect(tokens.find(TOKEN)).toBeNull()
   })
 })

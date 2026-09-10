@@ -6,6 +6,7 @@ import { assertWithin, cleanName } from '../limits.js'
 import { agreesWith, countTabs } from '../progress.js'
 import type { ServiceContext } from './context.js'
 import { reordered } from './positions.js'
+import type { ProjectRef, TaskRef } from './refs.js'
 import {
   assertFolder,
   groupOf,
@@ -33,15 +34,10 @@ export class TaskService {
   }
 
   /** Creates a task at the end of its folder, writing its document before the manifest. */
-  async create(
-    product: Product,
-    projectId: string,
-    name: string,
-    folderId: string | null = null,
-  ): Promise<TaskEntry> {
+  async create(at: ProjectRef, name: string, folderId: string | null = null): Promise<TaskEntry> {
     const cleaned = cleanName(name)
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
+      const current = await this.#manifest(at)
       assertWithin('tasksPerProject', current.tasks.length)
       assertFolder(current, folderId)
       const stamp = this.#ctx.clock.now()
@@ -55,7 +51,7 @@ export class TaskService {
         progress: countTabs(document.tabs),
       }
       const next = { ...current, tasks: [...current.tasks, entry], updatedAt: stamp }
-      await this.#ctx.store.saveTask(product, next, document)
+      await this.#ctx.store.saveTask(at.product, next, document)
       return entry
     })
   }
@@ -66,78 +62,67 @@ export class TaskService {
    * The correction is a write, so it runs inside the lock and re-reads the manifest there; a
    * caller already holding the lock must therefore not call this. Nothing in this service does.
    */
-  async read(product: Product, projectId: string, taskId: string): Promise<TaskDetail> {
-    const current = await this.#manifest(product, projectId)
-    const entry = pickTask(current, taskId)
-    const document = await this.#ctx.store.readTask(product, projectId, taskId)
+  async read(at: TaskRef): Promise<TaskDetail> {
+    const current = await this.#manifest(at)
+    const entry = pickTask(current, at.taskId)
+    const document = await this.#ctx.store.readTask(at.product, at.projectId, at.taskId)
     if (document === null) throw new NotFound('Task not found')
     const counted = countTabs(document.tabs)
     if (agreesWith(entry.progress, counted)) return { entry, document }
-    return { entry: await this.#correct(product, projectId, taskId, counted), document }
+    return { entry: await this.#correct(at, counted), document }
   }
 
   /** Renames a task. Touches no document, so it writes the manifest alone. */
-  async rename(
-    product: Product,
-    projectId: string,
-    taskId: string,
-    name: string,
-  ): Promise<TaskEntry> {
+  async rename(at: TaskRef, name: string): Promise<TaskEntry> {
     const cleaned = cleanName(name)
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
-      const next: TaskEntry = { ...pickTask(current, taskId), name: cleaned }
-      await this.#save(product, withTask(current, next))
+      const current = await this.#manifest(at)
+      const next: TaskEntry = { ...pickTask(current, at.taskId), name: cleaned }
+      await this.#save(at.product, withTask(current, next))
       return next
     })
   }
 
   /** Removes a task, writing the manifest before its document is unlinked (ADR 0006). */
-  async remove(product: Product, projectId: string, taskId: string): Promise<void> {
+  async remove(at: TaskRef): Promise<void> {
     await this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
-      const tasks = without(current.tasks, pickTask(current, taskId))
+      const current = await this.#manifest(at)
+      const tasks = without(current.tasks, pickTask(current, at.taskId))
       const next = { ...current, tasks, updatedAt: this.#ctx.clock.now() }
-      await this.#ctx.store.deleteTask(product, next, taskId)
+      await this.#ctx.store.deleteTask(at.product, next, at.taskId)
     })
   }
 
   /** Moves a task to the end of another folder, or to the project root when given null. */
-  async move(
-    product: Product,
-    projectId: string,
-    taskId: string,
-    folderId: string | null,
-  ): Promise<TaskEntry> {
+  async move(at: TaskRef, folderId: string | null): Promise<TaskEntry> {
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
-      const task = pickTask(current, taskId)
+      const current = await this.#manifest(at)
+      const task = pickTask(current, at.taskId)
       assertFolder(current, folderId)
       const next = { ...current, tasks: movedTo(current.tasks, task, folderId) }
-      await this.#save(product, next)
-      return pickTask(next, taskId)
+      await this.#save(at.product, next)
+      return pickTask(next, at.taskId)
     })
   }
 
   /** Renumbers one folder's tasks into the order given, which must name each exactly once. */
   async reorder(
-    product: Product,
-    projectId: string,
+    at: ProjectRef,
     folderId: string | null,
     taskIds: readonly string[],
   ): Promise<readonly TaskEntry[]> {
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
+      const current = await this.#manifest(at)
       assertFolder(current, folderId)
       const group = reordered(groupOf(current.tasks, folderId), taskIds, 'task')
-      await this.#save(product, { ...current, tasks: withGroup(current.tasks, folderId, group) })
+      await this.#save(at.product, { ...current, tasks: withGroup(current.tasks, folderId, group) })
       return group
     })
   }
 
   /** Reads the project or throws NotFound. Takes no lock, so a locked caller may use it. */
-  async #manifest(product: Product, projectId: string): Promise<ProjectManifest> {
-    const found = await this.#ctx.store.readManifest(product, projectId)
+  async #manifest(at: ProjectRef): Promise<ProjectManifest> {
+    const found = await this.#ctx.store.readManifest(at.product, at.projectId)
     if (found === null) throw new NotFound('Project not found')
     return found
   }
@@ -148,16 +133,11 @@ export class TaskService {
   }
 
   /** Persists a recomputed cache without stamping the project — nobody edited it. */
-  async #correct(
-    product: Product,
-    projectId: string,
-    taskId: string,
-    progress: Progress,
-  ): Promise<TaskEntry> {
+  async #correct(at: TaskRef, progress: Progress): Promise<TaskEntry> {
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
-      const next: TaskEntry = { ...pickTask(current, taskId), progress }
-      await this.#ctx.store.saveManifest(product, withTask(current, next))
+      const current = await this.#manifest(at)
+      const next: TaskEntry = { ...pickTask(current, at.taskId), progress }
+      await this.#ctx.store.saveManifest(at.product, withTask(current, next))
       return next
     })
   }

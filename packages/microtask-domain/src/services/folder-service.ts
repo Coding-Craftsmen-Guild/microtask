@@ -4,6 +4,7 @@ import type { ProjectManifest, TaskEntry } from '../entities/manifest.js'
 import { assertWithin, cleanName } from '../limits.js'
 import type { ServiceContext } from './context.js'
 import { densified, inOrder, reordered } from './positions.js'
+import type { ProjectRef } from './refs.js'
 
 const pick = (folders: readonly Folder[], folderId: string): Folder => {
   const found = folders.find((folder) => folder.id === folderId)
@@ -35,16 +36,16 @@ export class FolderService {
   }
 
   /** Lists a project's folders in order. Takes no lock, so a locked writer may call it. */
-  async list(product: Product, projectId: string): Promise<readonly Folder[]> {
-    const current = await this.#manifest(product, projectId)
+  async list(at: ProjectRef): Promise<readonly Folder[]> {
+    const current = await this.#manifest(at)
     return inOrder(current.folders)
   }
 
   /** Creates a folder at the end of the order, refusing to exceed the per-project cap. */
-  async create(product: Product, projectId: string, name: string): Promise<Folder> {
+  async create(at: ProjectRef, name: string): Promise<Folder> {
     const cleaned = cleanName(name)
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
+      const current = await this.#manifest(at)
       assertWithin('foldersPerProject', current.folders.length)
       const stamp = this.#ctx.clock.now()
       const created: Folder = {
@@ -54,35 +55,30 @@ export class FolderService {
         createdAt: stamp,
         updatedAt: stamp,
       }
-      await this.#save(product, { ...current, folders: [...current.folders, created] })
+      await this.#save(at.product, { ...current, folders: [...current.folders, created] })
       return created
     })
   }
 
   /** Renames a folder, leaving its place in the order and the tasks inside it alone. */
-  async rename(
-    product: Product,
-    projectId: string,
-    folderId: string,
-    name: string,
-  ): Promise<Folder> {
+  async rename(at: ProjectRef, folderId: string, name: string): Promise<Folder> {
     const cleaned = cleanName(name)
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
+      const current = await this.#manifest(at)
       const found = pick(current.folders, folderId)
       const next: Folder = { ...found, name: cleaned, updatedAt: this.#ctx.clock.now() }
       const folders = current.folders.map((folder) => (folder.id === folderId ? next : folder))
-      await this.#save(product, { ...current, folders })
+      await this.#save(at.product, { ...current, folders })
       return next
     })
   }
 
   /** Removes a folder, moving the tasks it held to the project root rather than deleting them. */
-  async remove(product: Product, projectId: string, folderId: string): Promise<void> {
+  async remove(at: ProjectRef, folderId: string): Promise<void> {
     await this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
+      const current = await this.#manifest(at)
       pick(current.folders, folderId)
-      await this.#save(product, {
+      await this.#save(at.product, {
         ...current,
         folders: densified(current.folders.filter((folder) => folder.id !== folderId)),
         tasks: movedToRoot(current.tasks, folderId),
@@ -91,22 +87,18 @@ export class FolderService {
   }
 
   /** Renumbers the folders into the order given, which must name each of them exactly once. */
-  async reorder(
-    product: Product,
-    projectId: string,
-    folderIds: readonly string[],
-  ): Promise<readonly Folder[]> {
+  async reorder(at: ProjectRef, folderIds: readonly string[]): Promise<readonly Folder[]> {
     return this.#ctx.lock.run(async () => {
-      const current = await this.#manifest(product, projectId)
+      const current = await this.#manifest(at)
       const folders = reordered(current.folders, folderIds, 'folder')
-      await this.#save(product, { ...current, folders })
+      await this.#save(at.product, { ...current, folders })
       return folders
     })
   }
 
   /** Reads the project or throws NotFound. Takes no lock, so a locked caller may use it. */
-  async #manifest(product: Product, projectId: string): Promise<ProjectManifest> {
-    const found = await this.#ctx.store.readManifest(product, projectId)
+  async #manifest(at: ProjectRef): Promise<ProjectManifest> {
+    const found = await this.#ctx.store.readManifest(at.product, at.projectId)
     if (found === null) throw new NotFound('Project not found')
     return found
   }

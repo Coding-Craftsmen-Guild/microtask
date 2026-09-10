@@ -1,4 +1,4 @@
-import { Conflict, NotFound, type Product } from '@repo/kernel'
+import { Conflict, NotFound } from '@repo/kernel'
 import { assertSafeDocument } from '../document-guard.js'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { Tab } from '../entities/tab.js'
@@ -6,21 +6,9 @@ import type { TaskDocument } from '../entities/task.js'
 import { assertWithin, cleanName } from '../limits.js'
 import type { ServiceContext } from './context.js'
 import { inOrder, reordered } from './positions.js'
+import type { TaskRef } from './refs.js'
 import { pickTask } from './task-mapper.js'
 import { newTab, pickTab, tabsWithout, withProgress, withTab, withTabs } from './tab-mapper.js'
-
-/**
- * Which task a tab operation addresses.
- *
- * Every method here names a task and then something inside it, which is already four values
- * before any payload; grouping the address keeps each signature within the parameter cap
- * ADR 0027 sets, and keeps "which task" one thing rather than three.
- */
-export interface TaskRef {
-  readonly product: Product
-  readonly projectId: string
-  readonly taskId: string
-}
 
 interface Loaded {
   readonly manifest: ProjectManifest

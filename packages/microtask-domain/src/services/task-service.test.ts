@@ -10,6 +10,7 @@ import { MemoryProjectStore } from '../testing/memory-project-store.js'
 import { folder, manifest, taskEntry, STAMP } from '../testing/fixtures.js'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
 import { LIMITS } from '../limits.js'
+import type { ProjectRef, TaskRef } from './refs.js'
 import { TaskService } from './task-service.js'
 
 const NOW = '2026-09-10T12:00:00.000Z'
@@ -18,6 +19,10 @@ const TASK = '01M240ERCRWWCN16Q5AHP1FZAB'
 const OTHER = '01M240ERCRWWCN16Q5AHP1FZAC'
 const THIRD = '01M240ERCRWWCN16Q5AHP1FZAE'
 const ABSENT = '01M240ERCRWWCN16Q5AHP1FZAD'
+
+const AT: ProjectRef = { product: 'microtask', projectId: PROJECT }
+const MISSING: ProjectRef = { product: 'microtask', projectId: ABSENT }
+const on = (taskId: string): TaskRef => ({ ...AT, taskId })
 
 /**
  * Wraps a store so a test can see which port methods the service actually called.
@@ -97,7 +102,7 @@ describe('TaskService.create', () => {
   it('gives the new task exactly one tab named General holding an empty document', async () => {
     const { service, seed, store } = build()
     await seed()
-    const created = await service.create('microtask', PROJECT, 'Ship it')
+    const created = await service.create(AT, 'Ship it')
     const document = await store.readTask('microtask', PROJECT, created.id)
     expect(document?.tabs).toHaveLength(1)
     expect(document?.tabs[0]?.name).toBe('General')
@@ -108,7 +113,7 @@ describe('TaskService.create', () => {
   it('goes through store.saveTask rather than writing the manifest itself', async () => {
     const { service, seed, calls } = build()
     await seed()
-    await service.create('microtask', PROJECT, 'Ship it')
+    await service.create(AT, 'Ship it')
     expect(calls).toContain('saveTask')
     expect(calls).not.toContain('saveManifest')
   })
@@ -116,16 +121,16 @@ describe('TaskService.create', () => {
   it('caches zero progress for the empty document it writes', async () => {
     const { service, seed } = build()
     await seed()
-    const created = await service.create('microtask', PROJECT, 'Ship it')
+    const created = await service.create(AT, 'Ship it')
     expect(created.progress).toEqual({ done: 0, total: 0 })
   })
 
   it('appends each new task at the end of its group', async () => {
     const { service, seed, read } = build()
     await seed()
-    await service.create('microtask', PROJECT, 'First')
-    await service.create('microtask', PROJECT, 'Second')
-    const third = await service.create('microtask', PROJECT, 'Third')
+    await service.create(AT, 'First')
+    await service.create(AT, 'Second')
+    const third = await service.create(AT, 'Third')
     expect(third.position).toBe(2)
     expect(groupOf((await read()).tasks, null).map((t) => t.name)).toEqual([
       'First',
@@ -137,7 +142,7 @@ describe('TaskService.create', () => {
   it('puts the task at the project root when it is given no folder', async () => {
     const { service, seed } = build()
     await seed()
-    const created = await service.create('microtask', PROJECT, 'Rootward')
+    const created = await service.create(AT, 'Rootward')
     expect(created.folderId).toBeNull()
   })
 
@@ -147,7 +152,7 @@ describe('TaskService.create', () => {
       folders: [folder('f-a', 'A')],
       tasks: [taskEntry('t-root', 'Root', { position: 0 })],
     })
-    const created = await service.create('microtask', PROJECT, 'Filed', 'f-a')
+    const created = await service.create(AT, 'Filed', 'f-a')
     expect(created).toMatchObject({ folderId: 'f-a', position: 0 })
     expect(groupOf((await read()).tasks, null)).toHaveLength(1)
   })
@@ -155,24 +160,24 @@ describe('TaskService.create', () => {
   it('rejects a folder the project does not have', async () => {
     const { service, seed } = build()
     await seed()
-    await expect(service.create('microtask', PROJECT, 'Filed', 'f-zzz')).rejects.toThrow(NotFound)
+    await expect(service.create(AT, 'Filed', 'f-zzz')).rejects.toThrow(NotFound)
   })
 
   it('cleans the name it was given', async () => {
     const { service, seed } = build()
     await seed()
-    const created = await service.create('microtask', PROJECT, '  Ship   it  ')
+    const created = await service.create(AT, '  Ship   it  ')
     expect(created.name).toBe('Ship it')
   })
 
   it('rejects an empty name', async () => {
     const { service, seed } = build()
     await seed()
-    await expect(service.create('microtask', PROJECT, '   ')).rejects.toThrow(Invalid)
+    await expect(service.create(AT, '   ')).rejects.toThrow(Invalid)
   })
 
   it('rejects an unknown project', async () => {
-    await expect(build().service.create('microtask', ABSENT, 'Ship it')).rejects.toThrow(NotFound)
+    await expect(build().service.create(MISSING, 'Ship it')).rejects.toThrow(NotFound)
   })
 })
 
@@ -181,7 +186,7 @@ describe('TaskService.read', () => {
     const { service, seed, store } = build()
     const seeded = await seed({ tasks: [taskEntry(TASK, 'Ship it')] })
     await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(0, 0)]))
-    const detail = await service.read('microtask', PROJECT, TASK)
+    const detail = await service.read(on(TASK))
     expect(detail.entry).toMatchObject({ id: TASK, name: 'Ship it' })
     expect(detail.document.tabs).toHaveLength(1)
   })
@@ -192,7 +197,7 @@ describe('TaskService.read', () => {
       tasks: [taskEntry(TASK, 'Ship it', { progress: { done: 9, total: 9 } })],
     })
     await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(1, 3)]))
-    const detail = await service.read('microtask', PROJECT, TASK)
+    const detail = await service.read(on(TASK))
     expect(detail.entry.progress).toEqual({ done: 1, total: 3 })
     expect((await read()).tasks[0]?.progress).toEqual({ done: 1, total: 3 })
   })
@@ -202,7 +207,7 @@ describe('TaskService.read', () => {
     const uncached = { id: TASK, name: 'Ship it', position: 0, folderId: null } as TaskEntry
     const seeded = manifest(PROJECT, { tasks: [uncached] })
     await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(2, 5)]))
-    const detail = await service.read('microtask', PROJECT, TASK)
+    const detail = await service.read(on(TASK))
     expect(detail.entry.progress).toEqual({ done: 2, total: 5 })
   })
 
@@ -210,7 +215,7 @@ describe('TaskService.read', () => {
     const { service, store } = build()
     const seeded = manifest(PROJECT, { tasks: [taskEntry(TASK, 'Ship it')] })
     await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(1, 2), checklist(2, 4)]))
-    const detail = await service.read('microtask', PROJECT, TASK)
+    const detail = await service.read(on(TASK))
     expect(detail.entry.progress).toEqual({ done: 3, total: 6 })
   })
 
@@ -221,7 +226,7 @@ describe('TaskService.read', () => {
     })
     await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(1, 3)]))
     calls.length = 0
-    await service.read('microtask', PROJECT, TASK)
+    await service.read(on(TASK))
     expect(calls).not.toContain('saveManifest')
     expect(calls).not.toContain('saveTask')
   })
@@ -232,20 +237,20 @@ describe('TaskService.read', () => {
       tasks: [taskEntry(TASK, 'Ship it', { progress: { done: 9, total: 9 } })],
     })
     await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(1, 3)]))
-    await service.read('microtask', PROJECT, TASK)
+    await service.read(on(TASK))
     expect((await read()).updatedAt).toBe(STAMP)
   })
 
   it('rejects a task the manifest does not list', async () => {
     const { service, seed } = build()
     await seed()
-    await expect(service.read('microtask', PROJECT, ABSENT)).rejects.toThrow(NotFound)
+    await expect(service.read(on(ABSENT))).rejects.toThrow(NotFound)
   })
 
   it('rejects a task the manifest lists but whose document is gone', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Ship it')] })
-    await expect(service.read('microtask', PROJECT, TASK)).rejects.toThrow(NotFound)
+    await expect(service.read(on(TASK))).rejects.toThrow(NotFound)
   })
 })
 
@@ -253,14 +258,14 @@ describe('TaskService.rename', () => {
   it('renames the task', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Old')] })
-    const renamed = await service.rename('microtask', PROJECT, TASK, 'New')
+    const renamed = await service.rename(on(TASK), 'New')
     expect(renamed.name).toBe('New')
   })
 
   it('goes through store.saveManifest, because a rename touches no document', async () => {
     const { service, seed, calls } = build()
     await seed({ tasks: [taskEntry(TASK, 'Old')] })
-    await service.rename('microtask', PROJECT, TASK, 'New')
+    await service.rename(on(TASK), 'New')
     expect(calls).toContain('saveManifest')
     expect(calls).not.toContain('saveTask')
   })
@@ -268,7 +273,7 @@ describe('TaskService.rename', () => {
   it('cleans the name it was given', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Old')] })
-    const renamed = await service.rename('microtask', PROJECT, TASK, '  Ship   it  ')
+    const renamed = await service.rename(on(TASK), '  Ship   it  ')
     expect(renamed.name).toBe('Ship it')
   })
 
@@ -278,28 +283,28 @@ describe('TaskService.rename', () => {
       folders: [folder('f-a', 'A')],
       tasks: [taskEntry(TASK, 'Old', { folderId: 'f-a', progress: { done: 1, total: 2 } })],
     })
-    const renamed = await service.rename('microtask', PROJECT, TASK, 'New')
+    const renamed = await service.rename(on(TASK), 'New')
     expect(renamed).toMatchObject({ folderId: 'f-a', position: 0, progress: { done: 1, total: 2 } })
   })
 
   it('renames twice in a row, so reading inside the lock has not wedged the queue', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Old')] })
-    await service.rename('microtask', PROJECT, TASK, 'Mid')
-    const renamed = await service.rename('microtask', PROJECT, TASK, 'End')
+    await service.rename(on(TASK), 'Mid')
+    const renamed = await service.rename(on(TASK), 'End')
     expect(renamed.name).toBe('End')
   })
 
   it('rejects an unknown task', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Old')] })
-    await expect(service.rename('microtask', PROJECT, ABSENT, 'New')).rejects.toThrow(NotFound)
+    await expect(service.rename(on(ABSENT), 'New')).rejects.toThrow(NotFound)
   })
 
   it('rejects an empty name', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Old')] })
-    await expect(service.rename('microtask', PROJECT, TASK, '  ')).rejects.toThrow(Invalid)
+    await expect(service.rename(on(TASK), '  ')).rejects.toThrow(Invalid)
   })
 })
 
@@ -307,7 +312,7 @@ describe('TaskService.remove', () => {
   it('goes through store.deleteTask rather than writing the manifest itself', async () => {
     const { service, seed, calls } = build()
     await seed({ tasks: [taskEntry(TASK, 'Ship it')] })
-    await service.remove('microtask', PROJECT, TASK)
+    await service.remove(on(TASK))
     expect(calls).toContain('deleteTask')
     expect(calls).not.toContain('saveManifest')
   })
@@ -316,7 +321,7 @@ describe('TaskService.remove', () => {
     const { service, seed, read, store } = build()
     const seeded = await seed({ tasks: [taskEntry(TASK, 'Ship it')] })
     await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(0, 1)]))
-    await service.remove('microtask', PROJECT, TASK)
+    await service.remove(on(TASK))
     expect((await read()).tasks).toEqual([])
     await expect(store.readTask('microtask', PROJECT, TASK)).resolves.toBeNull()
   })
@@ -330,7 +335,7 @@ describe('TaskService.remove', () => {
         taskEntry(THIRD, 'C', { position: 2 }),
       ],
     })
-    await service.remove('microtask', PROJECT, OTHER)
+    await service.remove(on(OTHER))
     const root = groupOf((await read()).tasks, null)
     expect(root.map((task) => task.position)).toEqual([0, 1])
     expect(idsOf(root)).toEqual([TASK, THIRD])
@@ -345,14 +350,14 @@ describe('TaskService.remove', () => {
         taskEntry(OTHER, 'Filed', { folderId: 'f-a', position: 0 }),
       ],
     })
-    await service.remove('microtask', PROJECT, TASK)
+    await service.remove(on(TASK))
     expect(groupOf((await read()).tasks, 'f-a')).toMatchObject([{ id: OTHER, position: 0 }])
   })
 
   it('rejects an unknown task rather than reporting success', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Ship it')] })
-    await expect(service.remove('microtask', PROJECT, ABSENT)).rejects.toThrow(NotFound)
+    await expect(service.remove(on(ABSENT))).rejects.toThrow(NotFound)
   })
 })
 
@@ -363,7 +368,7 @@ describe('TaskService.move', () => {
       folders: [folder('f-a', 'A')],
       tasks: [taskEntry(TASK, 'Ship it', { progress: { done: 1, total: 2 } })],
     })
-    const moved = await service.move('microtask', PROJECT, TASK, 'f-a')
+    const moved = await service.move(on(TASK), 'f-a')
     expect(moved).toEqual({
       id: TASK,
       name: 'Ship it',
@@ -382,7 +387,7 @@ describe('TaskService.move', () => {
         taskEntry(TASK, 'Arriving', { position: 0 }),
       ],
     })
-    const moved = await service.move('microtask', PROJECT, TASK, 'f-a')
+    const moved = await service.move(on(TASK), 'f-a')
     expect(moved.position).toBe(1)
     expect(idsOf(groupOf((await read()).tasks, 'f-a'))).toEqual([OTHER, TASK])
   })
@@ -396,7 +401,7 @@ describe('TaskService.move', () => {
         taskEntry(OTHER, 'Staying', { folderId: 'f-a', position: 1 }),
       ],
     })
-    await service.move('microtask', PROJECT, TASK, null)
+    await service.move(on(TASK), null)
     expect(groupOf((await read()).tasks, 'f-a')).toMatchObject([{ id: OTHER, position: 0 }])
   })
 
@@ -406,7 +411,7 @@ describe('TaskService.move', () => {
       folders: [folder('f-a', 'A')],
       tasks: [taskEntry(TASK, 'Ship it', { folderId: 'f-a' })],
     })
-    const moved = await service.move('microtask', PROJECT, TASK, null)
+    const moved = await service.move(on(TASK), null)
     expect(moved.folderId).toBeNull()
     expect(idsOf(groupOf((await read()).tasks, null))).toEqual([TASK])
   })
@@ -414,26 +419,26 @@ describe('TaskService.move', () => {
   it('rejects a folder the project does not have', async () => {
     const { service, seed } = build()
     await seed({ tasks: [taskEntry(TASK, 'Ship it')] })
-    await expect(service.move('microtask', PROJECT, TASK, 'f-zzz')).rejects.toThrow(NotFound)
+    await expect(service.move(on(TASK), 'f-zzz')).rejects.toThrow(NotFound)
   })
 
   it('leaves the stored placement untouched when it refuses', async () => {
     const { service, seed, read } = build()
     await seed({ tasks: [taskEntry(TASK, 'Ship it')] })
-    await expect(service.move('microtask', PROJECT, TASK, 'f-zzz')).rejects.toThrow(NotFound)
+    await expect(service.move(on(TASK), 'f-zzz')).rejects.toThrow(NotFound)
     expect((await read()).tasks[0]).toMatchObject({ folderId: null, position: 0 })
   })
 
   it('rejects an unknown task', async () => {
     const { service, seed } = build()
     await seed({ folders: [folder('f-a', 'A')] })
-    await expect(service.move('microtask', PROJECT, ABSENT, 'f-a')).rejects.toThrow(NotFound)
+    await expect(service.move(on(ABSENT), 'f-a')).rejects.toThrow(NotFound)
   })
 
   it('goes through store.saveManifest, because a move touches no document', async () => {
     const { service, seed, calls } = build()
     await seed({ folders: [folder('f-a', 'A')], tasks: [taskEntry(TASK, 'Ship it')] })
-    await service.move('microtask', PROJECT, TASK, 'f-a')
+    await service.move(on(TASK), 'f-a')
     expect(calls).toContain('saveManifest')
     expect(calls).not.toContain('saveTask')
   })
@@ -449,7 +454,7 @@ describe('TaskService.reorder', () => {
         taskEntry(THIRD, 'C', { position: 2 }),
       ],
     })
-    const ordered = await service.reorder('microtask', PROJECT, null, [THIRD, TASK, OTHER])
+    const ordered = await service.reorder(AT, null, [THIRD, TASK, OTHER])
     expect(idsOf(ordered)).toEqual([THIRD, TASK, OTHER])
     expect(ordered.map((task) => task.position)).toEqual([0, 1, 2])
     expect(idsOf(groupOf((await read()).tasks, null))).toEqual([THIRD, TASK, OTHER])
@@ -465,7 +470,7 @@ describe('TaskService.reorder', () => {
         taskEntry(THIRD, 'Filed', { folderId: 'f-a', position: 0 }),
       ],
     })
-    await service.reorder('microtask', PROJECT, null, [OTHER, TASK])
+    await service.reorder(AT, null, [OTHER, TASK])
     expect(groupOf((await read()).tasks, 'f-a')).toMatchObject([{ id: THIRD, position: 0 }])
   })
 
@@ -474,7 +479,7 @@ describe('TaskService.reorder', () => {
     await seed({
       tasks: [taskEntry(TASK, 'A', { position: 0 }), taskEntry(OTHER, 'B', { position: 1 })],
     })
-    await expect(service.reorder('microtask', PROJECT, null, [TASK])).rejects.toThrow(Invalid)
+    await expect(service.reorder(AT, null, [TASK])).rejects.toThrow(Invalid)
   })
 
   it('refuses an order naming a task that lives in another folder', async () => {
@@ -486,13 +491,13 @@ describe('TaskService.reorder', () => {
         taskEntry(OTHER, 'Filed', { folderId: 'f-a', position: 0 }),
       ],
     })
-    await expect(service.reorder('microtask', PROJECT, null, [TASK, OTHER])).rejects.toThrow(Invalid)
+    await expect(service.reorder(AT, null, [TASK, OTHER])).rejects.toThrow(Invalid)
   })
 
   it('rejects a folder the project does not have', async () => {
     const { service, seed } = build()
     await seed()
-    await expect(service.reorder('microtask', PROJECT, 'f-zzz', [])).rejects.toThrow(NotFound)
+    await expect(service.reorder(AT, 'f-zzz', [])).rejects.toThrow(NotFound)
   })
 })
 
@@ -511,15 +516,15 @@ describe('TaskService caps', () => {
   it('refuses to exceed the tasks-per-project cap', async () => {
     const { service, seed } = build()
     await seed({ tasks: fill(LIMITS.tasksPerProject) })
-    await expect(service.create('microtask', PROJECT, 'One too many')).rejects.toThrow(/Too many/)
+    await expect(service.create(AT, 'One too many')).rejects.toThrow(/Too many/)
   })
 
   it('holds the cap under concurrent creates, because the count is read inside the lock', async () => {
     const { service, seed, read } = build()
     await seed({ tasks: fill(LIMITS.tasksPerProject - 1) })
     const settled = await Promise.allSettled([
-      service.create('microtask', PROJECT, 'A'),
-      service.create('microtask', PROJECT, 'B'),
+      service.create(AT, 'A'),
+      service.create(AT, 'B'),
     ])
     expect(settled.map((result) => result.status)).toEqual(['fulfilled', 'rejected'])
     expect((await read()).tasks).toHaveLength(LIMITS.tasksPerProject)
