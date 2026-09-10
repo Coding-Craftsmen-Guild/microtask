@@ -1,0 +1,42 @@
+# ADR 0011 — Task is the default share scope
+
+**Status:** Accepted · 2026-09-10
+
+## Context
+
+Requirement 3 asked for share links at the new Project level. Separately, ADR 0004 records that a
+Project represents a **phase or workstream** — Discovery, Build, Launch — not a client.
+
+Those two facts combine badly. A phase spans clients, so folders inside it may hold ACME's work
+next to Beta Co's. A project-scoped link handed to ACME would expose Beta Co's tasks. That is not a
+bug in the roles model; it follows directly from what a Project means here.
+
+## Decision
+
+Both scopes exist. **Task is the default** for a new link.
+
+- Project scope remains available, but the confirm dialog lists **every folder and task** the link
+  would expose before it is created.
+- A link's scope is **immutable** after creation. Changing scope is revoke-and-reissue.
+- A task-scoped link sees only its task — never sibling task names, never the folder tree, never the
+  project's other contents, including through search (ADR 0009).
+
+## Consequences
+
+- The common case — share one checklist with one client — is the default and needs no thought.
+- Requirement 3 is satisfied without making the risky option the easy one.
+- Immutable scope removes a whole class of privilege-escalation bug: no PATCH can widen an existing
+  link. It costs the admin a re-send when they get the scope wrong.
+- The scope-containment check matters at import too, where a bundle could assert a link scoped into
+  another project (ADR 0019).
+
+## Alternatives considered
+
+**Project scope as the default**, matching the literal reading of requirement 3. Rejected on the
+disclosure risk above.
+
+**Mutable scope**, so a link can be widened or narrowed in place. Rejected: it makes a share link's
+authority a moving target and adds an escalation path for `manage` holders.
+
+**Folder scope as a third option.** Plausible once folders group by client, but it multiplies
+permission-resolution cases. Deferred; ADR-able if folders end up used that way.
