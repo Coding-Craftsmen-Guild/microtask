@@ -14,13 +14,20 @@ export function inOrder<T extends Positioned>(items: readonly T[]): readonly T[]
 }
 
 /**
+ * Numbers items `0..n-1` in the order they are given, ignoring the positions they arrived
+ * with, so an item appended to a group cannot keep a stale position that would sort it back
+ * into the middle.
+ */
+export function numbered<T extends Positioned>(items: readonly T[]): readonly T[] {
+  return items.map((item, index) => (item.position === index ? item : { ...item, position: index }))
+}
+
+/**
  * Renumbers items `0..n-1` in their current order, so neither a gap left by a removal nor a
  * clash between two equal positions can survive a write.
  */
 export function densified<T extends Positioned>(items: readonly T[]): readonly T[] {
-  return inOrder(items).map((item, index) =>
-    item.position === index ? item : { ...item, position: index },
-  )
+  return numbered(inOrder(items))
 }
 
 /**
