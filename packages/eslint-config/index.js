@@ -51,6 +51,7 @@ export const base = [
     rules: {
       'max-lines': 'off',
       'max-lines-per-function': 'off',
+      'max-nested-callbacks': 'off',
       'jsdoc/require-jsdoc': 'off',
       'local/tsdoc-comments-only': 'off',
       'n/no-process-env': 'off',

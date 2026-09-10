@@ -492,6 +492,7 @@ export const base = [
     rules: {
       'max-lines': 'off',
       'max-lines-per-function': 'off',
+      'max-nested-callbacks': 'off',
       'jsdoc/require-jsdoc': 'off',
       'local/tsdoc-comments-only': 'off',
       'n/no-process-env': 'off',
@@ -1586,6 +1587,14 @@ export interface StoreHarness {
   store: ProjectStore
   reset(): Promise<void>
 }
+
+/*
+ * Constraint for anyone writing a harness (Task 15): makeHarness() runs at
+ * COLLECTION time, not test time. So the harness must be constructible
+ * eagerly, must expose a stable `store` reference, and must not swap that
+ * object between resets — only reset() may mutate the state behind it. A
+ * harness built in beforeAll will not work.
+ */
 
 /** Runs the behaviour every ProjectStore adapter must exhibit. */
 export function describeProjectStore(name: string, makeHarness: () => StoreHarness): void {
