@@ -488,10 +488,6 @@ export const base = [
     },
   },
   {
-    files: ['packages/contracts/**'],
-    rules: { 'max-lines': 'off' },
-  },
-  {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/testing/**', '**/*.config.*'],
     rules: {
       'max-lines': 'off',
@@ -506,14 +502,34 @@ export const base = [
 export default base
 ```
 
-Two layers here are inert in Plan 1 and deliberately so. The `react-hooks` rules have no `.tsx`
-to act on until Plan 4 — but ADR 0027 lists them as errors, and leaving the plugin installed while
-never configuring it would make this file a lie about what is enforced. The
-`packages/contracts/**` override is needed by Task 12: Zod schemas are declarative, and splitting
-one to satisfy a line count scatters a single shape across files.
+The `react-hooks` rules are inert in Plan 1 and deliberately so — no `.tsx` exists until Plan 4,
+but ADR 0027 lists them as errors, and leaving the plugin installed while never configuring it
+would make this file a lie about what is enforced.
 
-`packages/ui/src/primitives/**` also needs a `max-lines` override per ADR 0027, but that path
-arrives with the package in Plan 4 rather than as a rule pointing at nothing.
+**Every layer here uses a filename pattern, never a path pattern.** That is a hard constraint, not
+a style choice: ESLint resolves `files:` globs **relative to the directory containing the config
+file**, and each package has its own `eslint.config.js`. So a layer like
+`{ files: ['packages/contracts/**'] }` in this shared base **silently matches nothing** — verified
+empirically: a 202-line file under `packages/contracts/src/` is exempted when linting from a root
+config and still errors when linting from the package's own config.
+
+The size exceptions ADR 0027 requires therefore live in the package they apply to. Task 12 adds:
+
+```js
+// packages/contracts/eslint.config.js
+import base from '@repo/eslint-config'
+
+export default [...base, { rules: { 'max-lines': 'off' } }]
+```
+
+Per-package configs are kept rather than collapsing to one root config, for two reasons: turbo
+keeps a cacheable, parallel `lint` task per package, and an exception stated in the package it
+applies to is more honest than a central list of globs pointing into other packages.
+
+**Consequence for Plan 4:** repo-wide *path* rules cannot live here. The boundary ADR 0027 needs —
+a Next app must not import `packages/store` — is expressed as `no-restricted-imports` on the
+**package name** in each app's own config, which requires no path resolution. Do not reach for
+`import/no-restricted-paths` and rediscover this.
 
 - [ ] **Step 8: Add the package's own flat config so it lints itself**
 
@@ -1789,13 +1805,17 @@ export default defineConfig({ test: { include: ['src/**/*.test.ts'] } })
 
 - [ ] **Step 4: Create `packages/contracts/eslint.config.js`**
 
-The import ban is the enforcement ADR 0024 depends on.
+Two things live here. The import ban is the enforcement ADR 0024 depends on. The `max-lines: off`
+override is required by ADR 0027 and **must** be in this file rather than the shared base, because
+ESLint resolves `files:` globs relative to the config file's own directory — a
+`packages/contracts/**` glob in the shared base silently matches nothing.
 
 ```js
 import base from '@repo/eslint-config'
 
 export default [
   ...base,
+  { rules: { 'max-lines': 'off' } },
   {
     files: ['src/**/*.ts'],
     rules: {
