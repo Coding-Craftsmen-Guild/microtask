@@ -52,14 +52,20 @@ working. Pinned centrally:
 ```yaml
 # pnpm-workspace.yaml
 catalog:
-  zod: ^4.6.1
+  zod: 4.6.1
 overrides:
   zod: 'catalog:'
-strictPeerDependencies: true
 ```
 
-Every `package.json` uses `"zod": "catalog:"`. Verified after install with `pnpm why zod -r`, which
-must print exactly one line.
+Pinned **exactly**, not as `^4.6.1`: with `overrides` in play a range still lets transitive
+dependencies float within `^4`, which is the thing being prevented. `strict-peer-dependencies` is
+set in `.npmrc` rather than here, because `auto-install-peers` is also on — and that pairing is
+what makes this override load-bearing rather than belt-and-braces, since auto-installing peers is
+the most likely route to a second physical copy.
+
+Every `package.json` uses `"zod": "catalog:"`. Verified after install with `pnpm why zod -r`
+(exactly one version) and `ls node_modules/.pnpm | grep -c '^zod@'` (exactly `1`). That assertion
+runs in the plan at the first task that depends on Zod, and again at the end.
 
 **`apps/api` owns the OpenAPI document.** It emits it from a build script that calls the generator
 directly:

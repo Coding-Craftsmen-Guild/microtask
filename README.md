@@ -1,5 +1,20 @@
 # CC Guild Microtask
 
+> **This repository is now a pnpm + Turborepo monorepo, and this README describes the app as it
+> was before that.** The application it documents still exists, unchanged, at
+> [`apps/legacy/`](apps/legacy/) — it is kept as the reference implementation while the
+> restructure proceeds, and is removed at the end of it.
+>
+> **Do not run `npm install` at the repository root.** It would create a `package-lock.json`,
+> which is forbidden by [ADR 0026](docs/adr/0026-docker-turbo-prune-standalone.md) — a stray
+> non-pnpm lockfile silently moves Next.js's inferred file-tracing root — and `.gitignore` now
+> hides that file, so it would sit there unnoticed. Use `pnpm install` from the root instead.
+>
+> The restructure is described in
+> [`docs/superpowers/specs/2026-09-10-monorepo-restructure-design.md`](docs/superpowers/specs/2026-09-10-monorepo-restructure-design.md),
+> with the decisions behind it in [`docs/adr/`](docs/adr/README.md). This README is rewritten
+> when the new structure lands.
+
 A small client-facing checklist app. **Project → tabs → rich-text/checklist documents.**
 
 Each project is one document split into tabs (Go-live, Content, Hosting, …). You edit it in
@@ -7,13 +22,17 @@ the admin, then hand each client their own share link — read-only, or read & w
 
 ## Run it
 
+From the repository root:
+
 ```bash
-npm install
-npm run build                              # bundles Tiptap into public/vendor/tiptap.js
-ADMIN_PASSWORD=your-password npm start     # http://localhost:4321
+pnpm install
+pnpm build                                 # bundles Tiptap into apps/legacy/public/vendor/
+cd apps/legacy
+DATA_DIR=../../data ADMIN_PASSWORD=your-password node server.js   # http://localhost:4321
 ```
 
-`npm run dev` does both in one go. Rebuild only when the editor packages change.
+`DATA_DIR` is needed because the server resolves it relative to the working directory, and the
+dataset lives at the repository root rather than inside `apps/legacy/`.
 
 ### Environment
 

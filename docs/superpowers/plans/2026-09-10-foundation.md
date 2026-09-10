@@ -108,12 +108,20 @@ devDependencies untouched:
 
 - [ ] **Step 5: Create `pnpm-workspace.yaml`**
 
-One catalog entry per shared dependency, so a second copy of Zod cannot appear (ADR 0024).
+One catalog entry per shared dependency, so a second copy of Zod cannot appear (ADR 0024). Task 3
+extends the catalog with the toolchain pins.
+
+`allowBuilds` is required: pnpm 12 exits 1 with `ERR_PNPM_IGNORED_BUILDS` until the decision is
+recorded, and `pnpm approve-builds` is interactive. Write it explicitly — pnpm otherwise injects a
+literal `set this to true or false` placeholder that dirties the tree on every install.
 
 ```yaml
 packages:
   - 'apps/*'
   - 'packages/*'
+
+allowBuilds:
+  esbuild: false
 
 catalog:
   zod: 4.6.1
@@ -121,6 +129,10 @@ catalog:
 overrides:
   zod: 'catalog:'
 ```
+
+`esbuild: false` is verified sufficient: the native binary arrives through the optional
+`@esbuild/<platform>` dependency, not the postinstall. The entry is **workspace-wide and outlives
+the legacy app** — vitest depends on vite, which depends on esbuild.
 
 - [ ] **Step 6: Create `.npmrc`**
 
@@ -253,12 +265,44 @@ ADR 0027 requires that only TSDoc comments on exported declarations survive. ESL
 express that, so the config ships a local rule — written test-first.
 
 **Files:**
+- Modify: `pnpm-workspace.yaml` (extend the catalog)
 - Create: `packages/eslint-config/package.json`
 - Create: `packages/eslint-config/rules/tsdoc-comments-only.js`
 - Create: `packages/eslint-config/rules/tsdoc-comments-only.test.js`
 - Create: `packages/eslint-config/index.js`
 
-- [ ] **Step 1: Create the package manifest**
+- [ ] **Step 1: Extend the catalog with the toolchain pins**
+
+**Do not use `"latest"` anywhere.** `.npmrc` sets `strict-peer-dependencies=true`, and the current
+`latest` of two of these packages does not satisfy the others' peer ranges — verified on
+2026-09-10:
+
+- `typescript-eslint@8.70.0` peers `typescript: >=4.8.4 <6.1.0`, but `typescript@latest` is
+  **7.0.2**. `latest` fails the install outright.
+- `eslint-plugin-import@2.32.0` peers `eslint: … || ^9` with no `^10`, but `eslint@latest` is
+  **10.10.0**. Also fails.
+
+ESLint 9 is the coherent choice: every plugin here supports it. Add to `pnpm-workspace.yaml`
+under the existing `catalog:` key:
+
+```yaml
+catalog:
+  zod: 4.6.1
+  typescript: 5.9.3
+  eslint: 9.39.5
+  vitest: 5.0.0
+  '@types/node': 22.20.2
+```
+
+This set was verified to install together with `strict-peer-dependencies=true`: exit 0, no peer
+errors, and exactly one physical Zod.
+
+**Expect `pnpm install` to append a `minimumReleaseAgeExclude` list** naming any pin younger than
+pnpm's default minimum release age. That is pnpm recording your consent to use a fresh release —
+**commit it** as part of this task rather than reverting it, or the tree stays dirty for every
+task that follows.
+
+- [ ] **Step 2: Create the package manifest**
 
 ```json
 {
@@ -272,21 +316,24 @@ express that, so the config ships a local rule — written test-first.
     "lint": "eslint ."
   },
   "dependencies": {
-    "@eslint/js": "latest",
-    "typescript-eslint": "latest",
-    "eslint-plugin-import": "latest",
-    "eslint-plugin-jsdoc": "latest",
-    "eslint-plugin-react-hooks": "latest",
-    "eslint-plugin-n": "latest"
+    "@eslint/js": "9.39.5",
+    "typescript-eslint": "8.70.0",
+    "eslint-plugin-import": "2.32.0",
+    "eslint-plugin-jsdoc": "64.3.9",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-n": "18.3.0"
   },
   "devDependencies": {
-    "eslint": "latest",
-    "vitest": "latest"
+    "eslint": "catalog:",
+    "vitest": "catalog:"
   }
 }
 ```
 
-- [ ] **Step 2: Write the failing test**
+`@eslint/js` is pinned to `9.39.5` rather than `catalog:` because it must track the `eslint` major
+exactly — it peers on `eslint: ^10.0.0` at version 10.
+
+- [ ] **Step 3: Write the failing test**
 
 Create `packages/eslint-config/rules/tsdoc-comments-only.test.js`:
 
@@ -318,7 +365,7 @@ describe('tsdoc-comments-only', () => {
 })
 ```
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [ ] **Step 4: Run the test to verify it fails**
 
 ```bash
 pnpm --filter @repo/eslint-config test
@@ -326,7 +373,7 @@ pnpm --filter @repo/eslint-config test
 
 Expected: FAIL — cannot resolve `./tsdoc-comments-only.js`.
 
-- [ ] **Step 4: Write the rule**
+- [ ] **Step 5: Write the rule**
 
 Create `packages/eslint-config/rules/tsdoc-comments-only.js`:
 
@@ -370,7 +417,7 @@ export default {
 }
 ```
 
-- [ ] **Step 5: Run the test to verify it passes**
+- [ ] **Step 6: Run the test to verify it passes**
 
 ```bash
 pnpm --filter @repo/eslint-config test
@@ -378,7 +425,7 @@ pnpm --filter @repo/eslint-config test
 
 Expected: PASS — 1 test.
 
-- [ ] **Step 6: Write the shared config**
+- [ ] **Step 7: Write the shared config**
 
 Create `packages/eslint-config/index.js`:
 
@@ -438,7 +485,7 @@ export const base = [
 export default base
 ```
 
-- [ ] **Step 7: Verify the config loads**
+- [ ] **Step 8: Verify the config loads**
 
 ```bash
 pnpm --filter @repo/eslint-config exec node -e "import('./index.js').then(m => console.log('configs:', m.default.length))"
@@ -446,7 +493,7 @@ pnpm --filter @repo/eslint-config exec node -e "import('./index.js').then(m => c
 
 Expected: `configs: 4`
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add packages/eslint-config
@@ -474,7 +521,7 @@ git commit -m "feat: add shared ESLint config with TSDoc-only comment rule"
     "./testing": { "types": "./dist/testing/index.d.ts", "default": "./dist/testing/index.js" }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src"
@@ -482,20 +529,37 @@ git commit -m "feat: add shared ESLint config with TSDoc-only comment rule"
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@repo/eslint-config": "workspace:*",
-    "typescript": "latest",
-    "vitest": "latest",
-    "eslint": "latest"
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "eslint": "catalog:"
   }
 }
 ```
 
-- [ ] **Step 2: Create `packages/kernel/tsconfig.json`**
+- [ ] **Step 2: Create two tsconfigs — one that checks tests, one that builds without them**
+
+A single tsconfig excluding `**/*.test.ts` would mean `typecheck` never sees the tests, and
+Vitest strips types without checking them. In a plan whose deliverable is mostly tests, that
+would leave the tests the least-checked code in the repository — which defeats ADR 0023.
+
+So `tsconfig.json` includes everything (this is also what your editor reads), and
+`tsconfig.build.json` is the one that excludes tests and emits.
+
+`packages/kernel/tsconfig.json`:
 
 ```json
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": { "outDir": "dist", "rootDir": "src" },
-  "include": ["src"],
+  "include": ["src"]
+}
+```
+
+`packages/kernel/tsconfig.build.json`:
+
+```json
+{
+  "extends": "./tsconfig.json",
   "exclude": ["**/*.test.ts"]
 }
 ```
@@ -1629,7 +1693,7 @@ spike proved is the only defence against silently collapsed schemas.
   "type": "module",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src"
@@ -1638,20 +1702,30 @@ spike proved is the only defence against silently collapsed schemas.
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@repo/eslint-config": "workspace:*",
-    "typescript": "latest",
-    "vitest": "latest",
-    "eslint": "latest"
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "eslint": "catalog:"
   }
 }
 ```
 
-- [ ] **Step 2: Create `packages/contracts/tsconfig.json`**
+- [ ] **Step 2: Create the two tsconfigs**
+
+`packages/contracts/tsconfig.json`:
 
 ```json
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": { "outDir": "dist", "rootDir": "src" },
-  "include": ["src"],
+  "include": ["src"]
+}
+```
+
+`packages/contracts/tsconfig.build.json`:
+
+```json
+{
+  "extends": "./tsconfig.json",
   "exclude": ["**/*.test.ts"]
 }
 ```
@@ -1950,7 +2024,22 @@ cd ../..
 
 Expected: an error mentioning "contracts must stay framework-free", and `exit=1`.
 
-- [ ] **Step 17: Commit**
+- [ ] **Step 17: Assert there is exactly one physical Zod**
+
+This is the first task where anything actually depends on Zod, so it is the first point at which
+the catalog pin and `overrides` from ADR 0024 are more than decoration. A second copy is the
+failure that breaks `.openapi()` while leaving the generator's structural type guards working —
+a partial, confusing failure, so catch it here.
+
+```bash
+pnpm why zod -r
+ls node_modules/.pnpm | grep -c '^zod@'
+```
+
+Expected: `pnpm why zod -r` reports a single version, and the count is exactly `1`. If it is
+more, fix the catalog rather than continuing — every later task inherits the problem.
+
+- [ ] **Step 18: Commit**
 
 ```bash
 git add packages/contracts
@@ -1978,7 +2067,7 @@ resolved-prefix containment check (ADR 0005). Nothing else may call `path.join`.
   "type": "module",
   "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src"
@@ -1987,21 +2076,31 @@ resolved-prefix containment check (ADR 0005). Nothing else may call `path.join`.
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@repo/eslint-config": "workspace:*",
-    "@types/node": "latest",
-    "typescript": "latest",
-    "vitest": "latest",
-    "eslint": "latest"
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "eslint": "catalog:"
   }
 }
 ```
 
-- [ ] **Step 2: Create `packages/store/tsconfig.json`**
+- [ ] **Step 2: Create the two tsconfigs**
+
+`packages/store/tsconfig.json`:
 
 ```json
 {
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": { "outDir": "dist", "rootDir": "src", "types": ["node"] },
-  "include": ["src"],
+  "include": ["src"]
+}
+```
+
+`packages/store/tsconfig.build.json`:
+
+```json
+{
+  "extends": "./tsconfig.json",
   "exclude": ["**/*.test.ts"]
 }
 ```
@@ -2881,16 +2980,32 @@ Sanity-check the count rather than trusting it: `pnpm test 2>&1 | grep -E "Tests
 kernel policy suite reports fewer cases than `ACTIONS.length × ROLES.length`, the matrix loop is
 not running and the most important test in this plan is silently vacuous.
 
-- [ ] **Step 5: Confirm the legacy app still runs**
+- [ ] **Step 5: Assert there is still exactly one physical Zod**
 
 ```bash
-cd apps/legacy && npm install --silent && ADMIN_PASSWORD=localdevpassword node server.js
+pnpm why zod -r
+ls node_modules/.pnpm | grep -c '^zod@'
 ```
 
-Expected: `CC GUILD Microtask  ->  http://localhost:4321`. Stop it with Ctrl-C. This is the
-reference implementation for the parity inventory in later plans, which is why it is kept.
+Expected: a single version, count exactly `1`. Re-checked here because every task since Task 12
+has added dependencies, and `auto-install-peers=true` is precisely the mechanism that could pull
+in a second copy.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Confirm the legacy app still runs, against the real dataset**
+
+`lib/store.js` resolves `DATA_DIR` relative to the current working directory, so running from
+`apps/legacy` would read an empty `apps/legacy/data` rather than the existing dataset at the
+repository root. Point it at the real one:
+
+```bash
+cd apps/legacy && npm install --silent && DATA_DIR=../../data ADMIN_PASSWORD=localdevpassword node server.js
+```
+
+Expected: `CC GUILD Microtask  ->  http://localhost:4321`, and the projects list shows the
+existing projects. Stop it with Ctrl-C. This is the reference implementation for the parity
+inventory in later plans, which is why it is kept — and it is only useful pointed at real data.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add -A
@@ -2922,9 +3037,33 @@ hard way.
   optional platform dependency rather than the postinstall. Written explicitly rather than left
   as pnpm's injected placeholder string, which otherwise dirties the tree on every install. The
   entry can go when legacy does.
-- **`turbo run build` warns "no output files found" for `legacy`.** `turbo.json` declares
-  `outputs: ["dist/**"]`, the convention for the new packages, while legacy writes to
-  `public/vendor/`. Harmless; disappears with legacy.
+- **~~`turbo run build` warns "no output files found" for `legacy`~~ — this was not harmless, and
+  is now fixed.** I originally recorded it as a cosmetic warning. It was a silent cache
+  corruption: with `outputs` unset, turbo cached only the 147-byte build log, so a cache hit
+  restored nothing while printing `FULL TURBO`, exiting 0, and **replaying a log that claimed it
+  had written the 317 KB bundle**. Since `public/vendor/` is gitignored, nothing downstream
+  caught it — the app just 404s `/vendor/tiptap.js` and the editor silently fails to load.
+  Reproduced by deleting the bundle and building; fixed by `apps/legacy/turbo.json` declaring
+  `outputs: ["public/vendor/**"]`, and verified that a genuine cache hit now restores it
+  byte-identically.
+  **Generalise this:** the root `turbo.json` declares `outputs: ["dist/**"]` for every package, so
+  any package whose build emits elsewhere hits the identical trap. Check `outputs` as each package
+  lands.
+- **Turbo 2 runs in strict env mode, and no `env`/`globalEnv` is declared.** Verified: a task
+  observes an ambient variable as `null` while system vars pass through. Harmless in Plan 1, but
+  ADR 0026 requires `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` at build time **and stable across
+  rebuilds** — under strict mode it would be filtered out with no error, Next would generate a
+  random key per build, and the symptom is intermittent Server Action decryption failures in
+  production. Declare it on the build task in **Plan 4**, when the Next apps land.
+- **pnpm 12 appends `minimumReleaseAgeExclude` when you pin a recently-published version.** It is
+  recording consent to use a fresh release, not a bug. Commit those entries as part of whichever
+  task triggers them; reverting leaves the tree dirty for every task after it.
+- **The plan originally specified `"latest"` for `eslint`, `typescript`, `vitest` and
+  `@types/node`.** With `strict-peer-dependencies=true` that was a hard install failure, not a
+  future risk: `typescript@latest` is 7.0.2 while `typescript-eslint@8.70.0` peers
+  `<6.1.0`, and `eslint@latest` is 10.10.0 while `eslint-plugin-import@2.32.0` supports only up
+  to `^9`. Replaced with catalog pins verified to install together (ADR 0001's "shared versions
+  are pinned centrally", which `latest` also contradicted).
 
 ## Definition of done
 
