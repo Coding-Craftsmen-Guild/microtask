@@ -2,8 +2,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-COPY apps/legacy/package.json apps/legacy/package-lock.json* ./
-RUN npm install --omit=optional
+COPY apps/legacy/package.json ./
+RUN npm install
 COPY apps/legacy/src ./src
 COPY apps/legacy/public ./public
 RUN npm run build

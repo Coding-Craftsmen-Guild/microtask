@@ -2,9 +2,11 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
-# esbuild's postinstall is not needed: the native binary arrives via the
-# optional @esbuild/<platform> dependency. Legacy-only devDependency, removed
-# in Plan 5.
+# Workspace-wide, not per-package. esbuild's postinstall only fetches its
+# native binary, which already arrives as an optional @esbuild/<platform>
+# dependency, so skipping the script is safe. This entry outlives the legacy
+# app: it must stay as long as anything in the workspace depends on esbuild,
+# and vitest does, via vite.
 allowBuilds:
   esbuild: false
 
