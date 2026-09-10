@@ -19,6 +19,7 @@ export {
 export type { ProjectStore } from './ports/project-store.js'
 export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
+export { FolderService } from './services/folder-service.js'
 export { ProjectService } from './services/project-service.js'
 export { FsProjectStore, type FsProjectStoreOptions } from './storage/fs-project-store.js'
 export { ShareIndex } from './storage/share-index.js'
