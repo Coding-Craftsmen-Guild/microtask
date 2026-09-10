@@ -56,11 +56,12 @@ export class ProjectService {
     })
   }
 
-  /** Removes a project and everything under it. */
+  /** Removes a project, everything under it, and the share tokens that pointed at it. */
   async remove(product: Product, projectId: string): Promise<void> {
     await this.#ctx.lock.run(async () => {
       const removed = await this.#ctx.store.deleteProject(product, projectId)
       if (!removed) throw new NotFound('Project not found')
+      this.#ctx.tokens.removeProject(product, projectId)
     })
   }
 }

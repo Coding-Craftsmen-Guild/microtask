@@ -17,8 +17,9 @@ export {
   type LimitKey,
 } from './limits.js'
 export type { ProjectStore } from './ports/project-store.js'
+export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
 export { ProjectService } from './services/project-service.js'
 export { FsProjectStore, type FsProjectStoreOptions } from './storage/fs-project-store.js'
-export { ShareIndex, type TokenOwner } from './storage/share-index.js'
+export { ShareIndex } from './storage/share-index.js'
 export { manifestFile, projectDir, projectsDir, taskFile, tasksDir } from './storage/paths.js'

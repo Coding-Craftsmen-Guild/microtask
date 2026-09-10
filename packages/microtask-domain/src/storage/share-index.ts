@@ -1,16 +1,11 @@
 import { Conflict, type Product } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
-
-/** Where a share token lives. */
-export interface TokenOwner {
-  readonly product: Product
-  readonly projectId: string
-}
+import type { TokenIndex, TokenOwner } from '../ports/token-index.js'
 
 const key = (owner: TokenOwner): string => `${owner.product}/${owner.projectId}`
 
-/** Maps a share token to the one project that owns it. */
-export class ShareIndex {
+/** A TokenIndex that keeps its mapping in this process and consults nothing outside it. */
+export class ShareIndex implements TokenIndex {
   readonly #owners = new Map<string, TokenOwner>()
 
   /** Resolves a token to its owning project, or null when unknown. */

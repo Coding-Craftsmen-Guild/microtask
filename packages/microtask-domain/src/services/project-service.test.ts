@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { Invalid, NotFound } from '@repo/kernel'
 import { QueueLock } from '@repo/store'
+import { ShareIndex } from '../storage/share-index.js'
+import type { ShareLink } from '../entities/share-link.js'
 import { MemoryProjectStore } from '../testing/memory-project-store.js'
 import { manifest } from '../testing/fixtures.js'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
@@ -9,18 +11,30 @@ import { ProjectService } from './project-service.js'
 
 const NOW = '2026-09-10T12:00:00.000Z'
 const EARLIER = '2026-01-01T00:00:00.000Z'
+const TOKEN = 'tok_launchlaunchlau'
 const ABSENT = '01M240ERCRWWCN16Q5AHP1FZAQ'
 
 const build = () => {
   const store = new MemoryProjectStore()
+  const tokens = new ShareIndex()
   const service = new ProjectService({
     store,
+    tokens,
     lock: new QueueLock(),
     clock: fixedClock(NOW),
     ids: sequentialIds(),
   })
-  return { store, service }
+  return { store, service, tokens }
 }
+
+const shareLink = (token: string, projectId: string): ShareLink => ({
+  token,
+  name: 'Jane at ACME',
+  role: 'view',
+  scope: { kind: 'project', projectId },
+  createdBy: null,
+  createdAt: EARLIER,
+})
 
 const fill = async (store: MemoryProjectStore, count: number): Promise<void> => {
   const ids = sequentialIds(1000)
@@ -112,6 +126,17 @@ describe('ProjectService.remove', () => {
 
   it('rejects an unknown project rather than reporting success', async () => {
     await expect(build().service.remove('microtask', ABSENT)).rejects.toThrow(NotFound)
+  })
+
+  it('drops the share tokens of a removed project, so they stop resolving', async () => {
+    const { service, store, tokens } = build()
+    const created = await service.create('microtask', 'Launch')
+    const shared = { ...created, shareLinks: [shareLink(TOKEN, created.id)] }
+    await store.saveManifest('microtask', shared)
+    tokens.add('microtask', shared)
+    expect(tokens.find(TOKEN)).toEqual({ product: 'microtask', projectId: created.id })
+    await service.remove('microtask', created.id)
+    expect(tokens.find(TOKEN)).toBeNull()
   })
 })
 
