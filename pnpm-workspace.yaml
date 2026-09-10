@@ -12,6 +12,14 @@ allowBuilds:
 
 catalog:
   zod: 4.6.1
+  typescript: 5.9.3
+  eslint: 9.39.5
+  vitest: 5.0.0
+  '@types/node': 22.20.2
+
+minimumReleaseAgeExclude:
+  - eslint-plugin-jsdoc@64.3.9
+  - zod@4.6.1
 
 overrides:
   zod: 'catalog:'
