@@ -6,8 +6,8 @@ import { manifestFile, projectDir, projectsDir, taskFile } from './paths.js'
 
 /** How an FsProjectStore reaches the disk and where it puts its data. */
 export interface FsProjectStoreOptions {
-  files: FileSystem
-  root: () => string
+  readonly files: FileSystem
+  readonly root: () => string
 }
 
 /** A ProjectStore over plain JSON files, one directory per project. */
