@@ -19,6 +19,15 @@ export async function api(path, { method = 'GET', body, keepalive } = {}) {
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+/** Append children, skipping the nullish ones so `cond ? node : null` works. */
+function appendAll(node, children) {
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false) continue;
+    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return node;
+}
+
 export function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
@@ -27,11 +36,14 @@ export function el(tag, props = {}, ...children) {
     else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
     else if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v);
   }
-  for (const child of children.flat()) {
-    if (child === null || child === undefined || child === false) continue;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
-  }
-  return node;
+  return appendAll(node, children);
+}
+
+/** Replace a node's contents under el()'s nullish rule. Native replaceChildren()
+ *  renders a null child as the literal text "null". */
+export function fill(node, ...children) {
+  node.replaceChildren();
+  return appendAll(node, children);
 }
 
 let toastTimer;

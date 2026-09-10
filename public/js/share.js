@@ -1,4 +1,4 @@
-import { api, $, el, toast, tabProgress, projectProgress, progressBar, promptDialog } from './util.js';
+import { api, $, el, fill, toast, tabProgress, projectProgress, progressBar, promptDialog } from './util.js';
 import { createEditor, buildToolbar } from './editor.js';
 
 const token = location.pathname.split('/').filter(Boolean).pop();
@@ -56,7 +56,7 @@ function renderHeader() {
   $('#title').textContent = data.name;
   document.title = `${data.name} · CC Guild Microtask`;
   const overall = projectProgress(data);
-  $('#overall').replaceChildren(
+  fill($('#overall'),
     el(
       'span',
       { class: 'progress' },
@@ -81,7 +81,7 @@ function renderHeader() {
 function renderTabProgress() {
   const tab = activeTab();
   const { done, total } = tabProgress(tab);
-  $('#tab-progress').replaceChildren(
+  fill($('#tab-progress'),
     el('strong', { style: 'color:var(--ink);font-weight:600' }, tab.name),
     total
       ? el('span', {}, `${done} / ${total} completed`)
@@ -109,7 +109,7 @@ async function addTab() {
 }
 
 function renderTabs() {
-  $('#tabbar').replaceChildren(
+  fill($('#tabbar'),
     ...data.tabs.map((tab) => {
       const { done, total } = tabProgress(tab);
       return el(
