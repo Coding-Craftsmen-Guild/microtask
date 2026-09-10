@@ -19,12 +19,12 @@ describeProjectStore('FsProjectStore', () => {
       if (root) await rm(root, { recursive: true, force: true })
       root = await mkdtemp(path.join(tmpdir(), 'ccg-store-'))
     },
-    async writeRawTaskFile(product: Product, projectId: string, taskId: string, raw: string) {
+    async writeUndecodableTask(product: Product, projectId: string, taskId: string, raw: string) {
       const file = taskFile(root, product, projectId, taskId)
       await mkdir(path.dirname(file), { recursive: true })
       await writeFile(file, raw)
     },
-    async makeStrayProjectDir(product: Product, name: string) {
+    async addContainerWithoutManifest(product: Product, name: string) {
       await mkdir(path.join(projectsDir(root, product), name), { recursive: true })
     },
   }

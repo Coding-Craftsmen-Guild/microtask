@@ -53,7 +53,7 @@ export class MemoryProjectStore implements ProjectStore {
     this.#tasks.set(taskKey(product, projectId, taskId), raw)
   }
 
-  /** Adds a container under any name, modelling a project directory holding no manifest. */
+  /** Adds a container under any name, modelling a project container holding no manifest. */
   addContainer(product: Product, name: string): void {
     this.#containers.add(containerKey(product, name))
   }

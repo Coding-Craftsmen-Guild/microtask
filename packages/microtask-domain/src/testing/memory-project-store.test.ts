@@ -8,10 +8,10 @@ describeProjectStore('MemoryProjectStore', () => {
     async reset() {
       store.clear()
     },
-    async writeRawTaskFile(product, projectId, taskId, raw) {
+    async writeUndecodableTask(product, projectId, taskId, raw) {
       store.putRawTask(product, projectId, taskId, raw)
     },
-    async makeStrayProjectDir(product, name) {
+    async addContainerWithoutManifest(product, name) {
       store.addContainer(product, name)
     },
   }
