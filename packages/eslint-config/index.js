@@ -65,13 +65,22 @@ export const base = [
     },
   },
   {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/testing/**', '**/*.config.*'],
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/*.config.*'],
     rules: {
       'max-lines': 'off',
       'max-lines-per-function': 'off',
       'max-nested-callbacks': 'off',
       'jsdoc/require-jsdoc': 'off',
       'local/tsdoc-comments-only': 'off',
+      'n/no-process-env': 'off',
+    },
+  },
+  {
+    files: ['**/testing/**'],
+    rules: {
+      'max-lines': 'off',
+      'max-lines-per-function': 'off',
+      'max-nested-callbacks': 'off',
       'n/no-process-env': 'off',
     },
   },

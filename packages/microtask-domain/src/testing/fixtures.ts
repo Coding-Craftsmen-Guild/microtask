@@ -3,12 +3,15 @@ import type { TaskDocument } from '../entities/task.js'
 import { emptyDocument } from '../entities/document.js'
 import { NO_PROGRESS } from '../entities/progress.js'
 
+/** The one timestamp every fixture carries, so no comparison depends on the clock. */
 export const STAMP = '2026-09-10T00:00:00.000Z'
 
+/** Builds a manifest entry at position 0, in no folder, with no progress, before overrides. */
 export function taskEntry(id: string, name: string, overrides: Partial<TaskEntry> = {}): TaskEntry {
   return { id, name, position: 0, folderId: null, progress: NO_PROGRESS, ...overrides }
 }
 
+/** Builds a task holding one empty tab, which is what a newly created task looks like. */
 export function taskDocument(id: string, tabId: string): TaskDocument {
   return {
     id,
@@ -20,6 +23,7 @@ export function taskDocument(id: string, tabId: string): TaskDocument {
   }
 }
 
+/** Builds a project manifest named Launch with no folders, tasks or share links, before overrides. */
 export function manifest(id: string, overrides: Partial<ProjectManifest> = {}): ProjectManifest {
   return {
     id,
