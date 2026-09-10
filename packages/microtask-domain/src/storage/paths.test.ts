@@ -56,7 +56,7 @@ describe('taskFile', () => {
     expect(() => taskFile(ROOT, 'microtask', P, bad)).toThrow(Invalid)
   })
 
-  it('never escapes the data root', () => {
+  it('places the task file under the data root', () => {
     const built = taskFile(ROOT, 'microtask', P, T)
     expect(built.startsWith(ROOT + path.sep)).toBe(true)
   })

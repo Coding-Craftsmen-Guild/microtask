@@ -14,7 +14,4 @@ export interface FileSystem {
 
   /** Lists immediate subdirectory names, or an empty array when absent. */
   listDirs(dir: string): Promise<readonly string[]>
-
-  /** Lists immediate file names, or an empty array when absent. */
-  listFiles(dir: string): Promise<readonly string[]>
 }

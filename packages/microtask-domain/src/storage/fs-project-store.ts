@@ -2,7 +2,7 @@ import { isUlid, type FileSystem, type Product } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ProjectStore } from '../ports/project-store.js'
 import type { TaskDocument } from '../entities/task.js'
-import { manifestFile, projectDir, projectsDir, taskFile, tasksDir } from './paths.js'
+import { manifestFile, projectDir, projectsDir, taskFile } from './paths.js'
 
 /** How an FsProjectStore reaches the disk and where it puts its data. */
 export interface FsProjectStoreOptions {
@@ -75,15 +75,6 @@ export class FsProjectStore implements ProjectStore {
   /** Removes a project and everything under it, reporting whether it existed. */
   async deleteProject(product: Product, projectId: string): Promise<boolean> {
     return this.#files.removeDir(projectDir(this.#root(), product, projectId))
-  }
-
-  /** Lists the task ids that have a file on disk, whatever the manifest says. */
-  async listTaskFiles(product: Product, projectId: string): Promise<readonly string[]> {
-    const names = await this.#files.listFiles(tasksDir(this.#root(), product, projectId))
-    return names
-      .filter((name) => name.endsWith('.json'))
-      .map((name) => name.slice(0, -5))
-      .filter(isUlid)
   }
 
   async #readJson<T>(file: string): Promise<T | null> {

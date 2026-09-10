@@ -53,18 +53,9 @@ export class NodeFileSystem implements FileSystem {
 
   /** Lists immediate subdirectory names, or an empty array when absent. */
   async listDirs(dir: string): Promise<readonly string[]> {
-    return this.#entries(dir, (entry) => entry.isDirectory())
-  }
-
-  /** Lists immediate file names, or an empty array when absent. */
-  async listFiles(dir: string): Promise<readonly string[]> {
-    return this.#entries(dir, (entry) => entry.isFile())
-  }
-
-  async #entries(dir: string, keep: (e: { isFile(): boolean; isDirectory(): boolean }) => boolean) {
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true })
-      return entries.filter(keep).map((entry) => entry.name)
+      return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name)
     } catch (error) {
       if (missing(error)) return []
       throw error

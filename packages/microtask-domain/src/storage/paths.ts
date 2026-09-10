@@ -1,17 +1,9 @@
 import path from 'node:path'
 import { Invalid, isProduct, isUlid, type Product } from '@repo/kernel'
+import { contained } from './contained.js'
 
 const MANIFEST = 'project.json'
 const TASKS = 'tasks'
-
-function contained(parent: string, target: string): string {
-  const base = path.resolve(parent)
-  const resolved = path.resolve(target)
-  if (!resolved.startsWith(base + path.sep)) {
-    throw new Invalid('Path escapes its parent directory')
-  }
-  return resolved
-}
 
 /** Resolves the directory holding every project for one product. */
 export function projectsDir(root: string, product: Product): string {

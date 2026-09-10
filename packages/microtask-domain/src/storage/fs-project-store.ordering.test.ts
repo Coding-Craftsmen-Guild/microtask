@@ -39,10 +39,6 @@ class MemoryFileSystem implements FileSystem {
   async listDirs() {
     return []
   }
-
-  async listFiles() {
-    return []
-  }
 }
 
 const isManifest = (file: string) => file.includes('project.json')
