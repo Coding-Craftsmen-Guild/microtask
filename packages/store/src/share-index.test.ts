@@ -40,6 +40,20 @@ describe('ShareIndex', () => {
     expect(() => index.add('macroplan', manifest(P1, { shareLinks: [link(TOKEN, P1)] }))).toThrow(Conflict)
   })
 
+  it('leaves the index untouched when it rejects a collision', () => {
+    const index = new ShareIndex()
+    const owned = 'tok_p2ownaaaaaaaaaa'
+    const fresh = 'tok_freshfreshfresh1'
+    index.add('microtask', manifest(P1, { shareLinks: [link(TOKEN, P1)] }))
+    index.add('microtask', manifest(P2, { shareLinks: [link(owned, P2)] }))
+    expect(() =>
+      index.add('microtask', manifest(P2, { shareLinks: [link(fresh, P2), link(TOKEN, P2)] })),
+    ).toThrow(Conflict)
+    expect(index.find(TOKEN)).toEqual({ product: 'microtask', projectId: P1 })
+    expect(index.find(owned)).toEqual({ product: 'microtask', projectId: P2 })
+    expect(index.find(fresh)).toBeNull()
+  })
+
   it('re-adding the same project replaces only its own tokens', () => {
     const index = new ShareIndex()
     const other = 'tok_bbbbbbbbbbbbbbbb'

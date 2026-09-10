@@ -10,6 +10,7 @@ const TAB = '01M240FB4GD6PF6V0PKZVF6FDA'
 class MemoryFileSystem implements FileSystem {
   readonly writes: string[] = []
   readonly removals: string[] = []
+  readonly log: { op: 'write' | 'remove'; file: string }[] = []
   failOn: (file: string) => boolean = () => false
 
   readonly #store = new Map<string, string>()
@@ -21,11 +22,13 @@ class MemoryFileSystem implements FileSystem {
   async writeTextAtomic(file: string, text: string) {
     if (this.failOn(file)) throw new Error('killed mid-write')
     this.writes.push(file)
+    this.log.push({ op: 'write', file })
     this.#store.set(file, text)
   }
 
   async remove(file: string) {
     this.removals.push(file)
+    this.log.push({ op: 'remove', file })
     return this.#store.delete(file)
   }
 
@@ -43,6 +46,9 @@ class MemoryFileSystem implements FileSystem {
 }
 
 const isManifest = (file: string) => file.includes('project.json')
+
+const step = ({ op, file }: { op: 'write' | 'remove'; file: string }) =>
+  `${op} ${isManifest(file) ? 'manifest' : 'task'}`
 
 function setup() {
   const files = new MemoryFileSystem()
@@ -75,9 +81,9 @@ describe('write ordering (ADR 0006)', () => {
   it('writes the manifest before unlinking, so a crash never strands a referenced file', async () => {
     const { files, store, entry, emptied } = setup()
     await store.saveTask('microtask', entry, taskDocument(T, TAB))
-    files.writes.length = 0
+    files.log.length = 0
     await store.deleteTask('microtask', emptied, T)
-    expect(files.writes.some(isManifest)).toBe(true)
+    expect(files.log.map(step)).toEqual(['write manifest', 'remove task'])
     expect(files.removals.some((file) => file.includes(T))).toBe(true)
   })
 
