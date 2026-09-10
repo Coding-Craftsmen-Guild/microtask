@@ -84,18 +84,37 @@ If a genuinely `.openapi()`-only feature is ever needed, it goes behind a second
   usable here: it ignores tsconfig `paths`, requires explicit import extensions, and rejects `.tsx`.
 - Two Zod annotation styles now exist in the ecosystem's examples and ours is the less common one.
   The lint rule and this ADR are what stop someone "fixing" it back.
-- `.meta()` does **not** validate ids on registration — it overwrites silently. The duplicate-id error
-  is thrown later, during conversion. So `packages/contracts` carries a unique-id test, and CI smoke-
-  tests that `GET /openapi.json` returns 200.
-- **Highest-value open risk:** that a plain-Zod schema carrying only `.meta({ id: 'Task' })` — with no
-  `extendZodWithOpenApi` and no explicit registry call — actually emits `components.schemas.Task` and
-  a `$ref` to it through `OpenAPIHono`'s 3.1 document. Both halves are documented (the peer on Zod 4,
-  and zod-to-openapi's statement that the `.meta`-with-`id` and `.openapi()` forms "produce exactly
-  the same results"), but the end-to-end path was not executed. **This is a ten-minute spike to run
-  before implementation starts.** If it fails, the fallback is hand-assembling components with
-  `z.toJSONSchema(…, { target: 'openapi-3.0', io: 'input', uri: id => '#/components/schemas/' + id })`,
-  stripping `$id`/`$schema` — because the default output emits `#/definitions/…` refs, which are
-  invalid in an OpenAPI document.
+- **Duplicate `.meta({ id })` fails silently — it does not throw.** Verified: two different schemas
+  tagged `'Dup'` produced a document with **one** `Dup` component and both `$ref`s pointing at
+  whichever won. The second schema's shape is lost with no error at registration *or* at conversion.
+  This is worse than the documentation implies, and it means the unique-id test in
+  `packages/contracts` is the **only** line of defence, not a belt-and-braces extra. CI also
+  smoke-tests that `GET /openapi.json` returns 200.
+
+## Verified by spike · 2026-09-10
+
+Executed against `zod@4.6.1`, `hono@4.13.7`, `@hono/zod-openapi@1.6.3` — a contracts module
+importing only plain Zod, consumed by an `OpenAPIHono` app.
+
+**The decision holds.** `.meta({ id })` on a plain-Zod schema emits `components.schemas.Task` and the
+response references it as `$ref: '#/components/schemas/Task'`. Nested schemas (`Tab`) are extracted
+too, the `description` carries through, untagged schemas inline as expected, path parameters work,
+and nothing emits an invalid `#/definitions/…` ref. The `z.toJSONSchema` fallback is not needed.
+
+**The trap is real, and confirmed in both directions.** `Task.openapi` is `typeof 'function'` when
+the module graph includes `@hono/zod-openapi`, and `undefined` when contracts is imported alone. So
+calling `.openapi()` in contracts genuinely would compile, pass tests in the API, and throw only in
+the browser. The lint rule is load-bearing.
+
+Three further silent failures confirmed, all of which the implementation must avoid:
+
+- **A plain `Hono` subapp mounted into an `OpenAPIHono` tree vanishes from the document.** A tree
+  with one plain child and one `OpenAPIHono` child produced exactly one path — the plain branch
+  served traffic while being invisible to the spec. Every level must be `OpenAPIHono`.
+- **Mount-path syntax is the nastiest of the set.** `app.route('/projects/{projectId}', child)`
+  returns **HTTP 404** for every child route, while the OpenAPI document renders the path
+  *correctly either way*. So the document looks right and the API is broken. Use `:param` in
+  `app.route()` and `{param}` in `createRoute()`.
 
 ## Alternatives considered
 

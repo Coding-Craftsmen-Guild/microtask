@@ -53,7 +53,12 @@ worth knowing about, because each would have been implemented as written:
 - **The official shadcn monorepo template ships a broken `@source` path**, off by one directory
   level, which fails silently — ADR 0025.
 
-Two things remain genuinely unverified and are called out in their ADRs rather than papered over:
-the end-to-end Zod-`.meta()`-to-OpenAPI path (ADR 0024 — a ten-minute spike before implementation),
-and everything Coolify-specific, above all whether Coolify renames named volumes (ADR 0026 — checked
-on the server, on a throwaway resource, before cutover).
+The end-to-end Zod-`.meta()`-to-OpenAPI path was then **executed** rather than left to inference —
+see "Verified by spike" in ADR 0024. It works, so contracts stay framework-free. The spike also
+corrected the research in the dangerous direction: a duplicate `.meta({ id })` does **not** throw at
+conversion as documented — it silently collapses two schemas into one and points both `$ref`s at the
+winner, which makes the unique-id test the only defence rather than a formality.
+
+What remains unverified is everything Coolify-specific, above all whether Coolify renames named
+volumes (ADR 0026, and step 1 of the cutover runbook). The mitigation is backups taken before
+deploy, so a wrong volume name is discovered at the import step with the original data intact.
