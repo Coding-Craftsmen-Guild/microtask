@@ -1,6 +1,6 @@
+import type { Product } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { TaskDocument } from '../entities/task.js'
-import type { Product } from '../product.js'
 
 /** Persistence for projects, with the write ordering that keeps a crash recoverable. */
 export interface ProjectStore {
