@@ -32,6 +32,14 @@ before anything is discarded.
   the retry logic must not treat 409 as retryable, or it will loop.
 - Every document write carries the version it is based on, so the editor must track the last
   `updatedAt` it received, including after a 409 reload.
+- **The precondition is only as fine-grained as the clock.** `updatedAt` is an ISO millisecond
+  stamp, so two writes landing inside one millisecond carry the same value and the later one is
+  accepted as though it were based on the earlier — a lost update the check cannot see. Narrow in
+  production, where a save is debounced 700 ms, but total under a clock that never advances: a
+  fixed test clock makes every stale write look current. A domain test that means to measure the
+  precondition rather than the seed stamp therefore drives it with a clock that moves. Closing the
+  gap entirely would mean a revision counter instead of a timestamp, which the manifest would have
+  to keep and every client carry.
 - This is not real collaborative editing. Two people typing in one tab still fight; they just no
   longer lose work without being told.
 
