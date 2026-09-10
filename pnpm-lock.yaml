@@ -167,9 +167,6 @@ importers:
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@repo/kernel':
-        specifier: workspace:*
-        version: link:../kernel
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
@@ -212,6 +209,31 @@ importers:
         version: 5.0.0(@types/node@26.5.0)(vite@8.2.2(@types/node@26.5.0))
 
   packages/kernel:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.2
+      eslint:
+        specifier: 'catalog:'
+        version: 9.39.5(supports-color@7.2.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.0(@types/node@22.20.2)(vite@8.2.2(@types/node@22.20.2))
+
+  packages/store:
+    dependencies:
+      '@repo/kernel':
+        specifier: workspace:*
+        version: link:../kernel
     devDependencies:
       '@repo/eslint-config':
         specifier: workspace:*
