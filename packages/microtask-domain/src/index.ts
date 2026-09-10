@@ -5,8 +5,20 @@ export type { TaskDocument } from './entities/task.js'
 export type { Folder } from './entities/folder.js'
 export type { ShareLink } from './entities/share-link.js'
 export type { ProjectManifest, TaskEntry } from './entities/manifest.js'
+export { countTasks } from './progress.js'
+export { assertSafeDocument, SAFE_HREF_SCHEMES } from './document-guard.js'
+export {
+  assertWithin,
+  cleanName,
+  LIMITS,
+  MAX_DOCUMENT_BYTES,
+  MAX_DOCUMENT_DEPTH,
+  type CountLimitKey,
+  type LimitKey,
+} from './limits.js'
 export type { ProjectStore } from './ports/project-store.js'
 export type { ServiceContext } from './services/context.js'
+export { ProjectService } from './services/project-service.js'
 export { FsProjectStore, type FsProjectStoreOptions } from './storage/fs-project-store.js'
 export { ShareIndex, type TokenOwner } from './storage/share-index.js'
 export { manifestFile, projectDir, projectsDir, taskFile, tasksDir } from './storage/paths.js'
