@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FileSystem } from '@repo/kernel'
-import { manifest, taskDocument, taskEntry } from '@repo/kernel/testing'
+import { manifest, taskDocument, taskEntry } from '../testing/index.js'
 import { FsProjectStore } from './fs-project-store.js'
 
 const P = '01M240ERCRWWCN16Q5AHP1FZAQ'

@@ -1,11 +1,7 @@
-import {
-  isUlid,
-  type FileSystem,
-  type Product,
-  type ProjectManifest,
-  type ProjectStore,
-  type TaskDocument,
-} from '@repo/kernel'
+import { isUlid, type FileSystem, type Product } from '@repo/kernel'
+import type { ProjectManifest } from '../entities/manifest.js'
+import type { ProjectStore } from '../ports/project-store.js'
+import type { TaskDocument } from '../entities/task.js'
 import { manifestFile, projectDir, projectsDir, taskFile, tasksDir } from './paths.js'
 
 /** How an FsProjectStore reaches the disk and where it puts its data. */

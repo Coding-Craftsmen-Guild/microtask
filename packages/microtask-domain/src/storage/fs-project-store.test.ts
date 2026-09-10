@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describeProjectStore } from '@repo/kernel/testing'
+import { NodeFileSystem } from '@repo/store'
+import { describeProjectStore } from '../testing/index.js'
 import { FsProjectStore } from './fs-project-store.js'
-import { NodeFileSystem } from './node-file-system.js'
 
 describeProjectStore('FsProjectStore', () => {
   let root = ''

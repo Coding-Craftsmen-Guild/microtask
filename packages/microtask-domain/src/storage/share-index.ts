@@ -1,4 +1,5 @@
-import { Conflict, type Product, type ProjectManifest } from '@repo/kernel'
+import { Conflict, type Product } from '@repo/kernel'
+import type { ProjectManifest } from '../entities/manifest.js'
 
 /** Where a share token lives. */
 export interface TokenOwner {

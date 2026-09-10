@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Conflict } from '@repo/kernel'
-import { manifest } from '@repo/kernel/testing'
-import type { ShareLink } from '@repo/kernel'
+import { manifest } from '../testing/index.js'
+import type { ShareLink } from '../entities/share-link.js'
 import { ShareIndex } from './share-index.js'
 
 const P1 = '01M240ERCRWWCN16Q5AHP1FZAQ'
