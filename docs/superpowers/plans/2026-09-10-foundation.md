@@ -408,6 +408,7 @@ export default {
     return {
       Program() {
         for (const comment of source.getAllComments()) {
+          if (comment.type === 'Shebang') continue
           if (isDocForExport(source, comment)) continue
           context.report({ loc: comment.loc, messageId: 'disallowed' })
         }
@@ -416,6 +417,16 @@ export default {
   },
 }
 ```
+
+The `Shebang` skip matters: espree surfaces `#!/usr/bin/env node` as a comment, so without it any
+executable entry point fails lint on line 1.
+
+**A known limitation, accepted:** the ancestor walk allows a TSDoc block on a *non-exported* inner
+declaration inside an exported one — `export function f() { /** Inner. */ const x = 1 }` passes.
+This cannot be tightened without also rejecting the third valid case above (`/** Inner. */ b() {}`
+inside `export class A`), which is legitimate. The rule catches every case that matters: line
+comments, commented-out code, section banners, trailing comments, and TSDoc on top-level
+non-exported declarations.
 
 - [ ] **Step 6: Run the test to verify it passes**
 
@@ -435,6 +446,7 @@ import tseslint from 'typescript-eslint'
 import importPlugin from 'eslint-plugin-import'
 import jsdoc from 'eslint-plugin-jsdoc'
 import n from 'eslint-plugin-n'
+import reactHooks from 'eslint-plugin-react-hooks'
 import tsdocCommentsOnly from './rules/tsdoc-comments-only.js'
 
 export const local = { rules: { 'tsdoc-comments-only': tsdocCommentsOnly } }
@@ -468,7 +480,16 @@ export const base = [
   },
   {
     files: ['**/*.tsx'],
-    rules: { 'max-lines': ['error', { max: 80, skipBlankLines: true, skipComments: true }] },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'max-lines': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+    },
+  },
+  {
+    files: ['packages/contracts/**'],
+    rules: { 'max-lines': 'off' },
   },
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/testing/**', '**/*.config.*'],
@@ -485,20 +506,48 @@ export const base = [
 export default base
 ```
 
-- [ ] **Step 8: Verify the config loads**
+Two layers here are inert in Plan 1 and deliberately so. The `react-hooks` rules have no `.tsx`
+to act on until Plan 4 — but ADR 0027 lists them as errors, and leaving the plugin installed while
+never configuring it would make this file a lie about what is enforced. The
+`packages/contracts/**` override is needed by Task 12: Zod schemas are declarative, and splitting
+one to satisfy a line count scatters a single shape across files.
+
+`packages/ui/src/primitives/**` also needs a `max-lines` override per ADR 0027, but that path
+arrives with the package in Plan 4 rather than as a rule pointing at nothing.
+
+- [ ] **Step 8: Add the package's own flat config so it lints itself**
+
+The config package is the one whose correctness every other package inherits, so it eats its own
+food. Create `packages/eslint-config/eslint.config.js`:
+
+```js
+import base from './index.js'
+
+export default base
+```
+
+If a rule proves genuinely unworkable on plain JavaScript, add the narrowest override to **this**
+file with a one-line reason — never weaken `index.js`.
+
+- [ ] **Step 9: Verify the config loads**
 
 ```bash
 pnpm --filter @repo/eslint-config exec node -e "import('./index.js').then(m => console.log('configs:', m.default.length))"
 ```
 
-Expected: `configs: 4`
+Expected: `configs: 7` — `tseslint.configs.strict` spreads to three entries, plus
+`js.configs.recommended` and the three own layers.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add packages/eslint-config
+git add packages/eslint-config pnpm-workspace.yaml pnpm-lock.yaml
 git commit -m "feat: add shared ESLint config with TSDoc-only comment rule"
 ```
+
+The workspace file and lockfile are staged too, because Step 1 changed the catalog and pnpm
+appended `minimumReleaseAgeExclude` entries. Leaving them out would keep the tree dirty for
+every task that follows.
 
 ---
 
