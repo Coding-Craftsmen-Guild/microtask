@@ -1,8 +1,13 @@
 node_modules/
 data/
-public/vendor/
+**/public/vendor/
 .playwright-mcp/
 /*.png
 /*.log
 
 .env
+dist/
+.turbo/
+*.tsbuildinfo
+package-lock.json
+yarn.lock

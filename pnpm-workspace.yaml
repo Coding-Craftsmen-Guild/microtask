@@ -1,0 +1,15 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# esbuild's postinstall is not needed: the native binary arrives via the
+# optional @esbuild/<platform> dependency. Legacy-only devDependency, removed
+# in Plan 5.
+allowBuilds:
+  esbuild: false
+
+catalog:
+  zod: 4.6.1
+
+overrides:
+  zod: 'catalog:'

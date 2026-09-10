@@ -2,10 +2,10 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY src ./src
-COPY public ./public
+COPY apps/legacy/package.json apps/legacy/package-lock.json* ./
+RUN npm install --omit=optional
+COPY apps/legacy/src ./src
+COPY apps/legacy/public ./public
 RUN npm run build
 
 # --- runtime: the server itself has no dependencies --------------------------
@@ -16,10 +16,10 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 # package.json is needed at runtime only for "type": "module".
-COPY package.json ./
-COPY server.js ./
-COPY lib ./lib
-COPY public ./public
+COPY apps/legacy/package.json ./
+COPY apps/legacy/server.js ./
+COPY apps/legacy/lib ./lib
+COPY apps/legacy/public ./public
 COPY --from=build /app/public/vendor ./public/vendor
 
 RUN mkdir -p /data && chown -R node:node /data /app
