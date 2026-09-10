@@ -4,11 +4,11 @@ import { Invalid, isProduct, isUlid, type Product } from '@repo/kernel'
 const MANIFEST = 'project.json'
 const TASKS = 'tasks'
 
-function contained(root: string, target: string): string {
-  const base = path.resolve(root)
+function contained(parent: string, target: string): string {
+  const base = path.resolve(parent)
   const resolved = path.resolve(target)
   if (resolved !== base && !resolved.startsWith(base + path.sep)) {
-    throw new Invalid('Path escapes the data root')
+    throw new Invalid('Path escapes its parent directory')
   }
   return resolved
 }
@@ -22,12 +22,20 @@ export function projectsDir(root: string, product: Product): string {
 /** Resolves the directory holding one project's files. */
 export function projectDir(root: string, product: Product, projectId: string): string {
   if (!isUlid(projectId)) throw new Invalid('Project id must be a ULID')
-  return contained(root, path.join(projectsDir(root, product), projectId))
+  const parent = projectsDir(root, product)
+  return contained(parent, path.join(parent, projectId))
 }
 
 /** Resolves the file holding one project's manifest. */
 export function manifestFile(root: string, product: Product, projectId: string): string {
-  return contained(root, path.join(projectDir(root, product, projectId), MANIFEST))
+  const parent = projectDir(root, product, projectId)
+  return contained(parent, path.join(parent, MANIFEST))
+}
+
+/** Resolves the directory holding one project's task files. */
+export function tasksDir(root: string, product: Product, projectId: string): string {
+  const parent = projectDir(root, product, projectId)
+  return contained(parent, path.join(parent, TASKS))
 }
 
 /** Resolves the file holding one task's tabs. */
@@ -38,11 +46,6 @@ export function taskFile(
   taskId: string,
 ): string {
   if (!isUlid(taskId)) throw new Invalid('Task id must be a ULID')
-  const dir = path.join(projectDir(root, product, projectId), TASKS)
-  return contained(root, path.join(dir, `${taskId}.json`))
-}
-
-/** Resolves the directory holding one project's task files. */
-export function tasksDir(root: string, product: Product, projectId: string): string {
-  return contained(root, path.join(projectDir(root, product, projectId), TASKS))
+  const parent = tasksDir(root, product, projectId)
+  return contained(parent, path.join(parent, `${taskId}.json`))
 }

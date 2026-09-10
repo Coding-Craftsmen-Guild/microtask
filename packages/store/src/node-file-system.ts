@@ -5,6 +5,8 @@ import type { FileSystem } from '@repo/kernel'
 const missing = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && (error as { code?: string }).code === 'ENOENT'
 
+let sequence = 0
+
 /** The only implementation of FileSystem that touches a real disk. */
 export class NodeFileSystem implements FileSystem {
   /** Reads a UTF-8 file, or returns null when it does not exist. */
@@ -20,9 +22,15 @@ export class NodeFileSystem implements FileSystem {
   /** Writes a UTF-8 file atomically, creating parent directories. */
   async writeTextAtomic(file: string, text: string): Promise<void> {
     await fs.mkdir(path.dirname(file), { recursive: true })
-    const temp = `${file}.${process.pid}.tmp`
-    await fs.writeFile(temp, text)
-    await fs.rename(temp, file)
+    sequence += 1
+    const temp = `${file}.${process.pid}.${sequence}.tmp`
+    try {
+      await fs.writeFile(temp, text)
+      await fs.rename(temp, file)
+    } catch (error) {
+      await fs.rm(temp, { force: true }).catch(() => undefined)
+      throw error
+    }
   }
 
   /** Deletes a file, reporting whether it existed. */
