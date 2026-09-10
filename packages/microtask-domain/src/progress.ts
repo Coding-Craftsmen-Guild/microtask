@@ -1,7 +1,7 @@
 import { NO_PROGRESS, type Progress } from './entities/progress.js'
+import { MAX_DOCUMENT_DEPTH } from './limits.js'
 
-/** How deep a document may nest before the walk stops descending. */
-export const MAX_DOCUMENT_DEPTH = 100
+export { MAX_DOCUMENT_DEPTH } from './limits.js'
 
 interface Frame {
   readonly node: unknown

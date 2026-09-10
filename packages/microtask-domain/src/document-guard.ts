@@ -1,9 +1,8 @@
 import { Invalid } from '@repo/kernel'
-import { MAX_DOCUMENT_DEPTH } from './progress.js'
+import { MAX_DOCUMENT_BYTES, MAX_DOCUMENT_DEPTH } from './limits.js'
 import type { DocumentJson } from './entities/document.js'
 
-/** The largest a stored document may be, in JSON bytes. */
-export const MAX_DOCUMENT_BYTES = 2_000_000
+export { MAX_DOCUMENT_BYTES } from './limits.js'
 
 /** Link schemes a document may reference. */
 export const SAFE_HREF_SCHEMES = ['http', 'https', 'mailto', 'tel'] as const
