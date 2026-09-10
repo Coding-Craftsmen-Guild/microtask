@@ -39,6 +39,12 @@ Overrides, because a cap applied where it does not belong produces worse code, n
 - `packages/contracts/**` — Zod schemas are declarative; splitting one to satisfy a line count
   scatters a single shape across files.
 - `**/*.test.ts`, `**/*.test.tsx` — a thorough test file is long by definition.
+- `**/testing/**` — **size caps only.** A shared contract test suite is one exported function of
+  `it()` blocks, so it breaks `max-lines-per-function` by construction: `describeProjectStore`
+  is 115 lines against a cap of 50, and splitting it would scatter one adapter contract across
+  files for no reader's benefit. The TSDoc rules stay **on** here, because `./testing` is a
+  published `exports` subpath and therefore public surface. Four exports were found escaping an
+  earlier, wider version of this override.
 - `*.config.{ts,mjs}` and generated output.
 
 ### SOLID, made concrete

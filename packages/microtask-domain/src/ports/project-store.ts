@@ -10,16 +10,20 @@ export interface ProjectStore {
   /** Reads one project manifest, or null when the project does not exist. */
   readManifest(product: Product, projectId: string): Promise<ProjectManifest | null>
 
-  /** Reads one task's tabs, or null when the task file is missing or unparseable. */
+  /** Reads one task's tabs, or null when the task is absent or its content cannot be decoded. */
   readTask(product: Product, projectId: string, taskId: string): Promise<TaskDocument | null>
 
-  /** Writes the manifest alone, for changes that touch no task file. */
+  /** Writes the manifest alone, for changes that touch no task. */
   saveManifest(product: Product, manifest: ProjectManifest): Promise<void>
 
-  /** Writes the task file, then the manifest, so a crash can only orphan a file. */
+  /**
+ * Writes the task, then the manifest, in that order, so an interrupted write can only ever
+ * leave an unreferenced task behind, never a manifest entry pointing at a task that is gone
+ * (ADR 0006).
+ */
   saveTask(product: Product, manifest: ProjectManifest, task: TaskDocument): Promise<void>
 
-  /** Writes the manifest, then unlinks the task file, in that order. */
+  /** Writes the manifest, then removes the task, in that order, for the same reason (ADR 0006). */
   deleteTask(product: Product, manifest: ProjectManifest, taskId: string): Promise<void>
 
   /** Removes a project and everything under it, reporting whether it existed. */

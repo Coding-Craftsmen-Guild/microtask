@@ -87,7 +87,7 @@ export function describeProjectStore(name: string, makeHarness: () => StoreHarne
       expect((await store.listManifests('microtask')).map((m) => m.id)).toEqual([P2, P1])
     })
 
-    it('deletes a task file and its manifest entry', async () => {
+    it('deletes a task and its manifest entry together', async () => {
       await fresh()
       await store.saveTask('microtask', manifest(P1, { tasks: [taskEntry(T1, 'Go-live')] }), taskDocument(T1, TAB1))
       await store.deleteTask('microtask', manifest(P1, { tasks: [] }), T1)
@@ -95,7 +95,7 @@ export function describeProjectStore(name: string, makeHarness: () => StoreHarne
       expect((await store.readManifest('microtask', P1))?.tasks).toEqual([])
     })
 
-    it('treats a manifest entry with no task file as one unreadable task, not a broken project', async () => {
+    it('treats a manifest entry whose task is gone as one unreadable task, not a broken project', async () => {
       await fresh()
       await store.saveManifest('microtask', manifest(P1, { tasks: [taskEntry(T1, 'Ghost')] }))
       expect(await store.readTask('microtask', P1, T1)).toBeNull()
@@ -133,11 +133,21 @@ export function describeProjectStore(name: string, makeHarness: () => StoreHarne
     )
 
     it.skipIf(!harness.addContainerWithoutManifest)(
-      'leaves a container holding no project manifest out of the listing rather than failing the whole listing',
+      'leaves a container whose name could never be a project id out of the listing',
       async () => {
         await fresh()
         await store.saveManifest('microtask', manifest(P1))
         await harness.addContainerWithoutManifest?.('microtask', 'not-a-ulid')
+        expect((await store.listManifests('microtask')).map((m) => m.id)).toEqual([P1])
+      },
+    )
+
+    it.skipIf(!harness.addContainerWithoutManifest)(
+      'leaves a container named like a project but holding no manifest out of the listing',
+      async () => {
+        await fresh()
+        await store.saveManifest('microtask', manifest(P1))
+        await harness.addContainerWithoutManifest?.('microtask', P2)
         expect((await store.listManifests('microtask')).map((m) => m.id)).toEqual([P1])
       },
     )
