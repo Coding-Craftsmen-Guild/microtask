@@ -22,4 +22,11 @@ describe('tsdoc-comments-only', () => {
       ],
     })
   })
+
+  it('ignores a hashbang, so an executable entry file is not an error', () => {
+    tester.run('tsdoc-comments-only', rule, {
+      valid: ['#!/usr/bin/env node\n/** Doc. */\nexport const a = 1'],
+      invalid: [],
+    })
+  })
 })

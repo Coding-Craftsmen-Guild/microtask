@@ -3,8 +3,10 @@ import tseslint from 'typescript-eslint'
 import importPlugin from 'eslint-plugin-import'
 import jsdoc from 'eslint-plugin-jsdoc'
 import n from 'eslint-plugin-n'
+import reactHooks from 'eslint-plugin-react-hooks'
 import tsdocCommentsOnly from './rules/tsdoc-comments-only.js'
 
+/** ESLint plugin exposing this workspace only rules under the local namespace. */
 export const local = { rules: { 'tsdoc-comments-only': tsdocCommentsOnly } }
 
 const SIZE_RULES = {
@@ -15,6 +17,7 @@ const SIZE_RULES = {
   'max-nested-callbacks': ['error', 3],
 }
 
+/** Shared flat config: strict TypeScript, the ADR 0027 size caps, and TSDoc only comments. */
 export const base = [
   js.configs.recommended,
   ...tseslint.configs.strict,
@@ -36,7 +39,12 @@ export const base = [
   },
   {
     files: ['**/*.tsx'],
-    rules: { 'max-lines': ['error', { max: 80, skipBlankLines: true, skipComments: true }] },
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'max-lines': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+    },
   },
   {
     files: ['**/*.test.ts', '**/*.test.tsx', '**/*.test.js', '**/testing/**', '**/*.config.*'],

@@ -28,6 +28,7 @@ export default {
     return {
       Program() {
         for (const comment of source.getAllComments()) {
+          if (comment.type === 'Shebang') continue
           if (isDocForExport(source, comment)) continue
           context.report({ loc: comment.loc, messageId: 'disallowed' })
         }
