@@ -570,7 +570,8 @@ every task that follows.
 ### Task 4: Kernel scaffold, product namespace and ids
 
 **Files:**
-- Create: `packages/kernel/package.json`, `tsconfig.json`, `vitest.config.ts`, `eslint.config.js`
+- Create: `packages/kernel/package.json`, `tsconfig.json`, `tsconfig.build.json`,
+  `vitest.config.ts`, `eslint.config.js`
 - Create: `packages/kernel/src/product.ts`, `src/ids.ts`, `src/ids.test.ts`
 
 - [ ] **Step 1: Create the package manifest**
@@ -594,12 +595,17 @@ every task that follows.
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@repo/eslint-config": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
     "eslint": "catalog:"
   }
 }
 ```
+
+`@types/node` is required, not optional: `src/ids.ts` imports `node:crypto`, and pnpm's isolated
+`node_modules` means nothing else supplies those types. Without it, Task 7 Step 8's typecheck
+cannot pass and the root `pnpm typecheck` gate fails.
 
 - [ ] **Step 2: Create two tsconfigs — one that checks tests, one that builds without them**
 
@@ -838,6 +844,7 @@ export abstract class AppError extends Error {
   /** A stable machine-readable code for this error kind. */
   abstract readonly code: string
 
+  /** Creates the error, naming it after the concrete subclass. */
   constructor(message: string) {
     super(message)
     this.name = new.target.name
