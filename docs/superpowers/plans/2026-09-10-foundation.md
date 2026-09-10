@@ -2108,7 +2108,7 @@ export { ProjectManifest } from './project.js'
 pnpm --filter @repo/contracts test
 ```
 
-Expected: PASS — 7 tests.
+Expected: PASS — **8 tests**.
 
 - [ ] **Step 16: Prove the framework-free rule is enforced, not just intended**
 
@@ -2606,6 +2606,7 @@ import {
 } from '@repo/kernel'
 import { manifestFile, projectDir, projectsDir, taskFile, tasksDir } from './paths.js'
 
+/** How an FsProjectStore reaches the disk and where it puts its data. */
 export interface FsProjectStoreOptions {
   files: FileSystem
   root: () => string
@@ -2616,6 +2617,7 @@ export class FsProjectStore implements ProjectStore {
   readonly #files: FileSystem
   readonly #root: () => string
 
+  /** Creates a store that reads its data root afresh on every call. */
   constructor(options: FsProjectStoreOptions) {
     this.#files = options.files
     this.#root = options.root
@@ -2726,7 +2728,7 @@ Expected: PASS — 10 tests, all from the kernel contract suite.
 pnpm --filter @repo/store test
 ```
 
-Expected: PASS across `paths`, `queue-lock` and the contract suite. The contract suite's
+Expected: PASS across `paths`, `node-file-system`, `queue-lock` and the contract suite. The contract suite's
 "rejects an identifier that is not a ULID" case proves `Invalid` propagates through the store
 surface and not just the path builder.
 
@@ -2763,6 +2765,7 @@ const TAB = '01M240FB4GD6PF6V0PKZVF6FDA'
 class MemoryFileSystem implements FileSystem {
   readonly writes: string[] = []
   readonly removals: string[] = []
+  readonly log: { op: 'write' | 'remove'; file: string }[] = []
   failOn: (file: string) => boolean = () => false
 
   readonly #store = new Map<string, string>()
@@ -2774,11 +2777,13 @@ class MemoryFileSystem implements FileSystem {
   async writeTextAtomic(file: string, text: string) {
     if (this.failOn(file)) throw new Error('killed mid-write')
     this.writes.push(file)
+    this.log.push({ op: 'write', file })
     this.#store.set(file, text)
   }
 
   async remove(file: string) {
     this.removals.push(file)
+    this.log.push({ op: 'remove', file })
     return this.#store.delete(file)
   }
 
@@ -2796,6 +2801,9 @@ class MemoryFileSystem implements FileSystem {
 }
 
 const isManifest = (file: string) => file.includes('project.json')
+
+const step = ({ op, file }: { op: 'write' | 'remove'; file: string }) =>
+  `${op} ${isManifest(file) ? 'manifest' : 'task'}`
 
 function setup() {
   const files = new MemoryFileSystem()
@@ -2828,9 +2836,9 @@ describe('write ordering (ADR 0006)', () => {
   it('writes the manifest before unlinking, so a crash never strands a referenced file', async () => {
     const { files, store, entry, emptied } = setup()
     await store.saveTask('microtask', entry, taskDocument(T, TAB))
-    files.writes.length = 0
+    files.log.length = 0
     await store.deleteTask('microtask', emptied, T)
-    expect(files.writes.some(isManifest)).toBe(true)
+    expect(files.log.map(step)).toEqual(['write manifest', 'remove task'])
     expect(files.removals.some((file) => file.includes(T))).toBe(true)
   })
 
@@ -2853,6 +2861,21 @@ pnpm --filter @repo/store test ordering
 
 Expected: PASS — 4 tests. If the second test fails with a manifest that is not null, the write
 order in `saveTask` is wrong; fix the implementation, not the test.
+
+**These tests will pass on the first run**, because Task 15 already wrote the correct ordering.
+So there is no red state to observe, and passing proves nothing on its own. **Verify by mutation
+instead**, and treat this as a required step rather than an optional check:
+
+1. Swap the two writes in `saveTask` so the manifest goes first. Expect **2 of 4** tests to fail.
+   Revert and confirm green.
+2. Move the unlink in `deleteTask` above the manifest write. Expect **2 of 4** to fail. Revert and
+   confirm green.
+
+A durability test that passes under both orderings guards nothing. When this was first written,
+the third test asserted `writes.some(isManifest)` and `removals.some(...)` — two independent
+existence checks across two arrays, with no ordering between them — so it passed under a reversed
+`deleteTask` while its name claimed otherwise, leaving delete ordering pinned by a single test.
+The single ordered `log` above is what fixed that.
 
 - [ ] **Step 3: Commit**
 
@@ -2917,6 +2940,20 @@ describe('ShareIndex', () => {
     const index = new ShareIndex()
     index.add('microtask', manifest(P1, { shareLinks: [link(TOKEN, P1)] }))
     expect(() => index.add('macroplan', manifest(P1, { shareLinks: [link(TOKEN, P1)] }))).toThrow(Conflict)
+  })
+
+  it('leaves the index untouched when it rejects a collision', () => {
+    const index = new ShareIndex()
+    const owned = 'tok_p2ownaaaaaaaaaa'
+    const fresh = 'tok_freshfreshfresh1'
+    index.add('microtask', manifest(P1, { shareLinks: [link(TOKEN, P1)] }))
+    index.add('microtask', manifest(P2, { shareLinks: [link(owned, P2)] }))
+    expect(() =>
+      index.add('microtask', manifest(P2, { shareLinks: [link(fresh, P2), link(TOKEN, P2)] })),
+    ).toThrow(Conflict)
+    expect(index.find(TOKEN)).toEqual({ product: 'microtask', projectId: P1 })
+    expect(index.find(owned)).toEqual({ product: 'microtask', projectId: P2 })
+    expect(index.find(fresh)).toBeNull()
   })
 
   it('re-adding the same project replaces only its own tokens', () => {
