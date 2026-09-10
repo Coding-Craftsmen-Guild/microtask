@@ -1038,6 +1038,13 @@ export const emptyDocument = (): DocumentJson => ({
 })
 ```
 
+The `| undefined` on `content` is required, not stylistic. Under `exactOptionalPropertyTypes` a
+bare `content?: readonly unknown[]` means "absent, or an array — never explicitly `undefined`",
+while Zod's `.optional()` in `@repo/contracts` infers `unknown[] | undefined`. Without it, a
+document parsed by contracts is **not assignable** to this type, and every adapter that parses
+input and returns a domain object needs a hand-written mapping. Verified: with it, `z.infer` of the
+contracts `DocumentJson`, `Tab` and `TaskDocument` schemas all assign cleanly.
+
 - [ ] **Step 3: Create `packages/kernel/src/entities/tab.ts`**
 
 ```ts
