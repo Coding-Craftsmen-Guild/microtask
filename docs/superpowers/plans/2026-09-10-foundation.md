@@ -2899,6 +2899,33 @@ git commit -m "chore: foundation green across build, typecheck, lint and test"
 
 ---
 
+## Known issues carried forward
+
+Found during execution, deliberately not fixed here. Recorded so they are not rediscovered the
+hard way.
+
+- **`.dockerignore` patterns are root-anchored and now stale.** `node_modules` and
+  `public/vendor` no longer match `apps/legacy/…`. The legacy image still builds correctly
+  because the Dockerfile copies specific paths, so the only cost is build-context size — which
+  grows as pnpm's symlink farm accumulates across packages. Fixed in **Plan 5**, where the three
+  per-image Dockerfiles are written.
+- **The legacy Docker build is no longer lockfile-pinned.** Task 1 deletes and gitignores
+  `package-lock.json`, because ADR 0026 requires no non-pnpm lockfile in the repo — a stray one
+  silently moves Next's inferred tracing root. So the legacy build stage resolves its `^` ranges
+  fresh, and a Tiptap patch release could change the bundled editor. Accepted because this
+  branch is never deployed before cutover (ADR 0022) and the rollback path is redeploying the
+  image built from `main`, which still has its lockfile. Legacy is removed in Plan 5.
+- **pnpm 12 gates dependency build scripts.** `pnpm install` exits 1 with
+  `ERR_PNPM_IGNORED_BUILDS` unless the decision is recorded, and `pnpm approve-builds` is
+  interactive. Resolved in Task 1 with an explicit `allowBuilds: { esbuild: false }` in
+  `pnpm-workspace.yaml` — verified sufficient, since esbuild's native binary arrives through its
+  optional platform dependency rather than the postinstall. Written explicitly rather than left
+  as pnpm's injected placeholder string, which otherwise dirties the tree on every install. The
+  entry can go when legacy does.
+- **`turbo run build` warns "no output files found" for `legacy`.** `turbo.json` declares
+  `outputs: ["dist/**"]`, the convention for the new packages, while legacy writes to
+  `public/vendor/`. Harmless; disappears with legacy.
+
 ## Definition of done
 
 - `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` all pass from the repository root.

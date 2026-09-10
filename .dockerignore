@@ -1,6 +1,6 @@
-node_modules
+**/node_modules
 data
-public/vendor
+**/public/vendor
 .git
 .gitignore
 .playwright-mcp
