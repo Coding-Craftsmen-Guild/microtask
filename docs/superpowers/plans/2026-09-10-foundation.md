@@ -1028,7 +1028,7 @@ export const NO_PROGRESS: Progress = { done: 0, total: 0 }
 /** A Tiptap/ProseMirror document, stored as JSON and never as HTML. */
 export interface DocumentJson {
   readonly type: 'doc'
-  readonly content?: readonly unknown[]
+  readonly content?: readonly unknown[] | undefined
 }
 
 /** Creates the document a new tab starts with. */
@@ -1862,7 +1862,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import * as contracts from './index.js'
 
-const schemas = Object.entries(contracts).filter(
+const schemas = Object.entries<unknown>(contracts).filter(
   (entry): entry is [string, z.ZodType] => entry[1] instanceof z.ZodType,
 )
 
