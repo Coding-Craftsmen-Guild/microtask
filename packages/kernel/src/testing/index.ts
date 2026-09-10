@@ -1,0 +1,2 @@
+export { describeProjectStore, type StoreHarness } from './project-store-contract.js'
+export { manifest, taskDocument, taskEntry, STAMP } from './fixtures.js'
