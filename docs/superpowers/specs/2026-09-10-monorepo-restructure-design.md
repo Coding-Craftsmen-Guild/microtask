@@ -415,27 +415,31 @@ likely to arrive late — can overwrite content saved after it was queued.
 browser ──encrypted httpOnly cookie──> Next server ──x-api-key + Bearer──> apps/api ──> data/
 ```
 
-**Two cookies, read by disjoint route sets** (ADR 0032). `mt_admin` holds `{kind:'admin'}` after
-password login and is read by every route except `/s/*`; `mt_link` holds `{kind:'link', token}` and
-is read by `/s/*` and nothing else. One cookie for both would mean an admin opening a client link
-clobbered their own session — the single most common thing an admin does while testing a link.
+**One cookie, for the admin; a share link carries its own authority** (ADR 0032, and ADR 0040 for
+links). `mt_admin` holds the admin session after password login and is read by every route except
+`/s/*`. A link's credential is the token in its URL, taken from the route on every page and handed
+to every Server Action under `/s/*` as its argument, so nothing under `/s/*` reads or writes a
+cookie, and an admin opening a client link keeps their own session — the single most common thing
+an admin does while testing a link. ADR 0032 kept the token in an `mt_link` cookie between
+navigations, overwritten by every visit; ADR 0040 drops that cookie entirely.
 
-**Visiting `/s/<token>` overwrites `mt_link` unconditionally.** The URL is the authority; the cookie
-is only how the token survives the next navigation.
+**The URL is the authority.** No stored copy of a token exists for it to disagree with, so the link
+a client sees in the address bar is the only link that can act.
 
-**Both are AES-256-GCM encrypted and authenticated, not merely signed.** `mt_link`'s payload *is* a
-live credential, and `Path=/` sends it on every request, so integrity alone is not the property
-needed. `COOKIE_SECRET` (32 bytes or more) is required at boot, read by the same single module that
-reads `API_KEY`, and distinct from the API's `SESSION_SECRET`.
+**`mt_admin` is AES-256-GCM encrypted and authenticated, not merely signed.** Its payload carries the
+admin's bearer, a live credential, and `Path=/` sends it on every request, so integrity alone is not
+the property needed. `COOKIE_SECRET` (32 bytes or more) is required at boot, read by the same single
+module that reads `API_KEY`, and distinct from the API's `SESSION_SECRET`.
 
-**Lifetimes match the credential behind them.** `mt_admin` takes its `Max-Age` from the bearer's own
-`expiresInSeconds`; `mt_link` gets 30 days, because a share token has no expiry and lives until
-revoked. The legacy 30-day cookie against a one-hour bearer is the defect being fixed.
+**Its lifetime matches the credential behind it.** `mt_admin` takes its `Max-Age` from the bearer's
+own `expiresInSeconds`. The legacy 30-day cookie against a one-hour bearer is the defect being fixed.
 
-**401 handling is per-cookie**, and the blanket "any 401 goes to `/login`" is wrong: an admin 401
-clears `mt_admin` and redirects to `/login?next=<pathname>` — which also fixes the legacy deep-link
-loss — while a link 401 clears `mt_link` and renders a terminal "this link is no longer available"
-page. A client is never shown a password form.
+**401 handling is per surface**, and the blanket "any 401 goes to `/login`" is wrong: an admin 401
+redirects to `/login?next=<pathname>` — which also fixes the legacy deep-link loss — and clears
+nothing, because the browser retires `mt_admin` when its bearer expires (ADR 0032, as amended). A
+share link that no longer resolves — revoked, or a segment that cannot be a token — lands on the
+static `/s/unavailable` page, which clears nothing either, since there is no link cookie to clear.
+A client is never shown a password form.
 
 **Exactly one file per app may read `process.env.API_KEY`** (`apps/*/lib/api.ts`). It exports
 `apiForSession()`, which returns a link client for link sessions and an admin client only for admin
@@ -612,9 +616,11 @@ project, max folders per project, max projects.
 
 **Auth** — `ADMIN_PASSWORD` required at boot, process exits without it, warns under 8 characters;
 constant-time comparison; `HttpOnly; SameSite=Lax`, `Secure` when `x-forwarded-proto` says HTTPS.
-`/healthz` stays unauthenticated. **Changed** per ADR 0032: two cookies rather than one, encrypted
-rather than signed, `Max-Age` per credential rather than a flat 30 days, and 401 handling that is
-per-cookie — a client never sees `/login`. **New:** login throttling. **Not built:** there is no
+`/healthz` stays unauthenticated. **Changed** per ADR 0032 and ADR 0040: an admin cookie encrypted
+rather than signed, with its bearer's `Max-Age` rather than a flat 30 days; a share link that
+carries its authority in its URL and sets no cookie; and 401 handling per surface — a client never
+sees `/login`, and a link that no longer resolves lands on `/s/unavailable`. **New:** login
+throttling. **Not built:** there is no
 session invalidation path, and the reason is recorded rather than left as a gap — the bearer is a
 self-contained HMAC the API cannot revoke without a store, and rotating `SESSION_SECRET` would sign
 out every admin at once.
