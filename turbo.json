@@ -15,7 +15,6 @@
         "@repo/microtask-domain#build",
         "@repo/store#build",
         "api#build",
-        "legacy#build",
         "microtask#build"
       ],
       "cache": false

@@ -14,9 +14,12 @@ autoInstallPeers: false
 
 # Workspace-wide, not per-package. esbuild's postinstall only fetches its
 # native binary, which already arrives as an optional @esbuild/<platform>
-# dependency, so skipping the script is safe. This entry outlives the legacy
-# app: it must stay as long as anything in the workspace depends on esbuild,
-# and vitest does, via vite.
+# dependency, so skipping the script is safe. Nothing installs esbuild today:
+# the legacy app was the only package that depended on it, and vite 8 declares
+# it as an OPTIONAL peer, which autoInstallPeers: false leaves uninstalled -
+# `pnpm why -r esbuild` answers nothing. The entry stays so that the day
+# something brings esbuild back (vite's optional peer, or a tool built on it),
+# its install script is already decided rather than blocking the install.
 allowBuilds:
   esbuild: false
 
@@ -57,9 +60,9 @@ catalog:
   # extension-task-list / -task-item / -placeholder shim packages are not
   # needed. @tiptap/html is deliberately absent: it takes happy-dom as a
   # non-optional peer, and @tiptap/core already exports generateHTML and
-  # generateJSON. Catalogued only - the editor is built later and belongs to
-  # apps/microtask, never packages/ui, because a shared Tiptap risks two
-  # prosemirror copies. apps/legacy keeps its own ^2.27.3 v2 specs.
+  # generateJSON. The editor belongs to apps/microtask, never packages/ui,
+  # because a shared Tiptap risks two prosemirror copies. The Tiptap 2 specs
+  # the deleted legacy app carried survive only at the legacy-prod tag.
   '@tiptap/core': 3.31.3
   '@tiptap/pm': 3.31.3
   '@tiptap/starter-kit': 3.31.3
