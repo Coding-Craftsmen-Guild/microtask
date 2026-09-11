@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { ProjectService, TaskService } from '@repo/microtask-domain'
 import type { ApiEnv } from '../../../auth/env.js'
 import type { ApiDeps } from '../../../deps.js'
+import { createTabs } from '../tabs/app.js'
 import {
   createTask,
   deleteTask,
@@ -28,6 +29,9 @@ import {
  *
  * `/reorder` is registered ahead of `/{taskId}`, and answers only POST — which no task-id route
  * does — so no request can match both.
+ *
+ * The tabs of a task hang below it, mounted last and already complete, because a tab has no
+ * address that does not name the task holding it.
  */
 export function createTasks(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
@@ -39,5 +43,6 @@ export function createTasks(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   app.openapi(renameTaskRoute, renameTask(tasks))
   app.openapi(deleteTaskRoute, deleteTask(tasks))
   app.openapi(moveTaskRoute, moveTask(tasks))
+  app.route('/:taskId/tabs', createTabs(deps))
   return app
 }

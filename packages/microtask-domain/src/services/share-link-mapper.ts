@@ -3,19 +3,21 @@ import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import { pickTask } from './task-mapper.js'
 
-/** What a caller asks for when it mints a share link. */
-export interface ShareLinkRequest {
-  /** Who the link is for, as the admin will recognise it in the list. */
-  readonly name: string
-
-  /** The authority the link carries. */
-  readonly role: Role
-
-  /** The token of the link minting this one, or null when the admin is minting it (ADR 0010). */
-  readonly createdBy: string | null
-
+/**
+ * The part of a request that decides what a link reaches, and nothing else.
+ *
+ * Separated from {@link ShareLinkRequest} so a caller that has to know the scope *before* it
+ * mints — an API gating the request on the thing being shared — can ask {@link requestedScope}
+ * without first assembling a whole request it does not have yet.
+ *
+ * Both members spell `| undefined` rather than relying on the `?` alone, because under
+ * `exactOptionalPropertyTypes` a validated body infers `scope?: Scope | undefined` and would
+ * otherwise not be assignable here. Present-and-undefined means the same thing as absent for
+ * both of them.
+ */
+export interface ScopeRequest {
   /** The task a link with no explicit scope is confined to. */
-  readonly taskId?: string
+  readonly taskId?: string | undefined
 
   /**
    * Where the link reaches. Omitted, it is the task `taskId` names.
@@ -24,7 +26,19 @@ export interface ShareLinkRequest {
    * another; task is therefore the default and the wider scope is the one that has to be asked
    * for by name (ADR 0011).
    */
-  readonly scope?: Scope
+  readonly scope?: Scope | undefined
+}
+
+/** What a caller asks for when it mints a share link. */
+export interface ShareLinkRequest extends ScopeRequest {
+  /** Who the link is for, as the admin will recognise it in the list. */
+  readonly name: string
+
+  /** The authority the link carries. */
+  readonly role: Role
+
+  /** The token of the link minting this one, or null when the admin is minting it (ADR 0010). */
+  readonly createdBy: string | null
 }
 
 /** Finds one share link by its token, or throws NotFound. */
@@ -35,7 +49,7 @@ export function pickLink(manifest: ProjectManifest, token: string): ShareLink {
 }
 
 /** The scope a request asks for, defaulting to the task it names rather than to the project. */
-export function requestedScope(projectId: string, request: ShareLinkRequest): Scope {
+export function requestedScope(projectId: string, request: ScopeRequest): Scope {
   if (request.scope !== undefined) return request.scope
   if (request.taskId === undefined) throw new Invalid('A share link needs a task or a scope')
   return { kind: 'task', projectId, taskId: request.taskId }

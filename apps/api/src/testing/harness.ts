@@ -1,5 +1,5 @@
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import type { Role, Scope } from '@repo/kernel'
+import type { Clock, Role, Scope } from '@repo/kernel'
 import { ShareIndex, type ProjectManifest, type ShareLink } from '@repo/microtask-domain'
 import {
   MemoryProjectStore,
@@ -73,6 +73,26 @@ export const testConfig = readConfig({
 const clock = fixedClock(STAMP)
 const verifier = new AdminVerifier({ config: testConfig, clock })
 
+/**
+ * A clock that moves one millisecond every time it is read, starting at {@link STAMP}.
+ *
+ * The default fixture clock is frozen, and a frozen clock makes the `If-Match` precondition
+ * vacuous: a write stamps `updatedAt` with the same value it just compared against, so the next
+ * write based on the original stamp still looks current. That is ADR 0016's recorded limitation
+ * rather than a defect in the route, and it is why a test that means to measure the precondition
+ * drives it with this instead. It starts at `STAMP` so the admin token the fixtures mint — which
+ * expires an hour after `STAMP` — is still valid when the deps clock is the one verifying it.
+ */
+export const tickingClock = (): Clock => {
+  let at = Date.parse(STAMP)
+  return {
+    now: () => {
+      at += 1
+      return new Date(at).toISOString()
+    },
+  }
+}
+
 const link = (token: string, role: Role, scope: Scope): ShareLink => ({
   token,
   name: 'A seat',
@@ -112,7 +132,7 @@ const projectTwo = (): ProjectManifest =>
  * reorder of either group is a real permutation rather than a list of one — plus a link per role.
  * Project two carries a `manage` link of its own and nothing else. Everything is in memory.
  */
-export async function buildDeps(): Promise<ApiDeps> {
+export async function buildDeps(at: Clock = clock): Promise<ApiDeps> {
   const store = new MemoryProjectStore()
   const tokens = new ShareIndex()
   const first = projectOne()
@@ -128,15 +148,15 @@ export async function buildDeps(): Promise<ApiDeps> {
     fileSystem: new NodeFileSystem(),
     store,
     lock: new QueueLock(),
-    clock,
+    clock: at,
     ids: sequentialIds(),
     tokens,
   }
 }
 
 /** The whole app over a fresh fixture, assembled exactly as production assembles it. */
-export async function buildApp(): Promise<OpenAPIHono<ApiEnv>> {
-  return createApp(await buildDeps())
+export async function buildApp(at?: Clock): Promise<OpenAPIHono<ApiEnv>> {
+  return createApp(await buildDeps(at))
 }
 
 /** The two credentials an admin presents: the calling app's key, and a freshly minted token. */

@@ -122,4 +122,78 @@ describe('the shapes a route accepts', () => {
     expect(contracts.ReorderFoldersPayload.safeParse({ folderIds: [ID] }).success).toBe(true)
     expect(contracts.ReorderFoldersPayload.safeParse({ folderIds: ['nope'] }).success).toBe(false)
   })
+
+  it('lets a share link be asked for by task, by explicit scope, or neither', () => {
+    const seat = { name: 'Acme', role: 'view' }
+    expect(contracts.CreateShareLinkPayload.safeParse({ ...seat, taskId: ID }).success).toBe(true)
+    const scope = { kind: 'project', projectId: ID }
+    expect(contracts.CreateShareLinkPayload.safeParse({ ...seat, scope }).success).toBe(true)
+    expect(contracts.CreateShareLinkPayload.safeParse(seat).success).toBe(true)
+  })
+
+  it('refuses a role the policy does not name', () => {
+    const parsed = contracts.CreateShareLinkPayload.safeParse({ name: 'Acme', role: 'owner', taskId: ID })
+    expect(parsed.success).toBe(false)
+  })
+
+  it('strips a createdBy a client tried to choose for itself', () => {
+    const parsed = contracts.CreateShareLinkPayload.parse({
+      name: 'Acme',
+      role: 'view',
+      taskId: ID,
+      createdBy: 'shr_someone_elses_token',
+    })
+    expect(parsed).not.toHaveProperty('createdBy')
+  })
+
+  it('requires a password to log in, and bounds what may reach the hash', () => {
+    expect(contracts.LoginPayload.safeParse({}).success).toBe(false)
+    expect(contracts.LoginPayload.safeParse({ password: '' }).success).toBe(false)
+    expect(contracts.LoginPayload.safeParse({ password: 'hunter2' }).success).toBe(true)
+    expect(contracts.LoginPayload.safeParse({ password: 'x'.repeat(1025) }).success).toBe(false)
+  })
+})
+
+describe('the shapes search and sharing answer with', () => {
+  const ID = '01M240ERCRWWCN16Q5AHP1FZF1'
+
+  it('tells a search result apart by its kind, and gives each one an address', () => {
+    expect(contracts.SearchResult.safeParse({ kind: 'project', projectId: ID, name: 'Launch' }).success).toBe(true)
+    const folder = { kind: 'folder', projectId: ID, folderId: ID, name: 'Inbox' }
+    expect(contracts.SearchResult.safeParse(folder).success).toBe(true)
+    const task = { kind: 'task', projectId: ID, taskId: ID, name: 'Ship it' }
+    expect(contracts.SearchResult.safeParse(task).success).toBe(true)
+  })
+
+  it('refuses a search result that names no kind, so no variant is read as another', () => {
+    expect(contracts.SearchResult.safeParse({ projectId: ID, name: 'Launch' }).success).toBe(false)
+  })
+
+  it('gives a task result no folder to read a breadcrumb out of', () => {
+    const parsed = contracts.SearchResult.parse({
+      kind: 'task',
+      projectId: ID,
+      taskId: ID,
+      name: 'Ship it',
+      folderId: ID,
+    })
+    expect(parsed).not.toHaveProperty('folderId')
+  })
+
+  it('carries no token in the answer a share link gets about itself', () => {
+    const parsed = contracts.ShareView.parse({
+      role: 'view',
+      scope: { kind: 'project', projectId: ID },
+      project: { id: ID, name: 'Launch' },
+      folders: [],
+      tasks: [],
+      token: 'shr_a_live_credential',
+    })
+    expect(JSON.stringify(parsed)).not.toContain('shr_a_live_credential')
+  })
+
+  it('answers a conditional write with the stamp the next one must carry', () => {
+    expect(contracts.TabDocumentSaved.safeParse({ updatedAt: '2026-09-10T00:00:00.000Z' }).success).toBe(true)
+    expect(contracts.TabDocumentSaved.safeParse({}).success).toBe(false)
+  })
 })

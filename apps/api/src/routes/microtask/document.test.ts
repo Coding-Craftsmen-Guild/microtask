@@ -5,7 +5,7 @@ import { GUARDED_PREFIX, buildApp } from '../../testing/harness.js'
 const PROJECT = `${GUARDED_PREFIX}/projects/{projectId}`
 
 interface Operation {
-  readonly parameters?: { name: string; in: string }[]
+  readonly parameters?: { name: string; in: string; required?: boolean }[]
 }
 
 const operations = async (): Promise<Record<string, Record<string, Operation>>> => {
@@ -21,6 +21,8 @@ const componentNames = async (): Promise<string[]> => {
 const cases: readonly (readonly [string, string, readonly string[]])[] = [
   [`${GUARDED_PREFIX}/projects`, 'get', []],
   [`${GUARDED_PREFIX}/projects`, 'post', []],
+  [`${GUARDED_PREFIX}/search`, 'get', []],
+  [`${GUARDED_PREFIX}/shares/current`, 'get', []],
   [PROJECT, 'get', ['projectId']],
   [PROJECT, 'patch', ['projectId']],
   [PROJECT, 'delete', ['projectId']],
@@ -35,6 +37,10 @@ const cases: readonly (readonly [string, string, readonly string[]])[] = [
   [`${PROJECT}/tasks/{taskId}`, 'patch', ['projectId', 'taskId']],
   [`${PROJECT}/tasks/{taskId}`, 'delete', ['projectId', 'taskId']],
   [`${PROJECT}/tasks/{taskId}/move`, 'post', ['projectId', 'taskId']],
+  [`${PROJECT}/tasks/{taskId}/tabs/{tabId}/document`, 'put', ['projectId', 'taskId', 'tabId']],
+  [`${PROJECT}/share-links`, 'get', ['projectId']],
+  [`${PROJECT}/share-links`, 'post', ['projectId']],
+  [`${PROJECT}/share-links/{token}`, 'delete', ['projectId', 'token']],
 ]
 
 describe('every operation these routes add is in the emitted document', () => {
@@ -45,8 +51,9 @@ describe('every operation these routes add is in the emitted document', () => {
 
     it(`emits every ancestor path parameter for ${method.toUpperCase()} ${path}`, async () => {
       const found = (await operations())[path]?.[method]?.parameters ?? []
-      expect(found.map((one) => one.name)).toEqual([...expected])
-      expect(found.every((one) => one.in === 'path')).toBe(true)
+      const inPath = found.filter((one) => one.in === 'path')
+      expect(inPath.map((one) => one.name)).toEqual([...expected])
+      expect(found.every((one) => ['path', 'header', 'query'].includes(one.in))).toBe(true)
     })
   }
 
@@ -60,17 +67,78 @@ describe('every operation these routes add is in the emitted document', () => {
   })
 })
 
+describe('the parameters that are not path segments', () => {
+  const parameters = async (path: string, method: string): Promise<Operation['parameters']> =>
+    (await operations())[path]?.[method]?.parameters ?? []
+
+  it('names the precondition header in canonical mixed case, as the client must send it', async () => {
+    const found = await parameters(`${PROJECT}/tasks/{taskId}/tabs/{tabId}/document`, 'put')
+    expect(found?.filter((one) => one.in === 'header')).toMatchObject([
+      { name: 'If-Match', in: 'header', required: true },
+    ])
+  })
+
+  it('declares the search term as a required query parameter', async () => {
+    const found = await parameters(`${GUARDED_PREFIX}/search`, 'get')
+    expect(found).toMatchObject([{ name: 'q', in: 'query', required: true }])
+  })
+
+  it('gives the bootstrap call no parameter of any kind, so no credential can reach a log', async () => {
+    expect(await parameters(`${GUARDED_PREFIX}/shares/current`, 'get')).toEqual([])
+  })
+})
+
+describe('the statuses a route promises beyond the common set', () => {
+  const statusesOf = async (path: string, method: string): Promise<string[]> => {
+    const operation = (await operations())[path]?.[method] as { responses?: object } | undefined
+    return Object.keys(operation?.responses ?? {}).sort()
+  }
+
+  it('promises a conflict and a payload limit on the conditional write', async () => {
+    const found = await statusesOf(`${PROJECT}/tasks/{taskId}/tabs/{tabId}/document`, 'put')
+    expect(found).toContain('409')
+    expect(found).toContain('413')
+  })
+
+  it('promises the login route neither a 403 nor a 404, which it can never answer', async () => {
+    const found = await statusesOf('/v1/auth/login', 'post')
+    expect(found).toEqual(['200', '401', '422', '500'])
+  })
+
+  it('tells a client the conditional write’s body is mandatory, not optional', async () => {
+    const path = `${PROJECT}/tasks/{taskId}/tabs/{tabId}/document`
+    const operation = (await operations())[path]?.['put'] as { requestBody?: { required?: boolean } }
+    expect(operation.requestBody?.required).toBe(true)
+  })
+})
+
+describe('the route that is not a product route', () => {
+  it('documents the login route outside the product subtree', async () => {
+    expect((await operations())['/v1/auth/login']?.['post']).toBeDefined()
+  })
+})
+
 describe('the schemas these routes are described by', () => {
   const wanted = [
+    'AdminSession',
+    'CreateShareLinkPayload',
     'CreateTaskPayload',
+    'DocumentJson',
     'Folder',
     'FolderList',
+    'LoginPayload',
     'MoveTaskPayload',
     'NamePayload',
     'ProjectList',
     'ProjectView',
     'ReorderFoldersPayload',
     'ReorderTasksPayload',
+    'RevokedShareLinks',
+    'SearchResults',
+    'ShareLink',
+    'ShareLinkList',
+    'ShareView',
+    'TabDocumentSaved',
     'TaskEntry',
     'TaskEntryList',
     'TaskView',

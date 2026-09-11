@@ -3,6 +3,7 @@ import { EntityId, EntityName } from './document.js'
 import { Folder } from './folder.js'
 import { Progress } from './progress.js'
 import { ProjectManifest } from './project.js'
+import { Role, Scope } from './share-link.js'
 import { TaskDocument } from './task.js'
 
 /**
@@ -65,3 +66,42 @@ export const FolderList = z
 export const TaskEntryList = z
   .object({ tasks: ProjectManifest.shape.tasks.readonly() })
   .meta({ id: 'TaskEntryList', description: 'Task entries, in order' })
+
+/**
+ * The share links of one project, in the order they were minted.
+ *
+ * The collection bound is taken from the manifest rather than restated, so the cap on how many
+ * seats a project may carry is written down once.
+ */
+export const ShareLinkList = z
+  .object({ shareLinks: ProjectManifest.shape.shareLinks.readonly() })
+  .meta({ id: 'ShareLinkList', description: "One project's share links, in minting order" })
+
+/**
+ * Everything one revocation took: the link named, and each link descended from it.
+ *
+ * It reports the whole set rather than a count, because a caller cutting a leaked manager needs
+ * to be able to say *which* seats went dark, and a number cannot be checked against anything
+ * (ADR 0010).
+ */
+export const RevokedShareLinks = z
+  .object({ revoked: ProjectManifest.shape.shareLinks.readonly() })
+  .meta({ id: 'RevokedShareLinks', description: 'Every share link one revocation removed' })
+
+/**
+ * What one share link is and what it reaches: the answer the bootstrap call gives.
+ *
+ * It carries **no token**, its own included. The caller sent its token to ask the question, so
+ * echoing it back tells nobody anything and only puts a live credential into another response
+ * body — and having no token field at all is what makes "never another link's token" true by
+ * construction rather than by filtering (ADR 0017).
+ */
+export const ShareView = z
+  .object({
+    role: Role,
+    scope: Scope,
+    project: z.object({ id: EntityId, name: EntityName }),
+    folders: ProjectManifest.shape.folders.readonly(),
+    tasks: ProjectManifest.shape.tasks.readonly(),
+  })
+  .meta({ id: 'ShareView', description: 'What the credential that asked can reach' })

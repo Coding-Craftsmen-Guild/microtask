@@ -26,3 +26,20 @@ export interface ApiEnv {
     service: string
   }
 }
+
+/**
+ * The environment of the one subtree that has a service identity and no principal yet.
+ *
+ * `POST /v1/auth/login` runs there. Typing it with this rather than with {@link ApiEnv} is what
+ * makes the absence of a principal a compiler fact instead of a comment: `c.get('principal')`
+ * inside that subtree does not typecheck, so a handler cannot read a variable that no middleware
+ * on its path ever sets. `ApiEnv`'s promise that both variables are present therefore stays
+ * true everywhere it is used, rather than acquiring an exception.
+ */
+export interface ServiceEnv {
+  /** Per-request state set by the service-key guard, which authenticates the caller and no one else. */
+  Variables: {
+    /** Which app is calling, named by the service key it presented rather than by what it claims. */
+    service: string
+  }
+}

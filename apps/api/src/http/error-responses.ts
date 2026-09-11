@@ -32,6 +32,17 @@ const specFor = (status: number): ProblemResponseSpec => ({
  * a 403 is a problem document rather than the success shape.
  */
 export function problemResponses(extra: readonly number[] = []): Record<number, ProblemResponseSpec> {
-  const statuses = new Set([...COMMON_ERROR_STATUSES, ...extra])
-  return Object.fromEntries([...statuses].map((status) => [status, specFor(status)]))
+  return problemResponsesFor([...COMMON_ERROR_STATUSES, ...extra])
+}
+
+/**
+ * The same entries for an explicit list of statuses, for a route the common set does not fit.
+ *
+ * `POST /v1/auth/login` is the one: it has no principal, so it can never answer 403, and it
+ * addresses no resource, so it can never answer 404. Declaring either would describe a response
+ * the route cannot produce — and on that route in particular, a documented 403 would suggest a
+ * distinction between "wrong password" and "unknown caller" that it deliberately does not make.
+ */
+export function problemResponsesFor(statuses: readonly number[]): Record<number, ProblemResponseSpec> {
+  return Object.fromEntries([...new Set(statuses)].map((status) => [status, specFor(status)]))
 }

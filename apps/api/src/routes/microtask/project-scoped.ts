@@ -5,6 +5,7 @@ import type { ApiDeps } from '../../deps.js'
 import { createFolders } from './folders/app.js'
 import { deleteProject, readProject, renameProject } from './projects/handlers.js'
 import { deleteProjectRoute, readProjectRoute, renameProjectRoute } from './projects/routes.js'
+import { createShareLinks } from './share-links/app.js'
 import { createTasks } from './tasks/app.js'
 
 /**
@@ -30,5 +31,6 @@ export function createProjectScoped(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   app.openapi(deleteProjectRoute, deleteProject(projects))
   app.route('/folders', createFolders(deps))
   app.route('/tasks', createTasks(deps))
+  app.route('/share-links', createShareLinks(deps))
   return app
 }

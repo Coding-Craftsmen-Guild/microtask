@@ -1,5 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { ProjectService } from '@repo/microtask-domain'
+import { ProjectService, SearchService } from '@repo/microtask-domain'
 import { AdminVerifier } from '../../auth/admin-verifier.js'
 import type { ApiEnv } from '../../auth/env.js'
 import { PrincipalResolver } from '../../auth/principal-resolver.js'
@@ -8,6 +8,10 @@ import type { ApiDeps } from '../../deps.js'
 import { createProjectScoped } from './project-scoped.js'
 import { createProject, listProjects } from './projects/handlers.js'
 import { createProjectRoute, listProjectsRoute } from './projects/routes.js'
+import { search } from './search/handlers.js'
+import { searchRoute } from './search/routes.js'
+import { readCurrentShare } from './shares/handlers.js'
+import { currentShareRoute } from './shares/routes.js'
 
 const resolverFor = (deps: ApiDeps): PrincipalResolver =>
   new PrincipalResolver({
@@ -29,8 +33,10 @@ const resolverFor = (deps: ApiDeps): PrincipalResolver =>
  * validated params and calls `authorize`. A `view` link scoped to one project reaches every path
  * here; what stops it reading another project is that call and nothing else.
  *
- * The two collection routes live here rather than in the project-scoped child because that child
- * is mounted at `/projects/:projectId` — a path a collection has no value for.
+ * The four routes registered here rather than in the project-scoped child are the ones with no
+ * project in their address: two collections, the bootstrap call that describes the caller's own
+ * credential, and a search that spans every project. The child is mounted at
+ * `/projects/:projectId`, a path none of them has a value for.
  */
 export function createMicrotask(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
@@ -38,6 +44,8 @@ export function createMicrotask(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const projects = new ProjectService(deps)
   app.openapi(listProjectsRoute, listProjects(projects))
   app.openapi(createProjectRoute, createProject(projects))
+  app.openapi(currentShareRoute, readCurrentShare(projects))
+  app.openapi(searchRoute, search(new SearchService(deps)))
   app.route('/projects/:projectId', createProjectScoped(deps))
   return app
 }

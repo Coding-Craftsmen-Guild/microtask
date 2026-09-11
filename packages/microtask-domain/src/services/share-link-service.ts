@@ -14,7 +14,7 @@ import {
   type ShareLinkRequest,
 } from './share-link-mapper.js'
 
-export type { ShareLinkRequest } from './share-link-mapper.js'
+export type { ScopeRequest, ShareLinkRequest } from './share-link-mapper.js'
 
 /**
  * The share links of one project: minting them, listing them, and revoking them along with

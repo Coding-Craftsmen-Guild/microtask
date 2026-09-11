@@ -23,6 +23,16 @@ export const PRINCIPAL_TOKEN_SCHEME = 'principalToken'
 export const GUARDED_SECURITY = [{ [SERVICE_KEY_SCHEME]: [], [PRINCIPAL_TOKEN_SCHEME]: [] }]
 
 /**
+ * The `security` entry for the one route that mints a principal instead of requiring one.
+ *
+ * `POST /v1/auth/login` still names the calling app, because the service key is an identity and
+ * not an authority (ADR 0012) — dropping it would leave the only unauthenticated write in the
+ * API open to anything that can reach the port. What it cannot require is a bearer token: the
+ * token is what it hands out.
+ */
+export const SERVICE_ONLY_SECURITY = [{ [SERVICE_KEY_SCHEME]: [] }]
+
+/**
  * Registers the two credentials this API accepts as OpenAPI security schemes.
  *
  * **This enforces nothing.** A route declaring both schemes answered 200 with no credentials at
