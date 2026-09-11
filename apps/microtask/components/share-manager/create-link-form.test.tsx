@@ -52,6 +52,16 @@ describe('creating a link', () => {
     expect(actions.create).toHaveBeenCalledWith(P, { name: 'Everyone', role: 'view', scope: { kind: 'project', projectId: P } })
   })
 
+  it('lets no Enter mint a project-scoped link: only a click on the confirm does', async () => {
+    const { actions, user } = renderManager()
+    const dialog = await opened(user)
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Opens' }), 'Whole project')
+    await user.type(nameField(dialog), 'Everyone{Enter}')
+    await user.keyboard('{Enter}')
+    expect(actions.create).not.toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: 'Share the whole project?' })).toBeTruthy()
+  })
+
   it('mints nothing when the project-scope confirm is cancelled', async () => {
     const { actions, user } = renderManager()
     const dialog = await opened(user)

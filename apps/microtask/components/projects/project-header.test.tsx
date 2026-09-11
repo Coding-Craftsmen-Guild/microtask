@@ -42,6 +42,13 @@ describe('ProjectHeader', () => {
     expect(screen.getByRole('button', { name: 'Add link' })).toBeTruthy()
   })
 
+  it('shows the project’s own link count beside Share, whatever else it holds', () => {
+    const project = fixtureProject()
+    const model = projectPageModel({ ...project, shareLinks: project.shareLinks?.slice(0, 1) })
+    render(<ProjectHeader can={ADMIN_CAPABILITIES} model={model} onRename={vi.fn()} share={fakeShareActions()} />)
+    expect(screen.getByText('1 share link')).toBeTruthy()
+  })
+
   it('says "No tasks yet" for a project with no checklist items', () => {
     const empty = { ...fixtureProject(), tasks: [] }
     render(<ProjectHeader can={ADMIN_CAPABILITIES} model={projectPageModel(empty)} onRename={vi.fn()} share={fakeShareActions()} />)

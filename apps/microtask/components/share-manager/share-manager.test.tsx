@@ -1,6 +1,6 @@
 import { act, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { BLANK, JANE, links, P, renderManager, T1 } from './testing/share-fixture'
+import { BLANK, JANE, link, links, P, renderManager, T1 } from './testing/share-fixture'
 
 const openManager = async (user: ReturnType<typeof renderManager>['user']) => {
   await user.click(screen.getByRole('button', { name: 'Share' }))
@@ -17,7 +17,10 @@ describe('ShareManager', () => {
   })
 
   it('shows no count when there are none, or when the caller was not told', () => {
-    renderManager({ count: 0 })
+    const { view } = renderManager({ count: 0 })
+    expect(screen.queryByText(/share link/)).toBeNull()
+    view.unmount()
+    renderManager({ count: undefined })
     expect(screen.queryByText(/share link/)).toBeNull()
   })
 
@@ -141,5 +144,18 @@ describe('ShareManager, from capabilities', () => {
     const reopened = await openManager(user)
     expect(within(reopened).queryByText('Sam')).toBeNull()
     expect(document.body.innerHTML).not.toContain('tok_NEWNEWNEWNEWNEWNEWNEWNE')
+  })
+
+  it('drops a link whose mint answers after the dialog closed, rather than holding its token', async () => {
+    const { actions, user } = renderManager({ controls: { read: false, create: true, update: false, revoke: false } })
+    let answer: (value: Awaited<ReturnType<typeof actions.create>>) => void = () => undefined
+    actions.create.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+    const dialog = await openManager(user)
+    await user.type(within(dialog).getByRole('textbox', { name: 'Who is this link for?' }), 'Late{Enter}')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    await act(async () => answer({ ok: true, value: link({ token: 'tok_LATELATELATELATELATELAT', name: 'Late' }) }))
+    const reopened = await openManager(user)
+    expect(within(reopened).queryByText('Late')).toBeNull()
+    expect(document.body.innerHTML).not.toContain('tok_LATELATELATELATELATELAT')
   })
 })
