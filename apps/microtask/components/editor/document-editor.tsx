@@ -52,9 +52,11 @@ export interface DocumentEditorProps {
 /**
  * The checklist document editor: the one heavy client island in the app.
  *
- * `immediatelyRender: false` because rendering the editor during the App Router's server pass
- * throws, and because it selects the `Editor | null` overload of `useEditor` — which is what
- * the first render really is, so every child takes a nullable editor (ADR 0039).
+ * `immediatelyRender: false` because otherwise Tiptap detects the App Router's server pass,
+ * overrules the flag with an `SSR detected` warning and renders no editor there, and because it
+ * selects the `Editor | null` overload of `useEditor` — which is what the first render really
+ * is, so every child takes a nullable editor (ADR 0039, as amended: the server pass does not
+ * throw).
  *
  * An edit is the only thing that writes. Mounting fires no update, so a stored document is held
  * byte-for-byte until the user changes it, and a read-only view registers no update handler at
