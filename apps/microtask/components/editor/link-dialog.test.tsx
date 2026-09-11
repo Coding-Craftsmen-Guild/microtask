@@ -8,7 +8,6 @@ import { buildExtensions } from './extensions'
 import { LINK_REFUSED, LinkDialog } from './link-dialog'
 
 const TAB = '\u0009'
-const LF = '\u000a'
 const NUL = '\u0000'
 
 const PLAIN = {
@@ -161,15 +160,20 @@ describe('editing and removing an existing link', () => {
 describe('a hostile href is refused before anything is sent', () => {
   const HOSTILE = [
     'javascript:alert(1)',
-    ' javascript:alert(1)',
-    `${TAB}javascript:alert(1)`,
     `${NUL}javascript:alert(1)`,
     `java${TAB}script:alert(1)`,
-    `java${LF}script:alert(1)`,
     `java${NUL}script:alert(1)`,
     'JavaScript:alert(1)',
     'data:text/html;base64,PHNjcmlwdD4=',
   ]
+
+  it('lists only disguises the field hands the guard intact, since one it trims or strips tests nothing', async () => {
+    await open()
+    for (const hostile of HOSTILE) {
+      field().value = hostile
+      expect(field().value.trim()).toBe(hostile)
+    }
+  })
 
   it.each(HOSTILE)('refuses %j, leaves the document alone and says why', async (hostile) => {
     const onClose = await open()
