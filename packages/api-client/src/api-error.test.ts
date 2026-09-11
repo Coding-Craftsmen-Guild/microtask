@@ -102,11 +102,27 @@ describe('errorFrom survives a body written by something other than this API', (
     expect(error.errors).toEqual([validation.errors[0]])
   })
 
-  it('ignores a maxBytes that is not a finite number', async () => {
-    for (const value of ['2500000', null, {}, Number.NaN, Number.POSITIVE_INFINITY]) {
+  it('ignores a maxBytes that is not a number at all', async () => {
+    for (const value of ['2500000', null, {}, true, []]) {
       const error = await errorFrom(sent(413, { ...tooLarge, maxBytes: value }), INSTANCE)
       expect(error.maxBytes, JSON.stringify(value)).toBeNull()
     }
+  })
+
+  it('ignores a maxBytes that is not a whole non-negative count of bytes', async () => {
+    for (const value of [-1, 1.5, -0.5]) {
+      const error = await errorFrom(sent(413, { ...tooLarge, maxBytes: value }), INSTANCE)
+      expect(error.maxBytes, String(value)).toBeNull()
+    }
+  })
+
+  it('keeps a zero cap, because a route that accepts no body at all is still a cap', async () => {
+    expect((await errorFrom(sent(413, { ...tooLarge, maxBytes: 0 }), INSTANCE)).maxBytes).toBe(0)
+  })
+
+  it('is not guarding against NaN or Infinity, which JSON cannot carry in the first place', () => {
+    expect(JSON.stringify({ maxBytes: Number.NaN })).toBe('{"maxBytes":null}')
+    expect(() => JSON.parse('{"maxBytes":NaN}')).toThrow()
   })
 })
 

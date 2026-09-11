@@ -134,7 +134,7 @@ const fieldsAt = (source: Readonly<Record<string, unknown>>): readonly FieldErro
 
 const capAt = (source: Readonly<Record<string, unknown>>): number | null => {
   const value = source['maxBytes']
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
 }
 
 /**

@@ -92,6 +92,16 @@ describe('countTasks at its edges', () => {
     expect(countTasks(doc(nest(MAX_DOCUMENT_DEPTH + 5, item(true))))).toEqual({ done: 0, total: 0 })
   })
 
+  it('counts an item sitting at exactly MAX_DOCUMENT_DEPTH, and none one step past it', () => {
+    const at = (depth: number): unknown => doc(nest(depth - 1, item(true)))
+    expect(countTasks(at(MAX_DOCUMENT_DEPTH))).toEqual({ done: 1, total: 1 })
+    expect(countTasks(at(MAX_DOCUMENT_DEPTH + 1))).toEqual({ done: 0, total: 0 })
+  })
+
+  it('descends far enough to count a document no browser would ever produce, without throwing', () => {
+    expect(() => countTasks(doc(nest(MAX_DOCUMENT_DEPTH * 40, item(true))))).not.toThrow()
+  })
+
   it('is reachable from the barrel', () => {
     expect(contracts.countTasks).toBe(countTasks)
     expect(contracts.emptyDocument).toBe(emptyDocument)
