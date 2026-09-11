@@ -37,15 +37,27 @@ const visit = (path: string, options: Visit = {}): Response => {
 
 const locationOf = (response: Response): string | null => response.headers.get('location')
 
-const setCookies = (response: Response): string[] => response.headers.getSetCookie()
+const cookieWrites = (response: Response): string[] => {
+  const cleared = response.headers.get('clear-site-data')
+  const written = response.headers.getSetCookie()
+  return cleared === null ? written : [...written, `Clear-Site-Data: ${cleared}`]
+}
 
 const isRedirect = (response: Response): boolean => response.status >= 300 && response.status < 400
 
 const BOTH = { [ADMIN_COOKIE]: ADMIN, [LINK_COOKIE]: 'a-sealed-link' }
 
+const SAME_ORIGIN_FETCH = { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' }
+
 const ARRIVALS = [
   ['a plain navigation', {}],
-  ['a Next prefetch of a rendered <Link>', { 'next-router-prefetch': '1', purpose: 'prefetch' }],
+  ['an address typed into the bar', { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }],
+  [
+    'a Next prefetch of a rendered <Link>',
+    { ...SAME_ORIGIN_FETCH, rsc: '1', 'next-router-prefetch': '1', 'next-router-segment-prefetch': '/_tree' },
+  ],
+  ['a browser prefetch', { purpose: 'prefetch', 'sec-purpose': 'prefetch', 'sec-fetch-site': 'same-origin' }],
+  ['a router navigation, which a Server Action redirect also makes', { ...SAME_ORIGIN_FETCH, rsc: '1' }],
   ['a top-level link from another site', { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }],
 ] as const
 
@@ -111,7 +123,7 @@ describe('the admin surface with mt_admin', () => {
   it('lets the request through without touching either cookie', () => {
     const response = visit('/p/01HXYZ', { cookies: { [ADMIN_COOKIE]: ADMIN, [LINK_COOKIE]: 'x' } })
     expect(isRedirect(response)).toBe(false)
-    expect(setCookies(response)).toEqual([])
+    expect(cookieWrites(response)).toEqual([])
   })
 
   it.each([
@@ -124,7 +136,7 @@ describe('the admin surface with mt_admin', () => {
     const absent = visit('/p/01HXYZ?tab=01H')
     expect(tampered.status).toBe(absent.status)
     expect(locationOf(tampered)).toBe(locationOf(absent))
-    expect(setCookies(tampered)).toEqual(setCookies(absent))
+    expect(cookieWrites(tampered)).toEqual(cookieWrites(absent))
   })
 })
 
@@ -132,12 +144,12 @@ describe('/login', () => {
   it.each(ARRIVALS)('touches neither cookie on %s, so a signed-in admin stays signed in', (_label, headers) => {
     const response = visit('/login', { cookies: BOTH, headers })
     expect(isRedirect(response)).toBe(false)
-    expect(setCookies(response)).toEqual([])
+    expect(cookieWrites(response)).toEqual([])
   })
 
   it('touches neither cookie on a HEAD, or on the sign-in POST that seals mt_admin itself', () => {
     for (const method of ['HEAD', 'POST']) {
-      expect(setCookies(visit('/login', { method, cookies: BOTH }))).toEqual([])
+      expect(cookieWrites(visit('/login', { method, cookies: BOTH }))).toEqual([])
     }
   })
 
@@ -145,16 +157,18 @@ describe('/login', () => {
     ['no cookie', {}],
     ['an mt_admin that will not open', { [ADMIN_COOKIE]: 'garbage' }],
     ['an mt_admin that opens', { [ADMIN_COOKIE]: ADMIN }],
-  ])('is not itself gated when it holds %s', (_label, cookies) => {
-    expect(isRedirect(visit('/login', { cookies }))).toBe(false)
-    expect(isRedirect(visit('/login?next=%2Fp%2F01HXYZ', { cookies }))).toBe(false)
+  ])('is not itself gated when it holds %s, however it arrives', (_label, cookies) => {
+    for (const [, headers] of ARRIVALS) {
+      expect(isRedirect(visit('/login', { cookies, headers }))).toBe(false)
+      expect(isRedirect(visit('/login?next=%2Fp%2F01HXYZ', { cookies, headers }))).toBe(false)
+    }
   })
 
-  it('ends the redirect chain from a gated page after one hop, at /login, rather than looping', () => {
+  it.each(ARRIVALS)('ends the redirect chain from a gated page after one hop on %s, at /login, rather than looping', (_label, headers) => {
     const hops: string[] = []
     let path = '/p/01HXYZ/t/01HABC?tab=01HDEF'
     for (let hop = 0; hop < 5; hop += 1) {
-      const response = visit(path, { cookies: { [ADMIN_COOKIE]: 'garbage' } })
+      const response = visit(path, { cookies: { [ADMIN_COOKIE]: 'garbage' }, headers })
       if (!isRedirect(response)) break
       const next = new URL(locationOf(response) ?? '', ORIGIN)
       path = `${next.pathname}${next.search}`
@@ -180,7 +194,7 @@ describe('the client surface', () => {
   })
 
   it.each(ARRIVALS)('touches neither cookie at the terminal page on %s', (_label, headers) => {
-    expect(setCookies(visit(LINK_UNAVAILABLE_PATH, { cookies: BOTH, headers }))).toEqual([])
+    expect(cookieWrites(visit(LINK_UNAVAILABLE_PATH, { cookies: BOTH, headers }))).toEqual([])
   })
 
   it.each(['/s', '/share'])('never sends the bare %s to /login', (path) => {
@@ -200,7 +214,7 @@ describe('a request of any kind', () => {
     for (const cookies of HELD) {
       for (const [, headers] of ARRIVALS) {
         for (const method of ['GET', 'HEAD', 'POST']) {
-          expect(setCookies(visit(path, { method, cookies, headers }))).toEqual([])
+          expect(cookieWrites(visit(path, { method, cookies, headers }))).toEqual([])
         }
       }
     }
