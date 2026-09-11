@@ -4,9 +4,12 @@ One file per decision. Each records the context at the time, the decision, its c
 what else was considered. Numbers are permanent; a decision that changes gets a **new** ADR that
 supersedes the old one rather than an edit.
 
-The implementation-facing detail — domain model, page map, feature-parity inventory, cutover
-runbook — lives in [`../superpowers/specs/2026-09-10-monorepo-restructure-design.md`](../superpowers/specs/2026-09-10-monorepo-restructure-design.md),
-which references these by number.
+The implementation-facing detail — domain model, page map, cutover runbook — lives in
+[`../superpowers/specs/2026-09-10-monorepo-restructure-design.md`](../superpowers/specs/2026-09-10-monorepo-restructure-design.md),
+which references these by number. The full behavioural inventory of the app being replaced, captured
+before it was deleted, is [`../parity/legacy-microtask.md`](../parity/legacy-microtask.md): 71
+features, 25 routes and 41 non-obvious behaviours, each of which is reproduced or deliberately
+dropped by one of the decisions here.
 
 | # | Decision | Status |
 | --- | --- | --- |
@@ -40,6 +43,38 @@ which references these by number.
 | [0028](0028-autosave-under-keepalive-cap.md) | Autosave does not rely on flush-on-unload for large documents | Accepted |
 | [0029](0029-document-sanitised-at-the-boundary.md) | A document is sanitised at the boundary, by walking it | Accepted |
 | [0030](0030-service-context-of-ports.md) | Services take one context of ports; a double never re-implements a correctness component | Accepted |
+| [0031](0031-vendored-primitives-separate-lint-regime.md) | Vendored primitives are a separate lint regime, applied where its glob resolves | Accepted |
+| [0032](0032-two-cookies-url-wins.md) | Two cookies, encrypted, and the URL always wins | Accepted |
+| [0033](0033-list-ships-no-share-tokens.md) | The project list ships a share-link count, never share links | Accepted |
+| [0034](0034-task-entry-carries-list-row.md) | `TaskEntry` carries what a list row renders | Accepted |
+| [0035](0035-share-links-renamable-role-changeable.md) | A share link can be renamed and its role changed; its scope still cannot | Accepted |
+| [0036](0036-wire-facts-live-in-contracts.md) | The wire facts a browser needs live in `@repo/contracts` | Accepted |
+| [0037](0037-share-url-shape.md) | The share URL shape: `/s/<token>`, plus a task segment for a project scope | Accepted |
+| [0038](0038-capabilities-role-and-scope.md) | Controls gate on role **and** scope, never role alone | Accepted |
+
+## Amendments
+
+A decision that **changes** still gets a new ADR. An earlier ADR that turns out to be **factually
+wrong** — an instruction that cannot execute, a number that is not what was measured — is amended in
+place instead, because ADR 0027 leaves no explanatory comments in code and a stale ADR is then the
+one place a design error can hide. An amendment appends a dated section and corrects the wrong
+sentence where the sentence lives, so nobody executes it from the body and finds the correction
+afterwards.
+
+Amended on 2026-09-11, all from executed measurements:
+
+| ADR | What was wrong |
+| --- | --- |
+| [0009](0009-deny-by-default-collections.md) | Gate and filter were the only two categories; rendering is a third, and ADR 0038 defines it |
+| [0011](0011-task-is-default-share-scope.md) | "No PATCH can widen a link" — precisely, no PATCH can change its **scope**; role is changeable (ADR 0035) |
+| [0014](0014-namespace-products-now.md) | `openapi.json` and `/docs` are served at the root, not under `/v1` |
+| [0012](0012-dual-credential-api.md) | "No second secret is needed" — the Next app mints a `{kind:'link'}` cookie the API never signs, so it needs `COOKIE_SECRET` (ADR 0032) |
+| [0022](0022-hostname-continuity-gated-cutover.md) | The continuity redirect is a **308**, and it has two destinations by share scope (ADR 0037) |
+| [0023](0023-typescript-strict-shared-config.md) | `noUncheckedIndexedAccess` was predicted to be the irritating flag; it cost **zero** across 22 vendored files, `exactOptionalPropertyTypes` cost **2** |
+| [0024](0024-framework-free-zod-contracts.md) | `strict-peer-dependencies` in `.npmrc` **was never in effect** — pnpm 10+ reads it from `pnpm-workspace.yaml` |
+| [0025](0025-shadcn-tailwind-shared-package.md) | Six instructions could not execute as written: `pnpm dlx`, "the CLI writes both `components.json`", "one stylesheet" during `init`, two dead `@source` lines, the server-safe list (6 of 22, not 4), and a local `cn` the CLI no longer generates |
+| [0026](0026-docker-turbo-prune-standalone.md) | Turbo silently never caches `.next` when `output: 'standalone'` is set; `!.next/standalone/**` is the fix |
+| [0027](0027-code-style-solid-enforced.md) | The vendored-components override named a directory the CLI never writes to, **and** its glob was inert in the shared config — the trap this ADR documents and then walked into |
 
 ## Verification
 
