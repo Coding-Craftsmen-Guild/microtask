@@ -1,5 +1,5 @@
 import { ApiError } from '@repo/api-client'
-import { SERVICE_UNAVAILABLE } from '../../../../../../../../../lib/problem'
+import { SERVICE_UNAVAILABLE } from '../../lib/problem'
 
 const TITLES: Readonly<Record<number, string>> = {
   400: 'Bad Request',

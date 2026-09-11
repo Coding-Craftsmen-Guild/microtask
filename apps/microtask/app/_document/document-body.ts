@@ -1,5 +1,5 @@
 import { DocumentJson, type DocumentValue } from '@repo/contracts'
-import { problemResponse } from '../../../../../../../../../../api/projects/[projectId]/tasks/[taskId]/tabs/[tabId]/document/problem-response'
+import { problemResponse } from './problem-response'
 
 const NOT_JSON = 'The request body is not JSON.'
 
@@ -21,9 +21,8 @@ const jsonOf = async (request: Request): Promise<{ readonly value: unknown } | n
 /**
  * Reads a document write's body, refusing it here when it is not one.
  *
- * The same two refusals the admin document route makes, in the same order and words: 400 for a
- * body that is not JSON, and 422 — with the fields `DocumentJson` named — for JSON that is not a
- * document. The API validates with the same schema, so a body refused here is one it would refuse
+ * Two refusals, the same on both surfaces' document routes: 400 for a body that is not JSON, and
+ * 422 — with the fields `DocumentJson` named — for JSON that is not a document. The API validates with the same schema, so a body refused here is one it would refuse
  * too, and refusing it on this side spends no round trip on it.
  */
 export async function documentBody(request: Request, instance: string): Promise<DocumentBody> {

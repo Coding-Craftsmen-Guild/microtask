@@ -16,10 +16,12 @@ const originHost = (origin: string | null): string | null => {
 /**
  * Whether a request's `Origin` names the host the browser addressed.
  *
- * A Server Action gets this check from Next and a Route Handler gets nothing, so the one route
- * that writes a document with the admin cookie makes it itself. `SameSite=Lax` already withholds
- * `mt_admin` from a cross-site `PUT`; this is the standard second layer, and it is one
- * comparison.
+ * A Server Action gets this check from Next and a Route Handler gets nothing, so the two document
+ * routes make it themselves, before any credential is touched. On the admin route it guards an
+ * ambient credential: `SameSite=Lax` already withholds `mt_admin` from a cross-site `PUT`, and
+ * this is the standard second layer. The link route has no ambient credential — its token is in
+ * the path, and whoever holds it can write with it from anywhere — so there the check keeps the
+ * two routes' contract one and the same rather than guarding a secret (ADR 0040).
  *
  * The host is read the way Next reads it for an action — the **first** `X-Forwarded-Host` entry
  * when a proxy supplied one, `Host` otherwise — because the app runs behind Coolify and the hop it
