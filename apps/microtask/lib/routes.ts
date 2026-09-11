@@ -5,11 +5,9 @@ export const LOGIN_PATH = '/login'
  * Where a `/s/*` route sends a holder whose link no longer resolves.
  *
  * A path to redirect to rather than a state rendered in place, so the address bar stops carrying
- * the dead token: a reload of the terminal page is a static render that calls nothing, and never
- * re-attempts the token. Nothing clears `mt_link` on the way here, and nothing needs to. A render
- * cannot write a cookie (`ReadonlyRequestCookiesError`: Next allows the write only in the
- * `'action'` phase), `proxy.ts` writes none on a `GET`, and a stale `mt_link` decides nothing:
- * the token in the URL always beats the one in the cookie (ADR 0032).
+ * the dead token: a reload of the terminal page renders a page that calls nothing, and never
+ * re-attempts the token. Nothing is cleared on the way here because there is nothing to clear:
+ * the client surface holds its credential in the URL and in no cookie (ADR 0040).
  *
  * It sits *inside* `/s/` on purpose. A static segment beats a dynamic one in the App Router, so
  * the route this names takes precedence over `/s/[token]`; putting it outside would need a second
@@ -21,7 +19,7 @@ export const LINK_UNAVAILABLE_PATH = '/s/unavailable'
 const LINK_ROOTS = ['/s', '/share'] as const
 
 /**
- * Whether a path belongs to the client surface, which reads `mt_link` and nothing else.
+ * Whether a path belongs to the client surface, which authenticates from its URL and reads no cookie.
  *
  * `/share/*` is included because it is the legacy spelling of the same surface, 308'd to `/s/*`
  * (ADR 0037): a client following an old link must never be bounced to `/login` on the way.

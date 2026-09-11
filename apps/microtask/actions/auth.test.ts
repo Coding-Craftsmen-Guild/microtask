@@ -2,10 +2,11 @@ import { ApiError } from '@repo/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { seal } from '../lib/crypto'
 import { LOGIN_REFUSED } from '../lib/login'
-import { ADMIN_COOKIE, LINK_COOKIE, payloadOf } from '../lib/principal'
+import { ADMIN_COOKIE, payloadOf } from '../lib/principal'
 import { sessionCookies, type SealedCookie } from '../lib/session-store'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
+const STRAY = 'mt_link'
 const jar = new Map<string, SealedCookie>()
 
 const loginWith = vi.fn<(password: string) => Promise<unknown>>()
@@ -136,23 +137,23 @@ describe('signIn', () => {
     expect(loginWith).not.toHaveBeenCalled()
   })
 
-  it('leaves mt_link alone when it seals mt_admin', async () => {
+  it('leaves every other cookie alone when it seals mt_admin', async () => {
     const link = seal(SECRET, payloadOf({ kind: 'link', token: 'share' }))
-    jar.set(LINK_COOKIE, { name: LINK_COOKIE, value: link, httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 9 })
+    jar.set(STRAY, { name: STRAY, value: link, httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 9 })
     loginWith.mockResolvedValue({ token: 't', expiresAt: 'x', expiresInSeconds: 60 })
     await redirectOf(signIn({ message: null }, form({ password: 'pw' })))
-    expect(jar.get(LINK_COOKIE)?.value).toBe(link)
+    expect(jar.get(STRAY)?.value).toBe(link)
   })
 })
 
 describe('signOut', () => {
-  it('clears mt_admin, leaves mt_link, and lands on /login', async () => {
+  it('clears mt_admin, leaves every other cookie, and lands on /login', async () => {
     const link = seal(SECRET, payloadOf({ kind: 'link', token: 'share' }))
-    jar.set(LINK_COOKIE, { name: LINK_COOKIE, value: link, httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 9 })
+    jar.set(STRAY, { name: STRAY, value: link, httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 9 })
     jar.set(ADMIN_COOKIE, { name: ADMIN_COOKIE, value: 'sealed', httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 9 })
     expect(await redirectOf(signOut())).toBe('/login')
     expect(jar.get(ADMIN_COOKIE)).toMatchObject({ value: '', maxAge: 0 })
-    expect(jar.get(LINK_COOKIE)?.value).toBe(link)
+    expect(jar.get(STRAY)?.value).toBe(link)
   })
 
   it('makes no API call, because there is deliberately no logout route (ADR 0032)', async () => {

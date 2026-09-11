@@ -72,11 +72,13 @@ export function remedyFor(error: unknown, audience: PrincipalKind, pathname: str
 }
 
 /**
- * The remedy for a browser that presented no session cookie at all.
+ * The remedy for a request that presented no credential of its audience at all.
  *
- * Spelled separately from {@link remedyFor} because there is no error to inspect: `apiForSession`
- * answered `null`, no request was made, and the answer is the same as a 401's by construction
- * rather than by a synthetic `ApiError` built to be read back.
+ * For an admin route that is no `mt_admin` that opens: `apiForSession` answered `null`. For a link
+ * route it is a `/s/<token>` segment that cannot be a share token: `apiForLink` answered `null`.
+ * Spelled separately from {@link remedyFor} because there is no error to inspect — no request was
+ * made, and the answer is the same as a 401's by construction rather than by a synthetic
+ * `ApiError` built to be read back.
  */
 export function remedyForNoSession(audience: PrincipalKind, pathname: string): Remedy {
   return audience === 'admin'

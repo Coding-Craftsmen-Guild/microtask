@@ -64,10 +64,10 @@ export function reportLoginRefusal(error: unknown): void {
 /**
  * Where a successful sign-in lands: the sanitised `?next=`, or `/`.
  *
- * `/login` itself is refused as a destination, and so is anything under it. `proxy.ts`
- * clears `mt_admin` on every request to `/login`, so a sign-in that redirected there would seal
- * the cookie and have it cleared on the very next response — a login form that appears to accept
- * the password and then asks for it again.
+ * `/login` itself is refused as a destination, and so is anything under it. Nothing clears
+ * `mt_admin` there any more — `proxy.ts` writes no cookie on any request (ADR 0032) — but `/login`
+ * draws the password form whoever opens it, so a sign-in that redirected there would land a
+ * signed-in admin on the form they just submitted: a sign-in that looks as if it was ignored.
  */
 export function signInDestination(next: string | null | undefined): string {
   const safe = safeNextPath(next)

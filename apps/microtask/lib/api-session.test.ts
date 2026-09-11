@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AdminPrincipal, LinkPrincipal } from './principal'
+import type { AdminPrincipal } from './principal'
 
-const held: { admin: AdminPrincipal | null; link: LinkPrincipal | null } = { admin: null, link: null }
+const held: { admin: AdminPrincipal | null; opened: number } = { admin: null, opened: 0 }
 
 vi.mock('./session', () => ({
-  session: () => Promise.resolve({ admin: () => held.admin, link: () => held.link }),
+  session: () => {
+    held.opened += 1
+    return Promise.resolve({ admin: () => held.admin })
+  },
 }))
 
 const sent: { url: string; init: RequestInit }[] = []
@@ -23,7 +26,7 @@ beforeEach(() => {
     )
   })
   held.admin = null
-  held.link = null
+  held.opened = 0
   sent.length = 0
 })
 
@@ -32,37 +35,23 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const { apiForSession } = await import('./api')
+const { apiForLink, apiForSession } = await import('./api')
+
+const TOKEN = 'tok_CLIENTSOWNTOKEN_0001'
 
 const headerOf = (name: string): string | undefined =>
   (sent[0]?.init.headers as Record<string, string> | undefined)?.[name]
 
 describe('apiForSession', () => {
-  it('builds the admin client from mt_admin for the admin audience', async () => {
+  it('builds the admin client from mt_admin', async () => {
     held.admin = { kind: 'admin', token: 'admin.1.sig' }
-    held.link = { kind: 'link', token: 'sharetoken' }
     const client = await apiForSession('admin')
     expect(client?.credential).toBe('admin')
     await client?.projects.list()
     expect(headerOf('authorization')).toBe('Bearer admin.1.sig')
   })
 
-  it('builds the link client from mt_link for the link audience', async () => {
-    held.admin = { kind: 'admin', token: 'admin.1.sig' }
-    held.link = { kind: 'link', token: 'sharetoken' }
-    const client = await apiForSession('link')
-    expect(client?.credential).toBe('link')
-    await client?.projects.list()
-    expect(headerOf('authorization')).toBe('Bearer sharetoken')
-  })
-
-  it('answers null for a link route when only an admin session exists', async () => {
-    held.admin = { kind: 'admin', token: 'admin.1.sig' }
-    expect(await apiForSession('link')).toBeNull()
-  })
-
-  it('answers null for an admin route when only a link session exists', async () => {
-    held.link = { kind: 'link', token: 'sharetoken' }
+  it('answers null when this browser presents no admin session', async () => {
     expect(await apiForSession('admin')).toBeNull()
   })
 
@@ -72,4 +61,38 @@ describe('apiForSession', () => {
     expect(sent[0]?.url).toBe('http://api.internal:4321/v1/microtask/projects')
     expect(headerOf('x-api-key')).toBe('the-service-key')
   })
+})
+
+describe('apiForLink — the URL token is the only authority on /s/*', () => {
+  it('builds a link client that presents the token it was handed, beside the service key', async () => {
+    const client = apiForLink(TOKEN)
+    expect(client?.credential).toBe('link')
+    await client?.projects.list()
+    expect(headerOf('authorization')).toBe(`Bearer ${TOKEN}`)
+    expect(headerOf('x-api-key')).toBe('the-service-key')
+  })
+
+  it('opens no session — so an admin signed in on the same browser cannot elevate a link page', async () => {
+    held.admin = { kind: 'admin', token: 'admin.1.sig' }
+    const client = apiForLink(TOKEN)
+    await client?.projects.list()
+    expect(held.opened).toBe(0)
+    expect(client?.credential).toBe('link')
+    expect(headerOf('authorization')).toBe(`Bearer ${TOKEN}`)
+  })
+
+  it('resolves each URL’s own token, whichever link this browser opened before', async () => {
+    await apiForLink('tok_FIRSTLINKFIRSTLINK')?.projects.list()
+    await apiForLink('tok_SECONDLINKSECONDLI')?.projects.list()
+    const bearers = sent.map((one) => (one.init.headers as Record<string, string>)['authorization'])
+    expect(bearers).toEqual(['Bearer tok_FIRSTLINKFIRSTLINK', 'Bearer tok_SECONDLINKSECONDLI'])
+  })
+
+  it.each(['', 'unavailable', 'short', `${TOKEN}\nx-api-key: forged`, `${TOKEN}/..`])(
+    'answers null, and builds no request, for the segment %j',
+    (segment) => {
+      expect(apiForLink(segment)).toBeNull()
+      expect(sent).toHaveLength(0)
+    },
+  )
 })

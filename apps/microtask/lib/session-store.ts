@@ -1,15 +1,5 @@
 import { open, seal } from './crypto'
-import {
-  ADMIN_COOKIE,
-  LINK_COOKIE,
-  LINK_MAX_AGE_SECONDS,
-  adminFrom,
-  linkFrom,
-  payloadOf,
-  type AdminPrincipal,
-  type LinkPrincipal,
-  type Principal,
-} from './principal'
+import { ADMIN_COOKIE, adminFrom, payloadOf, type AdminPrincipal } from './principal'
 
 /**
  * One `Set-Cookie` this app writes, with every attribute spelled out.
@@ -19,7 +9,7 @@ import {
  * are part of a cookie's identity for removal, not decoration on it.
  */
 export interface SealedCookie {
-  /** Which of the two cookies this is. */
+  /** Which cookie this is: `mt_admin`, the only one this app writes (ADR 0040). */
   readonly name: string
 
   /** The sealed blob, or the empty string when this cookie is being cleared. */
@@ -31,7 +21,7 @@ export interface SealedCookie {
   /** `true` behind TLS, derived from the proxy's `x-forwarded-proto`. */
   readonly secure: boolean
 
-  /** `lax`, so a client following a share link from an email arrives holding their cookie. */
+  /** `lax`, so an admin following a link to a task from an email arrives signed in. */
   readonly sameSite: 'lax'
 
   /** Always `/`, which is what makes the payload's confidentiality load-bearing (ADR 0032). */
@@ -50,45 +40,35 @@ export interface CookieJar {
   set(cookie: SealedCookie): void
 }
 
-/** What the two-cookie reader needs: a jar, the sealing key, and whether the hop is TLS. */
+/** What the session needs: a jar, the sealing key, and whether the hop is TLS. */
 export interface SessionCookieOptions {
   /** The cookie store for this request. */
   readonly jar: CookieJar
 
-  /** `COOKIE_SECRET`, the key both cookies are sealed under. */
+  /** `COOKIE_SECRET`, the key `mt_admin` is sealed under. */
   readonly secret: string
 
-  /** Whether to mark the cookies `Secure`. */
+  /** Whether to mark the cookie `Secure`. */
   readonly secure: boolean
 }
 
 /**
- * The two cookies, as six operations that never touch each other's cookie.
+ * The admin session: three operations on `mt_admin`, and nothing else.
  *
- * Disjointness is the whole point and it is structural rather than conventional: each reader
- * names exactly one cookie, so an admin who opens a client's link to check it holds both at once
- * and neither shadows the other. One cookie holding either principal — which the spec had —
- * would have ended the admin's own session on the one operation an admin performs most often
- * (ADR 0032).
+ * There is no link half. The client surface authenticates from the token in its URL on every
+ * request, so it has no session to read, seal or clear — and an admin who opens a client's link
+ * to check it keeps their own session, because nothing under `/s/*` touches a cookie at all. That
+ * was the reason ADR 0032 gave for a second cookie; ADR 0040 meets it by having none.
  */
 export interface SessionCookies {
   /** The admin principal every route outside `/s/*` reads, or `null`. */
   admin(): AdminPrincipal | null
 
-  /** The link principal every `/s/*` route reads, or `null`. */
-  link(): LinkPrincipal | null
-
   /** Seals `mt_admin` for exactly as long as the bearer it wraps is valid. */
   sealAdmin(token: string, expiresInSeconds: number): void
 
-  /** Seals `mt_link` for thirty days, because a share token has no expiry. */
-  sealLink(token: string): void
-
-  /** Removes `mt_admin`, leaving `mt_link` alone. */
+  /** Removes `mt_admin`. */
   clearAdmin(): void
-
-  /** Removes `mt_link`, leaving `mt_admin` alone. */
-  clearLink(): void
 }
 
 const HTTPS = 'https'
@@ -109,7 +89,7 @@ export function secureFrom(forwardedProto: string | null): boolean {
 }
 
 /**
- * The `Set-Cookie` that removes one of the two cookies.
+ * The `Set-Cookie` that removes a cookie this app sealed.
  *
  * Every attribute matches the sealed cookie it replaces. `Path` is part of a cookie's identity,
  * and a browser will not let a non-`Secure` write displace a `Secure` cookie, so a clear spelled
@@ -120,43 +100,30 @@ export function clearedCookie(name: string, secure: boolean): SealedCookie {
 }
 
 /**
- * Binds the two cookies to one request's jar.
+ * Binds the admin session to one request's jar.
  *
- * Every read goes through {@link open} and then {@link adminFrom} or {@link linkFrom}, and every failure at
- * either step is `null`: a tampered blob, a blob sealed under a rotated secret and a payload of
- * the other kind all mean "this browser presents no session", which ADR 0032 requires be treated
- * as absent rather than as an error anybody is shown.
+ * Every read goes through {@link open} and then {@link adminFrom}, and every failure at either
+ * step is `null`: a tampered blob, a blob sealed under a rotated secret and a payload of another
+ * kind all mean "this browser presents no session", which ADR 0032 requires be treated as absent
+ * rather than as an error anybody is shown.
  */
 export function sessionCookies(options: SessionCookieOptions): SessionCookies {
-  const opened = (name: string): string | null => {
-    const raw = options.jar.get(name)
-    return raw === undefined ? null : open(options.secret, raw.value)
-  }
-  const write = (name: string, value: string, maxAge: number): void => {
-    options.jar.set({
-      name,
-      value,
-      httpOnly: true,
-      secure: options.secure,
-      sameSite: 'lax',
-      path: '/',
-      maxAge,
-    })
-  }
-  const sealed = (principal: Principal): string => seal(options.secret, payloadOf(principal))
   return {
     admin: () => {
-      const plaintext = opened(ADMIN_COOKIE)
+      const raw = options.jar.get(ADMIN_COOKIE)
+      const plaintext = raw === undefined ? null : open(options.secret, raw.value)
       return plaintext === null ? null : adminFrom(plaintext)
     },
-    link: () => {
-      const plaintext = opened(LINK_COOKIE)
-      return plaintext === null ? null : linkFrom(plaintext)
-    },
     sealAdmin: (token, expiresInSeconds) =>
-      write(ADMIN_COOKIE, sealed({ kind: 'admin', token }), expiresInSeconds),
-    sealLink: (token) => write(LINK_COOKIE, sealed({ kind: 'link', token }), LINK_MAX_AGE_SECONDS),
+      options.jar.set({
+        name: ADMIN_COOKIE,
+        value: seal(options.secret, payloadOf({ kind: 'admin', token })),
+        httpOnly: true,
+        secure: options.secure,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: expiresInSeconds,
+      }),
     clearAdmin: () => options.jar.set(clearedCookie(ADMIN_COOKIE, options.secure)),
-    clearLink: () => options.jar.set(clearedCookie(LINK_COOKIE, options.secure)),
   }
 }

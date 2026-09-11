@@ -57,7 +57,8 @@ export async function signIn(_previous: SignInState, form: FormData): Promise<Si
  * that held it; a copy of the bearer taken before sign-out stays valid until its own expiry,
  * which `ADMIN_TOKEN_TTL_SECONDS` bounds.
  *
- * `mt_link` is left alone, so an admin who signs out keeps a client's link open in another tab.
+ * No other cookie is touched, and a client's link open in another tab keeps working: the client
+ * surface reads no cookie at all (ADR 0040).
  */
 export async function signOut(): Promise<void> {
   const cookies = await session()

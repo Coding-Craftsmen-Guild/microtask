@@ -28,8 +28,9 @@ const isUngated = (pathname: string): boolean =>
  * **It never sets or clears a cookie**, because a `GET` must not change state. Next prefetches
  * every `<Link>` it renders and another site can link here at top level, so a clear on a `GET` of
  * `/login` would sign an admin out for having a link to it on screen. Nor would one buy
- * anything: `mt_admin` expires with its bearer, and a stale `mt_link` decides nothing because the
- * URL always wins (ADR 0032). Sign-out is a `POST`, which is where a clear belongs.
+ * anything: `mt_admin` expires with its bearer, and the client surface has no cookie to go stale,
+ * because its credential is its URL (ADR 0040). Sign-out is a `POST`, which is where a clear
+ * belongs.
  *
  * **It checks that `mt_admin` opens, never that the bearer inside it is still accepted.** A
  * cookie that is tampered, sealed under a rotated secret, or holds a link principal is treated

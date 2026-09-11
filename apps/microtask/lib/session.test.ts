@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ADMIN_COOKIE, LINK_COOKIE } from './principal'
+import { ADMIN_COOKIE } from './principal'
 import type { SealedCookie } from './session-store'
 
 const store = new Map<string, SealedCookie>()
@@ -43,14 +43,14 @@ describe('session', () => {
 
   it('marks the cookie Secure when the proxy says the client hop was https', async () => {
     request.proto = 'https'
-    ;(await session()).sealLink('sharetoken')
-    expect(store.get(LINK_COOKIE)?.secure).toBe(true)
+    ;(await session()).sealAdmin('admin.1.sig', 600)
+    expect(store.get(ADMIN_COOKIE)?.secure).toBe(true)
   })
 
   it('leaves Secure off when the proxy says http, so local dev keeps a session', async () => {
     request.proto = 'http'
-    ;(await session()).sealLink('sharetoken')
-    expect(store.get(LINK_COOKIE)?.secure).toBe(false)
+    ;(await session()).sealAdmin('admin.1.sig', 600)
+    expect(store.get(ADMIN_COOKIE)?.secure).toBe(false)
   })
 
   it('leaves Secure off when no proxy header arrived at all', async () => {

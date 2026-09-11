@@ -104,7 +104,7 @@ describe('signInDestination', () => {
     expect(signInDestination(hostile)).toBe('/')
   })
 
-  it('never sends a freshly signed-in admin back to /login, which would clear the cookie again', () => {
+  it('never sends a freshly signed-in admin back to the password form they just submitted', () => {
     expect(signInDestination('/login')).toBe('/')
     expect(signInDestination('/login?next=%2F')).toBe('/')
     expect(signInDestination('/login/anything')).toBe('/')

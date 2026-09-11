@@ -2,13 +2,14 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { vi } from 'vitest'
 import { seal } from './lib/crypto'
-import { ADMIN_COOKIE, LINK_COOKIE, payloadOf } from './lib/principal'
+import { ADMIN_COOKIE, payloadOf } from './lib/principal'
 import { LINK_UNAVAILABLE_PATH } from './lib/routes'
 import { config, proxy } from './proxy'
 
 const ORIGIN = 'https://microtask.example'
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 const ADMIN = seal(SECRET, payloadOf({ kind: 'admin', token: 'admin.1.sig' }))
+const STRAY_LINK_COOKIE = 'mt_link'
 
 beforeEach(() => {
   vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
@@ -45,7 +46,7 @@ const cookieWrites = (response: Response): string[] => {
 
 const isRedirect = (response: Response): boolean => response.status >= 300 && response.status < 400
 
-const BOTH = { [ADMIN_COOKIE]: ADMIN, [LINK_COOKIE]: 'a-sealed-link' }
+const BOTH = { [ADMIN_COOKIE]: ADMIN, [STRAY_LINK_COOKIE]: 'a-sealed-link' }
 
 const SAME_ORIGIN_FETCH = { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty' }
 
@@ -98,8 +99,8 @@ describe('the admin surface with no mt_admin', () => {
     expect(isRedirect(visit('/p/01HXYZ', { cookies: { [ADMIN_COOKIE]: '' } }))).toBe(true)
   })
 
-  it('does not accept mt_link in place of mt_admin', () => {
-    expect(isRedirect(visit('/p/01HXYZ', { cookies: { [LINK_COOKIE]: 'sealed' } }))).toBe(true)
+  it('does not accept a stray mt_link, which an earlier build sealed, in place of mt_admin', () => {
+    expect(isRedirect(visit('/p/01HXYZ', { cookies: { [STRAY_LINK_COOKIE]: 'sealed' } }))).toBe(true)
   })
 
   it('lets a non-navigation through, so a Server Action answers with its own remedy', () => {
@@ -121,7 +122,7 @@ describe('the admin surface with no mt_admin', () => {
 
 describe('the admin surface with mt_admin', () => {
   it('lets the request through without touching either cookie', () => {
-    const response = visit('/p/01HXYZ', { cookies: { [ADMIN_COOKIE]: ADMIN, [LINK_COOKIE]: 'x' } })
+    const response = visit('/p/01HXYZ', { cookies: { [ADMIN_COOKIE]: ADMIN, [STRAY_LINK_COOKIE]: 'x' } })
     expect(isRedirect(response)).toBe(false)
     expect(cookieWrites(response)).toEqual([])
   })
@@ -186,7 +187,7 @@ describe('the client surface', () => {
     '/share/sometoken',
     LINK_UNAVAILABLE_PATH,
   ])('never sends %s to /login, whatever cookies it holds', (path) => {
-    for (const cookies of [{}, { [LINK_COOKIE]: 'sealed' }, { [ADMIN_COOKIE]: 'sealed' }]) {
+    for (const cookies of [{}, { [STRAY_LINK_COOKIE]: 'sealed' }, { [ADMIN_COOKIE]: 'sealed' }]) {
       const response = visit(path, { cookies })
       expect(locationOf(response) ?? '').not.toContain('/login')
       expect(isRedirect(response)).toBe(false)
@@ -208,7 +209,7 @@ describe('the client surface', () => {
 
 describe('a request of any kind', () => {
   const PATHS = ['/', '/login', '/p/01HXYZ', LINK_UNAVAILABLE_PATH, '/s/sometoken', '/share/sometoken', '/api/x']
-  const HELD = [{}, BOTH, { [ADMIN_COOKIE]: 'garbage', [LINK_COOKIE]: 'garbage' }]
+  const HELD = [{}, BOTH, { [ADMIN_COOKIE]: 'garbage', [STRAY_LINK_COOKIE]: 'garbage' }]
 
   it.each(PATHS)('writes no cookie at %s, whatever it holds and however it arrives', (path) => {
     for (const cookies of HELD) {
