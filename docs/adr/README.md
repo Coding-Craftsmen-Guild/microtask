@@ -51,6 +51,7 @@ dropped by one of the decisions here.
 | [0036](0036-wire-facts-live-in-contracts.md) | The wire facts a browser needs live in `@repo/contracts` | Accepted |
 | [0037](0037-share-url-shape.md) | The share URL shape: `/s/<token>`, plus a task segment for a project scope | Accepted |
 | [0038](0038-capabilities-role-and-scope.md) | Controls gate on role **and** scope, never role alone | Accepted |
+| [0039](0039-tiptap-in-the-app-and-v3.md) | The Tiptap editor lives in the app, and what Tiptap 3 changed | Accepted |
 
 ## Amendments
 
@@ -61,10 +62,11 @@ one place a design error can hide. An amendment appends a dated section and corr
 sentence where the sentence lives, so nobody executes it from the body and finds the correction
 afterwards.
 
-Amended on 2026-09-11, all from executed measurements:
+Amended on 2026-09-11, from executed measurements and from decisions recorded since:
 
 | ADR | What was wrong |
 | --- | --- |
+| [0001](0001-pnpm-turborepo-monorepo.md) | "The parts worth sharing — … the app shell, the editor" — the editor is Microtask's alone, and sharing it is the one case that carries a standing hazard rather than a cost (ADR 0039) |
 | [0009](0009-deny-by-default-collections.md) | Gate and filter were the only two categories; rendering is a third, and ADR 0038 defines it |
 | [0011](0011-task-is-default-share-scope.md) | "No PATCH can widen a link" — precisely, no PATCH can change its **scope**; role is changeable (ADR 0035) |
 | [0014](0014-namespace-products-now.md) | `openapi.json` and `/docs` are served at the root, not under `/v1` |
@@ -95,6 +97,15 @@ see "Verified by spike" in ADR 0024. It works, so contracts stay framework-free.
 corrected the research in the dangerous direction: a duplicate `.meta({ id })` does **not** throw at
 conversion as documented — it silently collapses two schemas into one and points both `$ref`s at the
 winner, which makes the unique-id test the only defence rather than a formality.
+
+ADR 0039 was produced the same way, and it is the largest of these: the Tiptap 2 → 3 jump was
+**executed against the two real files in `data/projects/`**, not read from a changelog. The headline
+is that stored documents need no migration — `taskList`, `taskItem` and `attrs.checked` round-trip
+unchanged and every progress number is identical (12 of 12 items). The finding that would have cost
+real data is quieter: StarterKit 3's bundled `TrailingNode` rewrites any tab ending in a `taskList`
+on its first transaction (root children 2 → 3), changing **no** `taskItem` count — so it edits the
+user's document while every number the product displays stays right. `trailingNode: false` is a
+required setting, not a preference.
 
 What remains unverified is everything Coolify-specific, above all whether Coolify renames named
 volumes (ADR 0026, and step 1 of the cutover runbook). The mitigation is backups taken before
