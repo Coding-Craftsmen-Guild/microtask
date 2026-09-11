@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { seal } from './crypto'
 import { ADMIN_COOKIE, LINK_COOKIE, LINK_MAX_AGE_SECONDS, payloadOf } from './principal'
-import { sessionCookies, type SealedCookie } from './session-store'
+import { clearedCookie, secureFrom, sessionCookies, type SealedCookie } from './session-store'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 const BEARER_TTL = 3600
@@ -175,5 +175,28 @@ describe('clearing', () => {
     const link = jar.store.get(LINK_COOKIE)
     session.clearAdmin()
     expect(jar.store.get(LINK_COOKIE)).toBe(link)
+  })
+})
+
+describe('secureFrom', () => {
+  it.each([
+    ['https', true],
+    ['HTTPS', true],
+    ['https, http', true],
+    [' https ', true],
+    ['http', false],
+    ['http, https', false],
+    ['', false],
+    [null, false],
+  ])('reads x-forwarded-proto %j as secure=%s', (header, expected) => {
+    expect(secureFrom(header)).toBe(expected)
+  })
+})
+
+describe('clearedCookie', () => {
+  it('carries the same attributes a sealed cookie does, so the browser replaces it', () => {
+    cookiesFor(true).sealAdmin('bearer', BEARER_TTL)
+    const sealed = jar.store.get(ADMIN_COOKIE)
+    expect(clearedCookie(ADMIN_COOKIE, true)).toEqual({ ...sealed, value: '', maxAge: 0 })
   })
 })

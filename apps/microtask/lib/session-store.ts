@@ -91,6 +91,34 @@ export interface SessionCookies {
   clearLink(): void
 }
 
+const HTTPS = 'https'
+
+/**
+ * Whether a request reached the app over TLS, read from the proxy that terminated it.
+ *
+ * `x-forwarded-proto` and not the request URL, because the app is deployed behind Coolify: the
+ * hop the app itself sees is plain HTTP inside the network, so a cookie marked `Secure` from the
+ * app's own view of the scheme would be marked wrongly on every request. The **first** entry of
+ * the list is the client-facing hop; a chained proxy appends rather than replaces.
+ *
+ * Absent means `false`, which is local `next dev` over HTTP. That is the only environment where
+ * a session cookie travels unmarked, and marking it `Secure` there would mean no session at all.
+ */
+export function secureFrom(forwardedProto: string | null): boolean {
+  return forwardedProto?.split(',')[0]?.trim().toLowerCase() === HTTPS
+}
+
+/**
+ * The `Set-Cookie` that removes one of the two cookies.
+ *
+ * Every attribute matches the sealed cookie it replaces. `Path` is part of a cookie's identity,
+ * and a browser will not let a non-`Secure` write displace a `Secure` cookie, so a clear spelled
+ * with different attributes would leave the credential in place and report success.
+ */
+export function clearedCookie(name: string, secure: boolean): SealedCookie {
+  return { name, value: '', httpOnly: true, secure, sameSite: 'lax', path: '/', maxAge: 0 }
+}
+
 /**
  * Binds the two cookies to one request's jar.
  *
@@ -130,7 +158,7 @@ export function sessionCookies(options: SessionCookieOptions): SessionCookies {
     sealAdmin: (token, expiresInSeconds) =>
       write(ADMIN_COOKIE, sealed({ kind: 'admin', token }), expiresInSeconds),
     sealLink: (token) => write(LINK_COOKIE, sealed({ kind: 'link', token }), LINK_MAX_AGE_SECONDS),
-    clearAdmin: () => write(ADMIN_COOKIE, '', 0),
-    clearLink: () => write(LINK_COOKIE, '', 0),
+    clearAdmin: () => options.jar.set(clearedCookie(ADMIN_COOKIE, options.secure)),
+    clearLink: () => options.jar.set(clearedCookie(LINK_COOKIE, options.secure)),
   }
 }
