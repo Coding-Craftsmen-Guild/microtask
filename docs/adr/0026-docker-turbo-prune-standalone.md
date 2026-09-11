@@ -94,10 +94,12 @@ and reads no credential — a static file is **not** a health route (amendment b
 - Local dev and the built image now differ meaningfully (raw workspace vs pruned standalone), so a
   "does it build in Docker" check belongs in CI rather than being discovered at deploy.
 - **Everything Coolify-specific is unverified and must be checked on the server before cutover** —
-  above all whether Coolify renames or prefixes named volumes for compose resources. That is the
-  single highest-risk unknown for taking over the live production volume, and it is checked on a
-  throwaway resource first. Also unconfirmed: whether its compose build pack supports three
-  per-service `build.dockerfile` entries from one monorepo, whether it can assign the existing
+  above all whether Coolify renames or prefixes named volumes for compose resources. It no longer
+  decides a takeover — the live volume is never mounted (amendment below) — but it decides the real
+  name of the live volume the runbook backs up and of the `api-data` volume every redeploy must
+  find again, and it is checked on a throwaway resource first. Also unconfirmed: whether its
+  compose build pack supports three per-service `build.dockerfile` entries from one monorepo,
+  whether it can assign the existing
   hostname to one of three services and leave the other two domain-less, and its proxy's body-size
   and streaming behaviour ahead of Hono's `bodyLimit`.
 
@@ -210,3 +212,18 @@ the built filesystem. Setting the variable at build time would be worse: it woul
 **`turbo prune` rewrites `pnpm-workspace.yaml`.** The pruned copy keeps every setting — catalog,
 overrides, `allowBuilds`, `strictPeerDependencies` — and drops every comment, so the file's reasoning
 never reaches an image and does not need to.
+
+**`.dockerignore` is the only thing keeping an app's `.env.production` out of its image.** Measured
+on a throwaway worktree: with `**/.env.*` removed, `next build` copied an untracked
+`apps/microtask/.env.production` into the standalone output, and it shipped at
+`/app/apps/microtask/.env.production`. The API image stays clean either way, because its trim keeps
+only `package.json` and `dist`. `.gitignore` ignores `.env` alone, so a `.env.production` or
+`.env.local` is not even kept out of a commit.
+
+**The invariants above are pinned in the gate**, since the verification scripts behind them were
+thrown away: `apps/api/src/deploy/` reads `apps/api/Dockerfile`, `docker-compose.yml`,
+`.env.example` and `.dockerignore`, and `apps/microtask/dockerfile.test.ts` reads Microtask's
+Dockerfile — the runner stage's user, copies, probe and command, every `${VAR:?}`, the volume, the
+absent ports and every exclusion. `apps/api/turbo.json` adds the three root files to the API's test
+inputs, so editing one of them is a cache miss. They read files; whether the images build and run
+is still the CI check the consequences above ask for.
