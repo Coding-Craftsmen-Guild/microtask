@@ -20,6 +20,12 @@ export const SAVE_TEXT: Readonly<Record<SaveState, string>> = {
 /** What a 409 says. Legacy was last-write-wins and said nothing at all (ADR 0016). */
 export const CONFLICT_TEXT = 'Someone else saved this tab'
 
+/**
+ * What a reload costs, said before it is chosen. The edits stay in the editor until then, and
+ * the user is told before anything is discarded (ADR 0016).
+ */
+export const CONFLICT_COST = 'Reloading discards your unsaved edits.'
+
 const TONE: Readonly<Record<SaveState, string>> = {
   idle: 'text-muted-foreground',
   saving: 'text-gold-deep',
@@ -56,7 +62,9 @@ export function SaveIndicator({ state, message, onReload }: SaveIndicatorProps) 
       </span>
       {state === 'conflict' ? (
         <span className="flex items-center gap-2 text-destructive" role="alert">
-          {CONFLICT_TEXT}
+          <span>
+            {CONFLICT_TEXT}. {CONFLICT_COST}
+          </span>
           <Button onClick={onReload} size="xs" variant="outline">
             Reload this tab
           </Button>

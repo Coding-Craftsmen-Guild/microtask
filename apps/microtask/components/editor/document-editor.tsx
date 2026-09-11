@@ -37,7 +37,13 @@ export interface DocumentEditorProps {
   editable: boolean
   /** Writes the document. The route handler and its credentials are the caller's. */
   save: SaveDocument
-  /** Reloads the tab from the server. Offered after a conflict, never called unasked. */
+  /**
+   * Reloads the tab from the server. Offered after a conflict, never called unasked.
+   *
+   * The island reads `document` and `updatedAt` on mount only, so a reload re-mounts it: key it
+   * on the tab id **and** the stamp, which then changes only when fresh data arrives — the
+   * island tracks the stamps its own saves produce internally (ADR 0016).
+   */
   onReload: () => void
   /** Called after every edit with the live count, which is what every progress bar shows. */
   onProgress?: (progress: ProgressValue) => void

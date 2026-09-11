@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import { CONFLICT_TEXT, SAVE_TEXT, SaveIndicator } from './save-indicator'
+import { CONFLICT_COST, CONFLICT_TEXT, SAVE_TEXT, SaveIndicator } from './save-indicator'
 import type { SaveState } from './save-document'
 
 afterEach(cleanup)
@@ -42,6 +42,12 @@ describe('a conflict is surfaced, not hidden', () => {
     show('conflict')
     expect(screen.getByRole('alert').textContent).toContain(CONFLICT_TEXT)
     expect(CONFLICT_TEXT).toBe('Someone else saved this tab')
+  })
+
+  it('says what a reload will cost before it is chosen, which ADR 0016 asks for', () => {
+    show('conflict')
+    expect(screen.getByRole('alert').textContent).toContain(CONFLICT_COST)
+    expect(CONFLICT_COST).toBe('Reloading discards your unsaved edits.')
   })
 
   it('offers a reload the user has to choose, so nothing is discarded behind their back', () => {
