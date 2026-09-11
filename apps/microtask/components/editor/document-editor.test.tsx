@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { createRef } from 'react'
 import { Editor as CoreEditor, type Editor } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
 import { countTasks, type DocumentValue, type ProgressValue } from '@repo/contracts'
 import { SAVE_DEBOUNCE_MS } from './autosave'
 import { DocumentEditor, type DocumentEditorHandle } from './document-editor'
@@ -80,13 +81,21 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+const clickInto = (editor: Editor): void => {
+  act(() => {
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.atEnd(editor.state.doc)))
+  })
+}
+
 describe('THE test: a stored production document survives mount and unmount untouched', () => {
   it.each(EVERY.map((each) => [each.name, each] as const))(
-    'holds %s byte-identically, editable, and writes nothing',
+    'holds %s byte-identically, editable, through a click that types nothing, and writes nothing',
     async (_name, source) => {
       const { editor, view } = await mount(source, true)
       expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(source.document))
+      clickInto(editor)
       await settle(SAVE_DEBOUNCE_MS * 20)
+      expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(source.document))
       view.unmount()
       await settle(SAVE_DEBOUNCE_MS * 20)
       expect(requests).toEqual([])
@@ -95,12 +104,22 @@ describe('THE test: a stored production document survives mount and unmount unto
   )
 
   it.each(EVERY.map((each) => [each.name, each] as const))(
-    'holds %s byte-identically when read-only, too',
+    'holds %s byte-identically when read-only, through a click, too',
     async (_name, source) => {
       const { editor } = await mount(source, false)
       expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(source.document))
+      clickInto(editor)
+      expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(source.document))
     },
   )
+
+  it('clicks through the transaction pipeline, which is where TrailingNode acts on a document', async () => {
+    const { editor } = await mount(tab('Go-live'), true)
+    const seen: boolean[] = []
+    editor.on('transaction', ({ transaction }) => seen.push(transaction.selectionSet))
+    clickInto(editor)
+    expect(seen).toEqual([true])
+  })
 })
 
 describe('the first keystroke is the users own', () => {
