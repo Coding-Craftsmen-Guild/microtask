@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ADMIN_TREE } from './controls'
-import { F1, F2, P, renderTree } from './testing/tree-fixture'
+import { F1, F2, folders, P, renderTree } from './testing/tree-fixture'
 
 const openMenu = async (user: ReturnType<typeof renderTree>['user'], index: number) => {
   const triggers = screen.getAllByRole('button', { name: 'Folder options' })
@@ -39,6 +39,13 @@ describe('a folder', () => {
 
   it('moves up as the whole folder order', async () => {
     const { actions, user } = renderTree()
+    await openMenu(user, 1)
+    await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
+    expect(actions.reorderFolders).toHaveBeenCalledWith(P, [F2, F1])
+  })
+
+  it('computes a move from position, not from the order the folders arrived in', async () => {
+    const { actions, user } = renderTree({ folders: [...folders].reverse() })
     await openMenu(user, 1)
     await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
     expect(actions.reorderFolders).toHaveBeenCalledWith(P, [F2, F1])

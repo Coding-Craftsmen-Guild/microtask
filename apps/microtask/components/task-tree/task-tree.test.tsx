@@ -39,6 +39,11 @@ describe('TaskTree', () => {
     expect(chips.map((chip) => chip.textContent)).toEqual(['a', 'b', '+10 more'])
   })
 
+  it('counts every tab in the metadata line, not only the ones the chips name', () => {
+    renderTree({ tasks: [{ ...task(T1, 'Big', null, 0), tabCount: 12, tabNames: ['a', 'b'] }] })
+    expect(screen.getByTestId('row-meta').textContent).toBe('12 tabs · updated 1h ago')
+  })
+
   it('draws each task’s cached progress, and the sum on its folder', () => {
     renderTree()
     expect(screen.getAllByText('1 / 2 · 50%')).toHaveLength(5)
@@ -83,6 +88,17 @@ describe('TaskTree', () => {
     await user.click(screen.getByRole('button', { name: '+ Folder' }))
     await user.type(screen.getByRole('textbox', { name: 'New folder name' }), 'Gamma{Enter}')
     expect(screen.getByRole('alert').textContent).toBe('Too many folders')
+  })
+
+  it('clears the refusal once a later write succeeds', async () => {
+    const { actions, user } = renderTree()
+    actions.createFolder.mockResolvedValueOnce({ ok: false, status: 422, detail: 'Too many folders' })
+    await user.click(screen.getByRole('button', { name: '+ Folder' }))
+    await user.type(screen.getByRole('textbox', { name: 'New folder name' }), 'Gamma{Enter}')
+    await user.click(screen.getByRole('button', { name: '+ Folder' }))
+    await user.type(screen.getByRole('textbox', { name: 'New folder name' }), 'Delta{Enter}')
+    expect(actions.createFolder).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
 

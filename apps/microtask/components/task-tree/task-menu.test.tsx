@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ADMIN_TREE } from './controls'
-import { F1, F2, P, R1, renderTree, T1, T2, T3 } from './testing/tree-fixture'
+import { F1, F2, P, R1, renderTree, T1, T2, T3, task } from './testing/tree-fixture'
 
 const rowOf = (name: string) => {
   const link = screen.getByRole('link', { name })
@@ -23,10 +23,22 @@ describe('a task’s options', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
     const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Task name' })
     expect(document.activeElement).toBe(field)
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, 'Go-live'.length])
     await user.clear(field)
     await user.type(field, 'Launch{Enter}')
     expect(actions.renameTask).toHaveBeenCalledWith(P, T1, 'Launch')
     expect(screen.getByRole('link', { name: 'Launch, as stored' })).toBeTruthy()
+  })
+
+  it('says why a rename was refused, after the field it was typed in has gone', async () => {
+    const { actions, user } = renderTree()
+    actions.renameTask.mockResolvedValue({ ok: false, status: 409, detail: 'Someone else renamed it.' })
+    await openMenu(user, 'Go-live')
+    await user.click(screen.getByRole('menuitem', { name: 'Rename' }))
+    await user.type(screen.getByRole('textbox', { name: 'Task name' }), ' now{Enter}')
+    expect(screen.queryByRole('textbox', { name: 'Task name' })).toBeNull()
+    expect(screen.getByRole('alert').textContent).toBe('Someone else renamed it.')
+    expect(screen.getByRole('link', { name: 'Go-live' })).toBeTruthy()
   })
 
   it('leaves the name and sends nothing when the rename is abandoned with Escape', async () => {
@@ -49,6 +61,13 @@ describe('a task’s options', () => {
     const { actions, user } = renderTree()
     await openMenu(user, 'Go-live')
     await user.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    expect(actions.reorderTasks).toHaveBeenCalledWith(P, F1, [T2, T1])
+  })
+
+  it('computes a move from position, not from the order the entries arrived in', async () => {
+    const { actions, user } = renderTree({ tasks: [task(T2, 'DNS cutover', F1, 1), task(T1, 'Go-live', F1, 0)] })
+    await openMenu(user, 'DNS cutover')
+    await user.click(screen.getByRole('menuitem', { name: 'Move up' }))
     expect(actions.reorderTasks).toHaveBeenCalledWith(P, F1, [T2, T1])
   })
 
