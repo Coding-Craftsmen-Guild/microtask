@@ -23,3 +23,19 @@ export const scopedToTask = (scope: ScopeValue, taskId: string): boolean =>
 export const taskChoices = (projectId: string, task: { readonly id: string; readonly name: string }): readonly ScopeChoice[] => [
   { value: task.id, label: task.name, scope: { kind: 'task', projectId, taskId: task.id } },
 ]
+
+/**
+ * What a project page offers to mint over: each task, in the order the caller drew them, then the
+ * whole project — the admin's project page and a project-scoped `manage` link's list alike.
+ *
+ * `Whole project` comes last and is minted only behind the confirm that names everything it would
+ * open (ADR 0011); the choices themselves are the same on both surfaces, because the same link
+ * minted from either is the same link.
+ */
+export const projectChoices = (
+  projectId: string,
+  tasks: readonly { readonly id: string; readonly name: string }[],
+): readonly ScopeChoice[] => [
+  ...tasks.flatMap((task) => taskChoices(projectId, task)),
+  { value: 'project', label: 'Whole project', scope: { kind: 'project', projectId } },
+]

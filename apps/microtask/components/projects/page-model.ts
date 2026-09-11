@@ -1,5 +1,6 @@
 import type { Project } from '@repo/api-client'
 import type { ProgressValue } from '@repo/contracts'
+import { projectChoices } from '../share-manager/task-share'
 import type { ScopeChoice } from '../share-manager/types'
 import type { RowFolder, RowTask } from '../task-tree/types'
 import { inTreeOrder, progressOf } from './summary'
@@ -63,10 +64,6 @@ export function projectPageModel(project: Project): ProjectPageModel {
     tabCount: task.tabCount,
     tabNames: task.tabNames,
   }))
-  const choices: ScopeChoice[] = [
-    ...tasks.map((task) => ({ value: task.id, label: task.name, scope: { kind: 'task' as const, projectId: project.id, taskId: task.id } })),
-    { value: 'project', label: 'Whole project', scope: { kind: 'project', projectId: project.id } },
-  ]
   return {
     id: project.id,
     name: project.name,
@@ -74,7 +71,7 @@ export function projectPageModel(project: Project): ProjectPageModel {
     tasks,
     shareLinkCount: project.shareLinks?.length,
     linkCounts: project.shareLinks === undefined ? undefined : countsByTask(project.shareLinks),
-    choices,
+    choices: projectChoices(project.id, tasks),
     exposure: exposureOf(project),
     progress: progressOf(tasks),
   }

@@ -1,4 +1,5 @@
 import type { TaskRef } from '@repo/api-client'
+import { adminDocumentRoot } from '../tabs/save-tab'
 
 /**
  * A share link's own page, `/s/<token>`: the task, or the task list, its scope resolves to
@@ -15,10 +16,10 @@ export const linkTaskPath = (token: string, taskId: string): string =>
   `${linkPath(token)}/t/${encodeURIComponent(taskId)}`
 
 /**
- * Where a link page writes one task's tab documents: the link document route under the token.
+ * Where a link page writes one task's tab documents: the admin route's path, under the token.
  *
- * The admin surface writes under `/api/…` with `mt_admin`; this surface writes under
- * `/s/<token>/api/…`, and the token in that path is the credential the route presents (ADR 0040).
+ * The admin surface writes under `/api/…` with `mt_admin`; this surface writes to the same path
+ * beneath `/s/<token>`, and the token in that path is the credential the route presents
+ * (ADR 0040). One path shape for both, so the two routes cannot come to disagree about a tab.
  */
-export const linkDocumentRoot = (token: string, ref: TaskRef): string =>
-  `${linkPath(token)}/api/projects/${encodeURIComponent(ref.projectId)}/tasks/${encodeURIComponent(ref.taskId)}/tabs`
+export const linkDocumentRoot = (token: string, ref: TaskRef): string => `${linkPath(token)}${adminDocumentRoot(ref)}`

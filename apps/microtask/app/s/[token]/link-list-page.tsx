@@ -7,19 +7,11 @@ import { LinkTaskList } from '../../../components/link/link-task-list'
 import { exposureOf } from '../../../components/projects/page-model'
 import { inTreeOrder, progressOf } from '../../../components/projects/summary'
 import { ShareManager } from '../../../components/share-manager/share-manager'
-import { shareControls, type ScopeChoice } from '../../../components/share-manager/types'
+import { projectChoices } from '../../../components/share-manager/task-share'
+import { shareControls } from '../../../components/share-manager/types'
 import { readLinkShareCount } from './read-share'
 
 type Share = Decoded<typeof ShareView>
-
-const choicesOf = (share: Share): ScopeChoice[] => [
-  ...inTreeOrder(share.folders, share.tasks).map((task) => ({
-    value: task.id,
-    label: task.name,
-    scope: { kind: 'task' as const, projectId: share.project.id, taskId: task.id },
-  })),
-  { value: 'project', label: 'Whole project', scope: { kind: 'project', projectId: share.project.id } },
-]
 
 /**
  * A project-scoped link's landing page: the project's head, then its tasks, each linking to
@@ -35,7 +27,7 @@ export async function linkListPage(token: string, share: Share): Promise<ReactNo
   const can = capabilities(share.role, share.scope)
   const count = can['share:read'] ? await readLinkShareCount(token, share.project.id, null) : undefined
   const manager = (
-    <ShareManager actions={linkShareActions(token)} choices={choicesOf(share)} controls={shareControls(can)} count={count} exposure={exposureOf(share)} projectId={share.project.id} />
+    <ShareManager actions={linkShareActions(token)} choices={projectChoices(share.project.id, inTreeOrder(share.folders, share.tasks))} controls={shareControls(can)} count={count} exposure={exposureOf(share)} projectId={share.project.id} />
   )
   return (
     <div className="grid gap-6 pt-6">

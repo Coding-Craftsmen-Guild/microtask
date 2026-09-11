@@ -11,8 +11,8 @@ const NO_STAMP = 'The save answered without the tab’s new version.'
  * Where the admin surface writes one task's tab documents: the Route Handler, never the API.
  *
  * A root rather than a function, because the page that knows the task is a Server Component and
- * a function cannot cross into the client island; the client surface under `/s/*` passes a root
- * of its own (ADR 0032 keeps the two cookies on disjoint routes).
+ * a function cannot cross into the client island. The client surface under `/s/*` passes this
+ * root beneath its own token, because its credential is the token in that path (ADR 0040).
  */
 export const adminDocumentRoot = (ref: { readonly projectId: string; readonly taskId: string }): string =>
   `/api/projects/${encodeURIComponent(ref.projectId)}/tasks/${encodeURIComponent(ref.taskId)}/tabs`
