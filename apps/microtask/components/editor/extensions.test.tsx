@@ -185,3 +185,85 @@ describe('the extension set itself', () => {
     expect(named(editor, 'taskItem')).toBe(1)
   })
 })
+
+const attrs = (href: string): Record<string, unknown> => ({
+  href,
+  target: '_blank',
+  rel: 'noopener noreferrer nofollow',
+  class: null,
+  title: null,
+})
+
+describe('the link allowlist is one policy, whatever path a link arrives by', () => {
+  const linked = (href: string): unknown => ({
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', marks: [{ type: 'link', attrs: attrs(href) }], text: 'here' }],
+      },
+    ],
+  })
+
+  const anchor = (editor: Editor): HTMLAnchorElement | null => editor.view.dom.querySelector('a')
+
+  it('renders a safe stored link as itself', () => {
+    expect(anchor(mount(linked('https://example.com/a')))?.getAttribute('href')).toBe(
+      'https://example.com/a',
+    )
+  })
+
+  it('renders a stored link on a scheme Tiptap allows and the contracts do not as inert', () => {
+    expect(anchor(mount(linked('ftp://example.com/file')))?.getAttribute('href')).toBe('')
+    expect(anchor(mount(linked('sms:+441234')))?.getAttribute('href')).toBe('')
+  })
+
+  it('refuses setLink on such a scheme even when nothing went through the dialog', () => {
+    const editor = mount(linked('https://example.com'))
+    editor.commands.selectAll()
+    expect(editor.commands.setLink({ href: 'ftp://example.com' })).toBe(false)
+    expect(editor.commands.setLink({ href: 'https://example.org' })).toBe(true)
+  })
+
+  it('never rewrites the stored href, so the document round-trips even when it renders inert', () => {
+    const stored = linked('ftp://example.com/file')
+    expect(JSON.stringify(mount(stored).getJSON())).toBe(JSON.stringify(stored))
+  })
+})
+
+describe('the one attribute Tiptap 3 adds to a stored mark', () => {
+  const V2_LINK = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            marks: [
+              {
+                type: 'link',
+                attrs: {
+                  href: 'https://example.com',
+                  target: '_blank',
+                  rel: 'noopener noreferrer nofollow',
+                  class: null,
+                },
+              },
+            ],
+            text: 'here',
+          },
+        ],
+      },
+    ],
+  }
+
+  it('adds title:null to a link mark Tiptap 2 wrote, and changes nothing else', () => {
+    const mounted = mount(V2_LINK).getJSON()
+    const expected = JSON.parse(JSON.stringify(V2_LINK)) as typeof V2_LINK
+    const mark = expected.content[0]?.content[0]?.marks[0]
+    if (mark === undefined) throw new Error('fixture lost its mark')
+    Object.assign(mark.attrs, { title: null })
+    expect(JSON.stringify(mounted)).toBe(JSON.stringify(expected))
+  })
+})

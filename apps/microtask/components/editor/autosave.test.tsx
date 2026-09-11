@@ -285,20 +285,20 @@ describe('the keepalive size branch', () => {
     expect(requests).toEqual([])
   })
 
-  it('sends a document one byte under the cap and refuses one byte over it', async () => {
-    const under = harness()
+  it('sends a body one byte under the cap and refuses one exactly at it, the ADR saying under', async () => {
     const body = (length: number): DocumentValue => text('x'.repeat(length))
     const bytes = (document_: DocumentValue): number =>
       new TextEncoder().encode(JSON.stringify(document_)).length
-    let length = 1
-    while (bytes(body(length)) < KEEPALIVE_MAX_BYTES) length += 1
-    under.autosave.change(body(length - 1))
+    const atCap = KEEPALIVE_MAX_BYTES - bytes(body(0))
+    expect(bytes(body(atCap))).toBe(KEEPALIVE_MAX_BYTES)
+    const under = harness()
+    under.autosave.change(body(atCap - 1))
     await under.autosave.flush(true)
     expect(under.requests.length).toBe(1)
-    const over = harness()
-    over.autosave.change(body(length))
-    await over.autosave.flush(true)
-    expect(over.requests).toEqual([])
+    const at = harness()
+    at.autosave.change(body(atCap))
+    await at.autosave.flush(true)
+    expect(at.requests).toEqual([])
   })
 })
 

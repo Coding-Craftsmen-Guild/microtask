@@ -2,6 +2,7 @@ import type { EditorOptions, Extensions } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
+import { normalizeHref } from './safe-href'
 
 /**
  * The prompt an empty editable tab shows.
@@ -27,6 +28,11 @@ export const PLACEHOLDER = 'Write notes, or try the ☑ button for a checklist'
  *   configurations of one mark, so whether `openOnClick` is honoured turns on extension order.
  * - `openOnClick: !editable`, which is the asymmetry the app being replaced had: a link
  *   navigates from a read-only view and only places the caret in an editable one.
+ * - `isAllowedUri` is the link dialog's own {@link normalizeHref}, so one allowlist decides
+ *   every path a link can arrive by — the dialog, `setLink`, a paste, an autolink, and the
+ *   render of a stored mark. Tiptap's default admits `ftp`, `sms`, `callto`, `cid` and `xmpp`,
+ *   which the boundary guard rejects (ADR 0029), and a stored href it refuses renders with an
+ *   empty `href` rather than being rewritten.
  * - `TaskList` and `TaskItem` from `@tiptap/extension-list`, `Placeholder` from
  *   `@tiptap/extensions`. The `extension-task-list`, `-task-item` and `-placeholder` packages
  *   still publish, and each is a two-line re-export shim.
@@ -46,6 +52,7 @@ export function buildExtensions(editable: boolean): Extensions {
         openOnClick: !editable,
         autolink: true,
         linkOnPaste: true,
+        isAllowedUri: (url) => normalizeHref(url) !== null,
         HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: '_blank' },
       },
     }),
