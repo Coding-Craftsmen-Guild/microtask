@@ -1,4 +1,4 @@
-import base, { noProductImports } from '@repo/eslint-config'
+import base, { noProductImports, vendoredComponents } from '@repo/eslint-config'
 
 export default [
   ...base,
@@ -6,4 +6,5 @@ export default [
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     rules: { ...noProductImports },
   },
+  ...vendoredComponents(),
 ]

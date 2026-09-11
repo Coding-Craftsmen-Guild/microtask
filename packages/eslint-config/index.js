@@ -27,6 +27,25 @@ export const noProductImports = {
   'no-restricted-imports': ['error', { patterns: productImportPatterns }],
 }
 
+/**
+ * The lint regime for vendored `shadcn` output, as flat-config blocks to spread into a
+ * package's own `eslint.config.js`: `...vendoredComponents()`. It turns off `max-lines`
+ * and `jsdoc/require-jsdoc` for `src/components/**` and nothing else, which is what
+ * `shadcn@4.21.0` output was measured to violate (ADR 0031).
+ *
+ * It is a factory rather than a block in `base` because a flat-config `files` glob resolves
+ * against the **consuming** config's base path: written here as `packages/ui/src/...` it
+ * matches nothing and suppresses nothing. The rule set is still decided once, in this file.
+ */
+export function vendoredComponents() {
+  return [
+    {
+      files: ['src/components/**/*.tsx'],
+      rules: { 'max-lines': 'off', 'jsdoc/require-jsdoc': 'off' },
+    },
+  ]
+}
+
 const SIZE_RULES = {
   'max-lines-per-function': ['error', { max: 50, skipBlankLines: true, skipComments: true }],
   complexity: ['error', 10],
