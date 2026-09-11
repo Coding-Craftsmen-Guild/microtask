@@ -12,6 +12,12 @@ const fillOf = (container: HTMLElement) => {
   return fill
 }
 
+const trackOf = (container: HTMLElement) => {
+  const track = fillOf(container).parentElement
+  if (!(track instanceof HTMLElement)) throw new Error('the fill has no track around it')
+  return track
+}
+
 describe('ProgressBar', () => {
   it('labels an empty checklist "No tasks yet" rather than "0 / 0 - 0%"', () => {
     const { container } = render(<ProgressBar done={0} total={0} />)
@@ -58,6 +64,44 @@ describe('ProgressBar', () => {
   it('animates from width 0 on first paint by naming the shared keyframe utility', () => {
     const { container } = render(<ProgressBar done={2} total={4} />)
     expect(fillOf(container).className).toContain('animate-progress-fill')
+  })
+
+  it('animates a finished checklist too, so completion is not the state that loses the animation', () => {
+    for (const props of [
+      { done: 0, total: 0 },
+      { done: 4, total: 4 },
+    ]) {
+      const { container } = render(<ProgressBar {...props} />)
+      expect(fillOf(container).className, `${props.done} of ${props.total}`).toContain(
+        'animate-progress-fill',
+      )
+      cleanup()
+    }
+  })
+
+  it('is legacy’s 92x7 track, clipping the fill so a gradient cannot escape the rounded ends', () => {
+    const { container } = render(<ProgressBar done={1} total={4} />)
+    const track = trackOf(container).className
+    expect(track).toContain('w-[92px]')
+    expect(track).toContain('h-[7px]')
+    expect(track).toContain('overflow-hidden')
+    expect(track).toContain('bg-border')
+  })
+
+  it('sets the label at legacy’s 12.5px and never lets it wrap mid-row', () => {
+    const { container } = render(<ProgressBar done={1} total={4} />)
+    const row = container.firstElementChild?.className ?? ''
+    expect(row).toContain('text-[12.5px]')
+    expect(row).toContain('whitespace-nowrap')
+  })
+
+  it('rounds the percentage rather than truncating it, which legacy’s Math.round did', () => {
+    const { container } = render(<ProgressBar done={2} total={3} />)
+    expect(container.textContent).toBe('2 / 3 · 67%')
+    cleanup()
+    const nearly = render(<ProgressBar done={199} total={200} />)
+    expect(nearly.container.textContent).toBe('199 / 200 · 100%')
+    expect(fillOf(nearly.container).className).toContain('from-gold')
   })
 
   it('takes its width from an inline style, because Tailwind cannot emit a computed class', () => {

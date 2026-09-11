@@ -41,4 +41,33 @@ describe('AppBar', () => {
     const { container } = render(<AppBar product="Microtask" />)
     expect(container.firstElementChild?.className).toContain('border-gold')
   })
+
+  it('paints legacy’s indigo ground, which is the whole reason the brand token exists', () => {
+    const { container } = render(<AppBar product="Microtask" />)
+    const bar = container.firstElementChild?.className ?? ''
+    expect(bar).toContain('bg-brand')
+    expect(bar).toContain('text-white')
+  })
+
+  it('gilds the CC GUILD line and leaves the product line white, as the lockup is drawn', () => {
+    render(<AppBar product="Microtask" />)
+    expect(screen.getByText('CC Guild').className).toContain('text-gold')
+    expect(screen.getByText('Microtask').className).not.toContain('text-gold')
+  })
+
+  it('pushes caller actions to the far end with a flexible spacer, not up against the lockup', () => {
+    const { container } = render(
+      <AppBar product="Microtask">
+        <button type="button">Sign out</button>
+      </AppBar>,
+    )
+    const children = [...(container.querySelector('header > div')?.children ?? [])]
+    expect(children.map((node) => node.tagName)).toEqual(['A', 'SPAN', 'BUTTON'])
+    expect(children[1]?.className).toContain('flex-1')
+  })
+
+  it('aligns its own row with the page container at legacy’s 900px', () => {
+    const { container } = render(<AppBar product="Microtask" />)
+    expect(container.querySelector('header > div')?.className).toContain('max-w-[900px]')
+  })
 })

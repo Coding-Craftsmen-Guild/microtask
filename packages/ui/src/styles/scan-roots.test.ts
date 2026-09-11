@@ -22,9 +22,16 @@ const toRegExp = (glob: string) => {
   return new RegExp(`^${body}$`, 'i')
 }
 
+const KEYFRAME_NAMES = [...CSS.matchAll(/@keyframes\s+([\w-]+)\s*\{/g)].map(
+  (match) => match[1] ?? '',
+)
+
+const ANIMATED_KEYFRAME = /--animate-progress-fill:\s*([\w-]+)/.exec(CSS)?.[1] ?? ''
+
 const keyframeBody = (name: string) => {
-  const open = CSS.indexOf('{', CSS.indexOf(`@keyframes ${name}`))
-  expect(open).toBeGreaterThan(0)
+  const head = new RegExp(String.raw`@keyframes\s+${name}\s*\{`).exec(CSS)
+  if (!head) throw new Error(`@keyframes ${name} is not declared`)
+  const open = head.index + head[0].length - 1
   let depth = 0
   for (let index = open; index < CSS.length; index += 1) {
     if (CSS[index] === '{') depth += 1
@@ -77,6 +84,11 @@ describe('globals.css progress theme', () => {
 
   it('names the fill animation at legacy’s 0.25s ease', () => {
     expect(CSS).toContain('--animate-progress-fill: progress-fill 0.25s ease;')
+  })
+
+  it('declares the keyframe under exactly the name the utility animates, so it cannot point at nothing', () => {
+    expect(ANIMATED_KEYFRAME).toBe('progress-fill')
+    expect(KEYFRAME_NAMES).toContain(ANIMATED_KEYFRAME)
   })
 
   it('starts the keyframe at width 0 and declares no end, so the inline width is the target', () => {

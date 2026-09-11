@@ -34,6 +34,28 @@ describe('PromptDialog', () => {
   it('omits the hint paragraph when no hint is given, as the share page prompt did', () => {
     open()
     expect(screen.queryByText('Who is it for?')).toBeNull()
+    expect(document.querySelector('[data-slot="dialog-description"]')).toBeNull()
+  })
+
+  it('renders the hint element only when there is a hint, never as an empty paragraph', () => {
+    open({ hint: 'Who is it for?' })
+    expect(document.querySelector('[data-slot="dialog-description"]')?.textContent).toBe(
+      'Who is it for?',
+    )
+  })
+
+  it('labels the submit button Save by default, which is what most callers get', () => {
+    render(<PromptDialog onCancel={vi.fn()} onSubmit={vi.fn()} open title="New tab" />)
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy()
+  })
+
+  it('prevents the form default, so submitting cannot navigate the page out from under the dialog', () => {
+    open()
+    const form = document.querySelector('form')
+    expect(form).toBeTruthy()
+    const event = new Event('submit', { bubbles: true, cancelable: true })
+    form?.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
   })
 
   it('focuses the input and text-selects it, so retyping replaces the whole name', async () => {

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { cleanup, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { RelativeTime } from './relative-time'
 
@@ -20,6 +20,14 @@ describe('RelativeTime', () => {
   it('renders nothing at all for a missing timestamp, not the string "null"', () => {
     const { container } = render(<RelativeTime from={null} now={NOW} />)
     expect(container.innerHTML).toBe('')
+  })
+
+  it('renders nothing for every falsy timestamp, so an empty string is not an empty time element', () => {
+    for (const from of [null, undefined, '']) {
+      const { container } = render(<RelativeTime from={from} now={NOW} />)
+      expect(container.innerHTML, JSON.stringify(from)).toBe('')
+      cleanup()
+    }
   })
 
   it('never reads the clock: an instant years in the past still renders as minutes ago', () => {
