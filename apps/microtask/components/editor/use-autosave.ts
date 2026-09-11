@@ -1,0 +1,106 @@
+'use client'
+
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { DocumentValue } from '@repo/contracts'
+import { Autosave } from './autosave'
+import type { SaveDocument, SaveState } from './save-document'
+
+/** What {@link useAutosave} needs. */
+export interface UseAutosaveOptions {
+  /** The tab's `updatedAt` as the server last reported it. Read once, on mount. */
+  readonly updatedAt: string
+
+  /** Where a write goes. May be a fresh closure on every render. */
+  readonly save: SaveDocument
+}
+
+/** The loop, as a component holds it. */
+export interface AutosaveHandle {
+  /** What the indicator should show. */
+  readonly state: SaveState
+
+  /** What the last failure said. Empty until one. */
+  readonly message: string
+
+  /** Records an edit and arms the 700 ms debounce. */
+  readonly change: (document: DocumentValue) => void
+
+  /** Writes now, overtaking the debounce. */
+  readonly flush: () => void
+
+  /** Drops the pending write, for a tab being left or deleted. */
+  readonly markClean: () => void
+}
+
+const listen = (autosave: Autosave): (() => void) => {
+  const hidden = (): void => {
+    if (document.visibilityState === 'hidden') void autosave.flush(false)
+  }
+  const leaving = (event: BeforeUnloadEvent): void => {
+    if (!autosave.dirty) return
+    void autosave.flush(true)
+    event.preventDefault()
+    event.returnValue = ''
+  }
+  const keydown = (event: KeyboardEvent): void => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
+    event.preventDefault()
+    void autosave.flush(false)
+  }
+  document.addEventListener('visibilitychange', hidden)
+  window.addEventListener('beforeunload', leaving)
+  window.addEventListener('keydown', keydown)
+  return () => {
+    document.removeEventListener('visibilitychange', hidden)
+    window.removeEventListener('beforeunload', leaving)
+    window.removeEventListener('keydown', keydown)
+    autosave.dispose()
+  }
+}
+
+/**
+ * Holds one {@link Autosave} for the life of the component and wires it to the page.
+ *
+ * Three flush paths, and they do not carry the same request:
+ *
+ * - `visibilitychange → hidden` sends a **normal** request. It fires while the page is usually
+ *   still alive and carries no size limit, which makes it the primary flush and the real mobile
+ *   safety net, `beforeunload` being unreliable there (ADR 0028).
+ * - `beforeunload` sends a `keepalive` request, and only for a body under the shared 64 KiB
+ *   budget. Either way it asks for the browser's unsaved-changes prompt, which is the actual
+ *   guard on that path — including when the body was too large to attempt, because saying
+ *   nothing there is the silent loss.
+ * - `Ctrl/Cmd+S` writes now and suppresses the browser's Save-Page dialog. Legacy wired this on
+ *   the admin page alone, so `Cmd+S` on a read-write share link opened that dialog over unsaved
+ *   work; the asymmetry was an omission rather than a decision, and it is not reproduced.
+ *
+ * The instance is created by a `useState` initialiser and never rebuilt, so a parent passing an
+ * inline `save` closure cannot restart the loop mid-debounce and write the same edit twice. The
+ * closure is reached through a ref, so a write always calls the newest one.
+ */
+export function useAutosave({ updatedAt, save }: UseAutosaveOptions): AutosaveHandle {
+  const [status, setStatus] = useState({ state: 'idle' as SaveState, message: '' })
+  const latest = useRef(save)
+  useEffect(() => {
+    latest.current = save
+  }, [save])
+  const [autosave] = useState(
+    () =>
+      new Autosave({
+        updatedAt,
+        save: (request) => latest.current(request),
+        onState: (state, message) => setStatus({ state, message }),
+      }),
+  )
+  useEffect(() => listen(autosave), [autosave])
+  return useMemo(
+    () => ({
+      state: status.state,
+      message: status.message,
+      change: (document_: DocumentValue) => autosave.change(document_),
+      flush: () => void autosave.flush(false),
+      markClean: () => autosave.markClean(),
+    }),
+    [autosave, status],
+  )
+}
