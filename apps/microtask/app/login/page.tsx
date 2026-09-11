@@ -21,9 +21,9 @@ export interface LoginPageProps {
  * rather than resolved: `?next=/p/a&next=//evil.example` is an attempt to find out which copy
  * one layer reads and which another does, and the answer is neither.
  *
- * `mt_admin` is not cleared here — a Server Component cannot write a cookie. `proxy.ts` clears it
- * on the navigation that arrives, which is also why an admin already signed in who opens this
- * page is signed out by doing so: every route to this page is a route out of a session.
+ * Opening it changes no session. A Server Component cannot write a cookie and `proxy.ts` writes
+ * none on a `GET`, so an admin already signed in who opens this page stays signed in, as in the
+ * app being replaced; the way out of a session is Sign out, a `POST` (ADR 0032).
  */
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const raw = (await searchParams)['next']
