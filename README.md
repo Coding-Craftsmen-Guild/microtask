@@ -1,155 +1,108 @@
-# CC Guild Microtask
+# CC Guild
 
-> **This repository is now a pnpm + Turborepo monorepo, and this README describes the app as it
-> was before that.** The application it documents still exists, unchanged, at
-> [`apps/legacy/`](apps/legacy/) — it is kept as the reference implementation while the
-> restructure proceeds, and is removed at the end of it.
->
-> **Do not run `npm install` at the repository root.** It would create a `package-lock.json`,
-> which is forbidden by [ADR 0026](docs/adr/0026-docker-turbo-prune-standalone.md) — a stray
-> non-pnpm lockfile silently moves Next.js's inferred file-tracing root — and `.gitignore` now
-> hides that file, so it would sit there unnoticed. Use `pnpm install` from the root instead.
->
-> The restructure is described in
-> [`docs/superpowers/specs/2026-09-10-monorepo-restructure-design.md`](docs/superpowers/specs/2026-09-10-monorepo-restructure-design.md),
-> with the decisions behind it in [`docs/adr/`](docs/adr/README.md). This README is rewritten
-> when the new structure lands.
+A pnpm + Turborepo monorepo: one HTTP API and the Microtask app over it, sharing packages. Microtask
+is a client-facing checklist tool — **Project → Task → tabs of rich-text/checklist documents** — that
+an admin edits and hands to clients through share links.
 
-A small client-facing checklist app. **Project → tabs → rich-text/checklist documents.**
+> **This stack is not in production, and cannot be pointed at production data yet.** The live app is
+> still the previous one, kept at the `legacy-prod` tag. Its data is one JSON file per project
+> (`data/projects/<id>.json`); the new API stores a directory per project and **cannot read the old
+> layout**. The only bridge between the two is the import/export panel
+> ([ADR 0017](docs/adr/0017-drop-in-import-export.md)), which is scheduled last and **does not exist
+> yet**. Until it does, cutover is blocked: never mount the live volume into this stack, never give
+> it the production hostname, and never point it at the `data/` directory in this repository. The
+> cutover itself is a separate, ordered runbook — §15.1 of the
+> [design spec](docs/superpowers/specs/2026-09-10-monorepo-restructure-design.md) and
+> [ADR 0022](docs/adr/0022-hostname-continuity-gated-cutover.md).
 
-Each project is one document split into tabs (Go-live, Content, Hosting, …). You edit it in
-the admin, then hand each client their own share link — read-only, or read & write.
-
-## Run it
-
-From the repository root:
-
-```bash
-pnpm install
-pnpm build                                 # bundles Tiptap into apps/legacy/public/vendor/
-cd apps/legacy
-DATA_DIR=../../data ADMIN_PASSWORD=your-password node server.js   # http://localhost:4321
-```
-
-`DATA_DIR` is needed because the server resolves it relative to the working directory, and the
-dataset lives at the repository root rather than inside `apps/legacy/`.
-
-### Environment
-
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `ADMIN_PASSWORD` | — | **Required.** The process exits immediately without it. Guards every admin page and API call; share links are unaffected. |
-| `PORT` | `4321` (`3000` in Docker) | HTTP port |
-| `DATA_DIR` | `./data` (`/data` in Docker) | Where project JSON files live |
-
-## Deploy (Coolify)
-
-Create a resource from this repo with build pack **Docker Compose**, then:
-
-1. Set `ADMIN_PASSWORD` under the resource's **Environment Variables**. Nothing starts without it.
-2. Add your own domain on the `microtask` service and point it at container port **3000**.
-   The compose file deliberately has no `SERVICE_FQDN_*` variable, so Coolify won't generate a
-   domain of its own — the service only listens on the internal network via `expose: 3000`.
-3. Deploy. `/healthz` backs the container healthcheck, so a broken build never goes live.
-
-Project data lives in the named volume `microtask-data` mounted at `/data`, so redeploys and
-image rebuilds don't touch it. Back it up by copying that volume.
-
-Two knobs are commented in [`docker-compose.yml`](docker-compose.yml) for the routing you prefer:
-publish a loopback port if your TLS proxy runs outside Docker, or attach the service to an
-existing external network so the proxy can reach it by name.
-
-Make sure the proxy forwards `X-Forwarded-Proto` — the admin session cookie only gets the
-`Secure` flag when the request arrives as HTTPS.
-
-### Plain Docker
-
-```bash
-docker build -t ccg-microtask .
-docker run -d --name microtask \
-  -e ADMIN_PASSWORD=your-password \
-  -v microtask-data:/data \
-  -p 127.0.0.1:4321:3000 \
-  ccg-microtask
-```
-
-The runtime image carries no `node_modules` — the server has zero runtime dependencies, and
-Tiptap is bundled at build time.
-
-## How it works
-
-- **Storage** is one JSON file per project in `data/projects/<id>.json`. No database.
-- **Documents** are stored as Tiptap/ProseMirror JSON — never HTML.
-- **Progress is never stored.** `done / total` per tab and the overall percentage are counted
-  from the `taskItem` nodes on every render ([`public/js/docdiff.js`](public/js/docdiff.js)).
-- **Autosave** debounces 700 ms, flushes before a tab switch, on Ctrl/Cmd-S, on tab hide and on
-  unload (`fetch` with `keepalive`).
-
-### URLs
-
-```
-/                             projects list (login required)
-/admin/projects/<id>?tab=<t>  project editor (login required)
-/share/<token>?tab=<t>        client view — token is the credential, no login
-/login                        admin sign-in
-/healthz                      health probe, no auth
-```
-
-A `?tab=` that doesn't belong to the project (or token) falls back to the first tab — a share
-token can never reach another project's tabs.
-
-## Admin
-
-- Create / rename / delete projects.
-- Tab bar under the project title: `+` adds a tab; clicking the **active** tab (or right-clicking
-  any tab) opens **Rename · Move left · Move right · Delete**. Deleting asks first, and the last
-  tab can't be deleted — a project always keeps at least one.
-- New projects start with a single `General` tab.
-- Editor: headings, bold/italic/strike/code, bullet, numbered and **checklists**, quote, divider,
-  links.
-
-## Sharing
-
-**Share** opens the link manager. Add one link per person, with a name and an access level:
-
-| Level | The client can |
-| --- | --- |
-| **Read only** | switch tabs, read, click links. Checkboxes don't move. |
-| **Read & write** | all of the above, plus edit tab content, tick checklist items, and add or rename tabs. |
-
-Per link you can rename it, switch it between read and read & write, or revoke it — revoking
-takes effect immediately. Tokens are 32-char random strings and unlisted; treat a link as the
-credential.
-
-A read & write link manages the project's contents: its holder can add and rename tabs as
-well as edit them. No client, at any level, can reorder or delete tabs, reach the admin API, or
-make share links — and a read-only link can change nothing at all. That's enforced server-side,
-not just hidden in the UI.
-
-### Client API
-
-A share token is the only credential these need, so automation can drive a project without an
-admin session. Read & write links only, except the first:
-
-| | |
-| --- | --- |
-| `GET /api/share/:token` | the project as the client sees it |
-| `POST /api/share/:token/tabs` | `{ name }` — append a tab |
-| `PATCH /api/share/:token/tabs/:tabId` | `{ name }` — rename a tab |
-| `PUT /api/share/:token/tabs/:tabId/document` | `{ document }` — replace a tab's Tiptap doc |
+> **Do not run `npm install` at the repository root.** It creates a `package-lock.json`, which
+> [ADR 0026](docs/adr/0026-docker-turbo-prune-standalone.md) forbids — a stray non-pnpm lockfile
+> silently moves Next.js's inferred file-tracing root — and `.gitignore` hides that file, so it would
+> sit there unnoticed. Use `pnpm install`.
 
 ## Layout
 
 ```
-Dockerfile             two-stage build; runtime image has no node_modules
-docker-compose.yml     Coolify / Docker Compose deployment
-server.js              routing, auth gate, all API endpoints
-lib/store.js           file-backed projects, share-token index, write lock
-lib/ids.js             ULIDs and share tokens
-public/js/docdiff.js   task counting + document validation (shared with the server)
-public/js/editor.js    Tiptap setup and the toolbar
-public/js/project.js   admin editor: tabs, autosave, share manager
-public/js/share.js     client view (read-only or editing)
-src/editor-bundle.js   esbuild entry for the Tiptap bundle
-data/projects/*.json   your data
+apps/api/              Hono on @hono/node-server; owns the data, serves /openapi.json and /docs
+apps/microtask/        Next 16 App Router app; an HTTP client of the API, touches no file itself
+packages/contracts/    Zod schemas and the wire facts both sides need
+packages/kernel/       roles, the access policy, ids, errors, ports
+packages/microtask-domain/, packages/macroplan-domain/, packages/store/
+packages/api-client/   the typed client the app calls the API through
+packages/ui/           shadcn/ui primitives, the shared shell, the one Tailwind v4 stylesheet
+packages/eslint-config/, packages/typescript-config/
+docs/adr/              every decision, with its reasoning — start at docs/adr/README.md
+docs/parity/           the behavioural record of the app being replaced
 ```
+
+The previous app (`apps/legacy`) is deleted. Its code is at the `legacy-prod` tag, which is also the
+production rollback; its behaviour is recorded in
+[`docs/parity/legacy-microtask.md`](docs/parity/legacy-microtask.md).
+
+## Develop
+
+```bash
+pnpm install
+pnpm build                  # every package and both apps
+npx turbo run build typecheck lint test
+```
+
+To run it, start the API against a **throwaway** directory — never `./data`, which is production data
+in a layout this API cannot read — then the app against the API:
+
+```bash
+# from the repository root, one shell each
+mkdir -p /tmp/ccg-data
+(cd apps/api && DATA_DIR=/tmp/ccg-data ADMIN_PASSWORD=dev-password \
+  SESSION_SECRET=dev-session-secret-of-at-least-32-chars SERVICE_KEYS=microtask=dev-key \
+  node dist/server.js)                                          # http://localhost:4321/docs
+
+(cd apps/microtask && API_BASE_URL=http://localhost:4321 API_KEY=dev-key \
+  COOKIE_SECRET=dev-cookie-secret-of-at-least-32-bytes pnpm dev)   # http://localhost:3000
+```
+
+## Images and compose
+
+One image per deployable, each built from the repository root with one `turbo prune`
+([ADR 0026](docs/adr/0026-docker-turbo-prune-standalone.md)). There is no root `Dockerfile`.
+
+```bash
+docker build -f apps/api/Dockerfile -t ccg-api .
+docker build -f apps/microtask/Dockerfile -t ccg-microtask .
+```
+
+| Image | Runs | Healthcheck | Size (measured 2026-09-11) |
+| --- | --- | --- | --- |
+| `apps/api` | `node dist/server.js` as `node`, port 4321 | `GET /healthz` | 240 MB, of which 230 MB is `node:24-slim` |
+| `apps/microtask` | Next standalone, `node apps/microtask/server.js` as `node`, port 3000 | `GET /login` | 272 MB |
+
+[`docker-compose.yml`](docker-compose.yml) runs both. `microtask` waits for `api` to report healthy,
+and the API keeps its data in a **new, empty** named volume, `api-data` — never the legacy volume.
+
+The API is **internal-only** ([ADR 0041](docs/adr/0041-api-internal-only.md)): no published port and
+no domain. The app reaches it as `http://api:4321`. Its OpenAPI document and reference page,
+`/openapi.json` and `/docs`, answer without a credential to anything on the same network; every
+`/v1` route still needs a service key and a principal token (ADR 0012). Neither service publishes a
+port — Coolify routes by domain.
+
+### Environment
+
+Every secret comes from the environment and none has a default. `docker compose` refuses to start
+while any of these is unset or empty, naming the one that is missing. [`.env.example`](.env.example)
+lists them, empty.
+
+| Variable | Used by | Meaning |
+| --- | --- | --- |
+| `ADMIN_PASSWORD` | api | The one admin password |
+| `SESSION_SECRET` | api | Signs the admin bearer tokens; at least 32 characters |
+| `MICROTASK_API_KEY` | both | The service key naming Microtask; compose passes it as the API's `SERVICE_KEYS` and the app's `API_KEY` |
+| `COOKIE_SECRET` | microtask | Seals the `mt_admin` cookie; at least 32 bytes, distinct from `SESSION_SECRET` |
+| `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | microtask | Base64 of 32 random bytes; keep it the same across deploys |
+
+## Deploy (Coolify)
+
+Not yet — see the notice at the top. What is known about the target: a Docker Compose resource built
+from this repository, each service naming its own `dockerfile`, the secrets above set as the
+resource's environment variables, and Microtask given the existing production hostname **only at the
+cutover step**, after the import. Everything Coolify-specific — above all whether it renames named
+volumes — is unverified and is checked on a throwaway resource first (ADR 0026).
