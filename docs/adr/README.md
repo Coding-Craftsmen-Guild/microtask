@@ -102,12 +102,12 @@ Amended on 2026-09-12, from four fixes measured against the running containers:
 | [0026](0026-docker-turbo-prune-standalone.md) | The "does it build in Docker" check this ADR asks for was unreachable: the suite the image build runs read a gitignored production file, so a fresh clone, a CI runner and every container build errored. It now reads a derived fixture, proven portable in a fresh worktree. Also: `restart: unless-stopped` did nothing for a bad environment, because Docker restarts on exit and never on unhealthy; and `docker stop` "always ended in SIGKILL" only with node as PID 1 — `init: true` plus the `CMD` exec form get the signal to node, which then dies fast rather than cleanly until the handler exists (ADR 0006 carries the measurements) |
 | [0032](0032-two-cookies-url-wins.md) | Amendment (d) left `register()` throwing and called a health check the thing that turns a bad environment into a failed deploy. Nothing acted on it — Docker restarts on exit, never on unhealthy — so a deploy with a bad `COOKIE_SECRET` came up and served 500s. `register()` now exits 1 |
 
-Amended on 2026-09-12, and separately. **No ADR was factually wrong in this pass.** What was wrong is the design
-spec, in six places, and two behaviours had no record at all. So the spec is corrected where each
-sentence lives — dated, and left visible, as the `relativeTime` correction in the app plan was —
-and the two decisions are new ADRs rather than amendments, because a decision nobody took cannot be
-an amendment to one somebody did. The rows below are the map from the debt to where it now lives,
-kept here because this index is where a reader looks for it.
+Also on 2026-09-12, from the records audit, and **no ADR was factually wrong in that pass**. What
+was wrong is the design spec, in six places, and two behaviours had no record at all. So the spec is
+corrected where each sentence lives — dated, and left visible, as the `relativeTime` correction in
+the app plan was — and the two decisions are new ADRs rather than amendments, because a decision
+nobody took cannot be an amendment to one somebody did. The rows below are the map from each piece
+of debt to where it now lives, kept here because this index is where a reader looks for it.
 
 | Record | What was wrong, and where it is settled |
 | --- | --- |
@@ -116,7 +116,7 @@ kept here because this index is where a reader looks for it.
 | spec §10.3, Badge row | "You manage this", promised for a `manage` link at either scope and never built. The badge is two-state, from `capabilities(role, scope)['tab:write']`; at task scope the third string would have named an authority the page withholds ([0043](0043-client-head-names-no-visitor.md)) |
 | spec §11, Title editing | `contenteditable="plaintext-only"`. It is an uncontrolled `<input>`, which is what takes `maxLength` from the contract and an accessible name from `aria-label`; every behavioural clause in the sentence survived the change of element |
 | spec §11, Small things | "toasts auto-hide at 2600 ms". There are no toasts: every outcome is said beside the control that caused it. `sonner` is vendored in `packages/ui` and mounted nowhere, and `2600` is in no source file. The correction carries the argument, so parity feature 60 and U22 stop being gaps |
-| spec §11, Small things | "code assets are `no-cache` and images `max-age=86400`". Nothing sets either; the only `Cache-Control` the app sets is `private, no-store` on `/s/*` and `/share/*` (ADR 0040). One half is right not to be built — `_next/static` is content-hashed — and the other leaves a **measurement owed**: `public/img/logo.webp` is not, legacy cached it for a day, and what Next serves it with is unmeasured |
+| spec §11, Small things | "code assets are `no-cache` and images `max-age=86400`". Neither rule exists. The app sets `Cache-Control` in two places and neither is an asset rule: `private, no-store` on `/s/*` and `/share/*` (ADR 0040), and `public, max-age=3600` on the `/favicon.ico` **redirect**, which caches the 308 rather than a file. One half is right not to be built — `_next/static` is content-hashed — and the other leaves a **measurement owed**: `public/img/logo.webp` is not, legacy cached it for a day, and what Next serves it with is unmeasured |
 | (no ADR) → [0042](0042-three-parity-departures-on-the-surfaces.md) | Three behaviours built and tested with a record nowhere but their TSDoc: a read-only checkbox `disabled`, a share-link name required at minting, Sign out on every admin page (parity features 28, 43, 2 and U32, U39) |
 | (no ADR) → [0043](0043-client-head-names-no-visitor.md) | The one parity loss nothing decided: legacy's `Signed in as <link name>` is dropped rather than added to `ShareView` (parity feature 51) |
 
