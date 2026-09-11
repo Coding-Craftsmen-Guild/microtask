@@ -21,6 +21,19 @@ const hostile = (value: string): boolean => {
   return false
 }
 
+const singleLeadingSlash = (value: string): boolean =>
+  value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\')
+
+const sameOriginPath = (raw: string): string | null => {
+  try {
+    const resolved = new URL(raw, BASE)
+    if (resolved.origin !== BASE) return null
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`
+  } catch {
+    return null
+  }
+}
+
 /**
  * Reduces an untrusted `?next=` to a same-origin path, or to `/`.
  *
@@ -42,21 +55,20 @@ const hostile = (value: string): boolean => {
  * - Anything not starting with `/` at all — an absolute URL, `javascript:`, `data:`, a bare
  *   hostname — fails the first clause without this function having to know what a scheme is.
  *
- * The `URL` re-parse underneath is not redundant: it is a second, independent opinion from the
- * same parser the browser uses, and a candidate whose resolved origin is not the base origin is
- * refused whatever the character rules made of it.
+ * **The shape rule is applied to the output as well as the input**, and the second application
+ * is the one that matters. The value is re-parsed with the same WHATWG parser the browser uses
+ * and the *normalised* path is what comes back, and normalisation collapses dot segments:
+ * `/..//evil.example`, `/a/..//evil.example`, `/%2e%2e//evil.example` and `/../\evil.example`
+ * all pass every input clause above, resolve to this origin, and normalise to `//evil.example`.
+ * An earlier version returned exactly that. Checking what is emitted rather than what was
+ * received closes the whole family at once, and an exhaustive sweep of short hostile paths
+ * pins it.
  */
 export function safeNextPath(raw: string | null | undefined): string {
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_NEXT_LENGTH) return FALLBACK
-  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return FALLBACK
-  if (hostile(raw)) return FALLBACK
-  try {
-    const resolved = new URL(raw, BASE)
-    if (resolved.origin !== BASE) return FALLBACK
-    return `${resolved.pathname}${resolved.search}${resolved.hash}`
-  } catch {
-    return FALLBACK
-  }
+  if (!singleLeadingSlash(raw) || hostile(raw)) return FALLBACK
+  const normalised = sameOriginPath(raw)
+  return normalised !== null && singleLeadingSlash(normalised) ? normalised : FALLBACK
 }
 
 /**

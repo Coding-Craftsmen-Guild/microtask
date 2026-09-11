@@ -56,6 +56,38 @@ describe('safeNextPath — hostile input', () => {
   })
 })
 
+describe('safeNextPath — dot segments the URL parser collapses', () => {
+  it.each([
+    '/..//evil.example',
+    '/.//evil.example',
+    '/a/..//evil.example',
+    '/a/b/../..//evil.example',
+    '/%2e%2e//evil.example',
+    '/%2E%2E//evil.example',
+    '/.%2e//evil.example',
+    '/../\\evil.example',
+    '/a/../\\evil.example',
+  ])('never emits a protocol-relative path for %s', (hostile) => {
+    const out = safeNextPath(hostile)
+    expect(out.startsWith('//')).toBe(false)
+    expect(new URL(out, 'https://app.invalid').origin).toBe('https://app.invalid')
+  })
+
+  it('keeps every output same-origin across an exhaustive sweep of short hostile paths', () => {
+    const pieces = ['/', '.', '..', '%2e', '%2E', '\\', '%2f', '%5c', 'evil.example', '@', ':', '?', '#']
+    const escapes: string[] = []
+    const walk = (prefix: string, depth: number): void => {
+      const out = safeNextPath(prefix)
+      const sameOrigin = new URL(out, 'https://app.invalid').origin === 'https://app.invalid'
+      if (!sameOrigin || out.startsWith('//') || out.startsWith('/\\')) escapes.push(prefix)
+      if (depth === 0) return
+      for (const piece of pieces) walk(prefix + piece, depth - 1)
+    }
+    walk('/', 4)
+    expect(escapes).toEqual([])
+  })
+})
+
 describe('safeNextPath — paths it honours', () => {
   it.each([
     ['/', '/'],
