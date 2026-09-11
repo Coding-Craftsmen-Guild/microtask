@@ -24,10 +24,9 @@ const hostile = (value: string): boolean => {
 const singleLeadingSlash = (value: string): boolean =>
   value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\')
 
-const sameOriginPath = (raw: string): string | null => {
+const normalisedPath = (raw: string): string | null => {
   try {
     const resolved = new URL(raw, BASE)
-    if (resolved.origin !== BASE) return null
     return `${resolved.pathname}${resolved.search}${resolved.hash}`
   } catch {
     return null
@@ -63,11 +62,16 @@ const sameOriginPath = (raw: string): string | null => {
  * An earlier version returned exactly that. Checking what is emitted rather than what was
  * received closes the whole family at once, and an exhaustive sweep of short hostile paths
  * pins it.
+ *
+ * There is deliberately no origin comparison. A value that passed the input clauses is a
+ * path-absolute reference and cannot change the host it resolves against, so an origin check
+ * here could never fire — mutation testing showed exactly that, and a check that cannot fire is
+ * a reader's false comfort rather than a layer.
  */
 export function safeNextPath(raw: string | null | undefined): string {
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_NEXT_LENGTH) return FALLBACK
   if (!singleLeadingSlash(raw) || hostile(raw)) return FALLBACK
-  const normalised = sameOriginPath(raw)
+  const normalised = normalisedPath(raw)
   return normalised !== null && singleLeadingSlash(normalised) ? normalised : FALLBACK
 }
 

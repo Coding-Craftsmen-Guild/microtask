@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ADMIN_COOKIE, LINK_COOKIE, LINK_MAX_AGE_SECONDS, payloadOf, principalFrom } from './principal'
+import { ADMIN_COOKIE, LINK_COOKIE, LINK_MAX_AGE_SECONDS, adminFrom, linkFrom, payloadOf } from './principal'
 
 describe('cookie names', () => {
   it('names the two disjoint cookies ADR 0032 requires', () => {
@@ -11,23 +11,23 @@ describe('cookie names', () => {
   })
 })
 
-describe('principalFrom', () => {
+describe('adminFrom and linkFrom', () => {
   it('round-trips an admin principal', () => {
     const principal = { kind: 'admin', token: 'admin.123.sig' } as const
-    expect(principalFrom(payloadOf(principal), 'admin')).toEqual(principal)
+    expect(adminFrom(payloadOf(principal))).toEqual(principal)
   })
 
   it('round-trips a link principal', () => {
     const principal = { kind: 'link', token: 'sharetoken' } as const
-    expect(principalFrom(payloadOf(principal), 'link')).toEqual(principal)
+    expect(linkFrom(payloadOf(principal))).toEqual(principal)
   })
 
   it('refuses an admin payload offered as a link principal', () => {
-    expect(principalFrom(payloadOf({ kind: 'admin', token: 'a' }), 'link')).toBeNull()
+    expect(linkFrom(payloadOf({ kind: 'admin', token: 'a' }))).toBeNull()
   })
 
   it('refuses a link payload offered as an admin principal', () => {
-    expect(principalFrom(payloadOf({ kind: 'link', token: 'a' }), 'admin')).toBeNull()
+    expect(adminFrom(payloadOf({ kind: 'link', token: 'a' }))).toBeNull()
   })
 
   it.each([
@@ -41,6 +41,7 @@ describe('principalFrom', () => {
     ['an object with a non-string token', '{"kind":"admin","token":7}'],
     ['an object with an unknown kind', '{"kind":"root","token":"a"}'],
   ])('refuses %s', (_label, raw) => {
-    expect(principalFrom(raw, 'admin')).toBeNull()
+    expect(adminFrom(raw)).toBeNull()
+    expect(linkFrom(raw.replace('admin', 'link'))).toBeNull()
   })
 })

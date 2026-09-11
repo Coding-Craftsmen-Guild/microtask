@@ -1,3 +1,4 @@
+import { createCipheriv, createHash, randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { IV_BYTES, TAG_BYTES, open, seal } from './crypto'
 
@@ -55,6 +56,15 @@ describe('seal and open', () => {
       if (open(secret, flip(sealed, at)) !== null) survivors.push(at)
     }
     expect(survivors).toEqual([])
+  })
+
+  it('refuses a tag shorter than 128 bits, even one computed under the right key', () => {
+    const key = createHash('sha256').update(secret, 'utf8').digest()
+    const iv = randomBytes(IV_BYTES)
+    const cipher = createCipheriv('aes-256-gcm', key, iv)
+    const body = Buffer.concat([cipher.update('', 'utf8'), cipher.final()])
+    const truncated = cipher.getAuthTag().subarray(0, 8)
+    expect(open(secret, Buffer.concat([iv, truncated, body]).toString('base64url'))).toBeNull()
   })
 
   it('refuses a blob sealed under a different secret', () => {

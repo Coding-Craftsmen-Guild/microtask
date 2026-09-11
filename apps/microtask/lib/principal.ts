@@ -47,22 +47,9 @@ export function payloadOf(principal: Principal): string {
 }
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+  typeof value === 'object' && value !== null
 
-/**
- * Reads an opened cookie payload back into a principal of the kind the caller asked for.
- *
- * `kind` is checked against the caller's expectation rather than merely reported, which is what
- * keeps the two cookies disjoint in substance and not only in name: a value moved from
- * `mt_admin` into `mt_link` opens fine — one secret seals both — and must still not be read as
- * a principal by a `/s/*` route. Whoever could move it already holds the browser, but the rule
- * costs one comparison and the alternative is a session kind decided by whoever set the cookie.
- *
- * Every malformed payload is `null`, for the reason {@link open} returns `null`: to a caller
- * there is no difference between a cookie that will not parse and no cookie at all, and ADR 0032
- * requires the second reading.
- */
-export function principalFrom(raw: string, kind: PrincipalKind): Principal | null {
+const tokenOf = (raw: string, kind: PrincipalKind): string | null => {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -72,5 +59,29 @@ export function principalFrom(raw: string, kind: PrincipalKind): Principal | nul
   if (!isRecord(parsed)) return null
   const token = parsed['token']
   if (parsed['kind'] !== kind || typeof token !== 'string' || token === '') return null
-  return kind === 'admin' ? { kind: 'admin', token } : { kind: 'link', token }
+  return token
+}
+
+/**
+ * Reads an opened `mt_admin` payload back into an admin principal, or `null`.
+ *
+ * `kind` is checked against what the cookie is supposed to hold rather than merely reported, which
+ * is what keeps the two cookies disjoint in substance and not only in name: a value moved from
+ * `mt_link` into `mt_admin` opens fine — one secret seals both — and must still not be read as an
+ * admin. Whoever could move it already holds the browser, but the rule costs one comparison and the
+ * alternative is a session kind decided by whoever set the cookie.
+ *
+ * Every malformed payload is `null`, for the reason {@link open} returns `null`: to a caller
+ * there is no difference between a cookie that will not parse and no cookie at all, and ADR 0032
+ * requires the second reading.
+ */
+export function adminFrom(raw: string): AdminPrincipal | null {
+  const token = tokenOf(raw, 'admin')
+  return token === null ? null : { kind: 'admin', token }
+}
+
+/** Reads an opened `mt_link` payload back into a link principal, or `null`, by the same rules as {@link adminFrom}. */
+export function linkFrom(raw: string): LinkPrincipal | null {
+  const token = tokenOf(raw, 'link')
+  return token === null ? null : { kind: 'link', token }
 }

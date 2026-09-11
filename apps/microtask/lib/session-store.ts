@@ -3,12 +3,12 @@ import {
   ADMIN_COOKIE,
   LINK_COOKIE,
   LINK_MAX_AGE_SECONDS,
+  adminFrom,
+  linkFrom,
   payloadOf,
-  principalFrom,
   type AdminPrincipal,
   type LinkPrincipal,
   type Principal,
-  type PrincipalKind,
 } from './principal'
 
 /**
@@ -122,17 +122,15 @@ export function clearedCookie(name: string, secure: boolean): SealedCookie {
 /**
  * Binds the two cookies to one request's jar.
  *
- * Every read goes through {@link open} and then {@link principalFrom}, and every failure at
+ * Every read goes through {@link open} and then {@link adminFrom} or {@link linkFrom}, and every failure at
  * either step is `null`: a tampered blob, a blob sealed under a rotated secret and a payload of
  * the other kind all mean "this browser presents no session", which ADR 0032 requires be treated
  * as absent rather than as an error anybody is shown.
  */
 export function sessionCookies(options: SessionCookieOptions): SessionCookies {
-  const read = (name: string, kind: PrincipalKind): ReturnType<typeof principalFrom> => {
+  const opened = (name: string): string | null => {
     const raw = options.jar.get(name)
-    if (raw === undefined) return null
-    const plaintext = open(options.secret, raw.value)
-    return plaintext === null ? null : principalFrom(plaintext, kind)
+    return raw === undefined ? null : open(options.secret, raw.value)
   }
   const write = (name: string, value: string, maxAge: number): void => {
     options.jar.set({
@@ -148,12 +146,12 @@ export function sessionCookies(options: SessionCookieOptions): SessionCookies {
   const sealed = (principal: Principal): string => seal(options.secret, payloadOf(principal))
   return {
     admin: () => {
-      const found = read(ADMIN_COOKIE, 'admin')
-      return found?.kind === 'admin' ? found : null
+      const plaintext = opened(ADMIN_COOKIE)
+      return plaintext === null ? null : adminFrom(plaintext)
     },
     link: () => {
-      const found = read(LINK_COOKIE, 'link')
-      return found?.kind === 'link' ? found : null
+      const plaintext = opened(LINK_COOKIE)
+      return plaintext === null ? null : linkFrom(plaintext)
     },
     sealAdmin: (token, expiresInSeconds) =>
       write(ADMIN_COOKIE, sealed({ kind: 'admin', token }), expiresInSeconds),

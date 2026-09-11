@@ -18,6 +18,7 @@ describe('safeNextPath — hostile input', () => {
     ['a single backslash prefix', '\\evil.example'],
     ['slash then backslash', '/\\evil.example'],
     ['slash backslash slash', '/\\/evil.example'],
+    ['slash backslash host with a path after it', '/\\evil.example/p/01H'],
     ['a javascript scheme', 'javascript:alert(1)'],
     ['a javascript scheme in mixed case', 'JaVaScRiPt:alert(1)'],
     [`a javascript scheme split by a tab`, `java${TAB}script:alert(1)`],

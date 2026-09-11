@@ -49,14 +49,18 @@ export function seal(secret: string, plaintext: string): string {
  * `Unsupported state or unable to authenticate data` would otherwise surface as a 500 on a
  * perfectly ordinary secret rotation.
  *
- * Nothing here is timing-sensitive in a way worth defending: the tag comparison inside GCM is
- * already constant-time, and the length checks above it are on a value the caller supplied.
+ * `authTagLength` is load-bearing rather than a formality. Without it Node's GCM decipher accepts
+ * any tag from 4 to 16 bytes, so a blob too short to hold a full tag is verified against however
+ * many tag bytes it happens to carry — measured: an 8-byte tag computed under the right key opened.
+ * Pinning the length makes the primitive refuse a short tag itself, rather than trusting a length
+ * check in front of it to have been written correctly.
  */
 export function open(secret: string, sealed: string): string | null {
   const raw = Buffer.from(sealed, 'base64url')
-  if (raw.length <= IV_BYTES + TAG_BYTES) return null
   try {
-    const decipher = createDecipheriv(ALGORITHM, keyFor(secret), raw.subarray(0, IV_BYTES))
+    const decipher = createDecipheriv(ALGORITHM, keyFor(secret), raw.subarray(0, IV_BYTES), {
+      authTagLength: TAG_BYTES,
+    })
     decipher.setAuthTag(raw.subarray(IV_BYTES, IV_BYTES + TAG_BYTES))
     const body = raw.subarray(IV_BYTES + TAG_BYTES)
     return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8')
