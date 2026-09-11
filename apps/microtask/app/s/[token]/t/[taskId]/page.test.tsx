@@ -115,6 +115,19 @@ describe('/s/<token>/t/<taskId> on a project-scoped link', () => {
     expect(await outcomeOf(LinkTaskPage(props('01M240FB4GD6PF6V0PKZVF6FZZ')))).toBeInstanceOf(NotFound)
   })
 
+  it('counts only the links scoped to this task beside a manage link’s Share, as the admin task page does', async () => {
+    holding('manage', PROJECT_SCOPE)
+    const seat = (token: string, scope: ScopeValue) => ({ token, name: 'x', role: 'view', scope, createdBy: null, createdAt: 'S0' })
+    api.shareLinks = [
+      seat('tok_THISTASKTHISTASKTHIS1', { kind: 'task', projectId: P, taskId: T1 }),
+      seat('tok_OTHERTASKOTHERTASK01', { kind: 'task', projectId: P, taskId: '01M240FB4GD6PF6V0PKZVF6FD8' }),
+      seat('tok_WHOLEPROJECTWHOLEPR1', PROJECT_SCOPE),
+    ]
+    const { container } = render(await LinkTaskPage(props()))
+    expect(screen.getByText('1 share link')).toBeTruthy()
+    expect(container.innerHTML).not.toMatch(/tok_(THISTASK|OTHERTASK|WHOLEPROJECT)/)
+  })
+
   it('reads no cookie', async () => {
     holding('manage', PROJECT_SCOPE)
     render(await LinkTaskPage(props()))
