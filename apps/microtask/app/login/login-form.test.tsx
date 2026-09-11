@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NO_ANSWER } from '../../components/shared/no-answer'
 import { LOGIN_REFUSED, type SignInState } from '../../lib/login'
 
 const signIn = vi.fn<(previous: SignInState, form: FormData) => Promise<SignInState>>()
@@ -45,6 +46,19 @@ describe('LoginForm', () => {
     const sent = signIn.mock.calls[0]?.[1]
     expect(sent?.get('password')).toBe('guess')
     expect(sent?.get('next')).toBe('/p/01HXYZ')
+  })
+
+  it('says the server did not answer when the sign-in gets no answer, and lets the admin try again', async () => {
+    signIn.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    render(<LoginForm next="/" />)
+    await userEvent.type(screen.getByPlaceholderText('Admin password'), 'guess')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByText(NO_ANSWER.detail)).toBeTruthy()
+    signIn.mockResolvedValueOnce({ message: LOGIN_REFUSED })
+    await userEvent.type(screen.getByPlaceholderText('Admin password'), 'guess')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByText(LOGIN_REFUSED)).toBeTruthy()
+    expect(signIn).toHaveBeenCalledTimes(2)
   })
 
   it('never renders the literal text "null" for an empty message', () => {
