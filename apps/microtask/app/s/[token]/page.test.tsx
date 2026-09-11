@@ -4,6 +4,8 @@ import { capabilities, type RoleValue, type ScopeValue } from '@repo/contracts'
 import { isValidElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Redirected, redirectOf } from '../../../actions/testing/fake-admin'
+import { seal } from '../../../lib/crypto'
+import { payloadOf } from '../../../lib/principal'
 import { SERVICE_UNAVAILABLE } from '../../../lib/problem'
 import { LINK_UNAVAILABLE_PATH } from '../../../lib/routes'
 import type { TaskWorkspaceProps } from '../../../components/tabs/task-workspace'
@@ -15,7 +17,7 @@ const seen: TaskWorkspaceProps[] = []
 vi.mock('next/headers', () => ({
   cookies: () => {
     consulted.push('cookies')
-    return Promise.resolve({ get: () => ({ name: 'mt_admin', value: 'a-live-admin-session' }), set: () => undefined })
+    return Promise.resolve({ get: () => ({ name: 'mt_admin', value: seal('a-cookie-secret-of-at-least-32-by', payloadOf({ kind: 'admin', token: 'admin.1.sig' })) }), set: () => undefined })
   },
   headers: () => {
     consulted.push('headers')
