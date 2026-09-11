@@ -13,6 +13,7 @@
   },
   "dependencies": { "zod": "catalog:" },
   "devDependencies": {
+    "@repo/kernel": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@repo/eslint-config": "workspace:*",
     "typescript": "catalog:",

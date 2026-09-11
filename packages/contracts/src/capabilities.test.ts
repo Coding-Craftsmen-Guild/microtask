@@ -1,0 +1,236 @@
+import { readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+import {
+  ACTIONS,
+  ADMIN_ONLY_ACTIONS,
+  ROLES,
+  can,
+  type Action,
+  type Principal,
+  type Role,
+  type Scope,
+  type Target,
+} from '@repo/kernel'
+import * as contracts from './index.js'
+import {
+  ACTION_DECISIONS,
+  CAPABILITY_ACTIONS,
+  capabilities,
+  mayReach,
+  type CapabilityTarget,
+} from './capabilities.js'
+
+const TARGETS: readonly CapabilityTarget[] = [
+  'workspace',
+  'project',
+  'folder',
+  'task',
+  'tab',
+  'own-scope',
+]
+
+const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
+const T = '01M240FB4GD6PF6V0PKZVF6FD9'
+const TOKEN = 'yjKq3Zc1vHt8Lm0Pw5Rb2Nd7'
+
+const projectScope: Scope = { kind: 'project', projectId: P }
+const taskScope: Scope = { kind: 'task', projectId: P, taskId: T }
+
+const SCOPES: readonly (readonly [string, Scope])[] = [
+  ['project-scoped', projectScope],
+  ['task-scoped', taskScope],
+]
+
+const holder = (role: Role, scope: Scope): Principal => ({ kind: 'link', role, scope, token: TOKEN })
+
+const taskOf = (scope: Scope): string => (scope.kind === 'task' ? scope.taskId : T)
+
+const targetIn = (scope: Scope, kind: CapabilityTarget): Target => {
+  if (kind === 'workspace') return { kind: 'workspace' }
+  if (kind === 'project') return { kind: 'project', projectId: scope.projectId }
+  if (kind === 'folder') return { kind: 'folder', projectId: scope.projectId }
+  if (kind === 'task') return { kind: 'task', projectId: scope.projectId, taskId: taskOf(scope) }
+  if (kind === 'tab') return { kind: 'tab', projectId: scope.projectId, taskId: taskOf(scope) }
+  return scope
+}
+
+const kernelAnswer = (role: Role, scope: Scope, action: Action, target: CapabilityTarget): boolean =>
+  can(holder(role, scope), action, targetIn(scope, target))
+
+describe('capabilities answers for exactly the actions the kernel names (ADR 0038)', () => {
+  it('names every kernel action and invents none, so a new one fails this test until projected', () => {
+    expect([...CAPABILITY_ACTIONS].sort()).toEqual([...ACTIONS].sort())
+  })
+
+  it('returns a boolean for each of them and nothing else', () => {
+    const answered = capabilities('manage', projectScope)
+    expect(Object.keys(answered).sort()).toEqual([...ACTIONS].sort())
+    expect(Object.values(answered).every((value) => typeof value === 'boolean')).toBe(true)
+  })
+
+  it('decides every action against a target, so no action is left without a question', () => {
+    for (const action of ACTIONS) {
+      expect(TARGETS).toContain(ACTION_DECISIONS[action].target)
+    }
+  })
+
+  it('answers each action against its own target, capabilities being the record over mayReach', () => {
+    for (const role of ROLES) {
+      for (const [, scope] of SCOPES) {
+        const answered: Readonly<Record<string, boolean>> = capabilities(role, scope)
+        for (const action of ACTIONS) {
+          const target = ACTION_DECISIONS[action].target
+          expect({ action, answer: answered[action] }).toEqual({
+            action,
+            answer: mayReach(role, scope, action, target),
+          })
+        }
+      }
+    }
+  })
+})
+
+describe('capabilities agrees with can() for every role x scope x action triple', () => {
+  for (const role of ROLES) {
+    for (const [label, scope] of SCOPES) {
+      it(`agrees for a ${label} ${role} link across every action and every target`, () => {
+        const disagreed = ACTIONS.flatMap((action) =>
+          TARGETS.filter(
+            (target) =>
+              mayReach(role, scope, action, target) !== kernelAnswer(role, scope, action, target),
+          ).map((target) => `${action} on ${target}`),
+        )
+        expect(disagreed).toEqual([])
+      })
+    }
+  }
+
+  const shape = (role: Role, scope: Scope): string =>
+    JSON.stringify(Object.values(capabilities(role, scope)))
+
+  it('is not vacuous: scope changes the answer for write and for manage', () => {
+    expect(shape('write', projectScope)).not.toBe(shape('write', taskScope))
+    expect(shape('manage', projectScope)).not.toBe(shape('manage', taskScope))
+  })
+
+  it('is not vacuous: role changes the answer in both scopes', () => {
+    const distinct = SCOPES.map(([, scope]) => new Set(ROLES.map((role) => shape(role, scope))))
+    expect(distinct.map((set) => set.size)).toEqual([ROLES.length, ROLES.length])
+  })
+
+  it('answers a view link identically in both scopes, its two actions being all a task reaches', () => {
+    expect(shape('view', projectScope)).toBe(shape('view', taskScope))
+    const answered: Readonly<Record<string, boolean>> = capabilities('view', taskScope)
+    expect(ACTIONS.filter((action) => answered[action])).toEqual(['project:read', 'task:read'])
+  })
+
+  it('refuses every admin-only action to every role in every scope', () => {
+    for (const role of ROLES) {
+      for (const [, scope] of SCOPES) {
+        const answered: Readonly<Record<string, boolean>> = capabilities(role, scope)
+        for (const action of ADMIN_ONLY_ACTIONS) expect(answered[action], action).toBe(false)
+      }
+    }
+  })
+})
+
+describe('the trap this function exists to remove (ADR 0038)', () => {
+  const taskManage = capabilities('manage', taskScope)
+
+  it('lets a task-scoped manage holder mint a link, which gates on the new link own scope', () => {
+    expect(taskManage['share:create']).toBe(true)
+    expect(can(holder('manage', taskScope), 'share:create', taskScope)).toBe(true)
+  })
+
+  it('refuses it the list and the revoke, which gate on a project target', () => {
+    expect(taskManage['share:read']).toBe(false)
+    expect(taskManage['share:revoke']).toBe(false)
+    const project: Target = { kind: 'project', projectId: P }
+    expect(can(holder('manage', taskScope), 'share:read', project)).toBe(false)
+    expect(can(holder('manage', taskScope), 'share:revoke', project)).toBe(false)
+  })
+
+  it('renders no share manager from role alone: a project-scoped manage holder differs', () => {
+    const projectManage = capabilities('manage', projectScope)
+    expect(projectManage['share:read']).toBe(true)
+    expect(projectManage['share:revoke']).toBe(true)
+  })
+
+  it('refuses a task-scoped holder the folder tree and a sibling task, whatever its role', () => {
+    expect(taskManage['folder:create']).toBe(false)
+    expect(taskManage['folder:rename']).toBe(false)
+    expect(taskManage['task:create']).toBe(false)
+    expect(taskManage['task:reorder']).toBe(false)
+  })
+
+  it('still lets it read its project and write its own tabs', () => {
+    expect(taskManage['project:read']).toBe(true)
+    expect(taskManage['tab:write']).toBe(true)
+    expect(taskManage['tab:delete']).toBe(true)
+    expect(taskManage['project:rename']).toBe(false)
+  })
+
+  it('gives a view link no write of any kind', () => {
+    const view = capabilities('view', projectScope)
+    expect(view['tab:write']).toBe(false)
+    expect(view['tab:create']).toBe(false)
+    expect(view['task:rename']).toBe(false)
+    expect(view['project:read']).toBe(true)
+  })
+
+  it('gives a write link tabs it may add and rename but not delete or reorder', () => {
+    const write = capabilities('write', projectScope)
+    expect(write['tab:create']).toBe(true)
+    expect(write['tab:rename']).toBe(true)
+    expect(write['tab:delete']).toBe(false)
+    expect(write['tab:reorder']).toBe(false)
+  })
+})
+
+describe('@repo/kernel is a dev-time dependency and nothing more (ADR 0038)', () => {
+  const manifest = (): Record<string, Record<string, string>> =>
+    JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as Record<
+      string,
+      Record<string, string>
+    >
+
+  it('is absent from dependencies, because a runtime edge puts node:crypto in a browser bundle', () => {
+    expect(Object.keys(manifest()['dependencies'] ?? {})).toEqual(['zod'])
+  })
+
+  it('is present in devDependencies, which is what lets the agreement test compare the two', () => {
+    expect(manifest()['devDependencies']?.['@repo/kernel']).toBe('workspace:*')
+  })
+})
+
+describe('capabilities is reachable from the barrel, an app importing nothing else', () => {
+  it('exports the function', () => {
+    expect(contracts.capabilities).toBe(capabilities)
+  })
+})
+
+describe('the one action the API gates on two targets (ADR 0011)', () => {
+  it('records the second target rather than leaving it unsaid', () => {
+    expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])
+  })
+
+  it('is the only action with a second target, so nothing else needs asking by name', () => {
+    const doubled = CAPABILITY_ACTIONS.filter(
+      (action) => (ACTION_DECISIONS[action].alsoGatedOn ?? []).length > 0,
+    )
+    expect(doubled).toEqual(['project:read'])
+  })
+
+  it('tells a task-scoped holder it may read its project and not its folder list', () => {
+    expect(mayReach('view', taskScope, 'project:read', 'project')).toBe(true)
+    expect(mayReach('manage', taskScope, 'project:read', 'folder')).toBe(false)
+    expect(can(holder('manage', taskScope), 'project:read', { kind: 'folder', projectId: P })).toBe(
+      false,
+    )
+  })
+
+  it('tells a project-scoped holder it may read both, so the distinction is scope and not role', () => {
+    expect(mayReach('view', projectScope, 'project:read', 'project')).toBe(true)
+    expect(mayReach('view', projectScope, 'project:read', 'folder')).toBe(true)
+  })
+})

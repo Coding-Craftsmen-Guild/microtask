@@ -77,6 +77,7 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0025](0025-shadcn-tailwind-shared-package.md) | Six instructions could not execute as written: `pnpm dlx`, "the CLI writes both `components.json`", "one stylesheet" during `init`, two dead `@source` lines, the server-safe list (6 of 22, not 4), and a local `cn` the CLI no longer generates |
 | [0026](0026-docker-turbo-prune-standalone.md) | Turbo silently never caches `.next` when `output: 'standalone'` is set; `!.next/standalone/**` is the fix |
 | [0027](0027-code-style-solid-enforced.md) | The vendored-components override named a directory the CLI never writes to, **and** its glob was inert in the shared config — the trap this ADR documents and then walked into |
+| [0038](0038-capabilities-role-and-scope.md) | One answer per action is not enough: `project:read` is gated on **two** targets, so the projection is `mayReach(role, scope, action, target)` with `capabilities()` as the record over it |
 
 ## Verification
 

@@ -1,4 +1,14 @@
 export { AdminSession, LoginPayload } from './auth.js'
+export { ACTION_DECISIONS, CAPABILITY_ACTIONS, capabilities, mayReach } from './capabilities.js'
+export type {
+  ActionDecision,
+  Capabilities,
+  CapabilityAction,
+  CapabilityMinimum,
+  CapabilityTarget,
+  RoleValue,
+  ScopeValue,
+} from './capabilities.js'
 export { LIMITS, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_DEPTH } from './limits.js'
 export type { CountLimitKey, LimitKey } from './limits.js'
 export { countTasks, emptyDocument, SAFE_HREF_SCHEMES } from './document-facts.js'
