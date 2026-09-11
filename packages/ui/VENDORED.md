@@ -52,3 +52,15 @@ it, which is behaviourally identical because the spread already sat after the ex
   applied in this package to resolve at all. Every other ADR 0027 rule stays on, including
   `local/tsdoc-comments-only`, which costs zero because shadcn 4.21.0 emits no comments. If that
   count moves, the generator changed; do not widen the override to absorb it.
+
+## The `./hooks/*` subpath is not declared yet
+
+`components.json` still aliases `hooks` to `@repo/ui/hooks`, because that is where the generator
+should write one, but `package.json` declares no `./hooks/*` export. `src/hooks/` was an empty
+directory, and git does not track those, so the subpath resolved to nothing on any fresh clone —
+public surface promising files that were not there. The first hook, generated or written by hand,
+has to re-add the one line:
+
+```json
+"./hooks/*": "./src/hooks/*.ts",
+```
