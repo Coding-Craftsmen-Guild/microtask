@@ -1,8 +1,23 @@
 import base, { productImportPatterns } from '@repo/eslint-config'
 
+// The shared config applies react-hooks to `**/*.tsx` only, and this app keeps three hooks in
+// `.ts` files: use-workspace, use-tab-operations and use-autosave. A dropped dependency there
+// once sent every save after a tab switch to the tab the page opened on, with lint green. The
+// plugin object is taken from the shared config rather than imported, so it is the same
+// instance and this package declares no dependency of its own for it.
+const hooksBlock = base.find((block) => block.plugins?.['react-hooks'] !== undefined)
+
 export default [
   { ignores: ['.next/**', 'next-env.d.ts'] },
   ...base,
+  {
+    files: ['**/*.ts'],
+    plugins: { 'react-hooks': hooksBlock.plugins['react-hooks'] },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'error',
+    },
+  },
   {
     files: ['**/*.ts', '**/*.tsx'],
     rules: {
