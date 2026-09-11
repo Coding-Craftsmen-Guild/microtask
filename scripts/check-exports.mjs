@@ -45,18 +45,38 @@ function* leaves(node, trail) {
   for (const [key, value] of Object.entries(node)) yield* leaves(value, [...trail, key])
 }
 
+function wildcardMatches(directory, target) {
+  const [head, tail] = target.split('*')
+  const base = join(directory, head)
+  if (!existsSync(base) || !statSync(base).isDirectory()) return 0
+  let matches = 0
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const next = join(dir, entry.name)
+      if (entry.isDirectory()) walk(next)
+      else if (next.endsWith(tail)) matches += 1
+    }
+  }
+  walk(base)
+  return matches
+}
+
 function checkPackage(directory) {
   const manifest = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
   const where = relative(ROOT, directory).split('\\').join('/')
   const rows = []
   for (const { trail, target } of leaves(manifest.exports ?? {}, [])) {
     const path = join(directory, target)
-    const status = target.includes('*')
-      ? 'wildcard'
-      : existsSync(path) && statSync(path).isFile()
-        ? 'ok'
-        : 'MISSING'
-    rows.push({ package: manifest.name ?? where, where, trail: trail.join(' '), target, status })
+    const matches = target.includes('*') ? wildcardMatches(directory, target) : null
+    const resolved = matches === null ? existsSync(path) && statSync(path).isFile() : matches > 0
+    rows.push({
+      package: manifest.name ?? where,
+      where,
+      trail: trail.join(' '),
+      target,
+      matches,
+      status: resolved ? 'ok' : 'MISSING',
+    })
   }
   return rows
 }
@@ -87,11 +107,12 @@ if (unbuilt.length > 0) {
 
 const rows = directories.flatMap(checkPackage)
 const missing = rows.filter((row) => row.status === 'MISSING')
-const wildcards = rows.filter((row) => row.status === 'wildcard')
+const wildcards = rows.filter((row) => row.matches !== null)
 
 for (const row of rows) {
-  if (row.status === 'ok') continue
-  console.log(`${row.status}  ${row.package}  exports["${row.trail}"] -> ${row.target}`)
+  if (row.status === 'ok' && row.matches === null) continue
+  const count = row.matches === null ? '' : `  (${String(row.matches)} file(s))`
+  console.log(`${row.status}  ${row.package}  exports["${row.trail}"] -> ${row.target}${count}`)
 }
 
 const withExports = new Set(rows.map((row) => row.where)).size
@@ -100,7 +121,10 @@ console.log(
 )
 
 if (wildcards.length > 0) {
-  console.log(`${String(wildcards.length)} wildcard target(s) were not resolved to a file`)
+  const files = wildcards.reduce((total, row) => total + row.matches, 0)
+  console.log(
+    `${String(wildcards.length)} wildcard target(s) resolved to ${String(files)} file(s) on disk`,
+  )
 }
 
 if (missing.length > 0) {
