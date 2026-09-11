@@ -12,6 +12,11 @@ import { Fragment } from 'react'
 
 /** One item in an options menu. */
 export interface MenuEntry {
+  /**
+   * What tells it apart from the menu's other items, and what React keys it by. Never the label:
+   * two items may read alike — two folders can share a name — and still be two destinations.
+   */
+  readonly id: string
   /** What it says. */
   readonly label: string
   /** What it does. */
@@ -48,7 +53,7 @@ export function OptionsMenu({ label, items }: OptionsMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" onCloseAutoFocus={(event) => event.preventDefault()}>
         {items.map((item) => (
-          <Fragment key={item.label}>
+          <Fragment key={item.id}>
             {item.danger === true ? <DropdownMenuSeparator /> : null}
             <DropdownMenuItem
               disabled={item.disabled ?? false}

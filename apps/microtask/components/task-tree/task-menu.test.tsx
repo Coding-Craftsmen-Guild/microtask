@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ADMIN_TREE } from './controls'
-import { F1, F2, P, R1, renderTree, T1, T2, T3, task } from './testing/tree-fixture'
+import { F1, F2, folders, P, R1, renderTree, T1, T2, T3, task } from './testing/tree-fixture'
 
 const rowOf = (name: string) => {
   const link = screen.getByRole('link', { name })
@@ -135,5 +135,41 @@ describe('a task’s options', () => {
       'Move up',
       'Move down',
     ])
+  })
+})
+
+describe('moving a task when two folders share a name', () => {
+  const F3 = '01HZZZZZZZZZZZZZZZZZZZZZF3'
+  const twins = [...folders, { id: F3, name: 'ACME', position: 2 }]
+
+  const moveLabels = () =>
+    screen
+      .getAllByRole('menuitem')
+      .map((item) => item.textContent)
+      .filter((label) => label.startsWith('Move to'))
+
+  it('names each same-named folder by its place in the tree, so no two entries read the same', async () => {
+    const { user } = renderTree({ folders: twins })
+    await openMenu(user, 'Kickoff')
+    expect(moveLabels()).toEqual(['Move to ACME (folder 1)', 'Move to ACME (folder 3)', 'Move to No folder'])
+  })
+
+  it('names the twin by its place even from inside the other one, where only one of them is offered', async () => {
+    const { user } = renderTree({ folders: twins })
+    await openMenu(user, 'Go-live')
+    expect(moveLabels()).toEqual(['Move to Beta Co', 'Move to ACME (folder 3)', 'Move to No folder'])
+  })
+
+  it('moves the task to the folder chosen, by its id', async () => {
+    const { actions, user } = renderTree({ folders: twins })
+    await openMenu(user, 'Kickoff')
+    await user.click(screen.getByRole('menuitem', { name: 'Move to ACME (folder 3)' }))
+    expect(actions.moveTask).toHaveBeenCalledWith(P, T3, F3)
+  })
+
+  it('counts places in position order, not in the order the folders arrived in', async () => {
+    const { user } = renderTree({ folders: [...twins].reverse() })
+    await openMenu(user, 'Kickoff')
+    expect(moveLabels()).toEqual(['Move to ACME (folder 1)', 'Move to ACME (folder 3)', 'Move to No folder'])
   })
 })

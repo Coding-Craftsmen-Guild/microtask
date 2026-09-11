@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { OptionsMenu, type MenuEntry } from './options-menu'
 import { groupIds, useTree, type TreeState } from './tree-context'
 import { moved } from '../shared/moved'
+import { folderChoices } from './tree-model'
 import type { RowTask } from './types'
 
 /**
@@ -17,9 +18,10 @@ export const DELETE_TASK_MESSAGE = 'All of its tabs and their content are delete
 
 const stepsFor = (tree: TreeState, task: RowTask): MenuEntry[] => {
   const order = groupIds(tree.tasks, task.folderId)
-  const step = (label: string, delta: -1 | 1): MenuEntry => {
+  const step = (id: string, label: string, delta: -1 | 1): MenuEntry => {
     const next = moved(order, task.id, delta)
     return {
+      id,
       label,
       disabled: next === null,
       onSelect: () => {
@@ -27,14 +29,15 @@ const stepsFor = (tree: TreeState, task: RowTask): MenuEntry[] => {
       },
     }
   }
-  return tree.controls.reorderTasks ? [step('Move up', -1), step('Move down', 1)] : []
+  return tree.controls.reorderTasks ? [step('up', 'Move up', -1), step('down', 'Move down', 1)] : []
 }
 
 const movesFor = (tree: TreeState, task: RowTask): MenuEntry[] => {
   if (!tree.controls.moveTask) return []
-  const targets = [...tree.folders, { id: null, name: 'No folder' }].filter((one) => one.id !== task.folderId)
+  const targets = [...folderChoices(tree.folders), { id: null, label: 'No folder' }].filter((one) => one.id !== task.folderId)
   return targets.map((target) => ({
-    label: `Move to ${target.name}`,
+    id: `move:${target.id ?? 'root'}`,
+    label: `Move to ${target.label}`,
     onSelect: () => void tree.run(() => tree.actions.moveTask(tree.projectId, task.id, target.id)),
   }))
 }
@@ -51,10 +54,10 @@ export function TaskMenu({ task, onRename }: { task: RowTask; onRename: () => vo
     void tree.run(() => tree.actions.deleteTask(tree.projectId, task.id))
   }
   const items: MenuEntry[] = [
-    ...(tree.controls.renameTask ? [{ label: 'Rename', onSelect: onRename }] : []),
+    ...(tree.controls.renameTask ? [{ id: 'rename', label: 'Rename', onSelect: onRename }] : []),
     ...stepsFor(tree, task),
     ...movesFor(tree, task),
-    ...(tree.controls.deleteTask ? [{ label: 'Delete task', danger: true, onSelect: () => setDeleting(true) }] : []),
+    ...(tree.controls.deleteTask ? [{ id: 'delete', label: 'Delete task', danger: true, onSelect: () => setDeleting(true) }] : []),
   ]
   return (
     <>

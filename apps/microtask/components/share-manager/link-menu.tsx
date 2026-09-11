@@ -32,13 +32,14 @@ export function LinkMenu({ link, links, controls }: LinkMenuProps) {
   const [opened, open] = useState<'rename' | 'revoke' | null>(null)
   const close = () => open(null)
   const roles: MenuEntry[] = ROLES.map((role) => ({
+    id: `role:${role}`,
     label: `Set to ${ROLE_LABEL[role].toLowerCase()}`,
     disabled: role === link.role,
     onSelect: () => void links.update(link.token, { role }),
   }))
   const items: MenuEntry[] = [
-    ...(controls.update ? [{ label: 'Rename', onSelect: () => open('rename') }, ...roles] : []),
-    ...(controls.revoke ? [{ label: 'Revoke link', danger: true, onSelect: () => open('revoke') }] : []),
+    ...(controls.update ? [{ id: 'rename', label: 'Rename', onSelect: () => open('rename') }, ...roles] : []),
+    ...(controls.revoke ? [{ id: 'revoke', label: 'Revoke link', danger: true, onSelect: () => open('revoke') }] : []),
   ]
   return (
     <>

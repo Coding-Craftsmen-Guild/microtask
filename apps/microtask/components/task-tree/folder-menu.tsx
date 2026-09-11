@@ -16,9 +16,10 @@ type Opened = 'task' | 'delete' | null
 const itemsFor = (tree: TreeState, folder: RowFolder, open: (which: Opened) => void): MenuEntry[] => {
   const { projectId, folders, controls, actions, run } = tree
   const ids = [...folders].sort((a, b) => a.position - b.position).map((one) => one.id)
-  const step = (label: string, delta: -1 | 1): MenuEntry => {
+  const step = (id: string, label: string, delta: -1 | 1): MenuEntry => {
     const order = moved(ids, folder.id, delta)
     return {
+      id,
       label,
       disabled: order === null,
       onSelect: () => {
@@ -27,9 +28,9 @@ const itemsFor = (tree: TreeState, folder: RowFolder, open: (which: Opened) => v
     }
   }
   return [
-    ...(controls.createTask ? [{ label: 'New task in this folder', onSelect: () => open('task') }] : []),
-    ...(controls.reorderFolders ? [step('Move up', -1), step('Move down', 1)] : []),
-    ...(controls.deleteFolder ? [{ label: 'Delete folder', danger: true, onSelect: () => open('delete') }] : []),
+    ...(controls.createTask ? [{ id: 'task', label: 'New task in this folder', onSelect: () => open('task') }] : []),
+    ...(controls.reorderFolders ? [step('up', 'Move up', -1), step('down', 'Move down', 1)] : []),
+    ...(controls.deleteFolder ? [{ id: 'delete', label: 'Delete folder', danger: true, onSelect: () => open('delete') }] : []),
   ]
 }
 

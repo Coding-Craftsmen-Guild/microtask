@@ -72,3 +72,29 @@ export function filtered<Folder extends TreeFolder, Task extends TreeTask>(
     )
     .filter((group) => group.tasks.length > 0 || (group.folder !== null && matches(group.folder.name)))
 }
+
+/** A folder as a menu offers it: its id, and the words that tell it apart from every other. */
+export interface FolderChoice {
+  /** Its id, which is what a move sends and what a menu keys its entry by. */
+  readonly id: string
+  /** Its name, with its place in the tree added when another folder has the same name. */
+  readonly label: string
+}
+
+/**
+ * Every folder in the order the tree draws them, each named so no two read the same.
+ *
+ * Names are not unique and ids are, so two folders called `ACME` would otherwise be offered as two
+ * identical `Move to ACME` entries with nothing to say which is which. A name used more than once
+ * carries its place among the folder headings, counted from 1 in position order — `ACME (folder 3)`
+ * — and a name used once is left as it is.
+ */
+export function folderChoices(folders: readonly TreeFolder[]): FolderChoice[] {
+  const ordered = [...folders].sort(byPosition)
+  const uses = new Map<string, number>()
+  for (const folder of ordered) uses.set(folder.name, (uses.get(folder.name) ?? 0) + 1)
+  return ordered.map((folder, index) => ({
+    id: folder.id,
+    label: (uses.get(folder.name) ?? 0) > 1 ? `${folder.name} (folder ${String(index + 1)})` : folder.name,
+  }))
+}
