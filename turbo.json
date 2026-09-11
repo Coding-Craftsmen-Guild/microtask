@@ -4,6 +4,19 @@
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
     "typecheck": { "dependsOn": ["^build"] },
     "lint": {},
-    "test": { "dependsOn": ["^build"] }
+    "test": { "dependsOn": ["^build"] },
+    "//#check-exports": {
+      "dependsOn": [
+        "@repo/api-client#build",
+        "@repo/contracts#build",
+        "@repo/kernel#build",
+        "@repo/macroplan-domain#build",
+        "@repo/microtask-domain#build",
+        "@repo/store#build",
+        "api#build",
+        "legacy#build"
+      ],
+      "cache": false
+    }
   }
 }
