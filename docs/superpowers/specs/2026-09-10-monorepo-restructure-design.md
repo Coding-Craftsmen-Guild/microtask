@@ -671,15 +671,17 @@ was built.
   and legacy demonstrated both failure modes — it toasted "Link copied" even when the copy failed,
   and toasted a 403 every four seconds forever (ADR 0016, last amendment). This correction is the
   record parity feature 60 and U22 were waiting for; they are changes, not gaps.
-- **"code assets are `no-cache` and images `max-age=86400`".** Nothing in the app sets either. The
-  only `Cache-Control` it sets anywhere is `private, no-store`, on `/s/*` and `/share/*`
-  (`next.config.ts`, ADR 0040); everything else is whatever Next serves, and `proxy.ts`'s matcher
-  deliberately excludes `_next/static`, `_next/image`, `favicon.ico` and `img/`. The code is right
-  not to hand-roll the first half: `_next/static` URLs are content-hashed, so `no-cache` on them
-  would re-fetch an immutable file on every load. The second half is a real difference rather than
-  an equivalence, and it is **unmeasured**: `public/img/logo.webp` is not content-hashed and legacy
-  cached it for a day, while what Next serves it with here has not been checked — that needs a
-  running production build, not a test.
+- **"code assets are `no-cache` and images `max-age=86400`".** Neither rule exists. The app sets
+  `Cache-Control` in exactly two places, and neither is an asset rule: `private, no-store` on
+  `/s/*` and `/share/*` (`next.config.ts`, ADR 0040), and `public, max-age=3600` on the
+  `/favicon.ico` **redirect**, which caches the 308 rather than any file
+  (`app/favicon.ico/route.ts`). Everything served as a file is on Next's own caching, and
+  `proxy.ts`'s matcher deliberately excludes `_next/static`, `_next/image`, `favicon.ico` and
+  `img/`. The code is right not to hand-roll the first half: `_next/static` URLs are
+  content-hashed, so `no-cache` on them would re-fetch an immutable file on every load. The second
+  half is a real difference rather than an equivalence, and it is **unmeasured**:
+  `public/img/logo.webp` is not content-hashed and legacy cached it for a day, while what Next
+  serves it with here has not been checked — that needs a running production build, not a test.
 
 ## 12. Errors
 

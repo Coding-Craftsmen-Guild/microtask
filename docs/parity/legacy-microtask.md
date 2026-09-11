@@ -660,8 +660,8 @@ other way round: an old project becomes a Project and each old tab a Task holdin
 one `General` tab (spec §7.6). The UI rows below are audited against the task page; the data rows
 against the API and the domain.
 
-**Totals**, restated on 2026-09-12 as unit H2 left them. Features: 23 reproduced, 45 changed, 0
-dropped, 3 gaps. Routes: 1 reproduced, 22 changed, 1 dropped, 1 gap. Non-obvious UX: 22 reproduced,
+**Totals**, restated on 2026-09-12 as unit H2 left them. Features: 23 reproduced, 46 changed, 0
+dropped, 2 gaps. Routes: 1 reproduced, 22 changed, 1 dropped, 1 gap. Non-obvious UX: 22 reproduced,
 19 changed, 0 dropped, 0 gaps. **No row carries a dagger any more**: every behaviour built without a
 decision record now has one (ADR 0042, ADR 0043), and the dagger is free for whatever earns it next.
 
@@ -745,9 +745,9 @@ styling (U14, U15, U38), the 640px steps (U37) and Escape on the share dialog (f
 | 66 | Write serialisation | CHANGED | One process-wide queue, temp file then rename, and a directory per project — a manifest plus one file per task, written in order (ADR 0005, 0006). `packages/store/src/queue-lock.test.ts` "never overlaps two pieces of work"; `node-file-system.test.ts` "leaves one whole payload behind, never a mix of two"; `packages/microtask-domain/.../fs-project-store.ordering.test.ts` |
 | 67 | Legacy share-link migration | GAP | Spec §7.6 decides it — a link with no `permission` becomes `write` — but there is no importer at all (spec §7, ADR 0017, 0019), so nothing reads a legacy project file |
 | 68 | Token index rebuilt at boot | REPRODUCED | Same single-process design (ADR 0002). `apps/api/src/runtime.test.ts` "indexes every share link already on disk, across every project", "resolves no token at all before it runs"; `share-index.test.ts` (all) |
-| 69 | Static asset serving | CHANGED | Next serves the app (ADR 0002, 0026): the raw shells are gone, the logo is `public/img/logo.webp`, and the proxy's matcher leaves assets alone. Caching is Next's own, not the `no-cache` / `max-age=86400` split spec §11 used to describe — corrected there on 2026-09-12, which leaves one measurement owed rather than a contradiction: the logo is not content-hashed, and what Next serves it with has not been measured. `app/layout.test` "serves that icon from this app’s own public directory"; `proxy.test` config block |
+| 69 | Static asset serving | CHANGED | Next serves the app (ADR 0002, 0026): the raw shells are gone, the logo is `public/img/logo.webp`, and the proxy's matcher leaves assets alone. Caching is Next's own for everything served as a file, not the `no-cache` / `max-age=86400` split spec §11 used to describe — corrected there on 2026-09-12. The app sets `Cache-Control` twice and neither is an asset rule: `private, no-store` on the link surface (ADR 0040) and `public, max-age=3600` on the `/favicon.ico` **redirect**. One measurement is owed rather than a contradiction: the logo is not content-hashed, and what Next serves it with has not been measured. `app/layout.test` "serves that icon from this app’s own public directory"; `proxy.test` config block |
 | 70 | Error response shape | CHANGED | RFC 7807 problem documents with a closed code set (spec §12, ADR 0036). `apps/api/src/http/error-handler.test.ts`; `app/_document` routes' problem bodies in both document route tests |
-| 71 | Startup configuration guard | GAP | Reproduced: `apps/api` refuses to start without `ADMIN_PASSWORD`, warns under 8, defaults `PORT` to 4321; `DATA_DIR`, `SESSION_SECRET` and `SERVICE_KEYS` have no default (changed); the app's `register()` refuses a missing or short secret. **Missing: nothing in `apps/api/src/server.ts` handles `SIGTERM` or `SIGINT`**, which legacy closed on with exit 0. `apps/api/src/config.test.ts` "refuses to produce a config without it", "accepts a password shorter than 8", "defaults PORT to legacy 4321"; `instrumentation.test` |
+| 71 | Startup configuration guard | CHANGED | Reproduced: `apps/api` refuses to start without `ADMIN_PASSWORD`, warns under 8, defaults `PORT` to 4321; `DATA_DIR`, `SESSION_SECRET` and `SERVICE_KEYS` have no default (changed); the app's `register()` refuses a missing or short secret, and since 2026-09-12 exits 1 rather than serving 500s (ADR 0032 amendment). The signal half was a gap and is closed: `apps/api/src/lifecycle.ts` closes the socket on the first `SIGTERM` or `SIGINT`, drains what is being served and exits 0, as legacy did (`apps/api/src/lifecycle.test.ts`; ADR 0006 amendment). `apps/api/src/config.test.ts` "refuses to produce a config without it", "accepts a password shorter than 8", "defaults PORT to legacy 4321"; `instrumentation.test` |
 
 ### Routes
 
@@ -845,7 +845,9 @@ contradictions of the code are corrected where each sentence lives, dated and le
 plan's one alongside them.
 
 **Gaps still open.** Each is code that does not exist, not a record that is missing; the decision
-each needs is named, and none is this unit's to take.
+each needs is named, and none is this unit's to take. A fifth entry stood here until 2026-09-12 —
+feature 71, no `SIGTERM`/`SIGINT` handler — and is closed: `apps/api/src/lifecycle.ts` drains and
+exits 0 (ADR 0006 amendment).
 
 - **Feature 67 — there is no importer.** Spec §7 and ADRs 0017 and 0019 decide it, and nothing
   builds it, so no legacy project file can be read into the new store and the `permission`-less
@@ -854,9 +856,6 @@ each needs is named, and none is this unit's to take.
   no **name** must be accepted, because import is not minting.
 - **Feature 37 — Back and Forward.** Evaluated in ADR 0016: no approach under the App Router is
   reliable enough to build.
-- **Feature 71 — signal handling.** `apps/api/src/server.ts` installs no `SIGTERM`/`SIGINT`
-  handler; legacy closed and exited 0. Whether that matters depends on the API image's PID 1, which
-  is the Dockerfile's; both are code.
 - **Route R3 — `/admin/projects/:projectId`.** Old admin addresses lead nowhere. A redirect to
   `/p/:projectId` is safe if the importer preserves project ids, as spec §7.6 says it will; mapping
   a legacy `?tab=` needs the importer's tab-to-task id rule, which does not exist yet. Needs a

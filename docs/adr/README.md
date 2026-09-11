@@ -94,7 +94,15 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0039](0039-tiptap-in-the-app-and-v3.md) | The server pass with `immediatelyRender: true` warns and overrules the flag rather than throwing, and a Tiptap 2 link mark gains `title: null` rather than round-tripping unchanged |
 | [0040](0040-link-surface-url-token-authority.md) | "Every `/s/*` response carries `Cache-Control: private, no-store`" — a Server Action answer on `/s/<token>`, the share-link list included, keeps Next's own `no-cache, no-store, …`; uncacheable still, but not what the sentence said |
 
-Amended on 2026-09-12. **No ADR was factually wrong this time.** What was wrong is the design
+Amended on 2026-09-12, from four fixes measured against the running containers:
+
+| ADR | What was wrong |
+| --- | --- |
+| [0006](0006-write-ordering-not-transactions.md) | "Containers are killed on every deploy" was true and not inevitable: the API installed no `SIGTERM`/`SIGINT` handler, so `docker stop` waited out the grace period and SIGKILLed whether or not a write was open. It now closes the socket, drains what is being served and exits 0. The amendment also pins what "drained" can mean when `QueueLock` has no observable idle — every `lock.run` is awaited inside a route handler, so waiting for the request waits for the write, and a test parks a write inside the lock rather than sleeping |
+| [0026](0026-docker-turbo-prune-standalone.md) | The "does it build in Docker" check this ADR asks for was unreachable: the suite the image build runs read a gitignored production file, so a fresh clone, a CI runner and every container build errored. It now reads a derived fixture, proven portable in a fresh worktree. Also: `restart: unless-stopped` did nothing for a bad environment, because Docker restarts on exit and never on unhealthy; and `init: true` plus the `CMD` exec form are what get the signal to node |
+| [0032](0032-two-cookies-url-wins.md) | Amendment (d) left `register()` throwing and called a health check the thing that turns a bad environment into a failed deploy. Nothing acted on it — Docker restarts on exit, never on unhealthy — so a deploy with a bad `COOKIE_SECRET` came up and served 500s. `register()` now exits 1 |
+
+Amended on 2026-09-12, and separately. **No ADR was factually wrong in this pass.** What was wrong is the design
 spec, in six places, and two behaviours had no record at all. So the spec is corrected where each
 sentence lives — dated, and left visible, as the `relativeTime` correction in the app plan was —
 and the two decisions are new ADRs rather than amendments, because a decision nobody took cannot be
@@ -113,12 +121,12 @@ kept here because this index is where a reader looks for it.
 | (no ADR) → [0043](0043-client-head-names-no-visitor.md) | The one parity loss nothing decided: legacy's `Signed in as <link name>` is dropped rather than added to `ShareView` (parity feature 51) |
 
 The code gaps are deliberately **not** given a decision here, because each is scheduled work the
-parity audit already names and none of them is a record problem: as at this commit there is no
-importer (feature 67), no `SIGTERM`/`SIGINT` handler (feature 71), no redirect from the old admin
-addresses (route R3), and `QueueLock` plus the token index still assume a single replica (ADR 0030;
-plan 2 says ADR 0006 records whichever way that goes). Inventing decisions for them would put a
-choice in the index that nobody has made; each is named in the parity audit instead, with what it
-is waiting on.
+parity audit already names and none of them is a record problem: there is no importer (feature 67),
+no redirect from the old admin addresses (route R3), and `QueueLock` plus the token index still
+assume a single replica (ADR 0030; plan 2 says ADR 0006 records whichever way that goes). Inventing
+decisions for them would put a choice in the index that nobody has made; each is named in the parity
+audit instead, with what it is waiting on. A fourth stood here — no `SIGTERM`/`SIGINT` handler,
+feature 71 — and was closed the same day by the fixes in the table above.
 
 ## Verification
 
