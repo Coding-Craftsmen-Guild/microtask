@@ -88,13 +88,23 @@ export interface FolderChoice {
  * identical `Move to ACME` entries with nothing to say which is which. A name used more than once
  * carries its place among the folder headings, counted from 1 in position order — `ACME (folder 3)`
  * — and a name used once is left as it is.
+ *
+ * A name is free text, so a folder can be **called** `ACME (folder 3)`, which is what its twin
+ * would be placed as. When placing only the repeated names still leaves two labels alike, every
+ * folder is placed: a place is unique to its folder and ends the label, so no two placed labels
+ * can read the same whatever the names hold.
  */
 export function folderChoices(folders: readonly TreeFolder[]): FolderChoice[] {
   const ordered = [...folders].sort(byPosition)
   const uses = new Map<string, number>()
   for (const folder of ordered) uses.set(folder.name, (uses.get(folder.name) ?? 0) + 1)
-  return ordered.map((folder, index) => ({
+  const placed = (folder: TreeFolder, index: number): FolderChoice => ({
     id: folder.id,
-    label: (uses.get(folder.name) ?? 0) > 1 ? `${folder.name} (folder ${String(index + 1)})` : folder.name,
-  }))
+    label: `${folder.name} (folder ${String(index + 1)})`,
+  })
+  const choices = ordered.map((folder, index) =>
+    (uses.get(folder.name) ?? 0) > 1 ? placed(folder, index) : { id: folder.id, label: folder.name },
+  )
+  const distinct = new Set(choices.map((choice) => choice.label)).size === choices.length
+  return distinct ? choices : ordered.map(placed)
 }

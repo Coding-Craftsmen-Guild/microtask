@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filtered, groupsOf } from './tree-model'
+import { filtered, folderChoices, groupsOf } from './tree-model'
 
 const folder = (id: string, position: number, name = id) => ({ id, name, position })
 const task = (id: string, folderId: string | null, position: number, name = id) => ({
@@ -67,5 +67,27 @@ describe('filtered', () => {
 
   it('trims the term before matching', () => {
     expect(shape(filtered(groups, '  kick  '))).toEqual([['F2', ['c']]])
+  })
+})
+
+describe('folderChoices', () => {
+  const labels = (folders: Parameters<typeof folderChoices>[0]) => folderChoices(folders).map((one) => one.label)
+
+  it('leaves a name used once as it is, and places a name used twice by its heading', () => {
+    expect(labels([folder('F1', 0, 'ACME'), folder('F2', 1, 'Beta Co'), folder('F3', 2, 'ACME')])).toEqual([
+      'ACME (folder 1)',
+      'Beta Co',
+      'ACME (folder 3)',
+    ])
+  })
+
+  it('never offers two entries that read the same, even beside a folder named like a placed one', () => {
+    const tricky = [folder('F1', 0, 'ACME'), folder('F2', 1, 'ACME (folder 3)'), folder('F3', 2, 'ACME')]
+    expect(new Set(labels(tricky)).size).toBe(tricky.length)
+    expect(folderChoices(tricky).map((one) => one.id)).toEqual(['F1', 'F2', 'F3'])
+  })
+
+  it('keeps a plain name plain when nothing else could be read as it', () => {
+    expect(labels([folder('F1', 0, 'ACME (folder 3)'), folder('F2', 1, 'Beta Co')])).toEqual(['ACME (folder 3)', 'Beta Co'])
   })
 })
