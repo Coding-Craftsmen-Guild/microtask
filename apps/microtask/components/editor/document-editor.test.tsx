@@ -191,6 +191,18 @@ describe('a read-only view', () => {
     expect(editable.classList.contains('caret-transparent')).toBe(false)
   })
 
+  it('leaves Ctrl+S and Cmd+S to the browser, having nothing of its own to save', async () => {
+    await mount(tab('Go-live'), false)
+    const keys = [
+      new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true }),
+      new KeyboardEvent('keydown', { key: 's', metaKey: true, cancelable: true }),
+    ]
+    act(() => {
+      for (const key of keys) window.dispatchEvent(key)
+    })
+    expect(keys.map((key) => key.defaultPrevented)).toEqual([false, false])
+  })
+
   it('draws no toolbar and no save state, and is not contenteditable', async () => {
     const { surface } = await mount(tab('Go-live'), false)
     expect(screen.queryByRole('toolbar')).toBe(null)
@@ -204,6 +216,19 @@ describe('an editable view', () => {
     const { editor } = await mount(tab('Go-live'))
     await settle(100)
     expect(editor.view.hasFocus()).toBe(false)
+  })
+
+  it('takes Ctrl+S from the browser, so it saves the tab rather than the page', async () => {
+    const { editor } = await mount(tab('Go-live'))
+    act(() => {
+      editor.commands.insertContent('Z')
+    })
+    const key = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true })
+    act(() => {
+      window.dispatchEvent(key)
+    })
+    expect(key.defaultPrevented).toBe(true)
+    expect(requests.length).toBe(1)
   })
 
   it('draws the toolbar and the save state, and is contenteditable', async () => {

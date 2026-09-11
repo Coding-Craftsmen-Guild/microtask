@@ -12,6 +12,12 @@ export interface UseAutosaveOptions {
 
   /** Where a write goes. May be a fresh closure on every render. */
   readonly save: SaveDocument
+
+  /**
+   * Whether this view writes at all. A read-only one leaves `Ctrl/Cmd+S` to the browser, as the
+   * app being replaced did on its share page. Read once, on mount.
+   */
+  readonly editable: boolean
 }
 
 /** The loop, as a component holds it. */
@@ -32,7 +38,7 @@ export interface AutosaveHandle {
   readonly markClean: () => void
 }
 
-const listen = (autosave: Autosave): (() => void) => {
+const listen = (autosave: Autosave, editable: boolean): (() => void) => {
   const hidden = (): void => {
     if (document.visibilityState === 'hidden') void autosave.flush(false)
   }
@@ -49,7 +55,7 @@ const listen = (autosave: Autosave): (() => void) => {
   }
   document.addEventListener('visibilitychange', hidden)
   window.addEventListener('beforeunload', leaving)
-  window.addEventListener('keydown', keydown)
+  if (editable) window.addEventListener('keydown', keydown)
   return () => {
     document.removeEventListener('visibilitychange', hidden)
     window.removeEventListener('beforeunload', leaving)
@@ -72,9 +78,10 @@ const listen = (autosave: Autosave): (() => void) => {
  *   nothing there is the silent loss, and while a write is still in flight, because closing
  *   the page can abort it before the server has the edit. Legacy asked only while dirty, and
  *   cleared dirty as the write was sent.
- * - `Ctrl/Cmd+S` writes now and suppresses the browser's Save-Page dialog. Legacy wired this on
- *   the admin page alone, so `Cmd+S` on a read-write share link opened that dialog over unsaved
- *   work; the asymmetry was an omission rather than a decision, and it is not reproduced.
+ * - `Ctrl/Cmd+S` writes now and suppresses the browser's Save-Page dialog, in every editable
+ *   view. Legacy wired this on the admin page alone, so `Cmd+S` on a read-write share link
+ *   opened that dialog over unsaved work; the asymmetry was an omission rather than a decision,
+ *   and it is not reproduced. A read-only view has nothing to save and leaves the key alone.
  *
  * Unmounting writes a pending edit once, as a normal request, and then stops. Switching tab
  * remounts the island by key and a Next navigation fires neither `beforeunload` nor
@@ -86,7 +93,7 @@ const listen = (autosave: Autosave): (() => void) => {
  * inline `save` closure cannot restart the loop mid-debounce and write the same edit twice. The
  * closure is reached through a ref, so a write always calls the newest one.
  */
-export function useAutosave({ updatedAt, save }: UseAutosaveOptions): AutosaveHandle {
+export function useAutosave({ updatedAt, save, editable }: UseAutosaveOptions): AutosaveHandle {
   const [status, setStatus] = useState({ state: 'idle' as SaveState, message: '' })
   const latest = useRef(save)
   useEffect(() => {
@@ -100,7 +107,8 @@ export function useAutosave({ updatedAt, save }: UseAutosaveOptions): AutosaveHa
         onState: (state, message) => setStatus({ state, message }),
       }),
   )
-  useEffect(() => listen(autosave), [autosave])
+  const [writes] = useState(editable)
+  useEffect(() => listen(autosave, writes), [autosave, writes])
   return useMemo(
     () => ({
       state: status.state,

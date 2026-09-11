@@ -63,7 +63,7 @@ export interface DocumentEditorProps {
  */
 export function DocumentEditor(props: DocumentEditorProps) {
   const { editable, onProgress } = props
-  const autosave = useAutosave({ updatedAt: props.updatedAt, save: props.save })
+  const autosave = useAutosave({ updatedAt: props.updatedAt, save: props.save, editable })
   const [linking, setLinking] = useState(false)
   const { flush, markClean } = autosave
   useImperativeHandle(props.ref, () => ({ flush, markClean }), [flush, markClean])

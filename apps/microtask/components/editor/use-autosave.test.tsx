@@ -31,6 +31,7 @@ const save = (request: SaveRequest): Promise<SaveOutcome> => {
 function Probe({ version }: { version: number }) {
   handle = useAutosave({
     updatedAt: 'v1',
+    editable: true,
     save: (request) => {
       versions.push(version)
       return save(request)
@@ -39,8 +40,8 @@ function Probe({ version }: { version: number }) {
   return <span data-testid="state">{handle.state}</span>
 }
 
-function Plain() {
-  handle = useAutosave({ updatedAt: 'v1', save })
+function Plain({ editable = true }: { editable?: boolean }) {
+  handle = useAutosave({ updatedAt: 'v1', save, editable })
   return <span data-testid="state">{handle.state}</span>
 }
 
@@ -212,6 +213,19 @@ describe('force save', () => {
     act(() => mounted().change(text('ab')))
     act(() => press('S', true))
     expect(requests.length).toBe(2)
+  })
+
+  it('leaves Ctrl+S alone in a view that does not write, and still flushes it on hide', () => {
+    render(<Plain editable={false} />)
+    act(() => mounted().change(text('a')))
+    const events: KeyboardEvent[] = []
+    act(() => {
+      events.push(press('s', false))
+    })
+    expect(events[0]?.defaultPrevented).toBe(false)
+    expect(requests).toEqual([])
+    act(() => hide('hidden'))
+    expect(requests.length).toBe(1)
   })
 
   it('ignores s without a modifier, which is a character someone is typing', () => {
