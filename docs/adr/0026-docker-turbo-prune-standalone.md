@@ -253,7 +253,9 @@ exit, never on unhealthy. A refused environment left Next up and serving 500s, s
 restart policy never fired and the `GET /login` probe this ADR chose only *showed* the failure.
 `register()` now exits the process — ADR 0032's 2026-09-12 amendment.
 
-**`docker stop` always ended in SIGKILL.** The API installed no signal handler, so every deploy
-waited out the grace period and was killed, possibly mid-write. It now drains and exits 0 — ADR
-0006's 2026-09-12 amendment. `init: true` in `docker-compose.yml` is what forwards the signal to
-node, and the `CMD` exec form is what keeps node the direct child.
+**`docker stop` killed the API where it stood.** It installed no signal handler, so every deploy
+ended in a kill rather than a stop — measured on this image at 10.9 s and exit 137 with node as
+PID 1, and at 1.0 s and exit 143 with tini as PID 1, which is what `init: true` gives it here. It
+now drains and exits 0 in 0.9 s — ADR 0006's 2026-09-12 amendment, which carries the three
+measurements. `init: true` is what gets the signal to node at all, and the `CMD` exec form is what
+keeps node the direct child.

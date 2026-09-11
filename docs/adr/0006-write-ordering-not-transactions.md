@@ -65,8 +65,22 @@ re-importing from a file the admin still holds.
 
 This ADR treats a kill inside a write window as routine because "containers are killed on every
 deploy". They were, but not because they had to be: the API installed no `SIGTERM` or `SIGINT`
-handler at all, so `docker stop` waited out its grace period and then SIGKILLed — every deploy,
-whether or not anything was being written. The app being replaced closed its server and exited 0.
+handler at all, so every deploy killed it where it stood, whether or not anything was being
+written. The app being replaced closed its server and exited 0.
+
+Measured with `docker stop` against the built API image, three ways:
+
+| | stop took | exit code |
+| --- | --- | --- |
+| No handler, node as PID 1 | **10.9 s** | 137 — the grace period expired and Docker SIGKILLed |
+| No handler, tini as PID 1 (`init: true`, which `docker-compose.yml` sets) | 1.0 s | 143 — SIGTERM's default disposition, immediate, in-flight work abandoned |
+| With the handler, tini as PID 1 | 0.9 s | **0**, after the drain |
+
+The first row is the PID 1 case: the kernel applies no default disposition to PID 1, so an
+unhandled SIGTERM there is ignored outright. `init: true` avoids that and buys a *fast* kill rather
+than a clean one — the process still dies where it stands, which is the case this ADR's ordering
+rules exist for. Only the handler makes the stop ordered, and it is why the exit code is 0 rather
+than 143.
 
 `apps/api/src/lifecycle.ts` restores that. On the first of `SIGTERM` or `SIGINT` it closes the
 listening socket, lets every request being served finish, and exits 0; later signals are ignored
