@@ -6,6 +6,9 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { buildExtensions } from './extensions'
 import { LINK_REFUSED, LinkDialog } from './link-dialog'
+import { normalizeHref } from './safe-href'
+
+vi.mock('./safe-href', { spy: true })
 
 const TAB = '\u0009'
 const NUL = '\u0000'
@@ -90,6 +93,7 @@ const selectAll = (): void => {
 afterEach(() => {
   cleanup()
   editor = null
+  vi.mocked(normalizeHref).mockClear()
 })
 
 describe('the dialog legacy opened', () => {
@@ -167,12 +171,12 @@ describe('a hostile href is refused before anything is sent', () => {
     'data:text/html;base64,PHNjcmlwdD4=',
   ]
 
-  it('lists only disguises the field hands the guard intact, since one it trims or strips tests nothing', async () => {
+  it.each(HOSTILE)('hands %j to the guard exactly as typed, since a disguise the field removes tests nothing', async (hostile) => {
     await open()
-    for (const hostile of HOSTILE) {
-      field().value = hostile
-      expect(field().value.trim()).toBe(hostile)
-    }
+    selectAll()
+    vi.mocked(normalizeHref).mockClear()
+    await apply(hostile)
+    expect(vi.mocked(normalizeHref).mock.calls[0]).toEqual([hostile])
   })
 
   it.each(HOSTILE)('refuses %j, leaves the document alone and says why', async (hostile) => {
