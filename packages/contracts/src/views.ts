@@ -68,6 +68,19 @@ export const TaskEntryList = z
   .meta({ id: 'TaskEntryList', description: 'Task entries, in order' })
 
 /**
+ * The tabs of one task, in the order they are shown.
+ *
+ * The bound comes from {@link TaskDocument} rather than from a number written twice, so the cap
+ * on how many tabs a task may carry is recorded once and a reorder can never describe more tabs
+ * than a task is allowed to hold. Each row is a whole tab, document included: a reorder is the
+ * one call that hands back every tab at once, and a client that had to re-read each of them to
+ * learn its new position would be doing the renumbering a second time.
+ */
+export const TabList = z
+  .object({ tabs: TaskDocument.shape.tabs.readonly() })
+  .meta({ id: 'TabList', description: "One task's tabs, in order" })
+
+/**
  * The share links of one project, in the order they were minted.
  *
  * The collection bound is taken from the manifest rather than restated, so the cap on how many

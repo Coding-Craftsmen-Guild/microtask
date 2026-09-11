@@ -14,6 +14,7 @@ export {
   RevokedShareLinks,
   ShareLinkList,
   ShareView,
+  TabList,
   TaskEntryList,
   TaskView,
 } from './views.js'
@@ -22,5 +23,6 @@ export {
   MoveTaskPayload,
   NamePayload,
   ReorderFoldersPayload,
+  ReorderTabsPayload,
   ReorderTasksPayload,
 } from './payloads.js'

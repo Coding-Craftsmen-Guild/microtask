@@ -37,6 +37,10 @@ const cases: readonly (readonly [string, string, readonly string[]])[] = [
   [`${PROJECT}/tasks/{taskId}`, 'patch', ['projectId', 'taskId']],
   [`${PROJECT}/tasks/{taskId}`, 'delete', ['projectId', 'taskId']],
   [`${PROJECT}/tasks/{taskId}/move`, 'post', ['projectId', 'taskId']],
+  [`${PROJECT}/tasks/{taskId}/tabs`, 'post', ['projectId', 'taskId']],
+  [`${PROJECT}/tasks/{taskId}/tabs/reorder`, 'post', ['projectId', 'taskId']],
+  [`${PROJECT}/tasks/{taskId}/tabs/{tabId}`, 'patch', ['projectId', 'taskId', 'tabId']],
+  [`${PROJECT}/tasks/{taskId}/tabs/{tabId}`, 'delete', ['projectId', 'taskId', 'tabId']],
   [`${PROJECT}/tasks/{taskId}/tabs/{tabId}/document`, 'put', ['projectId', 'taskId', 'tabId']],
   [`${PROJECT}/share-links`, 'get', ['projectId']],
   [`${PROJECT}/share-links`, 'post', ['projectId']],
@@ -100,6 +104,21 @@ describe('the statuses a route promises beyond the common set', () => {
     expect(found).toContain('413')
   })
 
+  it('promises the common error set on every guarded operation, so none drops one quietly', async () => {
+    const common = ['401', '403', '404', '422', '500']
+    const missing = Object.entries(await operations())
+      .filter(([path]) => path.startsWith(GUARDED_PREFIX))
+      .flatMap(([path, item]) =>
+        Object.entries(item).flatMap(([method, operation]) => {
+          const declared = Object.keys((operation as { responses?: object }).responses ?? {})
+          return common
+            .filter((status) => !declared.includes(status))
+            .map((status) => `${method} ${path} is missing ${status}`)
+        }),
+      )
+    expect(missing).toEqual([])
+  })
+
   it('promises the login route neither a 403 nor a 404, which it can never answer', async () => {
     const found = await statusesOf('/v1/auth/login', 'post')
     expect(found).toEqual(['200', '401', '422', '500'])
@@ -109,6 +128,18 @@ describe('the statuses a route promises beyond the common set', () => {
     const path = `${PROJECT}/tasks/{taskId}/tabs/{tabId}/document`
     const operation = (await operations())[path]?.['put'] as { requestBody?: { required?: boolean } }
     expect(operation.requestBody?.required).toBe(true)
+  })
+
+  it('says the same of every body in the tree, since no route here has a meaningful empty one', async () => {
+    const optional = Object.entries(await operations()).flatMap(([path, item]) =>
+      Object.entries(item)
+        .filter(([, operation]) => {
+          const declared = (operation as { requestBody?: { required?: boolean } }).requestBody
+          return declared !== undefined && declared.required !== true
+        })
+        .map(([method]) => `${method} ${path}`),
+    )
+    expect(optional).toEqual([])
   })
 })
 
@@ -132,13 +163,16 @@ describe('the schemas these routes are described by', () => {
     'ProjectList',
     'ProjectView',
     'ReorderFoldersPayload',
+    'ReorderTabsPayload',
     'ReorderTasksPayload',
     'RevokedShareLinks',
     'SearchResults',
     'ShareLink',
     'ShareLinkList',
     'ShareView',
+    'Tab',
     'TabDocumentSaved',
+    'TabList',
     'TaskEntry',
     'TaskEntryList',
     'TaskView',

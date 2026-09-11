@@ -56,3 +56,15 @@ export const ReorderFoldersPayload = z
 export const ReorderTasksPayload = z
   .object({ folderId: EntityId.nullable(), taskIds: z.array(EntityId).readonly() })
   .meta({ id: 'ReorderTasksPayload', description: 'One folder group, and every task in it in the order wanted' })
+
+/**
+ * The body of the route that renumbers one task's tabs.
+ *
+ * A bare list, unlike a task reorder: tabs have no grouping below the task, and the task is
+ * already named by the path, so there is nothing left for the body to say. Like every reorder
+ * here it must name each tab exactly once — the service refuses a partial order rather than
+ * silently dropping whatever a stale client had not seen.
+ */
+export const ReorderTabsPayload = z
+  .object({ tabIds: z.array(EntityId).readonly() })
+  .meta({ id: 'ReorderTabsPayload', description: "Every one of a task's tabs, in the order wanted" })

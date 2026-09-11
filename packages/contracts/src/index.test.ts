@@ -123,6 +123,12 @@ describe('the shapes a route accepts', () => {
     expect(contracts.ReorderFoldersPayload.safeParse({ folderIds: ['nope'] }).success).toBe(false)
   })
 
+  it('takes a tab reorder as a bare list of ids, the task being named by the path', () => {
+    expect(contracts.ReorderTabsPayload.safeParse({ tabIds: [ID] }).success).toBe(true)
+    expect(contracts.ReorderTabsPayload.safeParse({ tabIds: ['nope'] }).success).toBe(false)
+    expect(contracts.ReorderTabsPayload.safeParse({}).success).toBe(false)
+  })
+
   it('lets a share link be asked for by task, by explicit scope, or neither', () => {
     const seat = { name: 'Acme', role: 'view' }
     expect(contracts.CreateShareLinkPayload.safeParse({ ...seat, taskId: ID }).success).toBe(true)
@@ -190,6 +196,20 @@ describe('the shapes search and sharing answer with', () => {
       token: 'shr_a_live_credential',
     })
     expect(JSON.stringify(parsed)).not.toContain('shr_a_live_credential')
+  })
+
+  it('answers a tab reorder with the tabs themselves, bounded like the task holding them', () => {
+    const tab = {
+      id: '01M240ERCRWWCN16Q5AHP1FZB1',
+      name: 'General',
+      position: 0,
+      document: { type: 'doc' },
+      createdAt: '2026-09-10T00:00:00.000Z',
+      updatedAt: '2026-09-10T00:00:00.000Z',
+    }
+    expect(contracts.TabList.safeParse({ tabs: [tab] }).success).toBe(true)
+    expect(contracts.TabList.safeParse({}).success).toBe(false)
+    expect(contracts.TabList.safeParse({ tabs: Array.from({ length: 41 }, () => tab) }).success).toBe(false)
   })
 
   it('answers a conditional write with the stamp the next one must carry', () => {

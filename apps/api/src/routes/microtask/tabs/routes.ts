@@ -1,9 +1,112 @@
 import { createRoute, z } from '@hono/zod-openapi'
-import { DocumentJson, TabDocumentSaved } from '@repo/contracts'
+import {
+  DocumentJson,
+  NamePayload,
+  ReorderTabsPayload,
+  Tab,
+  TabDocumentSaved,
+  TabList,
+} from '@repo/contracts'
 import { documentBodyLimit } from '../../../http/body-limits.js'
 import { problemResponses } from '../../../http/error-responses.js'
 import { GUARDED_SECURITY } from '../../../http/security.js'
-import { tabParams } from '../../params.js'
+import { tabParams, taskParams } from '../../params.js'
+
+/**
+ * Create a tab at the end of the task's order. Answers **201**.
+ *
+ * Gated on a **tab** target naming the task in the path, not on the project: a tab target
+ * carries `taskId`, so a seat scoped to one task is cleared here for its own task and refused
+ * its siblings by the same policy call, with no branch written down in the handler. That is the
+ * difference from creating a *task*, which has no id yet and so has to be project authority.
+ */
+export const createTabRoute = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['tabs'],
+  summary: 'Create a tab at the end of the task',
+  security: GUARDED_SECURITY,
+  request: {
+    params: taskParams,
+    body: { required: true, content: { 'application/json': { schema: NamePayload } } },
+  },
+  responses: {
+    201: {
+      description: 'The tab as created, holding an empty document',
+      content: { 'application/json': { schema: Tab } },
+    },
+    ...problemResponses(),
+  },
+})
+
+/**
+ * Renumber every tab of this task into the order given.
+ *
+ * A static segment beside `/{tabId}`, and reachable only by POST — which no tab-id route
+ * answers — so there is no method and path a client could send that both could match. The body
+ * carries a bare list because the task is already in the path and tabs have no grouping below
+ * it; the service still requires a strict permutation, so a stale client is refused rather than
+ * dropping the tab it had not seen.
+ */
+export const reorderTabsRoute = createRoute({
+  method: 'post',
+  path: '/reorder',
+  tags: ['tabs'],
+  summary: "Renumber a task's tabs",
+  security: GUARDED_SECURITY,
+  request: {
+    params: taskParams,
+    body: { required: true, content: { 'application/json': { schema: ReorderTabsPayload } } },
+  },
+  responses: {
+    200: {
+      description: 'The tabs in their new order',
+      content: { 'application/json': { schema: TabList } },
+    },
+    ...problemResponses(),
+  },
+})
+
+/** Rename one tab, leaving its document and its place in the order alone. */
+export const renameTabRoute = createRoute({
+  method: 'patch',
+  path: '/{tabId}',
+  tags: ['tabs'],
+  summary: 'Rename one tab',
+  security: GUARDED_SECURITY,
+  request: {
+    params: tabParams,
+    body: { required: true, content: { 'application/json': { schema: NamePayload } } },
+  },
+  responses: {
+    200: {
+      description: 'The tab as renamed',
+      content: { 'application/json': { schema: Tab } },
+    },
+    ...problemResponses(),
+  },
+})
+
+/**
+ * Remove one tab, unless it is the only one the task has left.
+ *
+ * The last tab is not removable: a task with none has nowhere to put its content and no tab for
+ * a reader to open, so the domain refuses it. That refusal arrives as `Invalid` and is rendered
+ * **422**, already in the common set — not 409, because nothing changed underneath the caller
+ * and reloading would show the same single tab. Renaming it is the operation that was meant.
+ */
+export const deleteTabRoute = createRoute({
+  method: 'delete',
+  path: '/{tabId}',
+  tags: ['tabs'],
+  summary: 'Remove one tab, unless it is the last',
+  security: GUARDED_SECURITY,
+  request: { params: tabParams },
+  responses: {
+    204: { description: 'The tab and its document are gone' },
+    ...problemResponses(),
+  },
+})
 
 /**
  * The precondition a document write carries: the `updatedAt` the client last received.
