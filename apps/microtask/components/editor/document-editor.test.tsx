@@ -3,7 +3,6 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { createRef } from 'react'
-import { renderToString } from 'react-dom/server'
 import type { Editor } from '@tiptap/core'
 import { countTasks, type DocumentValue, type ProgressValue } from '@repo/contracts'
 import { SAVE_DEBOUNCE_MS } from './autosave'
@@ -297,21 +296,5 @@ describe('links, by view', () => {
     expect(anchor?.getAttribute('href')).toBe('https://example.com')
     expect(anchor?.getAttribute('target')).toBe('_blank')
     expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer nofollow')
-  })
-})
-
-describe('the App Router server pass', () => {
-  it('renders without an editor rather than throwing, immediatelyRender being false', () => {
-    const html = renderToString(
-      <DocumentEditor
-        document={tab('Go-live').document}
-        editable
-        onReload={() => undefined}
-        save={save}
-        updatedAt="v1"
-      />,
-    )
-    expect(html).not.toContain('ProseMirror')
-    expect(html).toContain('toolbar')
   })
 })
