@@ -101,4 +101,20 @@ describe('cacheAgrees decides whether a read has to correct the entry (ADR 0007)
   it('compares names element by element, not by length', () => {
     expect(cacheAgrees({ ...fresh(), tabNames: ['Genera'] }, current)).toBe(false)
   })
+
+  it('compares them in order, so two tabs swapped in the entry is a stale entry', () => {
+    const two = task([tab('First', 0, checklist(0, 0)), tab('Second', 1, checklist(0, 0))])
+    const counted = taskCache(two)
+    const entry = (tabNames: readonly string[]): TaskEntry => taskEntry(TASK, 'Ship it', { ...counted, tabNames })
+    expect(cacheAgrees(entry(['First', 'Second']), counted)).toBe(true)
+    expect(cacheAgrees(entry(['Second', 'First']), counted)).toBe(false)
+  })
+
+  it('compares how many names there are too, so a truncated list is not read as current', () => {
+    const two = task([tab('First', 0, checklist(0, 0)), tab('Second', 1, checklist(0, 0))])
+    const counted = taskCache(two)
+    const short = taskEntry(TASK, 'Ship it', { ...counted, tabNames: ['First'] })
+    expect(short.tabCount).toBe(counted.tabCount)
+    expect(cacheAgrees(short, counted)).toBe(false)
+  })
 })

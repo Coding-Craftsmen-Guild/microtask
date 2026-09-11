@@ -41,16 +41,23 @@ describe('the problem documents a client parses', () => {
     expect(Problem.safeParse({ ...problem, code: 'http_502' }).success).toBe(true)
   })
 
+  const validation = {
+    ...problem,
+    status: 422,
+    code: 'invalid',
+    in: 'json',
+    errors: [{ path: 'tabs.0.id', message: 'Invalid input', code: 'invalid_type' }],
+  }
+
   it('requires in and errors on a 422, so a form knows which field to point at', () => {
-    const validation = {
-      ...problem,
-      status: 422,
-      code: 'invalid',
-      in: 'json',
-      errors: [{ path: 'tabs.0.id', message: 'Invalid input', code: 'invalid_type' }],
-    }
     expect(ValidationProblem.safeParse(validation).error?.issues ?? []).toEqual([])
     expect(ValidationProblem.safeParse(problem).success).toBe(false)
+  })
+
+  it.each(['in', 'errors'] as const)('refuses a 422 missing %s alone, not only both at once', (key) => {
+    const { [key]: dropped, ...without } = validation
+    expect(dropped).toBeDefined()
+    expect(ValidationProblem.safeParse(without).success).toBe(false)
   })
 
   it('refuses a validation target the hook cannot name', () => {

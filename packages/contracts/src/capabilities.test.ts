@@ -218,6 +218,25 @@ describe('capabilities is reachable from the barrel, an app importing nothing el
   })
 })
 
+describe('the projection answers about the caller own project and no other', () => {
+  const OTHER = '01M240GQ7Z8XKJWR3Y5NBDT2VC'
+
+  it('has no id to compare, so a target elsewhere is a question it cannot be asked', () => {
+    expect(mayReach('manage', projectScope, 'folder:create', 'folder')).toBe(true)
+    expect(can(holder('manage', projectScope), 'folder:create', { kind: 'folder', projectId: P })).toBe(true)
+    expect(
+      can(holder('manage', projectScope), 'folder:create', { kind: 'folder', projectId: OTHER }),
+    ).toBe(false)
+  })
+
+  it('takes the project from the scope, so two scopes over two projects answer alike', () => {
+    const elsewhere: Scope = { kind: 'project', projectId: OTHER }
+    expect(JSON.stringify(capabilities('manage', elsewhere))).toBe(
+      JSON.stringify(capabilities('manage', projectScope)),
+    )
+  })
+})
+
 describe('the one action the API gates on two targets (ADR 0011)', () => {
   it('records the second target rather than leaving it unsaid', () => {
     expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])

@@ -128,6 +128,12 @@ const inScope = (
  * The whole projection lives here; {@link capabilities} is the record over it. A caller needs
  * this directly only for an action the API gates on more than one target — see
  * {@link ActionDecision.alsoGatedOn}, which today means the folder tree.
+ *
+ * The target is taken to sit **inside the project `scope` names**, because a
+ * {@link CapabilityTarget} is a bare kind with no id to compare. The kernel compares the id as
+ * well, so reusing one scope's answers to draw controls for a different project would draw
+ * controls the API refuses: `mayReach('manage', scopeOfA, 'folder:create', 'folder')` is true
+ * while `can()` on a folder of project B is false. Ask with the scope you hold.
  */
 export function mayReach(
   role: RoleValue,
