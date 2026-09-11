@@ -11,7 +11,7 @@ export interface AppEnv {
   /** The `x-api-key` naming this app to the API. It confers no authority (ADR 0012). */
   readonly apiKey: string
 
-  /** Key both session cookies are sealed under, distinct from the API's `SESSION_SECRET`. */
+  /** Key `mt_admin` is sealed under, distinct from the API's `SESSION_SECRET`; the only cookie this app seals (ADR 0040). */
   readonly cookieSecret: string
 }
 
