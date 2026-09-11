@@ -4,6 +4,7 @@ import { payloadOf } from '../../../../../../../../../lib/principal'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 let current: Request = new Request('http://x/')
+let opened = 0
 
 const parse = (header: string | null): Map<string, string> =>
   new Map(
@@ -15,8 +16,9 @@ const parse = (header: string | null): Map<string, string> =>
   )
 
 vi.mock('next/headers', () => ({
-  cookies: () =>
-    Promise.resolve({
+  cookies: () => {
+    opened += 1
+    return Promise.resolve({
       get: (name: string) => {
         const value = parse(current.headers.get('cookie')).get(name)
         return value === undefined ? undefined : { name, value }
@@ -24,7 +26,8 @@ vi.mock('next/headers', () => ({
       set: () => {
         throw new Error('the route must not write a cookie')
       },
-    }),
+    })
+  },
   headers: () => Promise.resolve(current.headers),
 }))
 
@@ -40,6 +43,7 @@ beforeEach(() => {
     return Promise.resolve(answer())
   })
   sent.length = 0
+  opened = 0
   answer = () => Response.json({ updatedAt: 'S2' })
 })
 
@@ -92,6 +96,13 @@ describe('PUT …/document opens mt_admin from the request itself, through the r
     const response = await put({ origin: 'https://evil.example', cookie: admin })
     expect(response.status).toBe(403)
     expect(sent).toHaveLength(0)
+  })
+  it('refuses a hostile Origin before it opens the cookie jar at all', async () => {
+    const response = await put({ origin: 'https://evil.example', cookie: admin })
+    expect(response.status).toBe(403)
+    expect(opened).toBe(0)
+    await put({ origin: `https://${HOST}`, cookie: admin })
+    expect(opened).toBeGreaterThan(0)
   })
   it('refuses an Origin that names this host as userinfo', async () => {
     const response = await put({ origin: `https://${HOST}@evil.example`, cookie: admin })
