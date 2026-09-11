@@ -333,6 +333,24 @@ describe('PATCH /v1/microtask/projects/{projectId}/share-links/{token}', () => {
     expect(await body(after)).toMatchObject({ code: 'forbidden' })
   })
 
+  it('takes effect on a link minted in the same session, not only on a seeded one', async () => {
+    const app = await buildApp()
+    const minted = await body(
+      await app.request(LINKS, minting({ name: 'Freshly minted', role: 'write', scope: projectScope })),
+    )
+    const fresh = String(minted['token'])
+    const document = `${GUARDED_PREFIX}/projects/${IDS.p1}/tasks/${IDS.t1}/tabs/${IDS.tab1}`
+    const rename = (): RequestInit => ({
+      method: 'PATCH',
+      headers: linkJson(fresh),
+      body: JSON.stringify({ name: 'Renamed by the new client' }),
+    })
+    expect((await app.request(document, rename())).status).toBe(200)
+    const patched = await app.request(`${LINKS}/${fresh}`, patching({ role: 'view' }))
+    expect((await body(patched))['token']).toBe(fresh)
+    expect((await app.request(document, rename())).status).toBe(403)
+  })
+
   it('lets the same token still read after the downgrade, so it is narrowed and not cut', async () => {
     const app = await buildApp()
     await app.request(at(TOKENS.p1Write), patching({ role: 'view' }))
