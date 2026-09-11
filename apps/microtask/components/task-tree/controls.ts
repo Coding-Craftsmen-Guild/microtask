@@ -47,16 +47,17 @@ export const ADMIN_CAPABILITIES: Capabilities = Object.fromEntries(
  *
  * `foldersVisible` is asked separately because `project:read` is gated on **two** targets, and
  * the record answers only the project one: a task scope reads its project and is refused its
- * folders (ADR 0038's amendment). Every folder control, and moving a task between folders, needs
- * the folders to be on screen.
+ * folders (ADR 0038's amendment). The folder controls need no second check — each is decided
+ * against a `folder` target, which the record already refuses wherever the list is refused — but a
+ * task move is decided against the task, and still needs the folders on screen to choose from.
  */
 export function treeControls(can: Capabilities, foldersVisible: boolean): TreeControls {
   return {
     folders: foldersVisible,
-    createFolder: foldersVisible && can['folder:create'],
-    renameFolder: foldersVisible && can['folder:rename'],
-    deleteFolder: foldersVisible && can['folder:delete'],
-    reorderFolders: foldersVisible && can['folder:reorder'],
+    createFolder: can['folder:create'],
+    renameFolder: can['folder:rename'],
+    deleteFolder: can['folder:delete'],
+    reorderFolders: can['folder:reorder'],
     createTask: can['task:create'],
     renameTask: can['task:rename'],
     deleteTask: can['task:delete'],

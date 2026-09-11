@@ -11,7 +11,7 @@
  */
 export function isPermutationOf(current: readonly string[], proposed: readonly string[]): boolean {
   const sent: unknown = proposed
-  if (!Array.isArray(sent) || sent.length !== current.length) return false
+  if (!Array.isArray(sent)) return false
   const remaining = new Set(current)
   for (const id of sent) {
     if (typeof id !== 'string' || !remaining.delete(id)) return false

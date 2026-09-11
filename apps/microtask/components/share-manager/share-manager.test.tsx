@@ -1,6 +1,6 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { BLANK, JANE, P, renderManager, T1 } from './testing/share-fixture'
+import { BLANK, JANE, links, P, renderManager, T1 } from './testing/share-fixture'
 
 const openManager = async (user: ReturnType<typeof renderManager>['user']) => {
   await user.click(screen.getByRole('button', { name: 'Share' }))
@@ -90,6 +90,19 @@ describe('ShareManager', () => {
     expect(actions.list).toHaveBeenCalledTimes(2)
   })
 
+  it('drops a list that arrives after the dialog was closed, rather than holding its tokens', async () => {
+    const { actions, user } = renderManager()
+    let answer: (value: Awaited<ReturnType<typeof actions.list>>) => void = () => undefined
+    actions.list.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
+    actions.list.mockReturnValueOnce(new Promise(() => undefined))
+    await openManager(user)
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    await openManager(user)
+    await act(async () => answer({ ok: true, value: links() }))
+    expect(document.body.innerHTML).not.toContain(JANE)
+    expect(screen.getByText('Loading links…')).toBeTruthy()
+  })
+
   it('does not carry the stale legacy hint that nobody can add tabs', async () => {
     const { user } = renderManager()
     const dialog = await openManager(user)
@@ -118,5 +131,15 @@ describe('ShareManager, from capabilities', () => {
     expect(actions.create).toHaveBeenCalledWith(P, { name: 'Sam', role: 'view', scope: { kind: 'task', projectId: P, taskId: T1 } })
     expect(within(dialog).getByText('Sam')).toBeTruthy()
     expect(within(dialog).queryByRole('button', { name: 'Link options' })).toBeNull()
+  })
+
+  it('shows a create-only holder’s new link once: closing the dialog drops it and its token', async () => {
+    const { user } = renderManager({ controls: { read: false, create: true, update: false, revoke: false } })
+    const dialog = await openManager(user)
+    await user.type(within(dialog).getByRole('textbox', { name: 'Who is this link for?' }), 'Sam{Enter}')
+    await user.click(screen.getByRole('button', { name: 'Done' }))
+    const reopened = await openManager(user)
+    expect(within(reopened).queryByText('Sam')).toBeNull()
+    expect(document.body.innerHTML).not.toContain('tok_NEWNEWNEWNEWNEWNEWNEWNE')
   })
 })

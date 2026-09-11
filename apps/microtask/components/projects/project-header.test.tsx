@@ -34,9 +34,12 @@ describe('ProjectHeader', () => {
     expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
   })
 
-  it('draws Share for a task-scoped manage holder, who may mint but never list', () => {
-    setup(capabilities('manage', { kind: 'task', projectId: P, taskId: T1 }))
-    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy()
+  it('draws Share for a task-scoped manage holder, who may mint but never list', async () => {
+    const share = fakeShareActions()
+    render(<ProjectHeader can={capabilities('manage', { kind: 'task', projectId: P, taskId: T1 })} model={projectPageModel(fixtureProject())} onRename={vi.fn()} share={share} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Share' }))
+    expect(share.list).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Add link' })).toBeTruthy()
   })
 
   it('says "No tasks yet" for a project with no checklist items', () => {

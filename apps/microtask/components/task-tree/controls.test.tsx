@@ -27,6 +27,8 @@ describe('linkTreeControls', () => {
     expect(controls.createFolder).toBe(false)
     expect(controls.createTask).toBe(false)
     expect(controls.reorderTasks).toBe(false)
+    expect(controls.moveTask).toBe(false)
+    expect(controls.renameFolder).toBe(false)
   })
 
   it('lets a project-scoped write holder create and rename, but not delete, move or reorder', () => {
