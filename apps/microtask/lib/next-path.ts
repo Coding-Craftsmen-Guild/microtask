@@ -1,3 +1,5 @@
+import { LOGIN_PATH } from './routes'
+
 const FALLBACK = '/'
 const BASE = 'http://next-path.invalid'
 
@@ -67,5 +69,5 @@ export function safeNextPath(raw: string | null | undefined): string {
  */
 export function loginPathFor(raw: string | null | undefined): string {
   const next = safeNextPath(raw)
-  return next === FALLBACK ? '/login' : `/login?next=${encodeURIComponent(next)}`
+  return next === FALLBACK ? LOGIN_PATH : `${LOGIN_PATH}?next=${encodeURIComponent(next)}`
 }
