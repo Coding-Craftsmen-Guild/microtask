@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DocumentValue } from '@repo/contracts'
 import { Autosave } from './autosave'
+import { leavesPage, LEAVE_QUESTION } from './leave-guard'
 import type { SaveDocument, SaveState } from './save-document'
 
 /** What {@link useAutosave} needs. */
@@ -44,14 +45,23 @@ export interface AutosaveHandle {
 const HELD: ReadonlySet<SaveState> = new Set(['conflict', 'retrying'])
 
 const listen = (autosave: Autosave, editable: boolean): (() => void) => {
+  let released = false
   const hidden = (): void => {
     if (document.visibilityState === 'hidden') void autosave.flush(false)
   }
   const leaving = (event: BeforeUnloadEvent): void => {
     if (!autosave.pending) return
     void autosave.flush(true)
+    if (released) return
     event.preventDefault()
     event.returnValue = ''
+  }
+  const clicked = (event: MouseEvent): void => {
+    if (!autosave.pending || !leavesPage(event, window.location.href)) return
+    released = window.confirm(LEAVE_QUESTION)
+    if (released) return
+    event.preventDefault()
+    event.stopPropagation()
   }
   const keydown = (event: KeyboardEvent): void => {
     if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return
@@ -60,10 +70,12 @@ const listen = (autosave: Autosave, editable: boolean): (() => void) => {
   }
   document.addEventListener('visibilitychange', hidden)
   window.addEventListener('beforeunload', leaving)
+  window.addEventListener('click', clicked, true)
   if (editable) window.addEventListener('keydown', keydown)
   return () => {
     document.removeEventListener('visibilitychange', hidden)
     window.removeEventListener('beforeunload', leaving)
+    window.removeEventListener('click', clicked, true)
     window.removeEventListener('keydown', keydown)
     void autosave.flush(false).finally(() => autosave.dispose())
   }
@@ -93,6 +105,16 @@ const listen = (autosave: Autosave, editable: boolean): (() => void) => {
  * `visibilitychange`, so without it an edit made inside the debounce window is simply dropped.
  * A failed unmount write is not retried — nothing is left on screen to say so — and a tab being
  * deleted calls `markClean` first, so there is nothing pending to resurrect it with.
+ *
+ * **So a link that would take the page elsewhere asks first**, while any edit is pending, the
+ * way `beforeunload` does for a hard navigation (ADR 0016). Next offers no way to refuse its
+ * navigation once it has started, so the question is put before Next sees the click: a
+ * capture-phase `click` listener on `window` runs ahead of React's own dispatch, and asks
+ * `window.confirm` — synchronous, because the click has to be cancelled or let through inside
+ * its own dispatch. Staying cancels the click and stops it there, so neither Next's `<Link>` nor
+ * the browser navigates and the island keeps its edits and its alert. Leaving lets the click
+ * through untouched and keeps this island's `beforeunload` quiet, so a plain same-origin link,
+ * whose hard navigation fires it, is not asked about twice. Which clicks count is `leavesPage`.
  *
  * The instance is created by a `useState` initialiser and never rebuilt, so a parent passing an
  * inline `save` closure cannot restart the loop mid-debounce and write the same edit twice. The

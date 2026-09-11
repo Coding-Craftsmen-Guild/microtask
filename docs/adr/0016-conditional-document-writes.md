@@ -98,6 +98,62 @@ rename of the open tab reloaded it with nobody asking — the edits vanished, th
 other writer's document, and no alert remained — and a save waiting to retry was dropped the same
 way on a switch. The island's `flush()` now answers whether edits are still held (a conflict, or a
 failure waiting on its retry), and those four operations stay on the tab and say so when they are.
-A move and a rename of another tab remount nothing and go ahead. Leaving the page by a link still
-unmounts the island after one write attempt: a Next navigation cannot be refused from inside the
-island, and that path is the gap that remains.
+A move and a rename of another tab remount nothing and go ahead. Leaving the page by a link was the
+gap that remained, because a Next navigation cannot be refused once it has started; an in-app link
+now asks first, and Back and Forward are what is left — see the next amendment.
+
+## Amended · 2026-09-11 — an in-app link asks before it leaves held edits
+
+Reproduced running the app, 2026-09-11: with a tab in conflict, or with a failed save waiting
+on its retry, *← Back to project* unmounted the island after its one unmount write, and the edits
+went with it. A Next `<Link>` is a soft navigation, so the browser fires no `beforeunload` and its
+unsaved-changes prompt never appears; and the App Router has no navigation-blocking API to ask
+instead. The app being replaced had no such path — every navigation in it was a page load, so
+`beforeunload` covered leaving by a link (parity feature 37).
+
+**Decision.** While its loop has anything pending — the same condition the `beforeunload` prompt
+uses (ADR 0028) — the island listens for `click` on `window` in the **capture** phase, which runs
+before React dispatches the click to any `<Link>`, and asks `window.confirm`. It asks only about a
+click that would take the page to another page of this app: a plain left-click not already
+cancelled, on a link that opens in this browser tab, to this origin, at a different path
+(`components/editor/leave-guard.ts`). *Stay* cancels the click and stops it propagating, so Next
+never sees it and the browser never follows the `href`: the edits, the conflict alert and the
+retry timer are all where they were. *Leave* lets the same click through untouched, so the
+navigation that happens is exactly the one the link describes; the unmount write still runs once,
+and this island's own `beforeunload` stays quiet afterwards, because a plain same-origin `<a>` —
+the brand bar's lockup is one — is a hard navigation that fires it, and would ask a second time.
+
+**Why a synchronous prompt on a capture listener.** The click has to be cancelled or allowed
+inside its own dispatch, before Next's handler runs; after that the navigation is Next's. A
+listener that belongs to the island guards every link on the page — the ones the island never
+sees, in the page, the layout, `packages/ui` and whatever the `/s/*` pages render — with no link
+knowing about it.
+
+- `onNavigate` on `<Link>`, which Next 16 adds, can cancel, but it is per link: every link on
+  every page that can hold an island would need wiring, and a plain `<a>` has no such prop.
+- An in-app confirm dialog cannot answer inside the dispatch. It would cancel every click and
+  replay the choice with `router.push(href)`, which re-implements what a link means — `replace`,
+  `scroll`, a hard navigation — and gets it subtly wrong.
+- The Navigation API's `navigate` event, and wrapping `history.pushState`, both hear about Next's
+  navigation after Next has committed the new route: too late to refuse it.
+- Asking only while edits are *held* (conflict or retrying) would stay silent inside the debounce
+  window, where the unmount write usually lands but is lost unseen when it does not. One condition
+  for both ways of leaving is also the one a user can predict.
+
+**What it costs, and what is still open.**
+
+- `window.confirm` is the browser's dialog, unstyled, and it blocks the page while open. It is the
+  same kind of question the user already gets from `beforeunload` for a hard navigation.
+- **Back and Forward are not asked about.** Next answers `popstate` with a soft navigation, and a
+  `popstate` cannot be refused: the address has already changed. Refusing it would mean swallowing
+  Next's own handler and replaying the traversal the other way, which needs a direction the event
+  does not carry. So Back from a tab in conflict still leaves after one write attempt — a
+  regression from the app being replaced, where Back was a page load and `beforeunload` asked.
+- A navigation the **server** starts is not a click on a link and is not asked about: a Server
+  Action's redirect, such as a 401 answered with `/login`, or *Sign out*, which is a form posting an
+  action. The tab writes that would remount the island are refused while it holds edits (the
+  amendment above), but a move, a rename of another tab and every share-manager call still go
+  ahead, and any of them can come back as that redirect.
+- `components/editor/leaving-by-link.test.tsx` drives the real island into a conflict and a retry,
+  and clicks a real `next/link` `<Link>` whose click unmounts the page as Next's navigation does:
+  declined, the island is still mounted with the typed edit and its alert; clean, nothing asks.
