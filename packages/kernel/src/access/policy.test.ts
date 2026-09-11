@@ -28,13 +28,20 @@ const FOLDER: Target = { kind: 'folder', projectId: P }
 const TASK: Target = { kind: 'task', projectId: P, taskId: T }
 const TAB: Target = { kind: 'tab', projectId: P, taskId: T }
 
+const GROUP_ACTIONS: readonly Action[] = ['task:create', 'task:reorder']
+
 const targetFor = (action: Action): Target => {
   if (action.startsWith('workspace:')) return WORKSPACE
-  if (action === 'task:create' || action.startsWith('folder:')) return PROJECT
+  if (GROUP_ACTIONS.includes(action) || action.startsWith('folder:')) return PROJECT
   if (action === 'tab:create') return TASK
   if (action.startsWith('tab:')) return TAB
   if (action.startsWith('task:')) return TASK
   return PROJECT
+}
+
+const reachableByTaskScope = (action: Action): boolean => {
+  const { kind } = targetFor(action)
+  return kind === 'task' || kind === 'tab' || action === 'project:read'
 }
 
 const VIEW: readonly Action[] = ['project:read', 'task:read']
@@ -58,6 +65,7 @@ const MANAGE: readonly Action[] = [
   'folder:reorder',
   'task:delete',
   'task:move',
+  'task:reorder',
   'tab:delete',
   'tab:reorder',
   'share:read',
@@ -76,12 +84,30 @@ describe('can — admin', () => {
   })
 })
 
-describe('can — the full role x action matrix', () => {
+describe('can — every action is named once', () => {
+  it('names task:reorder beside its two siblings, so reordering is never asked as a move', () => {
+    expect(ACTIONS.filter((action) => action.endsWith(':reorder'))).toEqual([
+      'folder:reorder',
+      'task:reorder',
+      'tab:reorder',
+    ])
+  })
+})
+
+describe('can — the full role x action matrix, for both scopes', () => {
   for (const role of ROLES) {
     it(`grants a project-scoped ${role} link exactly its listed actions`, () => {
       for (const action of ACTIONS) {
         expect({ action, allowed: can(projectLink(role), action, targetFor(action)) })
           .toEqual({ action, allowed: ALLOWED[role].includes(action) })
+      }
+    })
+
+    it(`grants a task-scoped ${role} link only the listed actions its scope reaches`, () => {
+      for (const action of ACTIONS) {
+        const allowed = ALLOWED[role].includes(action) && reachableByTaskScope(action)
+        expect({ action, allowed: can(taskLink(role), action, targetFor(action)) })
+          .toEqual({ action, allowed })
       }
     })
   }

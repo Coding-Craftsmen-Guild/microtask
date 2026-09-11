@@ -25,6 +25,7 @@ const MANAGE = [
   'folder:reorder',
   'task:delete',
   'task:move',
+  'task:reorder',
   'tab:delete',
   'tab:reorder',
   'share:read',

@@ -12,6 +12,7 @@ export const ACTIONS = [
   'task:rename',
   'task:delete',
   'task:move',
+  'task:reorder',
   'tab:create',
   'tab:rename',
   'tab:delete',

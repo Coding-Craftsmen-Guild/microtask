@@ -27,16 +27,19 @@ export const createTask =
 /**
  * Renumbers one folder group's tasks into the order given.
  *
- * Asks `task:move`, because the kernel names no `task:reorder` and moving is what reordering
- * does — it changes where a task sits and nothing else about it. Like `folder:reorder`, that
- * puts it at `manage`.
+ * Asks `task:reorder` on the **project**, beside `folder:reorder` and `tab:reorder`. It asked
+ * `task:move` while the kernel named no such action, and that conflated two different
+ * operations: a move changes which folder one task belongs to, and a client holding it can file
+ * work anywhere; a reorder renumbers a group a caller already sees and moves nothing between
+ * folders. Both sit at `manage` today, so the route's answers do not change — what changes is
+ * that granting one later no longer silently grants the other.
  */
 export const reorderTasks =
   (tasks: TaskService): RouteHandler<typeof reorderTasksRoute, ApiEnv> =>
   async (c) => {
     const { projectId } = c.req.valid('param')
     const { folderId, taskIds } = c.req.valid('json')
-    authorize(c, 'task:move', { kind: 'project', projectId })
+    authorize(c, 'task:reorder', { kind: 'project', projectId })
     const group = await tasks.reorder({ product: PRODUCT, projectId }, folderId, taskIds)
     return c.json({ tasks: group }, 200)
   }
