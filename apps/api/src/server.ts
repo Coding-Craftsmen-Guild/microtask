@@ -2,6 +2,7 @@ import process from 'node:process'
 import { serve } from '@hono/node-server'
 import { createApp } from './app.js'
 import { readConfig } from './config.js'
+import { onStopSignal } from './lifecycle.js'
 import { buildRuntimeDeps, warmTokenIndex } from './runtime.js'
 
 const WEAK_PASSWORD = 8
@@ -25,6 +26,11 @@ const WEAK_PASSWORD = 8
  *
  * A short admin password warns rather than refuses: the app being replaced starts on one, and
  * turning that into a hard failure would lock out a deployment that works today.
+ *
+ * `onStopSignal` is installed here and nowhere else, because this is the file that owns the
+ * listening socket. Without it `docker stop` waited out its grace period and SIGKILLed, which can
+ * land inside a write window (ADR 0006); the stop it installs drains the server and exits 0, and
+ * says so in the log, the way the app being replaced did.
  */
 export async function main(): Promise<void> {
   const config = readConfig(process.env)
@@ -33,7 +39,7 @@ export async function main(): Promise<void> {
   }
   const deps = buildRuntimeDeps(config)
   const shareTokensIndexed = await warmTokenIndex(deps)
-  serve({ fetch: createApp(deps).fetch, port: config.port }, (info) => {
+  const server = serve({ fetch: createApp(deps).fetch, port: config.port }, (info) => {
     console.log(
       JSON.stringify({
         event: 'api.listening',
@@ -42,6 +48,10 @@ export async function main(): Promise<void> {
         shareTokensIndexed,
       }),
     )
+  })
+  onStopSignal(server, (code) => {
+    console.log(JSON.stringify({ event: 'api.stopped', code }))
+    process.exit(code)
   })
 }
 
