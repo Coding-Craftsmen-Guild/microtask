@@ -1,0 +1,32 @@
+{
+  "name": "api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "start": "node dist/server.js",
+    "openapi:emit": "node dist/scripts/emit-openapi.js"
+  },
+  "dependencies": {
+    "@repo/contracts": "workspace:*",
+    "@repo/kernel": "workspace:*",
+    "@repo/microtask-domain": "workspace:*",
+    "@repo/store": "workspace:*",
+    "hono": "4.13.7",
+    "@hono/node-server": "2.1.1",
+    "@hono/zod-openapi": "1.6.3",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@repo/eslint-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "eslint": "catalog:"
+  }
+}
