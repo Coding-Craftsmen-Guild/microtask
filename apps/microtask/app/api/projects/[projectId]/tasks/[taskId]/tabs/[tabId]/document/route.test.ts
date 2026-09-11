@@ -232,11 +232,13 @@ describe('PUT …/document passes the API answer through unchanged in kind', () 
     })
   })
 
-  it('keeps an API 401 a 401', async () => {
-    answer = () => problem(401, 'unknown_principal', 'The bearer is not accepted')
+  it('keeps an API 401 a 401 with its code, telling the admin to sign in again rather than what the API calls its bearer', async () => {
+    answer = () => problem(401, 'unknown_principal', 'The bearer token does not name anyone.')
     const response = await PUT(sameOrigin(), params)
     expect(response.status).toBe(401)
-    expect(await bodyOf(response)).toMatchObject({ code: 'unknown_principal', detail: 'The bearer is not accepted' })
+    const body = await bodyOf(response)
+    expect(body).toMatchObject({ code: 'unknown_principal', instance: API_PATH })
+    expect(body['detail']).toMatch(/^This browser is not signed in as the admin. Sign in again in another tab/)
   })
 
   it('keeps a 413 a 413 carrying maxBytes', async () => {

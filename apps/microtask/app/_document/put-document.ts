@@ -15,7 +15,11 @@ export interface DocumentWrite {
    */
   readonly client: () => Promise<SessionClient | null>
 
-  /** The 401 a request with no such credential gets: its code, and the sentence the island shows. */
+  /**
+   * The 401 a request with no such credential gets: its code, and the sentence the island shows —
+   * which is also what an API 401 says in place of the API's own, since to the person at the
+   * editor a credential the API no longer accepts is the same fact as none.
+   */
   readonly refused: { readonly code: string; readonly detail: string }
 
   /** The tab written, named by the whole path down to it. */
@@ -52,6 +56,6 @@ export async function putDocument(request: Request, write: DocumentWrite): Promi
     const saved = await client.tabs.writeDocument(write.tab, body.document, request.headers.get('if-match') ?? '')
     return Response.json(saved, { status: 200, headers: { 'cache-control': 'no-store' } })
   } catch (error) {
-    return forwardedProblem(error, instance)
+    return forwardedProblem(error, instance, write.refused.detail)
   }
 }

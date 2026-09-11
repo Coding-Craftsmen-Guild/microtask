@@ -53,6 +53,8 @@ const extensionsOf = (error: ApiError): object => ({
   ...(error.in === null ? {} : { in: error.in, errors: error.errors }),
 })
 
+const UNAUTHORIZED = 401
+
 /**
  * The API's refusal, handed back to the browser **unchanged in kind**.
  *
@@ -62,14 +64,21 @@ const extensionsOf = (error: ApiError): object => ({
  * A 413 keeps `maxBytes` and a 422 keeps `in` and `errors`, read back off the `ApiError` the
  * client built from the API's document.
  *
+ * A 401 keeps its status and code but not its sentence, which is written for an operator — "The
+ * bearer token does not name anyone." — and is shown by the island under the editor. It gets
+ * `unauthorised` instead, the route's own sentence for a credential that names nobody: sign in
+ * again, for an admin whose session lapsed; the link is gone, for a visitor whose link was
+ * revoked. The per-cause codes stay for a log, as `lib/problem.ts` keeps them.
+ *
  * Anything that is not an `ApiError` — the API unreachable, or a success body the contract
  * refused — is a 503. Never a 500, which would claim this app broke, and never a 200, which
  * would claim the tab was saved.
  */
-export function forwardedProblem(error: unknown, instance: string): Response {
+export function forwardedProblem(error: unknown, instance: string, unauthorised: string): Response {
   if (!(error instanceof ApiError)) {
     return problemResponse({ status: 503, code: 'service_unavailable', detail: SERVICE_UNAVAILABLE, instance })
   }
-  const fields = { status: error.status, code: error.code, detail: error.detail, instance: error.instance }
+  const detail = error.status === UNAUTHORIZED ? unauthorised : error.detail
+  const fields = { status: error.status, code: error.code, detail, instance: error.instance }
   return problemResponse(fields, extensionsOf(error))
 }

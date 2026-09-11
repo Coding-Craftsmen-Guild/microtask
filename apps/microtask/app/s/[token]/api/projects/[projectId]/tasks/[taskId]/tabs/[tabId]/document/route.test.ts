@@ -189,9 +189,18 @@ describe('PUT /s/<token>/api/…/document passes the API answer through unchange
     expect(await bodyOf(response)).toMatchObject({ code: 'conflict', instance: API_PATH })
   })
 
-  it('keeps the 401 a revoked link gets a 401', async () => {
-    answer = () => problem(401, 'unknown_principal')
-    expect((await put()).status).toBe(401)
+  it('keeps the 401 a revoked link gets a 401, and says the link is gone rather than what the API calls its bearer', async () => {
+    answer = () => problem(401, 'unknown_principal', { detail: 'The bearer token does not name anyone.' })
+    const response = await put()
+    expect(response.status).toBe(401)
+    const body = await bodyOf(response)
+    expect(body).toMatchObject({ code: 'unknown_principal', instance: API_PATH })
+    expect(body['detail']).toMatch(/^This share link is no longer available. This tab keeps its edits until you leave it/)
+  })
+
+  it('keeps the sentence of every refusal that is not a 401 the API’s own', async () => {
+    answer = () => problem(403, 'forbidden', { detail: 'Not permitted: tab:write' })
+    expect(await bodyOf(await put())).toMatchObject({ status: 403, detail: 'Not permitted: tab:write' })
   })
 
   it('keeps the 403 a view link gets a 403', async () => {
