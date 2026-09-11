@@ -32,7 +32,7 @@ front:
 | --- | --- |
 | `POST /api/import/upload` | 1 MB cap; one file per request, bounded client concurrency |
 | `GET /api/export/…` | an action cannot return a `Content-Disposition` response |
-| `POST /api/tabs/:tabId/document` | nothing can dispatch an action on unload |
+| `PUT /api/projects/:projectId/tasks/:taskId/tabs/:tabId/document` (corrected — see the amendment below) | nothing can dispatch an action on unload |
 
 `serverActions.bodySizeLimit` stays at its default. Server Actions keep the small structural
 mutations — rename, create, delete, reorder, and "confirm this staged import".
@@ -58,3 +58,13 @@ per-file error reporting.
 
 **Everything through route handlers, no Server Actions.** Consistent and boring. Rejected — actions
 are a genuinely good fit for the small mutations, which are the overwhelming majority.
+
+## Amended · 2026-09-11 — the document handler's method and path
+
+The table named the autosave handler `POST /api/tabs/:tabId/document`. What was built, and run
+against the real API on 2026-09-11, is `PUT /api/projects/:projectId/tasks/:taskId/tabs/:tabId/document`
+(`apps/microtask/app/api/projects/[projectId]/tasks/[taskId]/tabs/[tabId]/document/route.ts`). It is
+a `PUT` because it forwards the API's own conditional `PUT` of a tab's document with its `If-Match`
+unchanged (ADR 0016), and it carries the whole path because the API addresses a tab through its
+project and task and the handler forwards the segments rather than looking them up. The reason it
+is a route handler and not an action is unchanged.

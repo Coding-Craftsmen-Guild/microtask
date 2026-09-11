@@ -71,6 +71,7 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0011](0011-task-is-default-share-scope.md) | "No PATCH can widen a link" — precisely, no PATCH can change its **scope**; role is changeable (ADR 0035) |
 | [0012](0012-dual-credential-api.md) | "No second secret is needed" — the Next app mints a `{kind:'link'}` cookie the API never signs, so it needs `COOKIE_SECRET` (ADR 0032). And a bare `apiForSession()` cannot choose between two disjoint cookies: it takes the route's audience |
 | [0014](0014-namespace-products-now.md) | `openapi.json` and `/docs` are served at the root, not under `/v1` |
+| [0015](0015-actions-except-bytes.md) | The autosave handler is `PUT /api/projects/:projectId/tasks/:taskId/tabs/:tabId/document`, not `POST /api/tabs/:tabId/document` |
 | [0016](0016-conditional-document-writes.md) | `If-Match` makes a client with two writes in flight on one tab conflict with itself, so writes are serialised; and a 409 cannot auto-reload, because the refused write always carried unsaved edits — nor may a tab switch, create, delete or rename remount the editor over edits it is holding |
 | [0022](0022-hostname-continuity-gated-cutover.md) | The continuity redirect is a **308**, and it has two destinations by share scope (ADR 0037) |
 | [0023](0023-typescript-strict-shared-config.md) | `noUncheckedIndexedAccess` was predicted to be the irritating flag; it cost **zero** across 22 vendored files, `exactOptionalPropertyTypes` cost **2** |
