@@ -15,14 +15,16 @@ const closeIdle = (server: ServerType): void => {
  * Rejects on a second call, because `close` on a server that is already closed is an error and
  * reporting a clean stop twice would hide that.
  *
- * Idle connections are closed explicitly rather than waited on, and swept for as long as the
- * drain lasts. The Next app reaches this API through `fetch`, which pools keep-alive connections,
- * so a socket sitting idle in that pool has no request to finish and nothing to wait for —
- * measured, `close` alone waits on it until `docker stop` gives up and sends SIGKILL, which is
- * the outcome this whole path exists to avoid. It has to be a sweep rather than one call, because
- * the socket carrying the last in-flight request goes idle *after* the drain begins. A connection
- * mid-request is never touched: `closeIdleConnections` skips it, and Node ends it after its
- * response. The sweep is unref'd, so it can never be the thing keeping this process alive.
+ * Idle connections are swept for as long as the drain lasts, rather than waited on. The Next app
+ * reaches this API through `fetch`, which pools keep-alive connections, and the socket carrying
+ * the last in-flight request goes idle *after* the drain begins: `close` alone then waits on a
+ * connection that has nothing left to finish, which is what `docker stop` eventually answers with
+ * SIGKILL. Measured — without the sweep the drain never resolves and the process never exits. It
+ * is a sweep rather than a single call for that reason; one call at the start would be redundant,
+ * since `close` already closes whatever is idle by then. A connection mid-request is never
+ * touched: `closeIdleConnections` skips it, and Node ends it after its response. The sweep is
+ * unref'd, so it can never be the thing keeping this process alive, and an idle socket is closed
+ * within one interval of going idle.
  *
  * **This is the whole of what "in-flight work finished" can mean here, and it is enough.**
  * `QueueLock` (ADR 0006) is a private promise chain with no way to observe it draining, and this
@@ -42,16 +44,17 @@ export function drainServer(server: ServerType): Promise<void> {
       if (error) reject(error)
       else resolve()
     })
-    closeIdle(server)
   })
 }
 
 /**
  * Installs the graceful stop on `SIGTERM` and `SIGINT`, and hands back the removal of it.
  *
- * Without it `docker stop` waits out its grace period and then SIGKILLs, which can land inside a
- * write window — the case the write ordering and the per-process lock exist to survive rather
- * than to invite (ADR 0006). The app being replaced closed its server and exited 0; so does this.
+ * Without it `docker stop` kills the process where it stands — measured at exit 143 in a second
+ * under `init: true`, or exit 137 after the full grace period with node as PID 1 — which can land
+ * inside a write window, the case the write ordering and the per-process lock exist to survive
+ * rather than to invite (ADR 0006). The app being replaced closed its server and exited 0; so
+ * does this.
  *
  * The first signal wins and the rest are ignored, so the SIGTERM Docker sends and a SIGINT from a
  * console cannot both close the same server. `exit` is a parameter rather than `process.exit`
