@@ -1,7 +1,7 @@
 import * as contracts from '@repo/contracts'
 import { STAMP } from '@repo/microtask-domain/testing'
 import { describe, expect, it } from 'vitest'
-import type { z } from 'zod'
+import { z } from 'zod'
 import { docConfig } from '../http/docs.js'
 import {
   GUARDED_PREFIX,
@@ -131,6 +131,7 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
 const byComponentId = (): Map<string, z.ZodType> => {
   const found = new Map<string, z.ZodType>()
   for (const schema of Object.values(contracts)) {
+    if (!(schema instanceof z.ZodType)) continue
     const id = schema.meta()?.id
     if (typeof id === 'string') found.set(id, schema)
   }

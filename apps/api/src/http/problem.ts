@@ -1,3 +1,5 @@
+import type { ProblemCodeValue } from '@repo/contracts'
+
 /** The media type RFC 7807 defines for a problem document. */
 export const PROBLEM_MEDIA_TYPE = 'application/problem+json'
 
@@ -6,7 +8,15 @@ export interface ProblemInit {
   /** The HTTP status this problem is reported with. */
   readonly status: number
 
-  /** A stable machine-readable name for the failure, matching `AppError.code` where one exists. */
+  /**
+   * A stable machine-readable name for the failure, matching `AppError.code` where one exists.
+   *
+   * A bare string rather than `ProblemCodeValue`, because a domain error carries its own code and
+   * the kernel cannot depend on `@repo/contracts` — the dependency runs the other way, and only
+   * as a devDependency (ADR 0038). What keeps the set closed on this path is a test enumerating
+   * every `AppError` subclass against `PROBLEM_CODES`; what keeps it closed on the status path is
+   * the `ProblemCodeValue` annotation on {@link StatusMeaning}.
+   */
   readonly code: string
 
   /** A human-readable explanation, safe to show a caller. */
@@ -19,12 +29,25 @@ export interface ProblemInit {
 /** Further members merged into the document, such as the `in` and `errors` a 422 carries. */
 export type ProblemExtensions = Readonly<Record<string, unknown>>
 
-interface StatusMeaning {
+/** What one status is reported as: its human-readable title and its stable code. */
+export interface StatusMeaning {
+  /** The human-readable title the status is reported with. */
   readonly title: string
-  readonly code: string
+
+  /** The stable code the status is reported under, drawn from the published closed set. */
+  readonly code: ProblemCodeValue
 }
 
-const MEANINGS: Readonly<Record<number, StatusMeaning>> = {
+/**
+ * What each status this API answers with means, as the one table both halves of a problem
+ * document are read from.
+ *
+ * Exported so the contract test can enumerate it rather than restate it: `ProblemCode` in
+ * `@repo/contracts` is the published closed set, and a code added here that the contract omits
+ * has to fail a test rather than reach a client under a name no app can switch on (ADR 0036).
+ * The `ProblemCodeValue` annotation is the compiler's half of the same check.
+ */
+export const MEANINGS: Readonly<Record<number, StatusMeaning>> = {
   400: { title: 'Bad Request', code: 'bad_request' },
   401: { title: 'Unauthorized', code: 'unauthorized' },
   403: { title: 'Forbidden', code: 'forbidden' },
@@ -39,7 +62,8 @@ const MEANINGS: Readonly<Record<number, StatusMeaning>> = {
   503: { title: 'Service Unavailable', code: 'service_unavailable' },
 }
 
-const UNMAPPED: StatusMeaning = { title: 'Error', code: 'http_error' }
+/** What a status outside {@link MEANINGS} is reported as, which keeps the code set closed. */
+export const UNMAPPED: StatusMeaning = { title: 'Error', code: 'http_error' }
 
 const meaning = (status: number): StatusMeaning => MEANINGS[status] ?? UNMAPPED
 
@@ -52,7 +76,7 @@ export const titleForStatus = (status: number): string => meaning(status).title
  * It agrees with the kernel's `AppError` codes on the statuses they share, so one failure never
  * reaches a client under two different names depending on which branch produced it.
  */
-export const codeForStatus = (status: number): string => meaning(status).code
+export const codeForStatus = (status: number): ProblemCodeValue => meaning(status).code
 
 /**
  * Builds an RFC 7807 error response from scratch.

@@ -1,26 +1,13 @@
 import { Invalid } from '@repo/kernel'
+import { LIMITS, type CountLimitKey, type LimitKey } from '@repo/contracts'
 
-/** How deep a document may nest before a walk stops descending. */
-export const MAX_DOCUMENT_DEPTH = 100
-
-/** The largest a stored document may be, in JSON bytes. */
-export const MAX_DOCUMENT_BYTES = 2_000_000
-
-/** Every collection count this product bounds. Also bounds what a share-link holder can create. */
-export const LIMITS = {
-  nameLength: 80,
-  tabsPerTask: 40,
-  tasksPerProject: 500,
-  foldersPerProject: 100,
-  shareLinksPerProject: 50,
-  projectsPerProduct: 500,
-} as const
-
-/** A bound that can be exceeded. */
-export type LimitKey = keyof typeof LIMITS
-
-/** A bound on a collection. Name length is enforced by truncation, never by `assertWithin`. */
-export type CountLimitKey = Exclude<LimitKey, 'nameLength'>
+export {
+  LIMITS,
+  MAX_DOCUMENT_BYTES,
+  MAX_DOCUMENT_DEPTH,
+  type CountLimitKey,
+  type LimitKey,
+} from '@repo/contracts'
 
 const LABEL: Readonly<Record<LimitKey, string>> = {
   nameLength: 'name length',

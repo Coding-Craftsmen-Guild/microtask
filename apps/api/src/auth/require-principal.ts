@@ -1,18 +1,35 @@
 import type { Context, MiddlewareHandler } from 'hono'
+import type { ProblemCodeValue } from '@repo/contracts'
 import { codeForStatus, problemResponse } from '../http/problem.js'
 import type { ApiEnv } from './env.js'
 import type { PrincipalResolver } from './principal-resolver.js'
 
 const SCHEME = 'bearer'
 
-const DETAILS: Readonly<Record<string, string>> = {
+/**
+ * The three causes this guard can refuse a request for, and what each one tells the caller.
+ *
+ * One 401 per cause rather than a single generic one, because the app acts on the difference:
+ * `unknown_principal` on a share token means the link is gone and the client should be shown the
+ * terminal page, while `no_principal` means this browser holds no credential at all. Exported so
+ * the contract test can enumerate the codes from here instead of transcribing them (ADR 0036).
+ *
+ * This is safe to disclose where the login route's equivalent is not: nothing here sits behind a
+ * password, so naming the missing credential confirms no secret.
+ */
+export const CREDENTIAL_REFUSALS: Readonly<Record<string, string>> = {
   unknown_service: 'This request carried no recognised service key.',
   no_principal: 'This request carried no bearer token.',
   unknown_principal: 'The bearer token does not name anyone.',
 }
 
-const refuse = (c: Context, code: string): Response =>
-  problemResponse({ status: 401, code, detail: DETAILS[code] ?? codeForStatus(401), instance: c.req.path })
+const refuse = (c: Context, code: ProblemCodeValue): Response =>
+  problemResponse({
+    status: 401,
+    code,
+    detail: CREDENTIAL_REFUSALS[code] ?? codeForStatus(401),
+    instance: c.req.path,
+  })
 
 function bearerToken(header: string | undefined): string | null {
   if (header === undefined) return null

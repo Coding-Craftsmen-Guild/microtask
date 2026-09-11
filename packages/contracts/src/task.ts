@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { LIMITS } from './limits.js'
 import { EntityId, EntityName } from './document.js'
 import { Progress } from './progress.js'
 import { Tab } from './tab.js'
@@ -18,7 +19,7 @@ export const TaskEntry = z
 export const TaskDocument = z
   .object({
     id: EntityId,
-    tabs: z.array(Tab).max(40),
+    tabs: z.array(Tab).max(LIMITS.tabsPerTask),
     createdAt: z.string(),
     updatedAt: z.string(),
   })

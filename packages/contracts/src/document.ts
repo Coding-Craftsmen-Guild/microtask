@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { LIMITS } from './limits.js'
 
 /** A ULID-shaped identifier. */
 export const EntityId = z
@@ -17,8 +18,8 @@ export const EntityName = z
   .string()
   .trim()
   .min(1)
-  .max(80)
-  .meta({ id: 'EntityName', description: 'A display name, at most 80 characters' })
+  .max(LIMITS.nameLength)
+  .meta({ id: 'EntityName', description: `A display name, at most ${String(LIMITS.nameLength)} characters` })
 
 /**
  * A Tiptap/ProseMirror document.

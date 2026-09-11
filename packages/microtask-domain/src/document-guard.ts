@@ -1,11 +1,10 @@
 import { Invalid } from '@repo/kernel'
+import { SAFE_HREF_SCHEMES } from '@repo/contracts'
 import { MAX_DOCUMENT_BYTES, MAX_DOCUMENT_DEPTH } from './limits.js'
 import type { DocumentJson } from './entities/document.js'
 
 export { MAX_DOCUMENT_BYTES } from './limits.js'
-
-/** Link schemes a document may reference. */
-export const SAFE_HREF_SCHEMES = ['http', 'https', 'mailto', 'tel'] as const
+export { SAFE_HREF_SCHEMES } from '@repo/contracts'
 
 const BANNED_KEYS = ['__proto__', 'constructor', 'prototype'] as const
 

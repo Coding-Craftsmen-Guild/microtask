@@ -1,4 +1,17 @@
 export { AdminSession, LoginPayload } from './auth.js'
+export { LIMITS, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_DEPTH } from './limits.js'
+export type { CountLimitKey, LimitKey } from './limits.js'
+export { countTasks, emptyDocument, SAFE_HREF_SCHEMES } from './document-facts.js'
+export type { DocumentValue, ProgressValue } from './document-facts.js'
+export {
+  PROBLEM_CODES,
+  Problem,
+  ProblemCode,
+  ProblemTarget,
+  ValidationIssue,
+  ValidationProblem,
+} from './problem.js'
+export type { ProblemCodeValue } from './problem.js'
 export { EntityId, EntityName, DocumentJson, ShareToken } from './document.js'
 export { Progress } from './progress.js'
 export { Tab, TabDocumentSaved } from './tab.js'
