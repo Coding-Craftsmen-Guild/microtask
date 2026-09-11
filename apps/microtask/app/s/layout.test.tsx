@@ -1,10 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-
-const connected = vi.fn(() => Promise.resolve())
-
-vi.mock('next/server', () => ({ connection: () => connected() }))
-
-const { default: LinkSurfaceLayout, metadata } = await import('./layout')
+import { describe, expect, it } from 'vitest'
+import LinkSurfaceLayout, { metadata } from './layout'
 
 describe('the /s/* subtree', () => {
   it('is noindex and nofollow, for every page under it rather than one', () => {
@@ -15,10 +10,8 @@ describe('the /s/* subtree', () => {
     expect(metadata.referrer).toBe('no-referrer')
   })
 
-  it('renders every page under it at request time, so none is served with a shared-cache lifetime', async () => {
-    connected.mockClear()
+  it('passes its page through untouched', () => {
     const children = <p>page</p>
-    expect(await LinkSurfaceLayout({ children })).toBe(children)
-    expect(connected).toHaveBeenCalledTimes(1)
+    expect(LinkSurfaceLayout({ children })).toBe(children)
   })
 })
