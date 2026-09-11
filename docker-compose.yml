@@ -1,44 +1,52 @@
+# CC Guild: the API and Microtask, one image each (ADR 0026). Read README.md "Deploy" first.
+#
+# THIS IS NOT THE CUTOVER, AND IT CANNOT READ PRODUCTION DATA. The API starts on its own, new,
+# empty volume (api-data). The live app's volume holds data/projects/<id>.json, a layout this API
+# cannot read; the only path from that layout to this one is the importer (ADR 0017), which is
+# scheduled last and does not exist yet. Until it does, cutover is blocked: never mount the live
+# volume here and never give this stack the production hostname (ADR 0022). The live volume is the
+# rollback, so nothing in this file may ever write to it.
+#
+# Every secret comes from the environment and has no default: a missing one stops `docker compose`
+# before any container starts. MICROTASK_API_KEY is the one service key, handed to the API as
+# SERVICE_KEYS and to the app as API_KEY, so the two cannot drift apart.
+#
+# The API is internal-only (ADR 0041): `expose`, never `ports`, and no domain. The app reaches it by
+# service name. Neither service publishes a port; Coolify routes by domain (ADR 0026).
+
 services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      DATA_DIR: /data
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set, at least 32 characters}
+      SERVICE_KEYS: microtask=${MICROTASK_API_KEY:?MICROTASK_API_KEY must be set}
+    volumes:
+      - api-data:/data
+    expose:
+      - '4321'
+
   microtask:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: apps/microtask/Dockerfile
     restart: unless-stopped
+    init: true
+    depends_on:
+      api:
+        condition: service_healthy
     environment:
-      # Required — the app refuses to start without it.
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
-      - PORT=3000
-      - DATA_DIR=/data
-    volumes:
-      # Project JSON lives here; keep it out of the image so deploys don't wipe it.
-      - microtask-data:/data
-    # No SERVICE_FQDN_* var on purpose: the domain is created and pointed at
-    # this service by hand, so Coolify must not generate one. The container
-    # only listens on the internal network.
+      API_BASE_URL: http://api:4321
+      API_KEY: ${MICROTASK_API_KEY:?MICROTASK_API_KEY must be set}
+      COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET must be set, at least 32 bytes}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?NEXT_SERVER_ACTIONS_ENCRYPTION_KEY must be set, a base64 AES-256 key kept stable across deploys}
     expose:
       - '3000'
-    # If the proxy that terminates TLS runs outside Docker, publish the port
-    # for it instead (keep it on loopback):
-    # ports:
-    #   - '127.0.0.1:4321:3000'
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
 
 volumes:
-  microtask-data:
-# If your proxy lives in another Docker network, attach this service to it so it
-# can be reached by service name, then set that domain to point here:
-# networks:
-#   default:
-#     name: coolify
-#     external: true
+  api-data:
