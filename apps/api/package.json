@@ -29,6 +29,7 @@
     "typescript": "catalog:",
     "vitest": "catalog:",
     "eslint": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "yaml": "2.9.0"
   }
 }

@@ -236,6 +236,9 @@ importers:
       vitest:
         specifier: 'catalog:'
         version: 5.0.0(@types/node@22.20.2)(happy-dom@20.14.3)(vite@8.2.2(@types/node@22.20.2)(jiti@2.7.0)(yaml@2.9.0))
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   apps/microtask:
     dependencies:
