@@ -195,8 +195,12 @@ export, no other comments.
 Seven components (see File structure). `relativeTime` is a **pure function** in `src/lib/time.ts`
 taking `(from, now)` — never reading the clock itself.
 
-- [ ] `relativeTime` is tested at every boundary: `<1min` → "just now", `<60min` → "Nm ago",
-      `<24h` → "Nh ago", `<30d` → "Nd ago", else a locale date. Exactly legacy's thresholds.
+- [x] `relativeTime` is tested at every boundary. **Corrected after the fact:** this plan first wrote
+      the thresholds as `<1min` / `<60min` / `<24h` / `<30d` and called them "exactly legacy's",
+      which is truncation. `apps/legacy/public/js/util.js:62-72` uses `Math.round` at every step, so
+      each boundary sits at the half unit — 30s reads "1m ago", 59.5min reads "1h ago", 23.5h reads
+      "1d ago", 29.5d reads as a date. The implementer built legacy's behaviour and said so; the
+      plan was wrong, not the code. A falsy input yields `''`, also matching legacy.
 - [ ] `progress-bar` renders "No tasks yet" at `total === 0`, switches to the green gradient when
       `done === total && total > 0`, and animates from width 0 on first paint. Assert the class
       strings are **complete literals**, not interpolated — Tailwind's scanner reads source as text

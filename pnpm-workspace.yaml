@@ -67,11 +67,15 @@ catalog:
   '@tiptap/extension-list': 3.31.3
   '@tiptap/extensions': 3.31.3
 
-  # Component tests for apps/microtask. happy-dom is one of vitest's optional
-  # environment peers; the two @testing-library packages are pinned here so
-  # this app and any later app agree on one copy of each. Catalogued only - no
-  # test config is wired to them yet.
+  # Component tests. happy-dom is one of vitest's optional environment peers;
+  # the @testing-library packages are pinned here so every app and packages/ui
+  # agree on one copy of each. @testing-library/dom is a NON-optional peer of
+  # both the other two (react wants ^10.0.0, user-event wants >=7.21.4), so it
+  # is a catalogue entry rather than a literal in one package: with
+  # strictPeerDependencies armed and autoInstallPeers off, whoever declares a
+  # testing-library dependency must declare it too, and they must agree.
   happy-dom: 20.14.3
+  '@testing-library/dom': 10.4.1
   '@testing-library/react': 16.3.3
   '@testing-library/user-event': 14.6.7
 

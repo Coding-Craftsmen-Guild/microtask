@@ -7,8 +7,11 @@
     "**/*.css"
   ],
   "exports": {
+    "./components/*.test": null,
     "./components/*": "./src/components/*.tsx",
+    "./shell/*.test": null,
     "./shell/*": "./src/shell/*.tsx",
+    "./lib/*.test": null,
     "./lib/*": "./src/lib/*.ts",
     "./globals.css": "./src/styles/globals.css"
   },
@@ -35,7 +38,7 @@
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
-    "@testing-library/dom": "10.4.1",
+    "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
