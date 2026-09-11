@@ -203,3 +203,18 @@ Note for a future ESLint upgrade: `linebreak-style` is one of the formatting rul
 ESLint 8.53. It still functions in the pinned 9.39.5, and if a later major removes it the gate fails
 loudly on an unknown rule rather than silently ceasing to check — which is the acceptable direction.
 `.gitattributes` is the durable half.
+
+## The one environment reader stays Edge-safe · 2026-09-11
+
+`n/no-process-env` makes `apps/microtask/lib/env.ts` the only module that reads `process.env`, and
+`instrumentation.ts` imports it so the environment is validated at boot. `next build` compiles
+`register` for the Edge runtime as well as for Node, and `lib/env.ts` imported `node:process`,
+which that bundle cannot load: a build warning on every build, measured on 16.3.4. Next's own
+remedy — branch `register` on `process.env.NEXT_RUNTIME` — would put a second `process.env` read in
+`instrumentation.ts` and break the single-reader rule this ADR enforces.
+
+It needed neither. `process.env` is defined in the Edge runtime as a global, so `lib/env.ts` reads
+the global `process` rather than importing it, and measures the secret with `TextEncoder` rather
+than `Buffer`. The build is clean, and `lib/env.test.ts` fails if either module in that bundle
+imports a Node built-in or calls `Buffer` again. The generalisation: **a module `instrumentation.ts`
+reaches is compiled for two runtimes**, so it may use only what both provide.

@@ -41,7 +41,9 @@ Flush-on-unload becomes a **best-effort optimisation for small documents**, neve
 ## Consequences
 
 - Autosave's guarantee is stated honestly: edits are durable within ~700 ms of typing, plus a normal
-  flush when the tab is hidden. It is not "everything is saved on close regardless".
+  flush when the tab is hidden — while the server accepts the writes; a refusal a retry cannot
+  change stops the loop (corrected 2026-09-11, see the amendment below). It is not "everything is
+  saved on close regardless".
 - The 50 KB threshold is a real branch in the client and needs a test at the boundary, or it will rot
   into an unconditional keepalive call.
 - Measuring the body means serializing before deciding, on the unload path. Acceptable — it is one
@@ -65,3 +67,26 @@ of scope for this restructure; ADR-able on its own if concurrent editing becomes
 **Shorten the debounce to ~150 ms and drop unload flushing entirely.** Simpler and more honest, at
 the cost of roughly five times the write traffic per keystroke burst. Rejected, but it is the fallback
 if the size branch proves troublesome.
+
+## Amended · 2026-09-11 — the guarantee holds only while the server accepts the writes
+
+The consequence above — edits durable within ~700 ms, plus a normal flush when the tab is hidden —
+was stated as though every write the loop sends can eventually land. One class of answer cannot: a
+refusal that sending the same write again will only repeat. ADR 0016's last amendment records the
+rule and the reason; what it changes here, on the unload paths this ADR governs:
+
+- **What is retried on a timer is a transport failure, 408, 429 or 5xx, and nothing else.** A 409
+  never was. Any other refusal — a 401 for a revoked link or a lapsed admin session, a 403 for a
+  link downgraded to view, a 404, a 413, a 422 — stops the loop in its `refused` state until the
+  user chooses *Try again*.
+- **In that state neither flush sends anything.** `visibilitychange → hidden` and the `beforeunload`
+  keepalive flush both skip a held loop, as they already skipped a conflict: each would carry the
+  same body under the same credential and earn the same refusal, and an unload flush is the one
+  request nobody sees answered.
+- **So the unsaved-changes prompt is the only guard left on unload**, exactly as it already was for
+  a body over `KEEPALIVE_MAX_BYTES` (decision 4). It still appears: a refused write stays dirty, so
+  `pending` holds and `beforeunload` asks. The page has also said, beside *Not saved*, that the
+  edits stay in the tab until the page is left and should be copied out.
+
+Decision 5 is unchanged and now has a sibling: an unload flush must not be retried into a stale
+write, and a refused write must not be retried at all on the way out.

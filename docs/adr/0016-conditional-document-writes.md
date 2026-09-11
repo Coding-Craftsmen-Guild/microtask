@@ -31,7 +31,9 @@ latest version."*, an automatic reload; the amendment below says why that could 
 - Concurrent editing between an admin and a share-link holder degrades to a detectable conflict
   instead of silent loss.
 - The keepalive flush can now legitimately fail. That is correct — a late write *should* lose — and
-  the retry logic must not treat 409 as retryable, or it will loop.
+  the retry logic must not treat 409 as retryable, or it will loop. Nor any other refusal a retry
+  cannot change: only a transport failure, 408, 429 and 5xx are retried on a timer (corrected
+  2026-09-11 — see "a refusal no retry can change stops the loop" below).
 - Every document write carries the version it is based on, so the editor must track the last
   `updatedAt` it received, including after a 409 reload.
 - **The client never has two writes in flight on one tab** (recorded 2026-09-11 — see the
@@ -96,8 +98,9 @@ neighbour) or renames the open one (the rename moves its stamp). Each of those a
 flush first, but a flush settles whether or not its write landed. Measured: in the conflict state a
 rename of the open tab reloaded it with nobody asking — the edits vanished, the editor showed the
 other writer's document, and no alert remained — and a save waiting to retry was dropped the same
-way on a switch. The island's `flush()` now answers whether edits are still held (a conflict, or a
-failure waiting on its retry), and those four operations stay on the tab and say so when they are.
+way on a switch. The island's `flush()` now answers whether edits are still held (a conflict, a
+refusal the loop has stopped on, or a failure waiting on its retry), and those four operations
+stay on the tab and say so when they are.
 A move and a rename of another tab remount nothing and go ahead. Leaving the page by a link was the
 gap that remained, because a Next navigation cannot be refused once it has started; an in-app link
 now asks first, and Back and Forward are what is left — see the next amendment.
@@ -144,10 +147,9 @@ knowing about it.
 
 - `window.confirm` is the browser's dialog, unstyled, and it blocks the page while open. It is the
   same kind of question the user already gets from `beforeunload` for a hard navigation.
-- **Back and Forward are not asked about.** Next answers `popstate` with a soft navigation, and a
-  `popstate` cannot be refused: the address has already changed. Refusing it would mean swallowing
-  Next's own handler and replaying the traversal the other way, which needs a direction the event
-  does not carry. So Back from a tab in conflict still leaves after one write attempt — a
+- **Back and Forward are not asked about**, and after the evaluation recorded at the end of this
+  ADR they stay that way: no approach under the App Router is reliable enough to build. So Back
+  from a tab in conflict, or stopped on a refusal, still leaves after one write attempt — a
   regression from the app being replaced, where Back was a page load and `beforeunload` asked.
 - A navigation the **server** starts is not a click on a link and is not asked about: a Server
   Action's redirect, such as a 401 answered with `/login`, or *Sign out*, which is a form posting an
@@ -157,3 +159,107 @@ knowing about it.
 - `components/editor/leaving-by-link.test.tsx` drives the real island into a conflict and a retry,
   and clicks a real `next/link` `<Link>` whose click unmounts the page as Next's navigation does:
   declined, the island is still mounted with the typed edit and its alert; clean, nothing asks.
+
+## Amended · 2026-09-11 — a refusal no retry can change stops the loop, and says so
+
+Found running the app, 2026-09-11: a link page left open after its link was revoked retried its
+save every four seconds for as long as it stayed open — a hundred console 401s in a few minutes —
+while its indicator read *"Not saved — retrying…"* beside *"… cannot be saved through this link"*.
+Both halves were true, and together they were a lie. The loop retried every refusal that was not
+a 409, and a 401 for a revoked token, like a 403 for a link downgraded to view, is refused again
+every time it is sent. The app being replaced did the same (parity feature 34, UX row 200); it is
+not reproduced.
+
+**Decision.** A save's answer is sorted by status into what a retry can outlast and what it cannot.
+
+- **Retried on the 4-second timer:** a request that never arrived (the `fetch` rejects), 408, 429
+  and any 5xx — including the 503 a document route answers when it cannot reach the API. The same
+  write can land once the server recovers, and nothing about it needs the user.
+- **Never retried:** 409, as before — only a reload resolves it.
+- **Stopped, and retried only when asked:** every other refusal — 400, 401, 403, 404, 413, 422.
+  The loop enters a state of its own, `refused` (`components/editor/autosave.ts`). It records
+  further edits and writes none of them: not on the timer, on `visibilitychange`, on
+  `Ctrl/Cmd+S` or on unload. The indicator says *"Not saved"*, never *"retrying"*, and an alert
+  beside it gives the reason and where the edits are — *"Your edits stay in this tab until you
+  leave the page, so copy out anything you need."* — with a **Try again** button, the only thing
+  that sends the held edits again. A retry that is refused again stops again; one that lands says
+  *Saved*.
+
+**Why an explicit retry, rather than none.** A 401 on the **admin** surface is recoverable: the
+session lapsed, and signing in again in another browser tab restores `mt_admin`. The loop cannot
+know that happened, and retrying blind to find out is exactly the loop being removed; the user
+knows, so they are told to sign in again and then choose *Try again*. The same holds for a 413
+(shorten the tab, then retry) and for a link an admin upgrades back. A revoked link never
+recovers, and there the button costs one refused request per press, which the user chose.
+
+**A refused write is held like a conflict**, so everything the amendments above built for held
+edits applies. The island's `flush()` answers `false`, so a tab switch, a create, a delete or a
+rename of the open tab stays put and says why; an in-app link asks before it leaves;
+`beforeunload` asks for the browser's prompt (ADR 0028). Back and Forward are still not asked
+about — see the evaluation below.
+
+**The reason is the surface's plain sentence, never the API's** (found in the same run). An admin
+downgrading a write link to view under an open page left the visitor reading *"Not permitted:
+tab:write"* under the editor: the API's `detail`, forwarded verbatim by the document route. Both
+document routes, and every Server Action on both surfaces, now pick the sentence from the status
+and the surface (`lib/refusal.ts`) and keep the status and code for the island and for a log. A
+downgraded link reads *"This link is read-only now, so this tab cannot be saved through it."*,
+which is what legacy's *"This link is read-only"* said; a revoked one reads that the share link is
+no longer available; an admin whose session lapsed is told to sign in again in another browser tab
+and then choose *Try again*. The API's sentence stays in its problem document, for whoever reads
+the API. Strictly this is a decision about every refusal the app shows, not only a document
+write's, and it would sit better in an ADR of its own; it is recorded here because the save
+indicator is where it was found and where most of it shows.
+
+**What it costs.** Legacy toasted the API's domain sentences — *"Too many tabs"*, *"A task must
+keep at least one tab"* — and those were plain. They now read as one sentence per status — for a
+422, *"Microtask did not accept that. A name may be empty, or a limit reached."* — because the API
+gives a domain refusal and a malformed request the same status and code, and telling them apart by
+the API's wording would be the coupling this removes. The controls that can hit a limit already
+stop at it where the page knows the count (`+` at `LIMITS.tabsPerTask`, *Delete tab* on the last
+tab), so the generic sentence is what a race or a stale page shows.
+
+`components/tabs/save-tab.test.tsx` pins the sort by status. `components/editor/autosave.test.tsx`
+pins that `refused` sends nothing more for ten minutes, keeps every edit, and writes only on
+`retry()`. `app/s/[token]/refused-save.test.tsx` drives the real link document route, the real
+`saveTabDocument` and the real island through a revoked link, a downgraded one and an API outage.
+
+## Evaluated · 2026-09-11 — Back and Forward, and why they are still not asked about
+
+Parity feature 37 asked before any navigation left unsaved edits, because every navigation in the
+app being replaced was a page load and `beforeunload` covered it. Under the App Router, Back and
+Forward are soft navigations: Next listens for `popstate` on `window` and restores the route. Three
+approaches were evaluated against Next 16.3.4's router (`next/dist/client/components/app-router.js`).
+
+1. **Refuse the `popstate`.** It cannot be refused: by the time it fires the browser has already
+   moved to the other entry. Undoing that means stopping Next's listener — a capture listener on
+   `window` does run before it at the target — and then traversing back the other way, which needs
+   the direction and the distance. A `popstate` carries neither, and a long press on Back can jump
+   several entries at once.
+2. **A guard entry.** Push a duplicate of the current entry while edits are held, so that Back
+   lands on the same URL, where the page can ask and then either push the guard again (stay) or
+   step back once more (leave). Next 16 does integrate a user `pushState` — it copies its own
+   `__NA` and route tree into the new entry's state — so the router would not reload. But the guard
+   is a history entry, and a history entry cannot be removed: it truncates any Forward history the
+   user had, and it outlives the edits and the island, leaving a Back press that visibly does
+   nothing once the edits are saved or the page has been left by a link. The task page's `?tab=`
+   `replaceState` rewrites whichever entry is current, so the guard and the entry under it drift
+   apart; and a multi-entry jump passes it by. It trades a rare loss for a common, visible oddity in
+   everyone's history, and it depends on Next keeping a private state shape.
+3. **The Navigation API's `navigate` event.** For a traversal the browser starts, this fires before
+   the entry changes, so it is not too late the way it is for Next's own pushes (the in-app link
+   amendment above). Cancelling a traversal from it, though, is a recent addition to the HTML
+   standard, shipped first in Chromium and gated on user activation — a page may cancel one
+   traversal per interaction, which is what stops back-button trapping — so a second Back with no
+   click in between leaves unasked even where it works. Whether it holds in every browser a client
+   uses could not be established here, and it cannot be tested in this repository at all: happy-dom
+   has no Navigation API, and the gate runs no browser.
+
+None is reliable enough to reproduce feature 37, so none is built, and the regression stands as
+recorded above. What limits the loss: leaving by Back or Forward unmounts the island, whose unmount
+write sends a dirty edit once — none in a conflict or a refusal, which would only be refused
+again — so what is lost is only what was **held**: a conflict, a refusal, or a failure whose last
+attempt also fails. In each of those the page had already said, in red, that the edits were not
+saved, and a refusal had said to copy them out. Option 3 is the one to revisit if cancelable traversals reach every supported
+browser without the activation gate; it would sit in `use-autosave.ts` beside the click guard,
+asking on the same `pending` condition.
