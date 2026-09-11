@@ -50,7 +50,7 @@ describe('docker-compose.yml', () => {
     expect(TEXT).not.toContain('microtask-data')
   })
 
-  it('starts microtask only once the api reports healthy', () => {
+  it('starts microtask only once the api reports healthy, on the probe its image carries', () => {
     expect(microtask.depends_on).toEqual({ api: { condition: 'service_healthy' } })
     expect(api.healthcheck).toBeUndefined()
   })
