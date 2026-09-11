@@ -1,9 +1,16 @@
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { NO_ANSWER } from '../../components/shared/no-answer'
 
-const signOut = vi.fn()
+const signOut = vi.fn<() => Promise<void>>()
 
 vi.mock('../../actions/auth', () => ({ signOut: () => signOut() }))
+
+beforeEach(() => {
+  signOut.mockReset()
+  signOut.mockResolvedValue(undefined)
+})
 
 const { default: AdminLayout } = await import('./layout')
 
@@ -14,6 +21,30 @@ describe('the admin layout', () => {
     expect(button.getAttribute('type')).toBe('submit')
     expect(button.closest('form')).not.toBeNull()
     expect(screen.queryByRole('link', { name: 'Sign out' })).toBeNull()
+  })
+
+  it('posts the sign-out once per click, and says nothing while it goes through', async () => {
+    render(<AdminLayout>page</AdminLayout>)
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(signOut).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText(NO_ANSWER.detail)).toBeNull()
+  })
+
+  it('says the server did not answer when the sign-out gets no answer, rather than falling to an error boundary', async () => {
+    signOut.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    render(<AdminLayout>the page body</AdminLayout>)
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(NO_ANSWER.detail)
+    expect(screen.getByRole('main').textContent).toBe('the page body')
+  })
+
+  it('lets the admin try again after a sign-out that got no answer', async () => {
+    signOut.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    render(<AdminLayout>page</AdminLayout>)
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    await screen.findByText(NO_ANSWER.detail)
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(signOut).toHaveBeenCalledTimes(2)
   })
 
   it('renders no link to /login anywhere', () => {

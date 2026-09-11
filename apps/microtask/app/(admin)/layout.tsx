@@ -1,8 +1,8 @@
 import { AppBar } from '@repo/ui/shell/app-bar'
 import { Page } from '@repo/ui/shell/page'
 import type { ReactNode } from 'react'
-import { signOut } from '../../actions/auth'
 import { Logo } from '../../components/shared/logo'
+import { SignOutForm } from '../../components/shared/sign-out-form'
 
 /** Props for {@link AdminLayout}. */
 export interface AdminLayoutProps {
@@ -13,20 +13,15 @@ export interface AdminLayoutProps {
 /**
  * The admin surface's frame: the brand bar with Sign out, and the page column.
  *
- * Sign out is a form posting to the `signOut` action, never a link: ending a session changes state,
- * a `GET` must not, and Next prefetches every `<Link>` it renders — the reason `proxy.ts` stopped
- * clearing a cookie on a `GET` of `/login` (ADR 0032). It is on every admin page rather than on
- * the index alone, as it was: the app being replaced made an admin walk back to `/` to sign out.
+ * Sign out is a form posting to the `signOut` action, never a link, guarded against a sign-out
+ * that gets no answer (`SignOutForm`). It is on every admin page rather than on the index alone,
+ * as it was: the app being replaced made an admin walk back to `/` to sign out.
  */
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <>
       <AppBar logo={<Logo size="bar" />} product="Microtask">
-        <form action={signOut}>
-          <button className="cursor-pointer text-[13px] text-white/80 hover:text-white" type="submit">
-            Sign out
-          </button>
-        </form>
+        <SignOutForm />
       </AppBar>
       <Page>{children}</Page>
     </>
