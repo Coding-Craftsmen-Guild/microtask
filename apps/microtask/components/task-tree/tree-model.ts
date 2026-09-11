@@ -72,19 +72,3 @@ export function filtered<Folder extends TreeFolder, Task extends TreeTask>(
     )
     .filter((group) => group.tasks.length > 0 || (group.folder !== null && matches(group.folder.name)))
 }
-
-/**
- * `ids` with `id` moved one step by `delta`, or `null` where there is nowhere to go.
- *
- * The answer is always a full permutation of `ids`: a relative move is computed into the whole
- * order here, because every reorder route takes the whole order and refuses anything less.
- */
-export function moved(ids: readonly string[], id: string, delta: -1 | 1): string[] | null {
-  const from = ids.indexOf(id)
-  const to = from + delta
-  if (from < 0 || to < 0 || to >= ids.length) return null
-  const order = [...ids]
-  order[from] = ids[to] ?? id
-  order[to] = id
-  return order
-}

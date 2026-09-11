@@ -1,4 +1,4 @@
-import { CAPABILITY_ACTIONS, type Capabilities } from '@repo/contracts'
+import type { Capabilities } from '@repo/contracts'
 
 /** The five things the task page may offer on a tab, each one a rendering answer. */
 export interface TabControls {
@@ -17,18 +17,6 @@ export interface TabControls {
   /** Whether the editor is editable at all. */
   readonly write: boolean
 }
-
-/**
- * What the admin may do: every action, because an admin is not a role in the capability model.
- *
- * `capabilities()` has no admin case — an admin clears everything and holds no scope to ask
- * about — so the admin surface passes this record instead, and the components below read the
- * same record shape whichever principal is rendering. That is what lets the client surface reuse
- * them with `capabilities(role, scope)` and nothing else changed (ADR 0038).
- */
-export const ADMIN_CAPABILITIES: Capabilities = Object.fromEntries(
-  CAPABILITY_ACTIONS.map((action) => [action, true]),
-) as Record<keyof Capabilities, boolean>
 
 /**
  * The tab controls a capability record allows, read off the record and never off a role.

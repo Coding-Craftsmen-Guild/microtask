@@ -1,6 +1,6 @@
 import type { Capabilities } from '@repo/contracts'
-import Link from 'next/link'
 import type { ActionResult } from '../../actions/result'
+import { BackLink } from '../shared/back-link'
 import { ShareManager } from '../share-manager/share-manager'
 import { shareControls, type ShareActions } from '../share-manager/types'
 import { OverallProgress } from './overall-progress'
@@ -29,9 +29,7 @@ export interface ProjectHeaderProps {
 export function ProjectHeader({ model, can, onRename, share }: ProjectHeaderProps) {
   return (
     <div className="grid gap-3 pt-5">
-      <Link className="w-fit text-[13px] text-muted-foreground no-underline hover:text-brand" href={PROJECTS_INDEX_PATH}>
-        ← Projects
-      </Link>
+      <BackLink href={PROJECTS_INDEX_PATH}>← Projects</BackLink>
       <div className="flex items-center gap-4 max-sm:flex-wrap">
         <ProjectTitle editable={can['project:rename']} name={model.name} onRename={onRename} projectId={model.id} />
         <OverallProgress done={model.progress.done} total={model.progress.total} />

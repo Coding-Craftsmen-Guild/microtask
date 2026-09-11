@@ -33,7 +33,7 @@ vi.mock('next/link', () => ({
 
 const page = await import('./page')
 const actions = await import('../../../../../../actions/tabs')
-const { ADMIN_CAPABILITIES } = await import('../../../../../../components/tabs/tab-controls')
+const { ADMIN_CAPABILITIES } = await import('../../../../../../components/shared/admin-capabilities')
 const { TaskWorkspace } = await import('../../../../../../components/tabs/task-workspace')
 
 const workspaceKey = (node: unknown): string | null | undefined => {

@@ -1,11 +1,5 @@
-import {
-  CAPABILITY_ACTIONS,
-  capabilities,
-  mayReach,
-  type Capabilities,
-  type RoleValue,
-  type ScopeValue,
-} from '@repo/contracts'
+import { capabilities, mayReach, type Capabilities, type RoleValue, type ScopeValue } from '@repo/contracts'
+import { ADMIN_CAPABILITIES } from '../shared/admin-capabilities'
 
 /** Which tree controls to draw. Each is a rendering answer, never a gate (ADR 0038). */
 export interface TreeControls {
@@ -30,17 +24,6 @@ export interface TreeControls {
   /** Moving a task up or down within its folder. */
   readonly reorderTasks: boolean
 }
-
-/**
- * An admin's answers: every action cleared.
- *
- * An admin is not a role in this model and has no scope to ask about, so there is nothing to
- * project — but the tree still takes its controls as a record, so the same components render
- * for a link holder from `capabilities()` without a second code path (ADR 0038).
- */
-export const ADMIN_CAPABILITIES: Capabilities = Object.fromEntries(
-  CAPABILITY_ACTIONS.map((action) => [action, true]),
-) as Capabilities
 
 /**
  * The tree's controls, from the capability record and whether the folder list is reachable.

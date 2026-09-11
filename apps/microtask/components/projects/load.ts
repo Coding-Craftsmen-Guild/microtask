@@ -1,8 +1,7 @@
 import type { Decoded, Project } from '@repo/api-client'
 import type { ProjectListItem } from '@repo/contracts'
-import { notFound } from 'next/navigation'
 import { cache } from 'react'
-import { adminCall, type ActionResult } from '../../actions/result'
+import { adminCall, adminRead, type ActionResult } from '../../actions/result'
 import { PROJECTS_INDEX_PATH, projectPagePath } from './paths'
 
 /**
@@ -17,20 +16,17 @@ export async function loadProjects(): Promise<ActionResult<readonly Decoded<type
   })
 }
 
-const MISSING = new Set([404, 422])
-
 /**
  * One project, for its page and that page's title, read once per request.
  *
- * `cache` is what lets `generateMetadata` and the page share one read rather than make two. A
- * project that does not exist — or an id that is not an id, which the API answers 422 — is
- * `notFound()`, so both render the same not-found page rather than an error.
+ * `cache` is what lets `generateMetadata` and the page share one read rather than make two, and
+ * `adminRead` is what makes a project that does not exist — or an id that is not an id — render
+ * the same not-found page from both rather than an error.
  *
  * What comes back is the full view **including share links with their tokens**. It is for the
  * server to count; `projectPageModel` is where it stops, and nothing it returns is a token.
  */
-export const loadProject = cache(async (projectId: string): Promise<ActionResult<Project>> => {
-  const result = await adminCall(projectPagePath(projectId), (api) => api.projects.read(projectId))
-  if (!result.ok && MISSING.has(result.status)) notFound()
-  return result
-})
+export const loadProject = cache(
+  async (projectId: string): Promise<ActionResult<Project>> =>
+    adminRead(projectPagePath(projectId), (api) => api.projects.read(projectId)),
+)

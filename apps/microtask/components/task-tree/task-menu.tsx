@@ -4,7 +4,7 @@ import { ConfirmDialog } from '@repo/ui/shell/confirm-dialog'
 import { useState } from 'react'
 import { OptionsMenu, type MenuEntry } from './options-menu'
 import { groupIds, useTree, type TreeState } from './tree-context'
-import { moved } from './tree-model'
+import { moved } from '../shared/moved'
 import type { RowTask } from './types'
 
 /**

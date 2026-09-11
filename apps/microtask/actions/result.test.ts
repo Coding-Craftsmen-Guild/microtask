@@ -12,13 +12,18 @@ vi.mock('../lib/api', () => ({
   },
 }))
 
+class NotFound extends Error {}
+
 vi.mock('next/navigation', () => ({
   redirect: (location: string) => {
     throw new Redirected(location)
   },
+  notFound: () => {
+    throw new NotFound('notFound')
+  },
 }))
 
-const { adminCall, rejected } = await import('./result')
+const { adminCall, adminRead, rejected } = await import('./result')
 
 beforeEach(() => {
   fake = fakeAdmin()
@@ -76,5 +81,31 @@ describe('adminCall', () => {
 describe('rejected', () => {
   it('is a failure carrying the given status and detail', () => {
     expect(rejected(409, 'Stale.')).toEqual({ ok: false, status: 409, detail: 'Stale.' })
+  })
+})
+
+describe('adminRead', () => {
+  const outcomeOf = (attempt: Promise<unknown>): Promise<unknown> =>
+    attempt.then(
+      (value) => value,
+      (error: unknown) => error,
+    )
+
+  it('answers the value the read produced', async () => {
+    expect(await adminRead('/p/x', () => Promise.resolve('read'))).toEqual({ ok: true, value: 'read' })
+  })
+
+  it.each([404, 422])('renders not-found for a %i, the missing thing and the id that is not an id', async (status) => {
+    expect(await outcomeOf(adminRead('/p/x', () => Promise.reject(problem(status))))).toBeInstanceOf(NotFound)
+  })
+
+  it('answers any other refusal as its sentence, for the page to show', async () => {
+    const result = await adminRead('/p/x', () => Promise.reject(problem(500, 'Boom.')))
+    expect(result).toEqual({ ok: false, status: 500, detail: 'Boom.' })
+  })
+
+  it('sends a 401 to sign in, back to the page it reads for', async () => {
+    const location = await redirectOf(adminRead('/p/01ABC', () => Promise.reject(problem(401))))
+    expect(location).toBe('/login?next=%2Fp%2F01ABC')
   })
 })

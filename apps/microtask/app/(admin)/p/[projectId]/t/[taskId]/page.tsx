@@ -5,7 +5,7 @@ import { createTab, deleteTab, renameTab, reorderTabs } from '../../../../../../
 import { projectPagePath } from '../../../../../../components/projects/paths'
 import { activeTabId } from '../../../../../../components/tabs/active-tab'
 import { adminDocumentRoot } from '../../../../../../components/tabs/save-tab'
-import { ADMIN_CAPABILITIES } from '../../../../../../components/tabs/tab-controls'
+import { ADMIN_CAPABILITIES } from '../../../../../../components/shared/admin-capabilities'
 import { TaskWorkspace } from '../../../../../../components/tabs/task-workspace'
 import { readTask } from './read-task'
 

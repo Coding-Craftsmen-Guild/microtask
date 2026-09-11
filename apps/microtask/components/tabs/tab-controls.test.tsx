@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { capabilities, CAPABILITY_ACTIONS, type ScopeValue } from '@repo/contracts'
-import { ADMIN_CAPABILITIES, tabControls } from './tab-controls'
+import { ADMIN_CAPABILITIES } from '../shared/admin-capabilities'
+import { tabControls } from './tab-controls'
 import { activeTabId } from './active-tab'
 import { emptyProgressText } from './tab-copy'
 
@@ -18,11 +19,6 @@ describe('tabControls reads the tab controls off capabilities, never off a role'
       reorder: true,
       write: true,
     })
-  })
-
-  it('answers true for every action the admin record holds, and nothing is left out of it', () => {
-    expect(Object.keys(ADMIN_CAPABILITIES).sort()).toEqual([...CAPABILITY_ACTIONS].sort())
-    expect(Object.values(ADMIN_CAPABILITIES).every((allowed) => allowed)).toBe(true)
   })
 
   it('gives a view link no tab control and no editor', () => {

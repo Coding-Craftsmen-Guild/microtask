@@ -5,7 +5,7 @@ import { useImperativeHandle, useState } from 'react'
 import { capabilities, LIMITS, type Capabilities, type ProgressValue } from '@repo/contracts'
 import type { DocumentEditorProps } from '../editor/document-editor'
 import type { SaveOutcome } from '../editor/save-document'
-import { ADMIN_CAPABILITIES } from './tab-controls'
+import { ADMIN_CAPABILITIES } from '../shared/admin-capabilities'
 import type { TabActions } from './use-tab-operations'
 import type { WorkspaceTab } from './workspace-state'
 

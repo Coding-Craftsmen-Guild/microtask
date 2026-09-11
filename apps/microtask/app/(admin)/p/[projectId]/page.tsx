@@ -7,7 +7,8 @@ import {
 import { loadProject } from '../../../../components/projects/load'
 import { projectPageModel } from '../../../../components/projects/page-model'
 import { ProjectHeader } from '../../../../components/projects/project-header'
-import { ADMIN_CAPABILITIES, ADMIN_TREE } from '../../../../components/task-tree/controls'
+import { ADMIN_CAPABILITIES } from '../../../../components/shared/admin-capabilities'
+import { ADMIN_TREE } from '../../../../components/task-tree/controls'
 import { TaskTree } from '../../../../components/task-tree/task-tree'
 
 /** The route's own parameters, which Next hands a page as a promise. */

@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { NewTaskPrompt } from './new-task-prompt'
 import { OptionsMenu, type MenuEntry } from './options-menu'
 import { useTree, type TreeState } from './tree-context'
-import { moved } from './tree-model'
+import { moved } from '../shared/moved'
 import type { RowFolder } from './types'
 
 /** What deleting a folder does to its tasks, said before it is chosen. */

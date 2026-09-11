@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { apiForSession, type SessionClient } from '../lib/api'
 import { remedyFor, remedyForNoSession, type Remedy } from '../lib/problem'
 
@@ -60,6 +60,24 @@ export async function adminCall<Value>(
     failure = error
   }
   return settle(remedyFor(failure, 'admin', pathname))
+}
+
+const MISSING = new Set([404, 422])
+
+/**
+ * {@link adminCall} for a page's own read: a thing the API does not hold — or an id that is not
+ * an id, which it answers 422 — renders the route's not-found page rather than a sentence.
+ *
+ * Every other refusal comes back as its sentence for the page to show in place of what it could
+ * not read, rather than thrown into an error boundary that production strips of its message.
+ */
+export async function adminRead<Value>(
+  pathname: string,
+  call: (api: SessionClient) => Promise<Value>,
+): Promise<ActionResult<Value>> {
+  const result = await adminCall(pathname, call)
+  if (!result.ok && MISSING.has(result.status)) notFound()
+  return result
 }
 
 const settle = (remedy: Remedy): ActionFailure => {

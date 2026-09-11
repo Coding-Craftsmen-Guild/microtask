@@ -1,18 +1,10 @@
-import { CAPABILITY_ACTIONS } from '@repo/contracts'
 import { describe, expect, it } from 'vitest'
-import { ADMIN_CAPABILITIES, ADMIN_TREE, linkTreeControls } from './controls'
+import { ADMIN_TREE, linkTreeControls } from './controls'
 
 const P = '01HZZZZZZZZZZZZZZZZZZZZZZ1'
 const T = '01HZZZZZZZZZZZZZZZZZZZZZZ2'
 const TASK_SCOPE = { kind: 'task', projectId: P, taskId: T } as const
 const PROJECT_SCOPE = { kind: 'project', projectId: P } as const
-
-describe('ADMIN_CAPABILITIES', () => {
-  it('clears every action the projection answers for, and names no other', () => {
-    expect(Object.keys(ADMIN_CAPABILITIES).sort()).toEqual([...CAPABILITY_ACTIONS].sort())
-    expect(Object.values(ADMIN_CAPABILITIES).every((cleared) => cleared)).toBe(true)
-  })
-})
 
 describe('ADMIN_TREE', () => {
   it('draws every tree control for an admin', () => {
