@@ -48,6 +48,33 @@ catalog:
   tailwindcss: 4.3.3
   '@tailwindcss/postcss': 4.3.3
 
+  # Every @tiptap/* v3 package peer-pins its siblings to the literal string
+  # 3.31.3 - not a range - so the set moves as one unit or not at all:
+  # @tiptap/core peers @tiptap/pm 3.31.3, @tiptap/react peers both, and so do
+  # @tiptap/extension-list and @tiptap/extensions. Bumping one alone fails
+  # strictPeerDependencies. In v3 the task list lives in @tiptap/extension-list
+  # (TaskList, TaskItem) and Placeholder lives in @tiptap/extensions; the
+  # extension-task-list / -task-item / -placeholder shim packages are not
+  # needed. @tiptap/html is deliberately absent: it takes happy-dom as a
+  # non-optional peer, and @tiptap/core already exports generateHTML and
+  # generateJSON. Catalogued only - the editor is built later and belongs to
+  # apps/microtask, never packages/ui, because a shared Tiptap risks two
+  # prosemirror copies. apps/legacy keeps its own ^2.27.3 v2 specs.
+  '@tiptap/core': 3.31.3
+  '@tiptap/pm': 3.31.3
+  '@tiptap/starter-kit': 3.31.3
+  '@tiptap/react': 3.31.3
+  '@tiptap/extension-list': 3.31.3
+  '@tiptap/extensions': 3.31.3
+
+  # Component tests for apps/microtask. happy-dom is one of vitest's optional
+  # environment peers; the two @testing-library packages are pinned here so
+  # this app and any later app agree on one copy of each. Catalogued only - no
+  # test config is wired to them yet.
+  happy-dom: 20.14.3
+  '@testing-library/react': 16.3.3
+  '@testing-library/user-event': 14.6.7
+
 minimumReleaseAgeExclude:
   - eslint-plugin-jsdoc@64.3.9
   - zod@4.6.1
