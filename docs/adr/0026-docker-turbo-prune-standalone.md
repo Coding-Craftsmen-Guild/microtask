@@ -226,4 +226,34 @@ thrown away: `apps/api/src/deploy/` reads `apps/api/Dockerfile`, `docker-compose
 Dockerfile — the runner stage's user, copies, probe and command, every `${VAR:?}`, the volume, the
 absent ports and every exclusion. `apps/api/turbo.json` adds the three root files to the API's test
 inputs, so editing one of them is a cache miss. They read files; whether the images build and run
-is still the CI check the consequences above ask for.
+is still the CI check the consequences above ask for — which, until the amendment below, no CI
+runner could have performed, because the suite the build runs needed an untracked file.
+
+## Amended · 2026-09-12 — the suite no longer needs `data/`, and the container lifecycle is real
+
+Three things this ADR asks for could not happen as the code stood.
+
+**The gate could not run anywhere but one machine.** `packages/contracts/src/document-facts.test.ts`
+read `data/projects/01M240ERCRWWCN16Q5AHP1FZAQ.json` through a relative URL. `data/` is gitignored
+and holds production customer data, so a fresh clone, a CI runner and every container build had no
+such file and that test errored — which makes the "does it build in Docker" check above
+unreachable, since the image build runs the same suite. The property the test exists to prove is
+real and is kept: documents written by the app being replaced are valid input to Tiptap 3, and
+`countTasks` agrees with the live numbers (ADR 0039). It now reads a committed fixture derived from
+the real file by `packages/contracts/scripts/derive-legacy-fixture.mjs`, which preserves every
+structural fact — four tabs and their positions, every node type and count, every `attrs` including
+the 12-of-12 `checked` distribution, no `marks`, depth five — and replaces every text node and name
+with filler. The real-file assertions stay, guarded by `existsSync`, and are reported as skipped
+where `data/` is absent; one of them asserts that the fixture's structure equals the real file's, so
+the fixture cannot drift on the machine that can tell. Proven portable by running the suite in a
+fresh `git worktree`, where `data/` cannot exist: 116 passed, 2 skipped.
+
+**`restart: unless-stopped` did nothing for a bad environment.** Docker restarts a container on
+exit, never on unhealthy. A refused environment left Next up and serving 500s, so the compose
+restart policy never fired and the `GET /login` probe this ADR chose only *showed* the failure.
+`register()` now exits the process — ADR 0032's 2026-09-12 amendment.
+
+**`docker stop` always ended in SIGKILL.** The API installed no signal handler, so every deploy
+waited out the grace period and was killed, possibly mid-write. It now drains and exits 0 — ADR
+0006's 2026-09-12 amendment. `init: true` in `docker-compose.yml` is what forwards the signal to
+node, and the `CMD` exec form is what keeps node the direct child.

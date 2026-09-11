@@ -149,9 +149,10 @@ server starts and skips it during `next build` (`registerInstrumentation` return
 require production secrets, because `next build` imports every route's module graph to collect its
 configuration — measured as `Failed to collect configuration for /login`, which
 `export const dynamic = 'force-dynamic'` does not avoid. `lib/env.ts` therefore exports `appEnv()`,
-a memoised function, and `register()` calls it once. Next does not exit on a failed `register()`:
-boot logs the error and every request is a 500, so a health check is what turns it into a failed
-deploy, but nothing is served from a half-configured app.
+a memoised function, and `register()` calls it once. Next does not exit on a failed `register()`, so
+`register()` exits the process itself — see the 2026-09-12 amendment below. It used to let the
+refusal throw, and boot then logged the error and answered every request with a 500, which left a
+health check as the only thing that could turn a bad environment into a failed deploy.
 
 **(e) A Server Component cannot write a cookie.** Next permits a cookie write only while the request
 store's phase is `'action'`; a render that tries throws `ReadonlyRequestCookiesError`
@@ -185,3 +186,26 @@ this ADR decides about `mt_admin` stands unchanged: encrypted under `COOKIE_SECR
 bearer's, a 401 sent to `/login?next=`, and no clear on any navigation. "The URL always wins" is now
 true without a contest — on `/s/*` the URL is the only thing consulted. The sentences above that
 describe the link cookie are marked where they stand.
+
+## Amended · 2026-09-12 — a refused environment kills the process
+
+Amendment (d) above left `register()` throwing, and measured what that does: Next logs `An error
+occurred while loading instrumentation hook`, keeps the process up, and answers every request with
+a 500. The deploy consequence was not measured, and it is worse than the sentence implied. **Docker
+restarts a container on exit and never on unhealthy**, so `restart: unless-stopped` in
+`docker-compose.yml` never fired: a deploy with a missing or short `COOKIE_SECRET` came up, passed
+for running, and served errors until a human read the health status. The probe choice recorded in
+ADR 0026 — `GET /login` rather than a static file, so a failed boot cannot look healthy — made the
+failure *visible*, but nothing acted on it.
+
+`register()` now catches the refusal, logs `Refusing to serve: <the variable at fault>`, and calls
+`process.exit(1)`. The orchestrator then sees a crash, which is the one signal it acts on, and
+`restart: unless-stopped` becomes a restart loop on a bad environment rather than a lie. The
+message survives the exit because `process.stderr` is synchronous on a pipe on both Windows and
+POSIX, and a container's captured stderr is a pipe.
+
+Two constraints shaped the code. `process` is reached through `globalThis`, never imported, because
+`next build` compiles `register` for the Edge runtime as well as for Node and a Node built-in there
+is a build warning (ADR 0027); and where a runtime has no `exit` to call, the refusal is rethrown
+rather than swallowed, which is the old behaviour rather than a silent boot. No `process.env` is
+read in `instrumentation.ts`, so `lib/env.ts` is still the single reader (ADR 0012).
