@@ -68,15 +68,13 @@ let resolved: AppEnv | null = null
  * `apps/microtask/eslint.config.js`, so "which file reads the environment" is answered by the
  * lint config rather than by a comment (ADR 0012).
  *
- * It is a **function** rather than a validated module-level constant, and that is a deliberate
- * departure from the plan's "validated at module load". Next has no boot step separate from the
- * first request: `next build` imports every route's whole module graph to collect its
- * configuration, so a module-level `readEnv(process.env)` makes the *build* fail without
- * production secrets. Measured — `Failed to collect configuration for /login`, and
- * `export const dynamic = 'force-dynamic'` does not avoid it. The guarantee that survives is the
- * one that mattered: the first request to touch the API throws here and nothing downstream ever
- * sees a missing or short secret, because no caller can obtain an {@link AppEnv} that skipped
- * {@link readEnv}.
+ * It is a **function** rather than a validated module-level constant, because `next build`
+ * imports every route's whole module graph to collect its configuration, so a module-level
+ * `readEnv(process.env)` makes the *build* fail without production secrets. Measured —
+ * `Failed to collect configuration for /login`, and `export const dynamic = 'force-dynamic'` does
+ * not avoid it. The boot check the plan asked for is `register` in `instrumentation.ts`, which
+ * calls this once at server start and never during the build; no caller can obtain an
+ * {@link AppEnv} that skipped {@link readEnv} either way.
  */
 export function appEnv(): AppEnv {
   resolved ??= readEnv(process.env)
