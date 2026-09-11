@@ -14,7 +14,7 @@ out. Verification pinned down the mechanics.
 
 ### Base image
 
-**`node:24` for all three.** Node 20 reached end of life on 2026-04-30; v24 is Active LTS until
+**`node:24` for all three** — the `node:24-slim` tag, in every stage (amendment below). Node 20 reached end of life on 2026-04-30; v24 is Active LTS until
 2028-04-30. It satisfies Next 16's `engines` (`>=20.9.0`) and `@hono/node-server@2.1.1`'s (`>=20`).
 
 pnpm is installed explicitly (`npm i -g pnpm@12.3.4`) — **not** through Corepack, which Node stopped
@@ -34,8 +34,9 @@ Anything referenced by turbo `globalDependencies` (a root `tsconfig.json`, `.env
 by prune. All shared config therefore lives in workspace packages, not at the root.
 
 Dev dependencies are installed **in full** in the builder stage — `next build` needs TypeScript and
-Tailwind. They are stripped only from the API's runtime tree; the Next runtime stages install
-nothing at all.
+Tailwind. They are stripped only from the API's runtime tree — by `pnpm deploy --prod`, whose
+output is then trimmed to `package.json` and `dist` per workspace package (amendment below); the
+Next runtime stages install nothing at all.
 
 Every non-pnpm lockfile is deleted and gitignored: a stray `package-lock.json` silently moves the
 inferred tracing root.
@@ -66,18 +67,23 @@ CMD ["node", "apps/<app>/server.js"]
 `node server.js` at the standalone root is `MODULE_NOT_FOUND`.
 
 `PORT` and `HOSTNAME=0.0.0.0` are set as environment variables — the standalone server reads no CLI
-flag. `@hono/node-server` likewise takes `hostname: '0.0.0.0'` in `serve()`.
+flag. `@hono/node-server` needs no `hostname`: with none, `serve()` listens on `[::]`, every
+interface (amendment below).
 
 `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` is set in the environment and kept **stable across rebuilds**.
 
 ### Compose
 
-Three services. The existing production volume is referenced as `external: true` with an explicit
-`name:` read off the server first, and mounted on `api` only. No `networks:` block and no `ports:` on
-any service — Coolify supplies the network and routes by domain.
+One service per deployable — two today, `api` and `microtask`; Macroplan's joins when the app exists.
+The API's data lives in a **new** named volume, `api-data`, mounted on `api` only. The existing
+production volume is **never** referenced — not as `external: true`, not at all: this API cannot read
+its layout, and it is the rollback ADR 0022 keeps untouched (amendment below). No `networks:` block
+and no `ports:` on any service — Coolify supplies the network and routes by domain; the API is
+internal-only (ADR 0041). `microtask` waits for `api` to report healthy.
 
 Healthchecks use `node -e` with `node:http`, not `curl` or `wget`: `node:*-slim` images contain
-neither. The API gets a real `/healthz` route; each Next app gets a dynamic health route.
+neither. The API gets a real `/healthz` route. Microtask's probe is `GET /login`, which is dynamic
+and reads no credential — a static file is **not** a health route (amendment below).
 
 ## Consequences
 
@@ -136,3 +142,71 @@ harder to notice: **never FULL TURBO, with no explanation.** A build that is alw
 a correctly configured pipeline that is merely slow, which is exactly the failure nobody
 investigates. Any `outputs` entry that can contain a deep `node_modules` tree needs the same
 exclusion, and the symptom to watch for is a task that never once reports a hit.
+
+## Amended by building and running the images · 2026-09-11
+
+Both images were built from an isolated worktree with Docker 26.1.1 and run as the compose stack
+with throwaway secrets on a throwaway volume. Five sentences above were corrected where they live;
+this is the evidence.
+
+**The legacy volume is never mounted.** The Compose section said the existing production volume is
+referenced `external: true` and mounted on `api`. That contradicts ADR 0022 — "the old app's data
+volume must be preserved read-only until the new stack is verified, not reused in place" — and step 5
+of the runbook, which deploys "with an empty data volume". It would not work either: the volume holds
+`data/projects/<id>.json`, and the new API reads `microtask/projects/<id>/project.json` (written by
+the verification run, owned by `node`). The API gets a new named volume, `api-data`, and the importer
+(ADR 0017) is the only bridge — which is why cutover is blocked on it. The image creates `/data`
+owned by `node` so a fresh named volume inherits a writable root; without that line a non-root
+`touch /data/probe` on a fresh volume fails.
+
+**A static file is not a health route.** With `COOKIE_SECRET` five bytes long, `register()` throws,
+Next logs `Failed to prepare server` and does **not** exit, and every dynamic route answers 500.
+Measured: a probe on `/login` goes `unhealthy`; a probe on `/img/logo.webp` stays `healthy`, because
+static files are served without the instrumentation hook. Microtask's healthcheck is therefore
+`GET /login` — dynamic, since it reads `searchParams`, and credential-free, since `proxy.ts` passes it
+ungated and the page reads no cookie and calls no API. A dedicated route would also have to be
+ungated in `proxy.ts`, which gates every path but `/login`, `/s/*`, `/share/*` and `/api/*`.
+
+**`@hono/node-server` needs no `hostname`.** `apps/api/src/server.ts` passes none, and inside the
+container the socket is `[::]:4321` (`/proc/net/tcp6`), dual-stack, which Microtask reaches as
+`http://api:4321`.
+
+**The base tag is `node:24-slim`** (Node 24.21.0 on the day), for every stage: the builder needs
+nothing the full image adds, and it is the image the healthcheck sentence already assumed. It is 230
+MB of each image below. `npm i -g pnpm@12.3.4` on npm 11 warns that pnpm's own install scripts were
+not run (`allowScripts`); pnpm works without them, so they stay un-run.
+
+**`pnpm deploy --prod` copies whole package directories.** No workspace package declares `files`, so
+the deployed API carried every package's `src/`, all its `*.test.ts`, `vitest.config.ts`,
+`eslint.config.js`, `tsconfig*.json` and `.turbo/`. The Dockerfile trims each workspace package to
+`package.json` and `dist`, removes the test doubles (`dist/testing` in `api` and in
+`@repo/microtask-domain`, which only tests and the OpenAPI emit script reach) and the emit script
+(`dist/scripts`), then **fails the build** if a test file, a `src/` or a `testing/` directory is left
+in workspace code. A `"files": ["dist"]` in each package would make most of the trim a no-op; it is the
+cleaner fix, and belongs to the packages. Third-party packages are left as published — `zod@4.6.1`
+ships 196 test files of its own inside the API image.
+
+| Image | Total | App layers | Without the measure |
+| --- | --- | --- | --- |
+| `apps/api` | **240 MB** | 9.6 MB (`/app` is 16 MB on disk) | the builder's workspace is 219 MB with dev dependencies, so shipping it would be ~450 MB |
+| `apps/microtask` | **272 MB** | 40.1 MB standalone + 1.76 MB `.next/static` + 9.6 kB `public` | — |
+
+**A missing static copy fails silently, exactly as warned.** Deleting the `.next/static` `COPY`
+leaves `/login` answering 200 with its HTML intact while its stylesheet answers 404 — no error in any
+log. Deleting the `public` `COPY` does the same to the logo. The verification therefore fetches the CSS
+chunk the page links and the logo it renders, from the running container, and compares the logo's
+bytes to the repository file. `node server.js` at the standalone root is `MODULE_NOT_FOUND`, as
+stated: `Cannot find module '/app/server.js'`.
+
+**Next bakes build-time keys into the image.** The standalone output carries a Server Actions
+`encryptionKey` in `server-reference-manifest.json` and three preview-mode keys in
+`prerender-manifest.json`, each generated at build. Next reads
+`process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || manifest.encryptionKey` at request time (read
+from `next/dist/server/app-render/encryption-utils.js`, not measured), so the environment key wins
+and compose refuses to start without one; the preview keys guard draft mode, which the app never
+enables. No secret of **ours** is in either image — no `.env`, no `data/`, no key file, checked on
+the built filesystem. Setting the variable at build time would be worse: it would bake the real key.
+
+**`turbo prune` rewrites `pnpm-workspace.yaml`.** The pruned copy keeps every setting — catalog,
+overrides, `allowBuilds`, `strictPeerDependencies` — and drops every comment, so the file's reasoning
+never reaches an image and does not need to.

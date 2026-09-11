@@ -9,7 +9,8 @@ The implementation-facing detail — domain model, page map, cutover runbook —
 which references these by number. The full behavioural inventory of the app being replaced, captured
 before it was deleted, is [`../parity/legacy-microtask.md`](../parity/legacy-microtask.md): 71
 features, 25 routes and 41 non-obvious behaviours, each of which is reproduced or deliberately
-dropped by one of the decisions here.
+dropped by one of the decisions here. That app's code is at the `legacy-prod` tag; an
+`apps/legacy/…` path cited in a record below names a file at that tag, not in the working tree.
 
 | # | Decision | Status |
 | --- | --- | --- |
@@ -53,6 +54,7 @@ dropped by one of the decisions here.
 | [0038](0038-capabilities-role-and-scope.md) | Controls gate on role **and** scope, never role alone | Accepted |
 | [0039](0039-tiptap-in-the-app-and-v3.md) | The Tiptap editor lives in the app, and what Tiptap 3 changed | Accepted |
 | [0040](0040-link-surface-url-token-authority.md) | The link surface authenticates from its URL, and holds no cookie | Accepted |
+| [0041](0041-api-internal-only.md) | The API is internal-only: no published port and no domain | Accepted |
 
 ## Amendments
 
@@ -79,7 +81,7 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0023](0023-typescript-strict-shared-config.md) | `noUncheckedIndexedAccess` was predicted to be the irritating flag; it cost **zero** across 22 vendored files, `exactOptionalPropertyTypes` cost **2** |
 | [0024](0024-framework-free-zod-contracts.md) | `strict-peer-dependencies` in `.npmrc` **was never in effect** — pnpm 10+ reads it from `pnpm-workspace.yaml` |
 | [0025](0025-shadcn-tailwind-shared-package.md) | Six instructions could not execute as written: `pnpm dlx`, "the CLI writes both `components.json`", "one stylesheet" during `init`, two dead `@source` lines, the server-safe list (6 of 22, not 4), and a local `cn` the CLI no longer generates |
-| [0026](0026-docker-turbo-prune-standalone.md) | Turbo silently never caches `.next` when `output: 'standalone'` is set; `!.next/standalone/**` is the fix |
+| [0026](0026-docker-turbo-prune-standalone.md) | Turbo silently never caches `.next` when `output: 'standalone'` is set; `!.next/standalone/**` is the fix. And, from building and running the images: the API mounts a **new** volume — the legacy one it said to mount `external: true` is unreadable by this API and is ADR 0022's rollback; Microtask's probe is `GET /login`, because a static-file probe stays healthy on a failed boot; `serve()` needs no `hostname`; `pnpm deploy --prod` ships every package's `src` and tests unless trimmed; and Next bakes build-time keys into the image. Measured: API 240 MB, Microtask 272 MB |
 | [0027](0027-code-style-solid-enforced.md) | The vendored-components override named a directory the CLI never writes to, **and** its glob was inert in the shared config — the trap this ADR documents and then walked into. And the one environment reader imported `node:process` into the Edge instrumentation bundle; it reads the global instead, so the single-reader rule needs no second read |
 | [0028](0028-autosave-under-keepalive-cap.md) | "Edits are durable within ~700 ms" held only while the server accepts the writes: a refusal a retry cannot change now stops the loop, neither unload flush sends it, and the unsaved-changes prompt is the only guard left (ADR 0016) |
 | [0032](0032-two-cookies-url-wins.md) | A render cannot write a cookie, so "a 401 clears its cookie" was unbuildable; the proxy clear that replaced it made `GET /login` a logout, and is gone. Also: `proxy.ts` not `middleware.ts`, the boot check in `register()`, and why `/s/unavailable` sits inside `/s/`. And its link half — `mt_link`, sealed from the URL on arrival — is superseded by ADR 0040: a state-changing `GET` that let a hostile page replace the link a visitor held, restating a token every `/s/*` URL already carries |
