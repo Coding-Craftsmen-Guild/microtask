@@ -4,12 +4,14 @@ const FALLBACK = '/'
 const BASE = 'http://next-path.invalid'
 
 /**
- * The longest `?next=` this app will honour.
+ * The longest `?next=` this app will honour, measured on what it receives **and** on what it
+ * emits.
  *
  * A bound rather than a rule about content: the value ends up in a `Location` header, and an
  * unbounded one is a way to make this app emit a header a proxy in front of it has to decide
- * what to do with. Nothing legitimate here is close — the deepest route is
- * `/p/<ulid>/t/<ulid>?tab=<ulid>`.
+ * what to do with. Both ends are measured because percent-encoding expands: a 512-unit input of
+ * `日` normalises to 4,600 characters, so a cap on the input alone bounds nothing about the
+ * header. Nothing legitimate here is close — the deepest route is `/p/<ulid>/t/<ulid>?tab=<ulid>`.
  */
 export const MAX_NEXT_LENGTH = 512
 
@@ -23,6 +25,9 @@ const hostile = (value: string): boolean => {
 
 const singleLeadingSlash = (value: string): boolean =>
   value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/\\')
+
+const emittable = (value: string | null): value is string =>
+  value !== null && value.length <= MAX_NEXT_LENGTH && singleLeadingSlash(value)
 
 const normalisedPath = (raw: string): string | null => {
   try {
@@ -72,7 +77,7 @@ export function safeNextPath(raw: string | null | undefined): string {
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_NEXT_LENGTH) return FALLBACK
   if (!singleLeadingSlash(raw) || hostile(raw)) return FALLBACK
   const normalised = normalisedPath(raw)
-  return normalised !== null && singleLeadingSlash(normalised) ? normalised : FALLBACK
+  return emittable(normalised) ? normalised : FALLBACK
 }
 
 /**

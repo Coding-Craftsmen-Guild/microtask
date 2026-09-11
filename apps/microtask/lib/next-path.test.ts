@@ -33,6 +33,8 @@ describe('safeNextPath — hostile input', () => {
     [`an embedded newline a browser would strip`, `/${NEWLINE}/evil.example`],
     [`an embedded carriage return`, `/${RETURN}/evil.example`],
     [`an embedded NUL`, `/p/01H${NUL}`],
+    [`a tab inside an otherwise ordinary path, which the URL parser would silently drop`, `/p/0${TAB}1H`],
+    [`a newline inside an otherwise ordinary path`, `/p/0${NEWLINE}1H`],
     [`an embedded DEL`, `/p/01H${DEL}`],
     ['an embedded space', '/p/01 H'],
     ['the empty string', ''],
@@ -101,6 +103,16 @@ describe('safeNextPath — paths it honours', () => {
     ['/p/%C3%A9', '/p/%C3%A9'],
   ])('keeps %s', (raw, expected) => {
     expect(safeNextPath(raw)).toBe(expected)
+  })
+
+  it('percent-encodes what it emits, so a Location header never carries a raw non-ASCII byte', () => {
+    expect(safeNextPath('/p/é')).toBe('/p/%C3%A9')
+  })
+
+  it('bounds what it emits, not only what it receives, because encoding expands a path ninefold', () => {
+    const short = `/${'日'.repeat(100)}`
+    expect(short.length).toBeLessThan(MAX_NEXT_LENGTH)
+    expect(safeNextPath(short)).toBe('/')
   })
 
   it('accepts a value at exactly the cap, so the bound is not off by one', () => {
