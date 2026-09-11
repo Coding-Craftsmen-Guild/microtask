@@ -31,10 +31,14 @@ API therefore always has a real principal, and `AccessPolicy` is genuinely the o
 
 Supporting rules:
 
-- The Next session cookie carries a **principal**, not a boolean: `{kind:'admin'}` after password
-  login, or `{kind:'link', token}` set when `/s/<token>` bootstraps.
-- **Exactly one file per app** may read `process.env.API_KEY`. It exports `apiForSession()`, which
-  returns a link client for link sessions and an admin client only for admin sessions.
+- The Next session cookie carries a **principal**, not a boolean: `{kind:'admin', token}` wrapping
+  the bearer a password login returned, or `{kind:'link', token}` set when `/s/<token>` bootstraps
+  — in two cookies, not one (first amendment below).
+- **Exactly one file per app** may read `process.env.API_KEY` (`lib/env.ts` in Microtask). The
+  client comes from `apiForSession(audience)`, which takes the route's audience and reads only that
+  audience's cookie: `'link'` on `/s/*` yields a link client from `mt_link` or nothing, `'admin'`
+  everywhere else yields an admin client from `mt_admin` or nothing. A bare
+  `apiForSession()` cannot work once there are two cookies — second amendment below.
 - `packages/api-client` exports two non-interchangeable constructors with distinct branded types, has
   no default export, and reads no environment variable — so a component cannot accidentally obtain
   admin authority.
@@ -76,3 +80,29 @@ There is also deliberately **no** `POST /v1/auth/logout`, which the spec listed.
 self-contained HMAC the API cannot revoke without a store, and rotating `SESSION_SECRET` would sign
 out every admin at once. Logout clears the cookie; a stolen bearer stays valid until it expires.
 ADR 0032 records that limit rather than implying it by an absent route.
+
+## Amended · 2026-09-11 — `apiForSession` takes the audience
+
+The decision above read "It exports `apiForSession()`, which returns a link client for link
+sessions and an admin client only for admin sessions." With one cookie that holds either principal,
+a bare call can read the cookie and let its `kind` choose. ADR 0032 replaced that cookie with two
+disjoint ones, `mt_admin` and `mt_link`, and an admin checking a client's link holds **both** at
+once. A bare call then has no way to know which cookie to read, and any rule it picked — prefer the
+admin, prefer the link — would be the session kind decided by whichever cookie happened to be
+present, which is the clobbering ADR 0032 exists to prevent.
+
+So it is `apiForSession(audience: 'admin' | 'link')`. The audience is not a guess and not the
+caller's choice: it is fixed by the route, `'link'` for every `/s/*` route and `'admin'` for every
+other one, and the function reads exactly that audience's cookie and never consults the other. A
+cookie that is absent or will not open yields `null` rather than a client, and what to do about it
+is decided per audience in `lib/problem.ts` — an admin is sent to `/login?next=`, a client to the
+terminal page, never to a password form.
+
+The single-reader rule is unchanged in substance and more precise in the code: `lib/env.ts` is the
+one file that reads `process.env`, the ESLint boundary is `n/no-process-env` lifted for that file
+alone, and `lib/api.ts` is the one place a client is built.
+
+The same list gave the admin cookie's payload as `{kind:'admin'}`. It cannot be only that: the app
+presents the admin's bearer as `Authorization: Bearer` on every call, and the cookie is the only
+place the app keeps it, so the payload is `{kind:'admin', token}`: a live credential in its own
+right, sealed under ADR 0032 for the same reason the share token is.

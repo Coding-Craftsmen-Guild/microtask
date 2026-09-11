@@ -33,10 +33,11 @@ what a client sees, which also means a client who is sent a second link is never
 one's task.
 
 **Both cookies are encrypted and authenticated, not signed** — AES-256-GCM via `node:crypto`.
-`COOKIE_SECRET` (32 bytes or more) is required at boot, is read by the same single module that reads
-`API_KEY` under ADR 0012, and is **distinct from the API's `SESSION_SECRET`**. This is the second
-secret ADR 0012 said would not be needed; the reason it is needed is that the payload is a
-credential rather than an assertion about one.
+`COOKIE_SECRET` (32 bytes or more) is required at boot — checked by `register()` in
+`instrumentation.ts`, not at module load (see the amendment below) — is read by the same single
+module that reads `API_KEY` under ADR 0012, and is **distinct from the API's `SESSION_SECRET`**.
+This is the second secret ADR 0012 said would not be needed; the reason it is needed is that the
+payload is a credential rather than an assertion about one.
 
 **Each cookie's lifetime matches the credential behind it.** `mt_admin` takes its `Max-Age` from the
 bearer's own `expiresInSeconds`, so the cookie cannot outlive the token it wraps — the app being
@@ -46,9 +47,12 @@ until it is revoked.
 
 **401 handling is per-cookie.** The spec's blanket "any 401 sends the browser to `/login`" is wrong
 for a client: it would show a password form to someone who has no password and never will. So an
-admin 401 clears `mt_admin` and redirects to `/login?next=<pathname>`, which also fixes the legacy
-deep-link loss recorded in the parity inventory; a link 401 clears `mt_link` and renders a terminal
-"this link is no longer available" page. A client is never shown a password form.
+admin 401 redirects to `/login?next=<pathname>`, which also fixes the legacy deep-link loss recorded
+in the parity inventory; a link 401 redirects to the terminal "this link is no longer available"
+page at `/s/unavailable`. A client is never shown a password form. **Neither 401 clears a cookie.**
+This first read "an admin 401 clears `mt_admin`" and "a link 401 clears `mt_link`"; a page render
+cannot write a cookie, and the one place that could — the proxy, on arrival — made sign-out a `GET`.
+The amendment below says why no clear is needed.
 
 **Logout clears the cookie, and there is deliberately no API logout route.** The admin bearer is a
 self-contained HMAC, so the API cannot revoke one without adding a store, and rotating
@@ -65,8 +69,10 @@ it is recorded here rather than implied by the absence of a route.
 - Because `mt_admin`'s lifetime follows the bearer, an admin is signed out when the token expires
   rather than seeing a 401 on the next action. With no refresh route (the password is needed to mint
   a token at all) the clean re-login *is* the refresh story.
-- A revoked share link produces a terminal page rather than a loop: the cookie is cleared, so a
-  reload does not re-attempt the dead token.
+- A revoked share link produces a terminal page rather than a loop: the redirect takes the dead
+  token out of the address bar and the terminal page calls nothing, so a reload does not re-attempt
+  it. (This first said "the cookie is cleared, so a reload does not re-attempt the dead token";
+  nothing clears it, and nothing needs to — see the amendment below.)
 
 ## Alternatives considered
 
@@ -86,3 +92,70 @@ undecryptable.
 and it is what makes "the URL always wins" true. Rejected only because a client following an
 in-app link to another tab would drop the token from the path; the cookie is the continuation, and
 the URL still overrides it whenever one is present.
+
+## Amended · 2026-09-11 — where the code had to put things, and the clear that was removed
+
+Building Group C and then verifying it found five places where this ADR, or the plan that executed
+it, describes something that could not be built as written or should not have been. The code is
+right in each; this records why.
+
+**(a) The gate is `proxy.ts`, not `middleware.ts`.** Next 16.3.4 deprecates the `middleware` file
+convention: `next build` warns `The "middleware" file convention is deprecated. Please use "proxy"
+instead` and names the `middleware-to-proxy` codemod, and a proxy runs on the Node runtime. Same
+role, current name.
+
+**(b) No cookie is cleared on a navigation.** The first build cleared `mt_admin` on every `GET` of
+`/login` and `mt_link` on every `GET` of `/s/unavailable`, because (e) left the proxy as the only
+place a navigation could clear one. That made both pages state-changing `GET`s. Next prefetches
+every `<Link>` it renders, so a link to `/login` anywhere on screen would sign the admin out merely
+by being drawn, and so would a top-level link from any other site — logout by `GET`. The clear
+also bought nothing:
+
+- `mt_admin`'s `Max-Age` is the bearer's own `expiresInSeconds` (`sealAdmin` in
+  `lib/session-store.ts`), so the **browser** retires the cookie when the bearer expires. A cookie
+  that still opens but holds a bearer the API refuses exists only after a `SESSION_SECRET`
+  rotation, after the API host's clock jumps forward, or in the sliver by which `Max-Age` — counted
+  from when the browser received the cookie — outlasts the bearer's expiry, counted from when the
+  API minted it and floored to the second. That cookie meets its 401 in the page, is sent to
+  `/login?next=`, and is overwritten by the next sign-in. `/login` calls nothing, so there is no loop.
+- A stale `mt_link` decides nothing, because the URL always wins: the token a client sees is the one
+  in the address bar, never the one in the cookie.
+
+So `/login` and `/s/unavailable` are pass-throughs that clear nothing, and `proxy.ts` writes no
+cookie on any request — `proxy.test.ts` asserts it across paths, cookies, methods and a plain,
+prefetched and cross-site arrival. Both stay outside the admin gate: gating `/login` would redirect
+it to `/login?next=/login`, which is itself, and a test follows the redirect chain from a gated page
+to prove it ends after one hop. Sign-out stays a `POST` to the `signOut` Server Action, which clears
+`mt_admin` in its own response; that is where a clear belongs. It also restores what the app being
+replaced did: a signed-in admin who opens `/login` keeps their session.
+
+**(c) `/s/unavailable` is a static route inside the `/s/` tree.** A static segment beats the dynamic
+`/s/[token]` segment in the App Router, so the terminal page takes precedence without a special
+case, and `noindex` stays a property of one subtree (ADR 0037) instead of needing a second. It cannot
+shadow a real link: `unavailable` is eleven characters and a share token is sixteen or more.
+
+**(d) The boot check runs in `instrumentation.ts` `register()`.** Next calls `register()` when the
+server starts and skips it during `next build` (`registerInstrumentation` returns early in
+`phase-production-build`). Validating the environment at module load instead makes the **build**
+require production secrets, because `next build` imports every route's module graph to collect its
+configuration — measured as `Failed to collect configuration for /login`, which
+`export const dynamic = 'force-dynamic'` does not avoid. `lib/env.ts` therefore exports `appEnv()`,
+a memoised function, and `register()` calls it once. Next does not exit on a failed `register()`:
+boot logs the error and every request is a 500, so a health check is what turns it into a failed
+deploy, but nothing is served from a half-configured app.
+
+**(e) A Server Component cannot write a cookie.** Next permits a cookie write only while the request
+store's phase is `'action'`; a render that tries throws `ReadonlyRequestCookiesError`
+(`next/dist/server/web/spec-extension/adapters/request-cookies.js`). The 401 is discovered by the
+page that made the call, which is a render, so "an admin 401 clears `mt_admin`" was never
+implementable where this ADR put it. A 401 found during a render **redirects**, which a render may
+do, and (b) is why nothing downstream of the redirect clears either.
+
+The same constraint binds the reseal this ADR decides — "visiting `/s/<token>` overwrites `mt_link`
+unconditionally". The page that renders `/s/<token>` cannot do it; it needs a Server Action, a Route
+Handler, or the proxy. The proxy is now tested to write no cookie at all, so putting the reseal
+there is a deliberate change to that invariant rather than an addition to it. And ADR 0037, decided
+after this one, puts the token in every client URL — `/s/<token>`, `/s/<token>/t/<taskId>`, with
+`?tab=` for the tab — which removes the reason the last alternative above was rejected: no in-app
+link drops the token from the path. The unit that builds `/s/*` should establish whether any route
+still needs to read `mt_link` before building the reseal at all.
