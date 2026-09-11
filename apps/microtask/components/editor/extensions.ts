@@ -1,4 +1,4 @@
-import type { EditorOptions, Extensions } from '@tiptap/core'
+import type { EditorOptions, Extensions, NodeViewRenderer } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
@@ -12,6 +12,22 @@ import { normalizeHref } from './safe-href'
  * nothing. The `/` is dropped rather than carried forward; the ☑ half is real.
  */
 export const PLACEHOLDER = 'Write notes, or try the ☑ button for a checklist'
+
+const disableOwnCheckbox = (dom: Node): void => {
+  if (dom instanceof HTMLElement) dom.querySelector('label > input[type="checkbox"]')?.setAttribute('disabled', '')
+}
+
+const ReadOnlyTaskItem = TaskItem.extend({
+  addNodeView() {
+    const render: NodeViewRenderer | null = this.parent?.() ?? null
+    if (render === null) return null
+    return (props) => {
+      const view = render(props)
+      disableOwnCheckbox(view.dom)
+      return view
+    }
+  },
+})
 
 /**
  * Every extension the checklist editor runs, for one view.
@@ -36,8 +52,13 @@ export const PLACEHOLDER = 'Write notes, or try the ☑ button for a checklist'
  * - `TaskList` and `TaskItem` from `@tiptap/extension-list`, `Placeholder` from
  *   `@tiptap/extensions`. The `extension-task-list`, `-task-item` and `-placeholder` packages
  *   still publish, and each is a two-line re-export shim.
- * - No `onReadOnlyChecked`. Omitting it is what makes a read-only viewer's checkbox click snap
- *   back, which is the intended read-only feel rather than an oversight.
+ * - In a read-only view, Tiptap's own task item node view with its checkbox `disabled`. Tiptap
+ *   draws a live `<input type="checkbox">` whatever the view, so a screen reader announced a box
+ *   it could toggle and a keyboard could focus and flip it; `disabled` is what assistive
+ *   technology reads, and it stops the click and the key at once. The node view is built before
+ *   its nested items are, so the one checkbox it finds is its own.
+ * - No `onReadOnlyChecked`. Omitting it still snaps back any change that reaches a read-only
+ *   checkbox regardless, which is the intended read-only feel rather than an oversight.
  *
  * `heading` keeps legacy's three levels, so `#### ` does nothing, and `codeBlock` keeps its
  * `spellcheck="false"` attribute.
@@ -57,7 +78,7 @@ export function buildExtensions(editable: boolean): Extensions {
       },
     }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    (editable ? TaskItem : ReadOnlyTaskItem).configure({ nested: true }),
     Placeholder.configure({ placeholder: editable ? PLACEHOLDER : '' }),
   ]
 }

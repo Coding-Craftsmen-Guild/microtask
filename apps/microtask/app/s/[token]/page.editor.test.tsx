@@ -78,6 +78,18 @@ describe('a view link, through the real tab strip and editor', () => {
     expect(api.received.filter((one) => one.method === 'PUT')).toEqual([])
   })
 
+  it('marks every checkbox disabled for assistive technology, and a write link’s not', async () => {
+    const viewing = await open('view')
+    const boxes = [...viewing.container.querySelectorAll<HTMLInputElement>('.ProseMirror input[type="checkbox"]')]
+    expect(boxes.length).toBeGreaterThan(0)
+    expect(boxes.every((box) => box.disabled)).toBe(true)
+    viewing.unmount()
+    const written = await open('write')
+    const live = [...written.container.querySelectorAll<HTMLInputElement>('.ProseMirror input[type="checkbox"]')]
+    expect(live.length).toBe(boxes.length)
+    expect(live.some((box) => box.disabled)).toBe(false)
+  })
+
   it('renders a document link that opens in a new tab and sends no referrer', async () => {
     const { container } = await open('view')
     const link = container.querySelector('.ProseMirror a[href="https://example.com/runbook"]')

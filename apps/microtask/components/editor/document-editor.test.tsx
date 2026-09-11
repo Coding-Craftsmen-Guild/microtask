@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createRef } from 'react'
 import { Editor as CoreEditor, type Editor } from '@tiptap/core'
 import { TextSelection } from '@tiptap/pm/state'
@@ -179,6 +180,29 @@ describe('a read-only view', () => {
     expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(tab('Go-live').document))
     await settle(SAVE_DEBOUNCE_MS * 5)
     expect(requests).toEqual([])
+  })
+
+  it('marks every checkbox disabled, so assistive technology says it cannot be ticked, and a click sends nothing', async () => {
+    const { surface, editor } = await mount(tab('Go-live'), false)
+    const boxes = [...surface.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
+    expect(boxes.length).toBe(6)
+    expect(boxes.every((box) => box.disabled)).toBe(true)
+    expect(screen.getAllByRole('checkbox').every((box) => box.matches(':disabled'))).toBe(true)
+    await userEvent.click(boxes[0] as HTMLInputElement)
+    expect(boxes[0]?.checked).toBe(true)
+    expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(tab('Go-live').document))
+    await settle(SAVE_DEBOUNCE_MS * 5)
+    expect(requests).toEqual([])
+  })
+
+  it('leaves every checkbox of an editable view enabled, including one added after mount', async () => {
+    const { surface, editor } = await mount(tab('Go-live'), true)
+    act(() => {
+      editor.chain().setTextSelection(3).toggleTaskList().run()
+    })
+    const boxes = [...surface.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
+    expect(boxes.length).toBeGreaterThan(6)
+    expect(boxes.some((box) => box.disabled)).toBe(false)
   })
 
   it('carries the read-only surface props, spellcheck off and checkboxes dimmed, which an editable one does not', async () => {
