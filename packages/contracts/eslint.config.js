@@ -2,7 +2,6 @@ import base, { productImportPatterns } from '@repo/eslint-config'
 
 export default [
   ...base,
-  { rules: { 'max-lines': 'off' } },
   {
     files: ['src/**/*.ts'],
     rules: {
