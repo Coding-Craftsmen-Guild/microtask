@@ -5,6 +5,7 @@ import { projectPagePath } from '../../../../../../components/projects/paths'
 import { ADMIN_CAPABILITIES } from '../../../../../../components/shared/admin-capabilities'
 import { BackLink } from '../../../../../../components/shared/back-link'
 import { activeTabId } from '../../../../../../components/tabs/active-tab'
+import { LiveProgressProvider } from '../../../../../../components/tabs/live-progress'
 import { adminDocumentRoot } from '../../../../../../components/tabs/save-tab'
 import { TaskHeader } from '../../../../../../components/tabs/task-header'
 import { TaskWorkspace } from '../../../../../../components/tabs/task-workspace'
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: TaskPageProps): Promise<Metad
 }
 
 /**
- * `/p/[projectId]/t/[taskId]`: one task's name and Share, its tabs, and the editor.
+ * `/p/[projectId]/t/[taskId]`: one task's name, overall progress and Share, its tabs, and the editor.
  *
  * `?tab=` is validated here against the task's own tabs, falling back to the first, and the
  * workspace then keeps the address bar in step with `replaceState` (ADR 0037's semantics, which
@@ -56,23 +57,25 @@ export default async function TaskPage({ params, searchParams }: TaskPageProps) 
   const tabs = [...task.tabs].sort((a, b) => a.position - b.position)
   const initialTabId = activeTabId(tabs, (await searchParams)['tab'])
   return (
-    <div className="grid gap-4 pt-6">
-      {back}
-      <TaskHeader can={ADMIN_CAPABILITIES} count={shareCount} projectId={projectId} share={ADMIN_SHARE_ACTIONS} task={{ id: task.id, name: task.name }} />
-      {initialTabId === null ? (
-        <EmptyState>This task has no tabs.</EmptyState>
-      ) : (
-        <TaskWorkspace
-          actions={ADMIN_TAB_ACTIONS}
-          audience="admin"
-          capabilities={ADMIN_CAPABILITIES}
-          documentRoot={adminDocumentRoot({ projectId, taskId })}
-          initialTabId={initialTabId}
-          key={task.id}
-          tabs={tabs}
-          task={{ projectId, taskId }}
-        />
-      )}
-    </div>
+    <LiveProgressProvider initial={task.progress} key={task.id}>
+      <div className="grid gap-4 pt-6">
+        {back}
+        <TaskHeader can={ADMIN_CAPABILITIES} count={shareCount} progress={task.progress} projectId={projectId} share={ADMIN_SHARE_ACTIONS} task={{ id: task.id, name: task.name }} />
+        {initialTabId === null ? (
+          <EmptyState>This task has no tabs.</EmptyState>
+        ) : (
+          <TaskWorkspace
+            actions={ADMIN_TAB_ACTIONS}
+            audience="admin"
+            capabilities={ADMIN_CAPABILITIES}
+            documentRoot={adminDocumentRoot({ projectId, taskId })}
+            initialTabId={initialTabId}
+            key={task.id}
+            tabs={tabs}
+            task={{ projectId, taskId }}
+          />
+        )}
+      </div>
+    </LiveProgressProvider>
   )
 }

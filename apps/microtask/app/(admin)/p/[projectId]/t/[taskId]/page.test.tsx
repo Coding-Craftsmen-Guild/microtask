@@ -131,6 +131,20 @@ describe('the task page', () => {
     expect(container.querySelector('a[href^="/login"]')).toBeNull()
   })
 
+  it('draws the task’s overall progress in its title row, before Share, as legacy drew the project’s', async () => {
+    answer = { ok: true, value: { ...task([tab('a', 0)]), progress: { done: 1, total: 4 } } }
+    await show()
+    const row = screen.getByRole('heading', { level: 1 }).parentElement
+    expect(row?.textContent).toContain('Overall progress: 25%')
+    const text = row?.textContent ?? ''
+    expect(text.indexOf('Overall progress')).toBeLessThan(text.indexOf('Share'))
+  })
+
+  it('says No tasks yet in the title row for a task with no checklist items', async () => {
+    await show()
+    expect(screen.getByRole('heading', { level: 1 }).parentElement?.textContent).toContain('No tasks yet')
+  })
+
   it('shows a refusal in place of the document, with no strip and no editor', async () => {
     answer = { ok: false, status: 0, detail: 'Microtask could not reach its API. Try again in a moment.' }
     await show()
@@ -176,6 +190,7 @@ describe('the task page’s Share', () => {
       projectId: P,
       task: { id: T, name: 'Go-live' },
       count: 2,
+      progress: { done: 0, total: 0 },
       can: ADMIN_CAPABILITIES,
       share: {
         list: shareActions.listShareLinks,

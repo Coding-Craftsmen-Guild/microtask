@@ -50,6 +50,7 @@ vi.mock('next/navigation', async (original) => ({
 }))
 
 const { TaskWorkspace } = await import('./task-workspace')
+const { LiveOverallProgress, LiveProgressProvider } = await import('./live-progress')
 
 const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
 let taskSerial = 0
@@ -765,6 +766,44 @@ describe('the open tab’s progress row', () => {
   it('says the read link sentence to a link that cannot', () => {
     mount({ active: 'b', audience: 'link', allowed: capabilities('view', { kind: 'task', projectId: P, taskId: T }) })
     expect(row().textContent).toContain('Nothing to tick here')
+  })
+})
+
+describe('the task-wide count in the title row', () => {
+  const NONE = { done: 0, total: 0 }
+
+  const withHead = (options: Options = {}) =>
+    render(
+      <LiveProgressProvider initial={NONE}>
+        <p data-testid="head">
+          <LiveOverallProgress audience={options.audience ?? 'admin'} fallback={NONE} />
+        </p>
+        {workspace(options)}
+      </LiveProgressProvider>,
+    )
+
+  it('counts every tab of the task, not only the open one', () => {
+    withHead()
+    expect(screen.getByTestId('head').textContent).toBe('Overall progress: 80%')
+  })
+
+  it('follows the island as the user types, as legacy re-rendered its header on every keystroke', async () => {
+    withHead()
+    await act(async () => {
+      island?.onProgress?.({ done: 2, total: 2 })
+    })
+    expect(screen.getByTestId('head').textContent).toBe('Overall progress: 100%')
+  })
+
+  it('says No tasks yet to the admin for a task with no checklist items anywhere', () => {
+    withHead({ tabs: [tab('a', 0), tab('b', 1)] })
+    expect(screen.getByTestId('head').textContent).toBe('No tasks yet')
+  })
+
+  it('says the link surface’s own words to a link for the same task', () => {
+    const allowed = capabilities('view', { kind: 'task', projectId: P, taskId: T })
+    withHead({ tabs: [tab('a', 0), tab('b', 1)], audience: 'link', allowed })
+    expect(screen.getByTestId('head').textContent).toBe('A shared project workspace')
   })
 })
 

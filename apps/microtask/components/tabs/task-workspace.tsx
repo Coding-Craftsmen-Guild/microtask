@@ -9,6 +9,7 @@ import { TabDialogs, type TabDialog } from './tab-dialogs'
 import { TabProgressRow } from './tab-progress-row'
 import { TabStrip } from './tab-strip'
 import { tabControls } from './tab-controls'
+import { useOverallProgress } from './use-overall-progress'
 import { useTabOperations, type Notice, type TabActions } from './use-tab-operations'
 import { useWorkspace } from './use-workspace'
 import type { WorkspaceTab } from './workspace-state'
@@ -41,13 +42,16 @@ const NoticeLine = ({ notice }: { notice: Notice | null }) =>
 /**
  * The task page's working area: tab strip, the open tab's progress, and the editor island.
  *
- * Every control is drawn from `capabilities`, never from a role, so the client surface can reuse
+ * It also publishes the task-wide count to the title row, if the page gave it one
+ * (`LiveProgressProvider`), so the head's bar follows typing. Every control is drawn from
+ * `capabilities`, never from a role, so the client surface can reuse
  * this unchanged (ADR 0038). The island is keyed on the open tab and the mount count, so it is
  * remounted exactly when it must read a different document or stamp — see `workspaceReducer`.
  */
 export function TaskWorkspace(props: TaskWorkspaceProps) {
   const workspace = useWorkspace(props)
   const { state, dispatch } = workspace
+  useOverallProgress(state)
   const operations = useTabOperations(workspace, props.actions, props.task)
   const controls = tabControls(props.capabilities)
   const [dialog, setDialog] = useState<TabDialog | null>(null)

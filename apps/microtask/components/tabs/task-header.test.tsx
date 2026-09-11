@@ -8,7 +8,7 @@ import { TaskHeader } from './task-header'
 
 const setup = (can = ADMIN_CAPABILITIES, count: number | undefined = 1) => {
   const share = fakeShareActions()
-  render(<TaskHeader can={can} count={count} projectId={P} share={share} task={{ id: T1, name: 'Go-live' }} />)
+  render(<TaskHeader can={can} count={count} progress={{ done: 3, total: 4 }} projectId={P} share={share} task={{ id: T1, name: 'Go-live' }} />)
   return { share, user: userEvent.setup() }
 }
 
@@ -21,6 +21,11 @@ describe('TaskHeader', () => {
   it('heads the page with the task’s name', () => {
     setup()
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Go-live')
+  })
+
+  it('draws the task’s overall progress beside its name, from the count it is handed outside a workspace', () => {
+    setup()
+    expect(screen.getByRole('heading', { level: 1 }).parentElement?.textContent).toContain('Overall progress: 75%')
   })
 
   it('shows beside Share the count of links scoped to this task', () => {

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { RoleValue, ScopeValue } from '@repo/contracts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -104,5 +104,22 @@ describe('a write link, through the same components', () => {
     expect(surface(container).getAttribute('contenteditable')).toBe('true')
     expect(screen.getByRole('toolbar')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'New tab' })).toBeTruthy()
+  })
+
+  it('follows a ticked checkbox in the head’s overall progress, as legacy re-rendered its header on every keystroke', async () => {
+    const { container } = await open('write')
+    const head = screen.getByRole('heading', { level: 1 }).parentElement?.parentElement
+    expect(head?.textContent).toContain('Overall progress: 50%')
+    const open_ = [...container.querySelectorAll<HTMLInputElement>('.ProseMirror input[type="checkbox"]')].find((box) => !box.checked)
+    if (open_ === undefined) throw new Error('no unticked checkbox')
+    await act(async () => {
+      open_.checked = true
+      open_.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(head?.textContent).toContain('Overall progress: 100%')
+    cleanup()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
   })
 })

@@ -8,6 +8,7 @@ import { ShareManager } from '../../../components/share-manager/share-manager'
 import { taskChoices } from '../../../components/share-manager/task-share'
 import { shareControls } from '../../../components/share-manager/types'
 import { activeTabId } from '../../../components/tabs/active-tab'
+import { LiveProgressProvider } from '../../../components/tabs/live-progress'
 import { TaskWorkspace } from '../../../components/tabs/task-workspace'
 import { readLinkShareCount, readLinkTask } from './read-share'
 
@@ -53,14 +54,16 @@ export async function linkTaskPage({ token, share, taskId, wanted, back }: LinkT
     <ShareManager actions={linkShareActions(token)} choices={taskChoices(projectId, task)} controls={shareControls(can)} count={count} exposure="" projectId={projectId} taskId={task.id} />
   )
   return (
-    <div className="grid gap-4 pt-6">
-      {back}
-      <LinkHead progress={task.progress} share={manager} title={task.name} writable={can['tab:write']} />
-      {initialTabId === null ? (
-        <EmptyState>This task has no tabs.</EmptyState>
-      ) : (
-        <TaskWorkspace actions={linkTabActions(token)} audience="link" capabilities={can} documentRoot={linkDocumentRoot(token, ref)} initialTabId={initialTabId} key={task.id} tabs={tabs} task={ref} />
-      )}
-    </div>
+    <LiveProgressProvider initial={task.progress} key={task.id}>
+      <div className="grid gap-4 pt-6">
+        {back}
+        <LinkHead live progress={task.progress} share={manager} title={task.name} writable={can['tab:write']} />
+        {initialTabId === null ? (
+          <EmptyState>This task has no tabs.</EmptyState>
+        ) : (
+          <TaskWorkspace actions={linkTabActions(token)} audience="link" capabilities={can} documentRoot={linkDocumentRoot(token, ref)} initialTabId={initialTabId} key={task.id} tabs={tabs} task={ref} />
+        )}
+      </div>
+    </LiveProgressProvider>
   )
 }
