@@ -24,10 +24,10 @@ const cannotBeDescribed = (): OpenAPIHono => {
   return app
 }
 
-const inTempDirectory = async (use: (target: URL) => Promise<void>): Promise<void> => {
+const inTempDirectory = async (run: (target: URL) => Promise<void>): Promise<void> => {
   const directory = await mkdtemp(join(tmpdir(), 'openapi-guard-'))
   try {
-    await use(pathToFileURL(join(directory, 'openapi.json')))
+    await run(pathToFileURL(join(directory, 'openapi.json')))
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

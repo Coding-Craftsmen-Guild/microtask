@@ -76,12 +76,17 @@ export const base = [
     },
   },
   {
-    files: ['**/*.tsx'],
+    files: ['**/*.ts', '**/*.tsx'],
     plugins: { 'react-hooks': reactHooks },
     rules: {
-      'max-lines': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
+    },
+  },
+  {
+    files: ['**/*.tsx'],
+    rules: {
+      'max-lines': ['error', { max: 80, skipBlankLines: true, skipComments: true }],
     },
   },
   {
