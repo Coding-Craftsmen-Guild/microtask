@@ -76,6 +76,13 @@ describe('ProjectList', () => {
     expect(chips.map((chip) => chip.textContent)).toEqual(['j', 'i', 'h', 'g', 'f', 'e', 'd', 'c', '+2 more'])
   })
 
+  it('lets a row wrap on a phone, so its bar and buttons stack under the name, as legacy’s 640px query did', () => {
+    renderList([project({ name: 'Newer' })])
+    let node: HTMLElement | null = screen.getByTestId('project-name')
+    while (node !== null && !node.classList.contains('max-sm:flex-wrap')) node = node.parentElement
+    expect(node?.classList.contains('flex')).toBe(true)
+  })
+
   it('renders one row per project, in the order the API sent', () => {
     renderList([project({ name: 'Newer' }), project({ id: '01HZZZZZZZZZZZZZZZZZZZZZZ2', name: 'Older' })])
     expect(screen.getAllByTestId('project-name').map((name) => name.textContent)).toEqual(['Newer', 'Older'])

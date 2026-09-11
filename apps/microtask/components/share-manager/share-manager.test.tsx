@@ -93,6 +93,14 @@ describe('ShareManager', () => {
     expect(actions.list).toHaveBeenCalledTimes(2)
   })
 
+  it('closes on Escape as well as on Done, as legacy’s dialog let the native cancel close it', async () => {
+    const { user } = renderManager()
+    await openManager(user)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.body.innerHTML).not.toContain(JANE)
+  })
+
   it('drops a list that arrives after the dialog was closed, rather than holding its tokens', async () => {
     const { actions, user } = renderManager()
     let answer: (value: Awaited<ReturnType<typeof actions.list>>) => void = () => undefined

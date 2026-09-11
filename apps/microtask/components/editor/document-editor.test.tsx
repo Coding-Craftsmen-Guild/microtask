@@ -255,6 +255,15 @@ describe('an editable view', () => {
     expect(requests.length).toBe(1)
   })
 
+  it('pads the document 26px, stepping to 16px on a phone as legacy’s 640px query did, with a sticky toolbar', async () => {
+    const { surface } = await mount(tab('Go-live'))
+    const content = surface.parentElement
+    expect(content?.className.split(' ')).toEqual(expect.arrayContaining(['px-[26px]', 'max-sm:px-4']))
+    expect(screen.getByRole('toolbar').parentElement?.className.split(' ')).toEqual(
+      expect.arrayContaining(['sticky', 'top-0', 'flex-wrap']),
+    )
+  })
+
   it('draws the toolbar and the save state, and is contenteditable', async () => {
     const { surface } = await mount(tab('Go-live'))
     expect(screen.getByRole('toolbar')).toBeTruthy()

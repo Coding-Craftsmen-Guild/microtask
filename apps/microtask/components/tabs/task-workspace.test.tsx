@@ -174,6 +174,33 @@ describe('the tab strip', () => {
     mount()
     expect(tabNamed('b').querySelector('[data-slot="tab-count"]')).toBeNull()
   })
+
+  it('never animates a count pill, the open one changing on every keystroke, and tints the open one gold', () => {
+    mount()
+    const open = tabNamed('a').querySelector('[data-slot="tab-count"]')
+    const other = tabNamed('c').querySelector('[data-slot="tab-count"]')
+    expect(open?.classList.contains('transition-none')).toBe(true)
+    expect(other?.classList.contains('transition-none')).toBe(true)
+    expect(open?.classList.contains('bg-gold/30')).toBe(true)
+    expect(other?.classList.contains('bg-brand-soft')).toBe(true)
+  })
+
+  it('scrolls sideways with a thin scrollbar and never vertically, as legacy’s strip did', () => {
+    mount()
+    const scroller = strip().parentElement
+    expect(scroller?.className.split(' ')).toEqual(
+      expect.arrayContaining(['overflow-x-auto', 'overflow-y-hidden', '[scrollbar-width:thin]']),
+    )
+  })
+
+  it('rings a focused tab in gold, 2px with a 1px offset, as legacy’s focus-visible rule did', () => {
+    mount()
+    for (const name of ['a', 'b']) {
+      expect(tabNamed(name).className.split(' ')).toEqual(
+        expect.arrayContaining(['focus-visible:outline-2', 'focus-visible:outline-offset-1', 'focus-visible:outline-gold-deep']),
+      )
+    }
+  })
 })
 
 describe('?tab= in the address bar', () => {
@@ -731,6 +758,11 @@ describe('the open tab’s progress row', () => {
     if (found === null) throw new Error('no progress row')
     return found
   }
+
+  it('steps its left padding to 16px on a phone, as legacy’s 640px query did', () => {
+    mount()
+    expect(row().className.split(' ')).toEqual(expect.arrayContaining(['px-[26px]', 'max-sm:px-4']))
+  })
 
   it('reads the tab name and done / total completed', () => {
     mount()
