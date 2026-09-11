@@ -196,6 +196,19 @@ describe('leaving the task page by an in-app link', () => {
     expect(requests.map((request) => request.keepalive)).toEqual([true])
   })
 
+  it('asks again on the next link when a leave the user chose did not take the page away', async () => {
+    ask.mockReturnValueOnce(true).mockReturnValue(false)
+    const editor = await mount()
+    type(editor, 'Z')
+    click('Microtask')
+    expect(followed).toEqual(['bar:open'])
+    expect(editorGone()).toBe(false)
+    click('← Back to project')
+    expect(ask).toHaveBeenCalledTimes(2)
+    expect(followed).toEqual(['bar:open'])
+    expect(unload().defaultPrevented).toBe(true)
+  })
+
   it('still asks for the browser’s prompt on unload after the user chose to stay', async () => {
     const editor = await mount()
     type(editor, 'Z')

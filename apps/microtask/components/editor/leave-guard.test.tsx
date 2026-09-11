@@ -57,8 +57,14 @@ describe('leavesPage: which clicks would take the page somewhere else', () => {
     expect(judged(anchor({ href: '/p/P1' }), init)).toBe(false)
   })
 
-  it('leaves a link that opens in another tab alone', () => {
+  it('leaves a link that opens in another tab alone, or in a window it names', () => {
     expect(judged(anchor({ href: '/p/P1', target: '_blank' }))).toBe(false)
+    expect(judged(anchor({ href: '/p/P1', target: 'help' }))).toBe(false)
+  })
+
+  it('counts _top and _parent in any case, which take this page away as _self does', () => {
+    expect(judged(anchor({ href: '/p/P1', target: '_top' }))).toBe(true)
+    expect(judged(anchor({ href: '/p/P1', target: '_PARENT' }))).toBe(true)
   })
 
   it('leaves a download link alone', () => {

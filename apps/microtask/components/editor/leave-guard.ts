@@ -11,8 +11,10 @@ const linkOf = (event: MouseEvent): HTMLAnchorElement | null => {
 
 const destination = (link: HTMLAnchorElement, here: string): URL => new URL(link.getAttribute('href') ?? '', here)
 
+const HERE_TARGETS: ReadonlySet<string> = new Set(['', '_self', '_parent', '_top'])
+
 const opensHere = (link: HTMLAnchorElement): boolean =>
-  !link.hasAttribute('download') && (link.target === '' || link.target === '_self')
+  !link.hasAttribute('download') && HERE_TARGETS.has(link.target.toLowerCase())
 
 /**
  * Whether a click is one that takes this page to **another page of this app**: a plain
@@ -22,7 +24,9 @@ const opensHere = (link: HTMLAnchorElement): boolean =>
  * Each exclusion is a click that leaves the editor mounted or is someone else's to guard:
  *
  * - a modified or middle click opens a new tab and keeps this page;
- * - `target="_blank"` and `download` do the same;
+ * - `target="_blank"`, a target naming another window, and `download` do the same — while
+ *   `_parent` and `_top` take this page away as `_self` does, since navigating a frame's parent
+ *   unloads the frame, and every keyword is matched in any case, as the browser matches it;
  * - another origin is a hard navigation, which fires `beforeunload`, whose prompt already asks —
  *   asking here as well would ask twice;
  * - the same path, whatever its query or fragment, renders the same page, and the task page keys
