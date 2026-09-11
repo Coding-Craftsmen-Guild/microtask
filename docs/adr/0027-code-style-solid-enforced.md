@@ -182,3 +182,24 @@ path: **a path-scoped rule is decided centrally and applied locally.** Any `file
 `packages/eslint-config` that begins with `apps/` or `packages/` is inert, and inertness here is
 invisible — the config reads as though the rule is in force. That is the mirror image of the
 file-level `eslint-disable` this ADR bans: visible intent, no effect.
+
+## Line endings are LF, enforced · 2026-09-11
+
+Committing a file produced `warning: LF will be replaced by CRLF the next time Git touches it`,
+which prompted a measurement: `core.autocrlf=true` with no `.gitattributes`, an index that was
+already LF for all 366 tracked text files, and **15 working-tree files that had drifted to CRLF**.
+
+The drift is invisible. `git status` normalises on comparison, so a CRLF working file shows no diff;
+`git ls-files --eol` is the only thing that reveals it. A habit cannot enforce something nobody can
+see, so it gets a rule at both levels:
+
+- **`.gitattributes`** declares `* text=auto eol=lf`. `eol=lf` overrides `core.autocrlf`, so a
+  machine that still has it set gets LF here anyway. This is the half that covers what ESLint never
+  reads — Markdown, JSON, YAML, CSS — and the half that survives a fresh clone.
+- **`linebreak-style: ['error', 'unix']`** in `base` fails the gate on a CRLF source file, so the
+  drift cannot return through an editor.
+
+Note for a future ESLint upgrade: `linebreak-style` is one of the formatting rules deprecated in
+ESLint 8.53. It still functions in the pinned 9.39.5, and if a later major removes it the gate fails
+loudly on an unknown rule rather than silently ceasing to check — which is the acceptable direction.
+`.gitattributes` is the durable half.

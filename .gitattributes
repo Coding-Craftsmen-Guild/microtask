@@ -1,0 +1,22 @@
+# LF everywhere, in the index and in the working tree, on every platform.
+#
+# Without this file, core.autocrlf=true checks text out as CRLF on Windows while the index
+# holds LF. The index stayed clean, but 15 working-tree files had drifted to CRLF, and the
+# drift is invisible in a diff -- which is exactly why it needs a rule rather than a habit.
+# `eol=lf` overrides core.autocrlf, so a machine with it set still gets LF here.
+#
+# Enforced on every gate run by `linebreak-style` in @repo/eslint-config, which covers the
+# source. This file covers everything else: markdown, JSON, YAML, CSS.
+* text=auto eol=lf
+
+*.webp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zst binary

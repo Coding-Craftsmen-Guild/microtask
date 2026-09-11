@@ -70,6 +70,7 @@ export const base = [
         contexts: ['TSInterfaceDeclaration', 'TSTypeAliasDeclaration', 'VariableDeclaration'],
       }],
       'n/no-process-env': 'error',
+      'linebreak-style': ['error', 'unix'],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
     },
