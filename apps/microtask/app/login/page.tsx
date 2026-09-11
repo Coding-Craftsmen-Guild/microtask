@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Logo } from '../../components/shared/logo'
 import { safeNextPath } from '../../lib/next-path'
 import { LoginForm } from './login-form'
 
@@ -30,6 +31,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const next = safeNextPath(typeof raw === 'string' ? raw : null)
   return (
     <main className="mx-auto grid w-full max-w-[340px] gap-6 px-4 pt-[14vh]">
+      <Logo size="login" />
       <h1 className="text-center text-xl font-semibold">Microtask admin</h1>
       <LoginForm next={next} />
     </main>

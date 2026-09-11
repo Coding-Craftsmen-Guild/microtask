@@ -221,8 +221,20 @@ describe('a request of any kind', () => {
   })
 })
 
+const matched = (path: string): boolean => config.matcher.some((pattern) => new RegExp(`^${pattern}$`).test(path))
+
 describe('config', () => {
-  it('keeps build assets out of the matcher', () => {
-    expect(config.matcher).toEqual(['/((?!_next/static|_next/image|favicon.ico).*)'])
+  it('keeps build assets and the app’s public images out of the matcher', () => {
+    expect(config.matcher).toEqual(['/((?!_next/static|_next/image|favicon.ico|img/).*)'])
+  })
+
+  it('never runs for the logo, which the sign-in page shows to a browser with no session', () => {
+    expect(matched('/img/logo.webp')).toBe(false)
+  })
+
+  it('still runs for every page, the sign-in page and the client surface included', () => {
+    for (const path of ['/', '/login', '/p/01HXYZ', '/p/01HXYZ/t/01HABC', '/s/tokena', '/images', '/imgx/a']) {
+      expect(matched(path)).toBe(true)
+    }
   })
 })

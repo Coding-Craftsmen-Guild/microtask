@@ -55,7 +55,7 @@ export function proxy(request: NextRequest): NextResponse {
   return NextResponse.redirect(new URL(loginPathFor(`${pathname}${search}`), request.url))
 }
 
-/** Every path except the build's own static assets, which no session gates. */
+/** Every path except the build's own static assets and `public/img`, which no session gates. */
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|img/).*)'],
 }

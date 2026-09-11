@@ -2,6 +2,7 @@ import { AppBar } from '@repo/ui/shell/app-bar'
 import { Page } from '@repo/ui/shell/page'
 import type { ReactNode } from 'react'
 import { signOut } from '../../actions/auth'
+import { Logo } from '../../components/shared/logo'
 
 /** Props for {@link AdminLayout}. */
 export interface AdminLayoutProps {
@@ -20,7 +21,7 @@ export interface AdminLayoutProps {
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <>
-      <AppBar product="Microtask">
+      <AppBar logo={<Logo size="bar" />} product="Microtask">
         <form action={signOut}>
           <button className="cursor-pointer text-[13px] text-white/80 hover:text-white" type="submit">
             Sign out

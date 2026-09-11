@@ -39,6 +39,13 @@ describe('LoginPage', () => {
     expect(metadata.title).toBe('Sign in · CC Guild Microtask')
   })
 
+  it('shows the CC Guild logo above the heading, as the app being replaced did', async () => {
+    const { getByRole } = render(await LoginPage({ searchParams: Promise.resolve({}) }))
+    const logo = getByRole('img', { name: 'CC Guild logo' })
+    expect(logo.getAttribute('src')).toBe('/img/logo.webp')
+    expect(logo.compareDocumentPosition(getByRole('heading')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('asks search engines not to index the sign-in form', () => {
     expect(metadata.robots).toEqual({ index: false, follow: false })
   })
