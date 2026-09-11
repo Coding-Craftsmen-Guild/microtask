@@ -99,7 +99,7 @@ The projection is therefore two exports rather than one, and `capabilities()` is
   the one case that needs asking by name is written down rather than left to be discovered.
 
 The agreement test grew with it, and is now stronger than this ADR asked for: it compares `mayReach`
-with `can()` across **role × scope.kind × action × target** — 3 × 2 × 26 × 6 — rather than one
+with `can()` across **role × scope.kind × action × target** — 3 × 2 × 27 × 6, 972 comparisons — rather than one
 target per action. `CAPABILITY_ACTIONS` is asserted equal to the kernel's `ACTIONS`, so a new kernel
 action fails the test until the projection accounts for it.
 
