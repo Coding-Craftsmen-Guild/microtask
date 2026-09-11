@@ -181,6 +181,16 @@ describe('a read-only view', () => {
     expect(requests).toEqual([])
   })
 
+  it('carries the read-only surface props, spellcheck off and checkboxes dimmed, which an editable one does not', async () => {
+    const readOnly = (await mount(tab('Go-live'), false)).surface
+    expect(readOnly.getAttribute('spellcheck')).toBe('false')
+    expect(readOnly.classList.contains('caret-transparent')).toBe(true)
+    cleanup()
+    const editable = (await mount(tab('Go-live'), true)).surface
+    expect(editable.getAttribute('spellcheck')).toBe('true')
+    expect(editable.classList.contains('caret-transparent')).toBe(false)
+  })
+
   it('draws no toolbar and no save state, and is not contenteditable', async () => {
     const { surface } = await mount(tab('Go-live'), false)
     expect(screen.queryByRole('toolbar')).toBe(null)
