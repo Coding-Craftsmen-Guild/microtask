@@ -106,3 +106,12 @@ from this repository, each service naming its own `dockerfile`, the secrets abov
 resource's environment variables, and Microtask given the existing production hostname **only at the
 cutover step**, after the import. Everything Coolify-specific — above all whether it renames named
 volumes — is unverified and is checked on a throwaway resource first (ADR 0026).
+
+**Merging this branch to `main` is a deploy.** The production resource auto-deploys `main`
+([ADR 0022](docs/adr/0022-hostname-continuity-gated-cutover.md)), and compose's `microtask`
+service has the same name as the live app's service, the one the production domain is pointed at by
+hand, so Coolify may carry that domain over to the new, empty stack. Disable auto-deploy on the
+production resource **before** the merge (runbook step 2). Until then, the only thing expected to
+stop such a deploy at `docker compose`, before it replaces the live app, is that the variables
+this stack adds (every one above but `ADMIN_PASSWORD`, which the live app already needs) are unset
+there, so set them only on a throwaway resource, never on the production one ahead of the cutover.
