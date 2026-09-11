@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { isValidElement, type ReactNode } from 'react'
 import type { TaskWorkspaceProps } from '../../../../../../components/tabs/task-workspace'
 import type { TaskRead } from './read-task'
 
@@ -34,6 +34,14 @@ vi.mock('next/link', () => ({
 const page = await import('./page')
 const actions = await import('../../../../../../actions/tabs')
 const { ADMIN_CAPABILITIES } = await import('../../../../../../components/tabs/tab-controls')
+const { TaskWorkspace } = await import('../../../../../../components/tabs/task-workspace')
+
+const workspaceKey = (node: unknown): string | null | undefined => {
+  if (Array.isArray(node)) return node.map(workspaceKey).find((key) => key !== undefined)
+  if (!isValidElement<{ children?: unknown }>(node)) return undefined
+  if (node.type === TaskWorkspace) return node.key
+  return workspaceKey(node.props.children)
+}
 
 const tab = (id: string, position: number) => ({
   id,
@@ -99,6 +107,10 @@ describe('the task page', () => {
       remove: actions.deleteTab,
       reorder: actions.reorderTabs,
     })
+  })
+
+  it('keys the workspace on the task, so moving to another task mounts a fresh one', async () => {
+    expect(workspaceKey(await page.default(props()))).toBe(T)
   })
 
   it('heads the page with the task name and links back to its project, never to /login', async () => {

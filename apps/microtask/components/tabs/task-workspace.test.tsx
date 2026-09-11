@@ -175,6 +175,16 @@ describe('?tab= in the address bar', () => {
     expect(pushed).toBe(0)
   })
 
+  it('is left alone on mount when the address already names the open tab', () => {
+    vi.mocked(window.history.replaceState).mockRestore()
+    window.history.replaceState(null, '', `/p/${P}/t/${T}?tab=a`)
+    vi.spyOn(window.history, 'replaceState').mockImplementation((_data, _unused, url) => {
+      replaced.push(String(url))
+    })
+    mount({ active: 'a' })
+    expect(replaced).toEqual([])
+  })
+
   it('is rewritten with replaceState on every switch, and pushState is never used', async () => {
     mount()
     await userEvent.click(tabNamed('c'))
@@ -549,6 +559,11 @@ describe('the open tab’s progress row', () => {
     mount({ active: 'b', audience: 'link', allowed: capabilities('write', { kind: 'task', projectId: P, taskId: T }) })
     expect(row().textContent).toContain('No checklist items yet')
     expect(row().querySelector('[data-slot="progress-bar-fill"]')).toBeNull()
+  })
+
+  it('draws the bar for a link once the tab has checklist items', () => {
+    mount({ active: 'a', audience: 'link', allowed: capabilities('write', { kind: 'task', projectId: P, taskId: T }) })
+    expect(row().querySelector('[data-slot="progress-bar-fill"]')).not.toBeNull()
   })
 
   it('says the read link sentence to a link that cannot', () => {

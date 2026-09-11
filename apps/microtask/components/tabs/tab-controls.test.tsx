@@ -52,6 +52,24 @@ describe('tabControls reads the tab controls off capabilities, never off a role'
   })
 })
 
+describe('tabControls reads each control off its own action', () => {
+  const only = (action: 'tab:create' | 'tab:rename' | 'tab:delete' | 'tab:reorder' | 'tab:write') => ({
+    ...Object.fromEntries(CAPABILITY_ACTIONS.map((one) => [one, false])),
+    [action]: true,
+  }) as typeof ADMIN_CAPABILITIES
+
+  it.each([
+    ['tab:create', 'create'],
+    ['tab:rename', 'rename'],
+    ['tab:delete', 'remove'],
+    ['tab:reorder', 'reorder'],
+    ['tab:write', 'write'],
+  ] as const)('turns on only the control %s decides', (action, control) => {
+    const controls = tabControls(only(action))
+    expect(Object.entries(controls).filter(([, on]) => on)).toEqual([[control, true]])
+  })
+})
+
 describe('activeTabId validates ?tab= against the task’s own tabs', () => {
   const tabs = [{ id: 'first' }, { id: 'second' }, { id: 'third' }]
 

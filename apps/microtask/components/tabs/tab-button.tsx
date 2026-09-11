@@ -59,7 +59,6 @@ export interface TabButtonProps {
  * Clicking another tab opens it; clicking the open tab opens its menu, and a right-click opens
  * any tab's menu with the browser's own suppressed — legacy's three paths. A viewer with no tab
  * control gets no menu, no caret and no title, and a right-click there is the browser's again.
- *
  */
 export function TabButton(props: TabButtonProps) {
   const { tab, active, progress, controls } = props

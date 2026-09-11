@@ -92,6 +92,14 @@ describe('saveTabDocument sends one conditional write and reads the answer into 
     })
   })
 
+  it('falls back to the status when the problem’s detail is empty', async () => {
+    const { fetch } = answering(() => problem(503, ''))
+    expect(await saveTabDocument('/api/doc', fetch)(REQUEST)).toEqual({
+      kind: 'failed',
+      message: 'The save failed (HTTP 503).',
+    })
+  })
+
   it('falls back to the status when the problem has no detail member', async () => {
     const { fetch } = answering(() => problem(500))
     expect(await saveTabDocument('/api/doc', fetch)(REQUEST)).toEqual({

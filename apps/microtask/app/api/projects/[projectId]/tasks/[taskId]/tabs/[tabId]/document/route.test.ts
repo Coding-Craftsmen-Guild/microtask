@@ -168,6 +168,18 @@ describe('PUT …/document refuses a request that is not same-origin, before any
 })
 
 describe('PUT …/document establishes authority itself, since proxy.ts passes /api/* through', () => {
+  it('refuses a cross-origin request before opening a session or reading the body', async () => {
+    held.admin = null
+    const response = await PUT(request({ origin: 'https://evil.example', 'if-match': 'S1' }, '{not json'), params)
+    expect(response.status).toBe(403)
+  })
+
+  it('refuses a browser with no session before reading the body', async () => {
+    held.admin = null
+    const response = await PUT(request({ origin: `https://${HOST}`, 'if-match': 'S1' }, '{not json'), params)
+    expect(response.status).toBe(401)
+  })
+
   it('answers 401 with no API call when the browser presents no mt_admin', async () => {
     held.admin = null
     const response = await PUT(sameOrigin(), params)
