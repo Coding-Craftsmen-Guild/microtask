@@ -1,6 +1,6 @@
 # ADR 0032 — Two cookies, encrypted, and the URL always wins
 
-**Status:** Accepted · 2026-09-11
+**Status:** Accepted · 2026-09-11 · link half superseded by [ADR 0040](0040-link-surface-url-token-authority.md)
 
 ## Context
 
@@ -25,25 +25,31 @@ admin token". That is true of the *bearer* and false of the cookie: the API neve
 
 **Two cookies, read by disjoint route sets.** `mt_admin` and `mt_link`. Every `/s/*` route reads
 `mt_link` and nothing else; every other route reads `mt_admin` and nothing else. An admin holding a
-client link therefore holds both at once and neither shadows the other.
+client link therefore holds both at once and neither shadows the other. *(Superseded by ADR 0040:
+there is one cookie, `mt_admin`, and no `/s/*` route reads any cookie. The need this met — an admin
+who opens a client's link keeps their own session — is met by the link surface having no session.)*
 
 **Visiting `/s/<token>` overwrites `mt_link` unconditionally.** The URL is the authority; the cookie
 is only how the token survives the next navigation. There is no path where a stale cookie decides
 what a client sees, which also means a client who is sent a second link is never shown the first
-one's task.
+one's task. *(Superseded by ADR 0040: nothing is sealed on a visit. A cookie written from the URL on a
+`GET` let a hostile page replace the link a visitor held, and every `/s/*` URL already carries its
+token.)*
 
 **Both cookies are encrypted and authenticated, not signed** — AES-256-GCM via `node:crypto`.
 `COOKIE_SECRET` (32 bytes or more) is required at boot — checked by `register()` in
 `instrumentation.ts`, not at module load (see the amendment below) — is read by the same single
 module that reads `API_KEY` under ADR 0012, and is **distinct from the API's `SESSION_SECRET`**.
 This is the second secret ADR 0012 said would not be needed; the reason it is needed is that the
-payload is a credential rather than an assertion about one.
+payload is a credential rather than an assertion about one. *(Since ADR 0040 there is one cookie;
+`mt_admin`'s payload is the admin bearer, which is still a credential, so the secret stays.)*
 
 **Each cookie's lifetime matches the credential behind it.** `mt_admin` takes its `Max-Age` from the
 bearer's own `expiresInSeconds`, so the cookie cannot outlive the token it wraps — the app being
 replaced paired a 30-day cookie with a one-hour bearer, and that mismatch is the defect being fixed,
 not a precedent to preserve. `mt_link` gets 30 days, because a share token has no expiry and lives
-until it is revoked.
+until it is revoked. *(Superseded by ADR 0040: there is no `mt_link`, so no thirty-day copy of a
+share token is kept in any browser.)*
 
 **401 handling is per-cookie.** The spec's blanket "any 401 sends the browser to `/login`" is wrong
 for a client: it would show a password form to someone who has no password and never will. So an
@@ -66,6 +72,8 @@ it is recorded here rather than implied by the absence of a route.
   boot check. It is the price of the cookie carrying a token rather than a flag.
 - Two cookies mean two `Set-Cookie` paths and two clear paths, and a test per cookie asserting the
   other is untouched. Cheap, and it is the whole reason an admin can safely open a client link.
+  *(Superseded by ADR 0040: one cookie, one seal, one clear; an admin opens a client link safely
+  because nothing on `/s/*` reads or writes a cookie.)*
 - Because `mt_admin`'s lifetime follows the bearer, an admin is signed out when the token expires
   rather than seeing a 401 on the next action. With no refresh route (the password is needed to mint
   a token at all) the clean re-login *is* the refresh story.
@@ -91,7 +99,8 @@ undecryptable.
 **Keep the token out of the cookie entirely and re-read it from the URL on every request.** Tempting,
 and it is what makes "the URL always wins" true. Rejected only because a client following an
 in-app link to another tab would drop the token from the path; the cookie is the continuation, and
-the URL still overrides it whenever one is present.
+the URL still overrides it whenever one is present. *(ADR 0037 put the token in every client URL,
+which removed that reason, and ADR 0040 adopts this alternative.)*
 
 ## Amended · 2026-09-11 — where the code had to put things, and the clear that was removed
 
@@ -159,3 +168,20 @@ after this one, puts the token in every client URL — `/s/<token>`, `/s/<token>
 `?tab=` for the tab — which removes the reason the last alternative above was rejected: no in-app
 link drops the token from the path. The unit that builds `/s/*` should establish whether any route
 still needs to read `mt_link` before building the reseal at all.
+
+## Amended · 2026-09-11 — the link half is superseded by ADR 0040
+
+The unit that built `/s/*` answered the question amendment (e) left it: **no route needs to read
+`mt_link`**, because every client URL carries its token (ADR 0037), and building the reseal would
+have been a defect. Sealing a cookie from the URL on arrival is a state-changing `GET` — the thing
+amendment (b) removed from the proxy — and here it is also session fixation: a hostile page linking a
+visitor to `/s/<attacker-token>` would replace the link they held, and any route reading the cookie
+would then act as the attacker's link.
+
+[ADR 0040](0040-link-surface-url-token-authority.md) records the replacement. Every `/s/*` page,
+Server Action and route handler authenticates from the token in its own URL and reads no cookie;
+`mt_link`, its lifetime, its reader and `apiForSession('link')` are removed from the code. Everything
+this ADR decides about `mt_admin` stands unchanged: encrypted under `COOKIE_SECRET`, its lifetime the
+bearer's, a 401 sent to `/login?next=`, and no clear on any navigation. "The URL always wins" is now
+true without a contest — on `/s/*` the URL is the only thing consulted. The sentences above that
+describe the link cookie are marked where they stand.

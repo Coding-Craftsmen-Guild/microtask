@@ -44,7 +44,7 @@ dropped by one of the decisions here.
 | [0029](0029-document-sanitised-at-the-boundary.md) | A document is sanitised at the boundary, by walking it | Accepted |
 | [0030](0030-service-context-of-ports.md) | Services take one context of ports; a double never re-implements a correctness component | Accepted |
 | [0031](0031-vendored-primitives-separate-lint-regime.md) | Vendored primitives are a separate lint regime, applied where its glob resolves | Accepted |
-| [0032](0032-two-cookies-url-wins.md) | Two cookies, encrypted, and the URL always wins | Accepted |
+| [0032](0032-two-cookies-url-wins.md) | Two cookies, encrypted, and the URL always wins | Accepted; link half superseded by 0040 |
 | [0033](0033-list-ships-no-share-tokens.md) | The project list ships a share-link count, never share links | Accepted |
 | [0034](0034-task-entry-carries-list-row.md) | `TaskEntry` carries what a list row renders | Accepted |
 | [0035](0035-share-links-renamable-role-changeable.md) | A share link can be renamed and its role changed; its scope still cannot | Accepted |
@@ -52,6 +52,7 @@ dropped by one of the decisions here.
 | [0037](0037-share-url-shape.md) | The share URL shape: `/s/<token>`, plus a task segment for a project scope | Accepted |
 | [0038](0038-capabilities-role-and-scope.md) | Controls gate on role **and** scope, never role alone | Accepted |
 | [0039](0039-tiptap-in-the-app-and-v3.md) | The Tiptap editor lives in the app, and what Tiptap 3 changed | Accepted |
+| [0040](0040-link-surface-url-token-authority.md) | The link surface authenticates from its URL, and holds no cookie | Accepted |
 
 ## Amendments
 
@@ -69,7 +70,8 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0001](0001-pnpm-turborepo-monorepo.md) | "The parts worth sharing — … the app shell, the editor" — the editor is Microtask's alone, and sharing it is the one case that carries a standing hazard rather than a cost (ADR 0039) |
 | [0009](0009-deny-by-default-collections.md) | Gate and filter were the only two categories; rendering is a third, and ADR 0038 defines it |
 | [0011](0011-task-is-default-share-scope.md) | "No PATCH can widen a link" — precisely, no PATCH can change its **scope**; role is changeable (ADR 0035) |
-| [0012](0012-dual-credential-api.md) | "No second secret is needed" — the Next app mints a `{kind:'link'}` cookie the API never signs, so it needs `COOKIE_SECRET` (ADR 0032). And a bare `apiForSession()` cannot choose between two disjoint cookies: it takes the route's audience |
+| [0012](0012-dual-credential-api.md) | "No second secret is needed" — the Next app mints a `{kind:'link'}` cookie the API never signs, so it needs `COOKIE_SECRET` (ADR 0032). And a bare `apiForSession()` cannot choose between two disjoint cookies: it takes the route's audience — and, since ADR 0040, admits `'admin'` alone, the link principal coming from the URL |
+| [0013](0013-one-route-tree-two-principals.md) | The token in a `/s/<token>` URL was said to be bounded by "a session cookie on first load"; no cookie bounded the URL, and ADR 0040 removed it. It is bounded by `no-referrer`, `private, no-store` and `noindex` on every `/s/*` response |
 | [0014](0014-namespace-products-now.md) | `openapi.json` and `/docs` are served at the root, not under `/v1` |
 | [0015](0015-actions-except-bytes.md) | The autosave handler is `PUT /api/projects/:projectId/tasks/:taskId/tabs/:tabId/document`, not `POST /api/tabs/:tabId/document` |
 | [0016](0016-conditional-document-writes.md) | `If-Match` makes a client with two writes in flight on one tab conflict with itself, so writes are serialised; and a 409 cannot auto-reload, because the refused write always carried unsaved edits — nor may a tab switch, create, delete or rename remount the editor over edits it is holding |
@@ -79,7 +81,7 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0025](0025-shadcn-tailwind-shared-package.md) | Six instructions could not execute as written: `pnpm dlx`, "the CLI writes both `components.json`", "one stylesheet" during `init`, two dead `@source` lines, the server-safe list (6 of 22, not 4), and a local `cn` the CLI no longer generates |
 | [0026](0026-docker-turbo-prune-standalone.md) | Turbo silently never caches `.next` when `output: 'standalone'` is set; `!.next/standalone/**` is the fix |
 | [0027](0027-code-style-solid-enforced.md) | The vendored-components override named a directory the CLI never writes to, **and** its glob was inert in the shared config — the trap this ADR documents and then walked into |
-| [0032](0032-two-cookies-url-wins.md) | A render cannot write a cookie, so "a 401 clears its cookie" was unbuildable; the proxy clear that replaced it made `GET /login` a logout, and is gone. Also: `proxy.ts` not `middleware.ts`, the boot check in `register()`, and why `/s/unavailable` sits inside `/s/` |
+| [0032](0032-two-cookies-url-wins.md) | A render cannot write a cookie, so "a 401 clears its cookie" was unbuildable; the proxy clear that replaced it made `GET /login` a logout, and is gone. Also: `proxy.ts` not `middleware.ts`, the boot check in `register()`, and why `/s/unavailable` sits inside `/s/`. And its link half — `mt_link`, sealed from the URL on arrival — is superseded by ADR 0040: a state-changing `GET` that let a hostile page replace the link a visitor held, restating a token every `/s/*` URL already carries |
 | [0033](0033-list-ships-no-share-tokens.md) | The share-link **count** was unconditional; it is gated on the same `share:read` decision the links were, so a link principal is told nothing rather than a number. And the share manager was to render from `projects.read()`, which would put every token into the project page's HTML: the page renders a count, and the links load when the dialog opens. The task page mounts the same manager, scoped to its task |
 | [0038](0038-capabilities-role-and-scope.md) | One answer per action is not enough: `project:read` is gated on **two** targets, so the projection is `mayReach(role, scope, action, target)` with `capabilities()` as the record over it. And a task-scoped `manage` holder was said to get no share manager; the record grants it `share:create`, so it gets a create-only one with no list |
 | [0039](0039-tiptap-in-the-app-and-v3.md) | The server pass with `immediatelyRender: true` warns and overrules the flag rather than throwing, and a Tiptap 2 link mark gains `title: null` rather than round-tripping unchanged |

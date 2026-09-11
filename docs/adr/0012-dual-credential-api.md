@@ -33,12 +33,16 @@ Supporting rules:
 
 - The Next session cookie carries a **principal**, not a boolean: `{kind:'admin', token}` wrapping
   the bearer a password login returned, or `{kind:'link', token}` set when `/s/<token>` bootstraps
-  — in two cookies, not one (first amendment below).
+  — in two cookies, not one (first amendment below). *(Since ADR 0040 there is no link cookie: a
+  link principal is read from the `/s/<token>` URL on every request, and the cookie carries only
+  `{kind:'admin', token}`.)*
 - **Exactly one file per app** may read `process.env.API_KEY` (`lib/env.ts` in Microtask). The
   client comes from `apiForSession(audience)`, which takes the route's audience and reads only that
   audience's cookie: `'link'` on `/s/*` yields a link client from `mt_link` or nothing, `'admin'`
   everywhere else yields an admin client from `mt_admin` or nothing. A bare
-  `apiForSession()` cannot work once there are two cookies — second amendment below.
+  `apiForSession()` cannot work once there are two cookies — second amendment below. *(Since
+  ADR 0040 the audience admits `'admin'` alone; a `/s/*` route builds its client with
+  `apiForLink(token)` from its own URL and reads no cookie — third amendment below.)*
 - `packages/api-client` exports two non-interchangeable constructors with distinct branded types, has
   no default export, and reads no environment variable — so a component cannot accidentally obtain
   admin authority.
@@ -106,3 +110,19 @@ The same list gave the admin cookie's payload as `{kind:'admin'}`. It cannot be 
 presents the admin's bearer as `Authorization: Bearer` on every call, and the cookie is the only
 place the app keeps it, so the payload is `{kind:'admin', token}`: a live credential in its own
 right, sealed under ADR 0032 for the same reason the share token is.
+
+## Amended · 2026-09-11 — the link principal comes from the URL (ADR 0040)
+
+Two sentences above describe a link cookie that no longer exists. The rule this ADR is about is
+unchanged and, if anything, sharper: every call still carries **both** credentials, the service key
+and a principal's bearer, and `lib/api.ts` is still the one place a principal becomes a client.
+What changed is where a link principal comes from. [ADR 0040](0040-link-surface-url-token-authority.md)
+removed `mt_link`, because sealing it from the URL was a state-changing `GET` that let a hostile page
+replace the link a visitor held, and because every `/s/*` URL already carries its token.
+
+So `apiForSession` takes `'admin'` alone, and `apiForLink(token)` builds the link client from the
+token a page takes from its `params`, a Server Action from its first argument, or the link document
+route from its path. The confused deputy this ADR closes stays closed for the same reason as before:
+a share token builds a link client and nothing else, so an action called with one has exactly that
+token's power — which is what holding the URL already gave. `COOKIE_SECRET` is still required,
+because `mt_admin`'s payload is the admin bearer (second amendment above).
