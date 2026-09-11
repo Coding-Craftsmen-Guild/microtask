@@ -171,7 +171,60 @@ describe('the extension set itself', () => {
     expect(readOnly).toContain('caret-transparent')
     expect(readOnly).toContain('[&_input[type=checkbox]]:pointer-events-none')
     expect(editable).not.toContain('caret-transparent')
-    expect(editable).not.toContain('pointer-events-none')
+    expect(editable).not.toContain('[&_input[type=checkbox]]:pointer-events-none')
+    expect(editable).toContain('[&_input[type=checkbox]]:cursor-pointer')
+    expect(readOnly).not.toContain('[&_input[type=checkbox]]:cursor-pointer')
+  })
+
+  it.each([true, false])(
+    'styles the document as legacy did, editable %s: bullets and numbers under preflight, three heading sizes, gold quotes, code',
+    (editable) => {
+      const classes = mount({ type: 'doc' }, editable).view.dom.className.split(' ')
+      expect(classes).toEqual(
+        expect.arrayContaining([
+          '[&_ul]:list-disc',
+          '[&_ol]:list-decimal',
+          '[&_ul]:pl-[1.4em]',
+          '[&_h1]:text-[1.5em]',
+          '[&_h2]:text-[1.25em]',
+          '[&_h3]:text-[1.08em]',
+          '[&_h1]:font-bold',
+          '[&_blockquote]:border-gold',
+          '[&_code]:bg-brand-soft',
+          '[&_pre]:bg-[#211a3d]',
+          '[&_pre]:text-[#f3f1fb]',
+          '[&_pre_code]:bg-transparent',
+          '[&_hr]:border-t',
+        ]),
+      )
+    },
+  )
+
+  it('lays a checklist out as legacy did: rows, not bullets, with 17px brand checkboxes and checked items struck through', () => {
+    const classes = mount({ type: 'doc' }, true).view.dom.className.split(' ')
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        '[&_ul[data-type=taskList]]:list-none',
+        '[&_ul[data-type=taskList]]:pl-0',
+        '[&_ul[data-type=taskList]>li]:flex',
+        '[&_ul[data-type=taskList]>li]:gap-2.5',
+        '[&_ul[data-type=taskList]>li>div]:flex-auto',
+        '[&_ul[data-type=taskList]>li>div>p]:m-0',
+        '[&_input[type=checkbox]]:size-[17px]',
+        '[&_input[type=checkbox]]:accent-brand',
+        '[&_li[data-checked=true]>div]:line-through',
+        '[&_li[data-checked=true]>div]:text-muted-foreground',
+      ]),
+    )
+  })
+
+  it('draws the placeholder, which Tiptap only marks with data-placeholder and leaves to CSS to show', () => {
+    const editor = mount({ type: 'doc', content: [{ type: 'paragraph' }] }, true)
+    const empty = editor.view.dom.querySelector('p.is-editor-empty')
+    expect(empty?.getAttribute('data-placeholder')).toBe(PLACEHOLDER)
+    expect(editor.view.dom.className.split(' ')).toEqual(
+      expect.arrayContaining(['[&_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]']),
+    )
   })
 
   it('turns spellcheck off inside a code block, as legacy did', () => {
