@@ -9,8 +9,9 @@ The implementation-facing detail — domain model, page map, cutover runbook —
 which references these by number. The full behavioural inventory of the app being replaced, captured
 before it was deleted, is [`../parity/legacy-microtask.md`](../parity/legacy-microtask.md): 71
 features, 25 routes and 41 non-obvious behaviours, each of which is reproduced or deliberately
-dropped by one of the decisions here. That app's code is at the `legacy-prod` tag; an
-`apps/legacy/…` path cited in a record below names a file at that tag, not in the working tree.
+dropped by one of the decisions here. That app's code is at the `legacy-prod` tag, which
+predates the move into `apps/legacy/`: a path cited below as `apps/legacy/server.js:97` is
+`server.js:97` at that tag, same line, and no longer exists in the working tree.
 
 | # | Decision | Status |
 | --- | --- | --- |
