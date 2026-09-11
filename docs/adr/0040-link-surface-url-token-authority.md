@@ -74,7 +74,9 @@ raises two exposures, and both are closed rather than noted:
   `Referrer-Policy: no-referrer`, the `/s/` layout adds `<meta name="referrer"
   content="no-referrer">`, and link marks in documents keep `rel="noopener noreferrer nofollow"`.
 - **Caching.** A shared cache that stored `/s/<token>` would hand one client's document to whoever
-  asked next. Every `/s/*` and `/share/*` response carries `Cache-Control: private, no-store`.
+  asked next. Every `/s/*` and `/share/*` response is uncacheable: the config sends
+  `Cache-Control: private, no-store`, and where Next overrides it — a 404, a Server Action
+  answer — Next's own value carries `no-store` (table below; amended the same day).
 - **Indexing.** `X-Robots-Tag: noindex, nofollow` on the same responses, beside the `robots` meta the
   `/s/` layout renders (ADR 0037), because a header reaches what a `<meta>` cannot: route handlers,
   redirects, and a 404 rendered outside the `/s/` layout.
@@ -93,6 +95,7 @@ with an API double behind it:
 | `/s/unavailable`, 200, **prerendered** (`x-nextjs-cache: HIT`) | `s-maxage=31536000` | `private, no-store` |
 | `/s/<dead-token>`, 307 to `/s/unavailable` | `private, no-cache, no-store, max-age=0, must-revalidate` | `private, no-store` |
 | `/s`, `/share/a/b`, 404 | `private, no-cache, no-store, max-age=0, must-revalidate` | Next's value is kept |
+| `POST /s/<token>`, a Server Action answer — the share-link list included | `no-cache, no-store, max-age=0, must-revalidate` | Next's value is kept |
 
 So the header is load-bearing: without it the terminal page — a static page, as ADR 0032 (c) says it
 is — would be shared-cacheable for a year. It names no token, but "every `/s/*` response is private"
@@ -150,3 +153,17 @@ under its own path, and is still a second copy of a credential the path already 
 
 **Headers in `proxy.ts`.** Works, and the proxy runs on every `/s/*` request. Rejected to keep the
 proxy to one job; `next.config.ts` states the rule where a reader looks for response headers.
+
+## Amended · 2026-09-11 — a Server Action answer keeps Next's own `Cache-Control`
+
+The caching rule read "every `/s/*` and `/share/*` response carries `Cache-Control: private,
+no-store`", and the table measured every response but one: a Server Action `POST` to
+`/s/<token>`, which is the one response on this surface that carries other links' tokens — the list
+a project-scoped `manage` holder's share dialog loads. Measured on `next start` against the real API,
+it is sent `Cache-Control: no-cache, no-store, max-age=0, must-revalidate`: Next sets its own value
+on an action answer and the config header does not replace it, as on a 404. `Referrer-Policy` and
+`X-Robots-Tag` do reach it.
+
+The rule this ADR is about still holds, because `no-store` forbids every cache from storing the answer,
+shared or not; `private` adds nothing to it. So the sentence is corrected where it stands to say what
+is sent, and the table gains the row. Nothing in the code changes.

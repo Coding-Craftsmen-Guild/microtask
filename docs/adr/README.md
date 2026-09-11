@@ -85,6 +85,7 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0033](0033-list-ships-no-share-tokens.md) | The share-link **count** was unconditional; it is gated on the same `share:read` decision the links were, so a link principal is told nothing rather than a number. And the share manager was to render from `projects.read()`, which would put every token into the project page's HTML: the page renders a count, and the links load when the dialog opens. The task page mounts the same manager, scoped to its task |
 | [0038](0038-capabilities-role-and-scope.md) | One answer per action is not enough: `project:read` is gated on **two** targets, so the projection is `mayReach(role, scope, action, target)` with `capabilities()` as the record over it. And a task-scoped `manage` holder was said to get no share manager; the record grants it `share:create`, so it gets a create-only one with no list |
 | [0039](0039-tiptap-in-the-app-and-v3.md) | The server pass with `immediatelyRender: true` warns and overrules the flag rather than throwing, and a Tiptap 2 link mark gains `title: null` rather than round-tripping unchanged |
+| [0040](0040-link-surface-url-token-authority.md) | "Every `/s/*` response carries `Cache-Control: private, no-store`" — a Server Action answer on `/s/<token>`, the share-link list included, keeps Next's own `no-cache, no-store, …`; uncacheable still, but not what the sentence said |
 
 ## Verification
 
