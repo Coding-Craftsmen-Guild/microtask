@@ -15,7 +15,8 @@ import type { WorkspaceTab } from './workspace-state'
  *
  * Props rather than imports, so the same components serve the admin surface — which passes the
  * Server Actions in `actions/tabs.ts`, reading `mt_admin` — and the client surface under `/s/*`,
- * which must pass actions of its own that read `mt_link` (ADR 0032).
+ * which passes actions of its own, each bound to the token in the page's URL and taking it as
+ * its credential; nothing there reads a cookie (ADR 0040).
  */
 export interface TabActions {
   /** Creates a tab at the end of the task and answers it. */
