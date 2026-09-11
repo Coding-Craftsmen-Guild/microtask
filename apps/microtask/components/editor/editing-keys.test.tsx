@@ -38,7 +38,16 @@ const press = (editor: Editor, key: string, init: KeyboardEventInit = {}): boole
   return view.someProp('handleKeyDown', (handler) => handler(view, event)) === true
 }
 
-const first = (editor: Editor) => editor.getJSON().content?.[0]
+interface Json {
+  readonly type?: string
+  readonly attrs?: Readonly<Record<string, unknown>>
+  readonly content?: readonly Json[]
+  readonly text?: string
+}
+
+const json = (editor: Editor): Json => editor.getJSON() as Json
+
+const first = (editor: Editor): Json | undefined => json(editor).content?.[0]
 
 describe('the markdown shorthands legacy inherited from Tiptap, which no toolbar test reaches', () => {
   it.each([
@@ -83,7 +92,7 @@ describe('the markdown shorthands legacy inherited from Tiptap, which no toolbar
   it('turns --- into a divider', () => {
     const editor = mount()
     type(editor, '---')
-    expect(editor.getJSON().content?.some((node) => node.type === 'horizontalRule')).toBe(true)
+    expect(json(editor).content?.some((node) => node.type === 'horizontalRule')).toBe(true)
   })
 
   it('turns **text** into bold text', () => {
