@@ -69,7 +69,7 @@ states what to build.
 | Documents | Sanitised at the boundary, by walking them | [0029](../../adr/0029-document-sanitised-at-the-boundary.md) |
 | Services | One context of ports; a double never re-implements a correctness component | [0030](../../adr/0030-service-context-of-ports.md) |
 | Vendored lint | Vendored primitives are a separate regime, applied where its glob resolves | [0031](../../adr/0031-vendored-primitives-separate-lint-regime.md) |
-| Sessions | Two cookies, encrypted; the URL always wins | [0032](../../adr/0032-two-cookies-url-wins.md) |
+| Sessions | One encrypted cookie, the admin's; a share link authenticates from its URL and holds no cookie | [0032](../../adr/0032-two-cookies-url-wins.md), [0040](../../adr/0040-link-surface-url-token-authority.md) |
 | List payloads | The project list ships a share-link **count**, never share links | [0033](../../adr/0033-list-ships-no-share-tokens.md) |
 | Manifest | `TaskEntry` carries what a list row renders | [0034](../../adr/0034-task-entry-carries-list-row.md) |
 | Share links | Renamable, role changeable; scope still immutable | [0035](../../adr/0035-share-links-renamable-role-changeable.md) |
@@ -442,10 +442,11 @@ static `/s/unavailable` page, which clears nothing either, since there is no lin
 A client is never shown a password form.
 
 **Exactly one file per app may read `process.env.API_KEY`** (`apps/*/lib/api.ts`). It exports
-`apiForSession()`, which returns a link client for link sessions and an admin client only for admin
-sessions. `packages/api-client` exports two non-interchangeable constructors with distinct branded
-types, has no default export, and reads no environment variable — so a component cannot accidentally
-obtain admin authority. An ESLint boundary rule enforces the single reader.
+`apiForSession('admin')`, which builds an admin client from `mt_admin` and admits no other audience,
+and `apiForLink(token)`, which builds a link client from the token in an `/s/*` URL once it has the
+shape of a share token (ADR 0040). `packages/api-client` exports two non-interchangeable
+constructors with distinct branded types, has no default export, and reads no environment variable —
+so a component cannot accidentally obtain admin authority. An ESLint boundary rule enforces the single reader.
 
 **Server Actions, except anything that moves bytes.** Actions cap at 1 MB, cannot return a `Response`
 with `Content-Disposition`, cannot be dispatched on unload, and are dispatched one-at-a-time per
