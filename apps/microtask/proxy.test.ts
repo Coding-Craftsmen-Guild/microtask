@@ -184,6 +184,7 @@ describe('the client surface', () => {
     '/s/sometoken',
     '/s/sometoken/t/01HABC',
     '/s/sometoken?tab=01HDEF',
+    '/s/sometoken/api/projects/01H/tasks/01H/tabs/01H/document',
     '/share/sometoken',
     LINK_UNAVAILABLE_PATH,
   ])('never sends %s to /login, whatever cookies it holds', (path) => {
@@ -208,13 +209,13 @@ describe('the client surface', () => {
 })
 
 describe('a request of any kind', () => {
-  const PATHS = ['/', '/login', '/p/01HXYZ', LINK_UNAVAILABLE_PATH, '/s/sometoken', '/share/sometoken', '/api/x']
+  const PATHS = ['/', '/login', '/p/01HXYZ', LINK_UNAVAILABLE_PATH, '/s/sometoken', '/s/sometoken/api/projects/p/tasks/t/tabs/b/document', '/share/sometoken', '/api/x']
   const HELD = [{}, BOTH, { [ADMIN_COOKIE]: 'garbage', [STRAY_LINK_COOKIE]: 'garbage' }]
 
   it.each(PATHS)('writes no cookie at %s, whatever it holds and however it arrives', (path) => {
     for (const cookies of HELD) {
       for (const [, headers] of ARRIVALS) {
-        for (const method of ['GET', 'HEAD', 'POST']) {
+        for (const method of ['GET', 'HEAD', 'POST', 'PUT']) {
           expect(cookieWrites(visit(path, { method, cookies, headers }))).toEqual([])
         }
       }
