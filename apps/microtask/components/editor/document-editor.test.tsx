@@ -3,10 +3,11 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { createRef } from 'react'
-import type { Editor } from '@tiptap/core'
+import { Editor as CoreEditor, type Editor } from '@tiptap/core'
 import { countTasks, type DocumentValue, type ProgressValue } from '@repo/contracts'
 import { SAVE_DEBOUNCE_MS } from './autosave'
 import { DocumentEditor, type DocumentEditorHandle } from './document-editor'
+import { buildExtensions } from './extensions'
 import type { SaveOutcome, SaveRequest } from './save-document'
 
 const DATA = join(import.meta.dirname, '../../../../data/projects')
@@ -170,6 +171,12 @@ describe('a read-only view', () => {
 })
 
 describe('an editable view', () => {
+  it('does not take focus on mount, which would scroll the page to it', async () => {
+    const { editor } = await mount(tab('Go-live'))
+    await settle(100)
+    expect(editor.view.hasFocus()).toBe(false)
+  })
+
   it('draws the toolbar and the save state, and is contenteditable', async () => {
     const { surface } = await mount(tab('Go-live'))
     expect(screen.getByRole('toolbar')).toBeTruthy()
@@ -279,12 +286,47 @@ describe('links, by view', () => {
     },
   }
 
+  const click = (editor: Editor, anchor: Element): boolean => {
+    const event = new MouseEvent('click', { bubbles: true, button: 0 })
+    anchor.dispatchEvent(event)
+    const position = editor.view.posAtDOM(anchor, 0)
+    return editor.view.someProp('handleClick', (handle) => handle(editor.view, position, event)) === true
+  }
+
+  const anchorOf = (surface: Element): Element => {
+    const anchor = surface.querySelector('a')
+    if (anchor === null) throw new Error('no anchor rendered')
+    return anchor
+  }
+
   it('does not open a link clicked in an editable view, which only places the caret', async () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
-    const { surface } = await mount(LINKED, true)
-    act(() => {
-      surface.querySelector('a')?.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }))
+    const { surface, editor } = await mount(LINKED, true)
+    expect(click(editor, anchorOf(surface))).toBe(false)
+    expect(open).not.toHaveBeenCalled()
+    open.mockRestore()
+  })
+
+  it('drives the real Link click handler, which opens the link once openOnClick is on', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const element = document.createElement('div')
+    document.body.append(element)
+    const editor = new CoreEditor({
+      element,
+      extensions: buildExtensions(false),
+      content: LINKED.document as object,
+      editable: true,
     })
+    expect(click(editor, anchorOf(editor.view.dom))).toBe(true)
+    expect(open).toHaveBeenCalledWith('https://example.com/', '_blank')
+    editor.destroy()
+    open.mockRestore()
+  })
+
+  it('leaves a read-only click to the browser, the handler bailing on a view that is not editable', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const { surface, editor } = await mount(LINKED, false)
+    expect(click(editor, anchorOf(surface))).toBe(false)
     expect(open).not.toHaveBeenCalled()
     open.mockRestore()
   })

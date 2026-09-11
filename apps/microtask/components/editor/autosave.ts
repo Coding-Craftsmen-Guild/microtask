@@ -114,7 +114,7 @@ export class Autosave {
     this.#setState('idle')
   }
 
-  /** Stops the loop. A disposed instance never writes again. */
+  /** Cancels a pending write or retry. Called on unmount, once the last flush has settled. */
   dispose(): void {
     this.#cancel()
   }

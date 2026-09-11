@@ -248,6 +248,15 @@ describe('unmounting', () => {
 })
 
 describe('the flush a caller awaits before switching tab', () => {
+  it('writes a document too large for keepalive, the page staying alive on that path', async () => {
+    render(<Plain />)
+    act(() => mounted().change(text('x'.repeat(KEEPALIVE_MAX_BYTES))))
+    await act(async () => {
+      await mounted().flush()
+    })
+    expect(requests.map((request) => request.keepalive)).toEqual([false])
+  })
+
   it('hands back a promise that settles only once the write has', async () => {
     let release = (): void => undefined
     gate = new Promise<void>((resolve) => {

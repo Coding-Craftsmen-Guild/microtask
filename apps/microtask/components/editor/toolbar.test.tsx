@@ -111,6 +111,16 @@ describe('a click runs the command on a focused chain', () => {
     expect(button('Divider').getAttribute('aria-pressed')).toBe('false')
   })
 
+  it('hands focus back to the document, so typing carries on after a click', async () => {
+    await host()
+    expect(live().view.hasFocus()).toBe(false)
+    await act(async () => {
+      button('Bold (Ctrl+B)').click()
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+    expect(live().view.hasFocus()).toBe(true)
+  })
+
   it('preventDefaults mousedown, so clicking a button never drops the selection', async () => {
     await host()
     const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true })

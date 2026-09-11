@@ -165,6 +165,20 @@ describe('the extension set itself', () => {
     expect(mount({ type: 'doc' }, false).view.dom.getAttribute('spellcheck')).toBe('false')
   })
 
+  it('styles a read-only surface so its checkboxes look untouchable, and an editable one not', () => {
+    const readOnly = mount({ type: 'doc' }, false).view.dom.className
+    const editable = mount({ type: 'doc' }, true).view.dom.className
+    expect(readOnly).toContain('caret-transparent')
+    expect(readOnly).toContain('[&_input[type=checkbox]]:pointer-events-none')
+    expect(editable).not.toContain('caret-transparent')
+    expect(editable).not.toContain('pointer-events-none')
+  })
+
+  it('turns spellcheck off inside a code block, as legacy did', () => {
+    const code = { type: 'doc', content: [{ type: 'codeBlock', content: [{ type: 'text', text: 'x' }] }] }
+    expect(mount(code).view.dom.querySelector('pre')?.getAttribute('spellcheck')).toBe('false')
+  })
+
   it('keeps undoRedo, the extension a transcribed `history` key would silently drop', () => {
     expect(named(mount({ type: 'doc' }), 'undoRedo')).toBe(1)
   })

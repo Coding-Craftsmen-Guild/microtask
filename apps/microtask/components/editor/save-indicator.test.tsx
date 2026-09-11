@@ -26,6 +26,11 @@ describe('the three texts legacy showed', () => {
     expect(screen.getByRole('status').textContent).toContain('Network down')
   })
 
+  it('adds no dangling separator when a failure came with no message', () => {
+    show('retrying', '')
+    expect(screen.getByRole('status').textContent).toBe('Not saved — retrying…')
+  })
+
   it('says nothing at all when idle, which is the blank on a tab switch', () => {
     show('idle')
     expect(screen.getByRole('status').textContent).toBe('')

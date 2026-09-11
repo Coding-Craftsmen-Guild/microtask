@@ -175,10 +175,30 @@ describe('a hostile href is refused before anything is sent', () => {
     const onClose = await open()
     selectAll()
     const before = JSON.stringify(live().getJSON())
+    const thrown: unknown[] = []
+    const record = (event: ErrorEvent): void => {
+      thrown.push(event.error)
+    }
+    window.addEventListener('error', record)
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     await apply(hostile)
+    window.removeEventListener('error', record)
+    expect(thrown).toEqual([])
+    expect(logged).not.toHaveBeenCalled()
+    logged.mockRestore()
     expect(JSON.stringify(live().getJSON())).toBe(before)
     expect(screen.getByText(LINK_REFUSED)).toBeTruthy()
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('forgets the refusal once the dialog closes, so the next opening starts clean', async () => {
+    await open(PLAIN, false)
+    await userEvent.click(screen.getByRole('button', { name: 'open the dialog' }))
+    await apply('javascript:alert(1)')
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await userEvent.click(screen.getByRole('button', { name: 'open the dialog' }))
+    expect(screen.getByText('Leave empty to remove the link.')).toBeTruthy()
+    expect(screen.queryByText(LINK_REFUSED)).toBe(null)
   })
 
   it('names exactly the schemes the contracts allow in the refusal', () => {

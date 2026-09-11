@@ -9,6 +9,7 @@ const NUL = '\u0000'
 const NEL = '\u0085'
 const DEL = '\u007f'
 const PAD = '\u0080'
+const APC = '\u009f'
 
 describe('normalizeHref against the schemes a document may carry', () => {
   it('passes each scheme the contracts allow through untouched', () => {
@@ -60,6 +61,8 @@ describe('normalizeHref refuses the hostile forms browsers normalise away', () =
     expect(normalizeHref(`java${NEL}script:alert(1)`)).toBe(null)
     expect(normalizeHref(`java${DEL}script:alert(1)`)).toBe(null)
     expect(normalizeHref(`java${PAD}script:alert(1)`)).toBe(null)
+    expect(normalizeHref(`java${APC}script:alert(1)`)).toBe(null)
+    expect(normalizeHref(`${APC}javascript:alert(1)`)).toBe(null)
   })
 
   it('refuses however the scheme is cased', () => {
