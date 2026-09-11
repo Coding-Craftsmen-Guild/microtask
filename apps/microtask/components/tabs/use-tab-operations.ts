@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
 import type { TabRef, TaskRef } from '@repo/api-client'
 import type { ActionResult } from '../../actions/result'
 import { markChanged } from './changed-tasks'
 import { movedOrder, type MoveDirection } from './reorder'
+import { useNotice, type Notice } from './use-notice'
 import type { Workspace } from './use-workspace'
 import type { WorkspaceTab } from './workspace-state'
 
@@ -29,14 +29,7 @@ export interface TabActions {
   readonly reorder: (task: TaskRef, tabIds: readonly string[]) => Promise<ActionResult<readonly WorkspaceTab[]>>
 }
 
-/** One line under the strip: what a write was refused with, or what it did. */
-export interface Notice {
-  /** `error` is read out as an alert; `done` politely. */
-  readonly tone: 'error' | 'done'
-
-  /** The sentence itself. */
-  readonly text: string
-}
+export type { Notice } from './use-notice'
 
 /** What the strip, its menu and its dialogs call. */
 export interface TabOperations {
@@ -87,28 +80,28 @@ export const TAB_HELD = 'This tab has edits that are not saved, so it stays open
  */
 export function useTabOperations(workspace: Workspace, actions: TabActions, task: TaskRef): TabOperations {
   const { state, dispatch, editor } = workspace
-  const [notice, setNotice] = useState<Notice | null>(null)
+  const open = state.tabs.find((tab) => tab.id === state.active)
+  const { notice, say, sayAbout } = useNotice(`${String(state.mount)}:${open?.updatedAt ?? ''}`)
   const flush = (): Promise<boolean> => editor.current?.flush() ?? Promise.resolve(true)
   const leave = async (): Promise<boolean> => {
     const left = await flush()
-    if (!left) setNotice({ tone: 'error', text: TAB_HELD })
+    if (!left) sayAbout({ tone: 'error', text: TAB_HELD })
     return left
   }
   const settle = <Value>(result: ActionResult<Value>, apply: (value: Value) => void, done?: string): void => {
     if (!result.ok) {
-      setNotice({ tone: 'error', text: result.detail })
+      say({ tone: 'error', text: result.detail })
       return
     }
     markChanged(task.taskId)
     apply(result.value)
-    setNotice(done === undefined ? null : { tone: 'done', text: done })
+    say(done === undefined ? null : { tone: 'done', text: done })
   }
   const refOf = (tab: WorkspaceTab): TabRef => ({ ...task, tabId: tab.id })
   return {
     notice,
     select: async (tabId) => {
       if (tabId === state.active || !(await leave())) return
-      setNotice(null)
       dispatch({ type: 'open', tabId })
     },
     create: async (name) => {

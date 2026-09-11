@@ -603,6 +603,40 @@ describe('an open tab whose edits the server has not taken', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('drops the notice once the tab is reloaded, even onto the stamp it had, which leaves nothing held', async () => {
+    const { rerender } = mount()
+    await userEvent.click(tabNamed('b'))
+    await settle()
+    expect(screen.getByRole('alert').textContent).toBe(HELD)
+    act(() => island?.onReload())
+    rerender(workspace({ tabs: TABS.map((one) => ({ ...one })) }))
+    expect(mounts).toHaveLength(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('drops the notice once a save lands, since what was held is now stored', async () => {
+    vi.stubGlobal('fetch', () => Promise.resolve(Response.json({ updatedAt: 'a-S2' })))
+    mount()
+    await userEvent.click(tabNamed('b'))
+    await settle()
+    expect(screen.getByRole('alert').textContent).toBe(HELD)
+    await act(async () => {
+      await island?.save({ document: doc([true]), ifMatch: 'a-S1', keepalive: false })
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('gives way to a later refusal, which is then the one on screen', async () => {
+    actions.reorder.mockReturnValue(Promise.resolve({ ok: false, status: 409, detail: 'This list changed.' }))
+    mount()
+    await userEvent.click(tabNamed('b'))
+    await settle()
+    await userEvent.click(tabNamed('a'))
+    await userEvent.click(menuItem('Move right'))
+    await settle()
+    expect(screen.getByRole('alert').textContent).toBe('This list changed.')
+  })
+
   it('clears the notice once a later switch finds nothing held', async () => {
     mount()
     await userEvent.click(tabNamed('b'))
