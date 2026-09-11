@@ -160,7 +160,7 @@ describe('the page going away', () => {
 })
 
 describe('force save', () => {
-  it('answers Ctrl+S and Cmd+S by writing now and suppressing the browser dialog', () => {
+  it('answers Ctrl+S and Cmd+S by writing now and suppressing the browser dialog', async () => {
     render(<Plain />)
     act(() => mounted().change(text('a')))
     const events: KeyboardEvent[] = []
@@ -169,6 +169,9 @@ describe('force save', () => {
     })
     expect(requests.length).toBe(1)
     expect(events[0]?.defaultPrevented).toBe(true)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
     act(() => mounted().change(text('ab')))
     act(() => press('S', true))
     expect(requests.length).toBe(2)

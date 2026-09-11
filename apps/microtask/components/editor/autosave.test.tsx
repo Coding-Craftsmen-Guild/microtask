@@ -321,3 +321,109 @@ describe('dispose', () => {
     expect(requests.length).toBe(1)
   })
 })
+
+describe('one write at a time, so the loop can never conflict with itself', () => {
+  const gated = () => {
+    const requests: SaveRequest[] = []
+    const states: SaveState[] = []
+    const releases: ((outcome: SaveOutcome) => void)[] = []
+    const autosave = new Autosave({
+      updatedAt: 'v1',
+      save: (request) => {
+        requests.push(request)
+        return new Promise<SaveOutcome>((resolve) => releases.push(resolve))
+      },
+      onState: (state) => states.push(state),
+    })
+    return { autosave, requests, states, releases }
+  }
+
+  it('holds the next write until the one in flight answers, then sends it on the new stamp', async () => {
+    const { autosave, requests, releases } = gated()
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.change(text('ab'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS * 3)
+    expect(requests.length).toBe(1)
+    releases[0]?.({ kind: 'saved', updatedAt: 'v2' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(requests.map((request) => request.ifMatch)).toEqual(['v1', 'v2'])
+    expect(requests[1]?.document).toEqual(text('ab'))
+  })
+
+  it('queues an explicit flush behind the write in flight instead of racing it', async () => {
+    const { autosave, requests, releases } = gated()
+    autosave.change(text('a'))
+    void autosave.flush()
+    autosave.change(text('ab'))
+    void autosave.flush()
+    expect(requests.length).toBe(1)
+    releases[0]?.({ kind: 'saved', updatedAt: 'v2' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(requests.map((request) => request.ifMatch)).toEqual(['v1', 'v2'])
+  })
+
+  it('reports nothing for a write markClean overtook, so a deleted tab is not retried forever', async () => {
+    const { autosave, requests, states, releases } = gated()
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.markClean()
+    releases[0]?.({ kind: 'failed', message: 'Not found' })
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS * 5)
+    expect(requests.length).toBe(1)
+    expect(states.at(-1)).toBe('idle')
+    expect(autosave.dirty).toBe(false)
+  })
+
+  it('still takes the stamp from a write markClean overtook, since the server did store it', async () => {
+    const { autosave, releases } = gated()
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.markClean()
+    releases[0]?.({ kind: 'saved', updatedAt: 'v2' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(autosave.updatedAt).toBe('v2')
+  })
+})
+
+describe('the paths that must not lose the debounce', () => {
+  it('leaves the debounce armed after an over-budget keepalive attempt, so staying on the page still saves', async () => {
+    const { autosave, requests } = harness()
+    autosave.change(text('x'.repeat(KEEPALIVE_MAX_BYTES)))
+    await autosave.flush(true)
+    expect(requests).toEqual([])
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(requests.map((request) => request.keepalive)).toEqual([false])
+  })
+
+  it('writes nothing on an explicit flush during a conflict, which would only earn another 409', async () => {
+    const { autosave, requests, answer } = harness()
+    answer(CONFLICT)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.change(text('ab'))
+    await autosave.flush()
+    await autosave.flush(true)
+    expect(requests.length).toBe(1)
+  })
+
+  it('treats a save that throws as a failed one, rather than dropping the edit as saved', async () => {
+    const requests: SaveRequest[] = []
+    const states: SaveState[] = []
+    const autosave = new Autosave({
+      updatedAt: 'v1',
+      save: (request) => {
+        requests.push(request)
+        return Promise.reject(new TypeError('Failed to fetch'))
+      },
+      onState: (state) => states.push(state),
+    })
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(states).toEqual(['saving', 'retrying'])
+    expect(autosave.dirty).toBe(true)
+    expect(autosave.message).toBe('Failed to fetch')
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS)
+    expect(requests.length).toBe(2)
+  })
+})

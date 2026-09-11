@@ -1,5 +1,5 @@
 import type { DocumentValue } from '@repo/contracts'
-import type { SaveDocument, SaveState } from './save-document'
+import type { SaveDocument, SaveOutcome, SaveState } from './save-document'
 
 /** How long after the last change a write is sent, in milliseconds. */
 export const SAVE_DEBOUNCE_MS = 700
@@ -31,6 +31,8 @@ export interface AutosaveOptions {
 const utf8Bytes = (document_: DocumentValue): number =>
   new TextEncoder().encode(JSON.stringify(document_)).length
 
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
 /**
  * The autosave loop, reproducing the timings measured off the app being replaced.
  *
@@ -52,6 +54,8 @@ export class Autosave {
   #dirty = false
   #state: SaveState = 'idle'
   #timer: ReturnType<typeof setTimeout> | null = null
+  #inFlight: Promise<void> | null = null
+  #epoch = 0
 
   /** Starts clean, on the stamp the server reported for this tab. */
   constructor(options: AutosaveOptions) {
@@ -98,11 +102,14 @@ export class Autosave {
   /**
    * Declares the edits no longer this tab's business, and cancels any pending write.
    *
-   * Called before switching tab and before deleting one. Without it a queued autosave lands
-   * after the DELETE and resurrects the content that was just removed.
+   * Called before deleting a tab. Without it a queued autosave lands after the DELETE and
+   * resurrects the content that was just removed. A write already in flight is let finish, and
+   * its stamp is kept, but its outcome is not reported: a failure against a tab that no longer
+   * exists would otherwise be retried every four seconds, forever.
    */
   markClean(): void {
     this.#cancel()
+    this.#epoch += 1
     this.#dirty = false
     this.#setState('idle')
   }
@@ -113,22 +120,44 @@ export class Autosave {
   }
 
   /**
-   * Writes now, if there is anything to write.
+   * Writes now, if there is anything to write, and settles once the write has.
    *
-   * A `keepalive` flush measures the body first and attempts nothing above
-   * {@link KEEPALIVE_MAX_BYTES}, leaving the document dirty. That is not a lost save: the
-   * browser's own unsaved-changes prompt is the guard on that path, and the 700 ms debounce is
-   * what actually makes edits durable (ADR 0028).
+   * Writes are serialised: a flush arriving while one is in flight waits for its answer and then
+   * decides afresh, on the stamp that answer carried. Two writes in flight would present the same
+   * `If-Match`, and the second would come back 409 — the loop reporting a conflict with itself,
+   * which any save slower than the debounce would do while the user kept typing (ADR 0016).
+   *
+   * A `keepalive` flush measures the body first and attempts nothing at or above
+   * {@link KEEPALIVE_MAX_BYTES}, leaving the document dirty **and the debounce armed**: if the
+   * user answers the unsaved-changes prompt by staying, the edit still saves. The prompt is the
+   * guard on that path, and the 700 ms debounce is what actually makes edits durable (ADR 0028).
    */
-  async flush(keepalive = false): Promise<void> {
-    this.#cancel()
+  flush(keepalive = false): Promise<void> {
+    const previous = this.#inFlight
+    const run = previous === null ? this.#write(keepalive) : previous.then(() => this.#write(keepalive))
+    const tracked: Promise<void> = run.finally(() => {
+      if (this.#inFlight === tracked) this.#inFlight = null
+    })
+    this.#inFlight = tracked
+    return tracked
+  }
+
+  async #write(keepalive: boolean): Promise<void> {
     const document_ = this.#document
     if (!this.#dirty || document_ === null || this.#state === 'conflict') return
     if (keepalive && utf8Bytes(document_) >= KEEPALIVE_MAX_BYTES) return
+    this.#cancel()
     this.#dirty = false
-    const outcome = await this.#save({ document: document_, ifMatch: this.#stamp, keepalive })
+    const epoch = this.#epoch
+    const outcome = await this.#save({ document: document_, ifMatch: this.#stamp, keepalive }).catch(
+      (error: unknown): SaveOutcome => ({ kind: 'failed', message: messageOf(error) }),
+    )
+    if (outcome.kind === 'saved') this.#stamp = outcome.updatedAt
+    if (epoch === this.#epoch) this.#settle(outcome)
+  }
+
+  #settle(outcome: SaveOutcome): void {
     if (outcome.kind === 'saved') {
-      this.#stamp = outcome.updatedAt
       if (!this.#dirty) this.#setState('saved')
       return
     }
