@@ -63,7 +63,7 @@ const checklist = (checked: readonly boolean[]) => ({
         {
           type: 'text',
           text: 'the runbook',
-          marks: [{ type: 'link', attrs: { href: 'https://example.com/runbook', target: '_blank', rel: 'noopener noreferrer nofollow', class: null, title: null } }],
+          marks: [{ type: 'link', attrs: { href: 'https://example.com/runbook' } }],
         },
       ],
     },
