@@ -49,6 +49,9 @@ documents were round-tripped through `getSchema(extensions).nodeFromJSON(doc).ch
 step, and every progress number is identical. Measured over `data/projects/`: five tabs across two
 projects, **12 `taskItem` nodes, 12 checked**, before and after. That equality is the licence for
 everything else here — had it failed, the rest of this ADR would be a migration plan instead.
+*(Amended 2026-09-11: compatible for the production data, which carries no links. A `link` mark
+Tiptap 2 wrote gains one attribute, `title: null`, the first time Tiptap 3 writes the tab — see
+the amendment below.)*
 
 **`trailingNode: false` is required.** StarterKit 3 bundles `TrailingNode`, which v2 had no
 equivalent of. It appends an empty trailing paragraph on the **first transaction** against any
@@ -88,8 +91,10 @@ So the set is catalogued at one version in `pnpm-workspace.yaml` and bumped as a
 is an install error rather than a mixed graph, now that peer enforcement is actually in effect (ADR
 0024's amendment).
 
-**`immediatelyRender: false` is required under the App Router,** because rendering the editor during
-the server pass throws. It also selects the `Editor | null` TypeScript overload of `useEditor`, and
+**`immediatelyRender: false` is required under the App Router,** because otherwise Tiptap detects
+the server pass, overrules the flag with an `SSR detected` warning and renders no editor there.
+*(Amended 2026-09-11: this first said the server pass throws; measured under 3.31.3, it does not.)*
+It also selects the `Editor | null` TypeScript overload of `useEditor`, and
 that overload is the honest one: the value genuinely *is* `null` on first render. Leaving the flag
 off gives a non-null type over a null value — the type system agreeing with the wrong model of
 runtime, which is worse than the error it hides.
@@ -151,3 +156,31 @@ silently edits the user's data.
 **Write a migration to normalise stored documents** — append the trailing paragraph everywhere, so
 `TrailingNode` becomes a no-op. Rejected: it is a data rewrite to accommodate an extension the app
 does not need, and `trailingNode: false` achieves the same end with no write at all.
+
+## Amended · 2026-09-11 — two sentences the implementation measured differently
+
+The first two were measured while building the editor island
+(`apps/microtask/components/editor/`), and both are corrected where they are written above. The
+third was found verifying it, and sharpens what "the compatibility claim is a test" has to mean.
+
+**The server pass does not throw.** Rendering the island with `immediatelyRender: true` under
+`renderToString` in a real `node` environment (no `window`) completes: Tiptap logs
+`` SSR detected. `immediatelyRender` has been set to false to avoid hydration mismatches `` and
+renders without an editor. The flag stays required — it keeps that overrule and its warning out of
+every server render, and it selects the `Editor | null` type — and
+`document-editor.server.test.tsx` fails if it is set to `true`, on the warning.
+
+**A stored link mark does not round-trip unchanged.** Link 3 adds a `title` attribute defaulting to
+`null`, which Link 2 did not have, so a Tiptap 2 mark `{ href, target, rel, class: null }` reads
+back with `title: null` as well. Mounting writes nothing; the first real edit to a tab writes
+`title: null` into every link in it. It changes no rendering and no progress count, and the
+production files contain no links, which is why the round-trip over them could not see it. It is
+pinned at exactly that one attribute in `extensions.test.tsx`. Suppressing it would need a
+separately extended `Link`, which the configuration above rules out.
+
+**The round-trip test is a click, not only a mount.** Mounting dispatches no transaction, and
+`TrailingNode` acts on the first transaction of any kind, so a test that compares the document
+straight after mount passes with `trailingNode` switched back on. Measured on the production
+files: a single selection-only transaction then rewrites `Go-live` and `General` (root children
+2 → 3) and fires an update, with every progress number unchanged. The round-trip test therefore
+compares the document after a click that types nothing, as well as after mount.

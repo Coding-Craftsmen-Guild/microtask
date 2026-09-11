@@ -79,6 +79,7 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0027](0027-code-style-solid-enforced.md) | The vendored-components override named a directory the CLI never writes to, **and** its glob was inert in the shared config — the trap this ADR documents and then walked into |
 | [0033](0033-list-ships-no-share-tokens.md) | The share-link **count** was unconditional; it is gated on the same `share:read` decision the links were, so a link principal is told nothing rather than a number |
 | [0038](0038-capabilities-role-and-scope.md) | One answer per action is not enough: `project:read` is gated on **two** targets, so the projection is `mayReach(role, scope, action, target)` with `capabilities()` as the record over it |
+| [0039](0039-tiptap-in-the-app-and-v3.md) | The server pass with `immediatelyRender: true` warns and overrules the flag rather than throwing, and a Tiptap 2 link mark gains `title: null` rather than round-tripping unchanged |
 
 ## Verification
 
