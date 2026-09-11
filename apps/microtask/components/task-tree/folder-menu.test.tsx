@@ -21,13 +21,29 @@ describe('a folder', () => {
     expect(actions.renameFolder).toHaveBeenCalledWith(P, F1, 'ACME Corp')
   })
 
-  it('shows a refused rename on the tree’s problem line', async () => {
+  it('says why a rename was refused once, at the field it was typed in, and not again on the tree’s line', async () => {
     const { actions, user } = renderTree()
     actions.renameFolder.mockResolvedValue({ ok: false, status: 403, detail: 'Not allowed.' })
     const [first] = screen.getAllByRole<HTMLInputElement>('textbox', { name: 'Folder name' })
     if (first === undefined) throw new Error('no folder name')
     await user.type(first, 'x{Enter}')
-    expect(screen.getAllByRole('alert').map((alert) => alert.textContent)).toContain('Not allowed.')
+    const said = screen.getAllByRole('alert').filter((alert) => alert.textContent === 'Not allowed.')
+    expect(said).toHaveLength(1)
+    const heading = first.closest('h2')
+    if (heading === null) throw new Error('the field is not in its folder heading')
+    expect(within(heading).getByRole('alert')).toBe(said[0])
+  })
+
+  it('clears an earlier refusal on the tree’s line once a rename succeeds', async () => {
+    const { actions, user } = renderTree()
+    actions.reorderFolders.mockResolvedValue({ ok: false, status: 409, detail: 'This list changed.' })
+    await openMenu(user, 0)
+    await user.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    expect(screen.getByRole('alert').textContent).toBe('This list changed.')
+    const [first] = screen.getAllByRole<HTMLInputElement>('textbox', { name: 'Folder name' })
+    if (first === undefined) throw new Error('no folder name')
+    await user.type(first, 'x{Enter}')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('moves down as the whole folder order', async () => {

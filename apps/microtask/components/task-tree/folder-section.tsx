@@ -19,13 +19,17 @@ export interface FolderSectionProps {
 /**
  * One folder: its name — edited in place where renaming is drawn — the sum of its tasks' cached
  * progress, its options, and its task rows.
+ *
+ * A refused rename is said once, under the field it was typed in, which stays on screen: the
+ * tree's line is left to the writes that have no field of their own. A rename that lands clears
+ * that line, as every write that lands does.
  */
 export function FolderSection({ folder, tasks }: FolderSectionProps) {
   const { projectId, controls, actions, report } = useTree()
   const progress = progressOf(tasks)
   const rename = async (name: string) => {
     const result = await actions.renameFolder(projectId, folder.id, name)
-    report(result)
+    if (result.ok) report(result)
     return result
   }
   return (

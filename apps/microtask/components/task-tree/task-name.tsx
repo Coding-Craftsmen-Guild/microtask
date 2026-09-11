@@ -22,6 +22,9 @@ export interface TaskNameProps {
  *
  * The link shows the name the **server** answered the moment a rename succeeds, rather than
  * waiting for the page refresh, because the server's name can differ from what was typed.
+ *
+ * A refusal is said on the tree's line rather than under the field, because the field closes as
+ * the edit ends and would take its own alert with it; so it is still said once.
  */
 export function TaskName({ task, renaming, onDone }: TaskNameProps) {
   const { projectId, actions, report } = useTree()
