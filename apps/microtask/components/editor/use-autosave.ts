@@ -37,7 +37,7 @@ const listen = (autosave: Autosave): (() => void) => {
     if (document.visibilityState === 'hidden') void autosave.flush(false)
   }
   const leaving = (event: BeforeUnloadEvent): void => {
-    if (!autosave.dirty) return
+    if (!autosave.pending) return
     void autosave.flush(true)
     event.preventDefault()
     event.returnValue = ''
@@ -69,7 +69,9 @@ const listen = (autosave: Autosave): (() => void) => {
  * - `beforeunload` sends a `keepalive` request, and only for a body under the shared 64 KiB
  *   budget. Either way it asks for the browser's unsaved-changes prompt, which is the actual
  *   guard on that path — including when the body was too large to attempt, because saying
- *   nothing there is the silent loss.
+ *   nothing there is the silent loss, and while a write is still in flight, because closing
+ *   the page can abort it before the server has the edit. Legacy asked only while dirty, and
+ *   cleared dirty as the write was sent.
  * - `Ctrl/Cmd+S` writes now and suppresses the browser's Save-Page dialog. Legacy wired this on
  *   the admin page alone, so `Cmd+S` on a read-write share link opened that dialog over unsaved
  *   work; the asymmetry was an omission rather than a decision, and it is not reproduced.

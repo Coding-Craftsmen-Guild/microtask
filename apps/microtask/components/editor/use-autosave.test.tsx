@@ -157,6 +157,33 @@ describe('the page going away', () => {
     expect(events[0]?.defaultPrevented).toBe(false)
   })
 
+  it('asks for the prompt while a write is still in flight, its edit not being stored yet', async () => {
+    let release = (): void => undefined
+    gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+    expect(requests.length).toBe(1)
+    const during: Event[] = []
+    act(() => {
+      during.push(unload())
+    })
+    expect(during[0]?.defaultPrevented).toBe(true)
+    release()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    const after: Event[] = []
+    act(() => {
+      after.push(unload())
+    })
+    expect(after[0]?.defaultPrevented).toBe(false)
+  })
+
   it('still asks for the prompt when the body is too large to send, rather than lying', () => {
     render(<Plain />)
     act(() => mounted().change(text('x'.repeat(KEEPALIVE_MAX_BYTES))))

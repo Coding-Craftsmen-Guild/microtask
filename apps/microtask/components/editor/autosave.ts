@@ -1,5 +1,5 @@
 import type { DocumentValue } from '@repo/contracts'
-import type { SaveDocument, SaveOutcome, SaveState } from './save-document'
+import type { SaveDocument, SaveOutcome, SaveRequest, SaveState } from './save-document'
 
 /** How long after the last change a write is sent, in milliseconds. */
 export const SAVE_DEBOUNCE_MS = 700
@@ -33,6 +33,16 @@ const utf8Bytes = (document_: DocumentValue): number =>
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
+const failure = (error: unknown): SaveOutcome => ({ kind: 'failed', message: messageOf(error) })
+
+const attempt = (save: SaveDocument, request: SaveRequest): Promise<SaveOutcome> => {
+  try {
+    return save(request).catch(failure)
+  } catch (error) {
+    return Promise.resolve(failure(error))
+  }
+}
+
 /**
  * The autosave loop, reproducing the timings measured off the app being replaced.
  *
@@ -43,7 +53,9 @@ const messageOf = (error: unknown): string => (error instanceof Error ? error.me
  * The ordering that matters is in {@link flush}. `dirty` is cleared **before** the await and
  * restored on failure, and `Saved` is shown only if it is still clear when the answer arrives —
  * so a keystroke landing mid-flight leaves the indicator saying `Saving…`, never `Saved` over
- * an edit that is not stored yet.
+ * an edit that is not stored yet. A save that rejects and a save that throws before returning
+ * a promise are both a failure; the call stays synchronous, because a `beforeunload` flush has
+ * to start its request before the page goes.
  */
 export class Autosave {
   readonly #save: SaveDocument
@@ -69,9 +81,18 @@ export class Autosave {
     return this.#state
   }
 
-  /** Whether there are edits the server does not have. */
+  /** Whether there are edits no write has been sent for yet. */
   get dirty(): boolean {
     return this.#dirty
+  }
+
+  /**
+   * Whether any edit is not yet known to be stored: one still dirty, or one a write in flight
+   * carries. `dirty` alone goes false the moment that write is sent, which is before the server
+   * has answered, so it cannot be what the unsaved-changes prompt asks (ADR 0028).
+   */
+  get pending(): boolean {
+    return this.#dirty || this.#inFlight !== null
   }
 
   /** The stamp the next write will present, which the last successful write set. */
@@ -149,9 +170,7 @@ export class Autosave {
     this.#cancel()
     this.#dirty = false
     const epoch = this.#epoch
-    const outcome = await this.#save({ document: document_, ifMatch: this.#stamp, keepalive }).catch(
-      (error: unknown): SaveOutcome => ({ kind: 'failed', message: messageOf(error) }),
-    )
+    const outcome = await attempt(this.#save, { document: document_, ifMatch: this.#stamp, keepalive })
     if (outcome.kind === 'saved') this.#stamp = outcome.updatedAt
     if (epoch === this.#epoch) this.#settle(outcome)
   }

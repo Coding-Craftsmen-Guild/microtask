@@ -427,6 +427,29 @@ describe('one write at a time, so the loop can never conflict with itself', () =
   })
 })
 
+describe('pending, which is what the unsaved-changes prompt asks', () => {
+  it('holds from the first edit until the write carrying it has answered', async () => {
+    let release: (outcome: SaveOutcome) => void = () => undefined
+    const autosave = new Autosave({
+      updatedAt: 'v1',
+      save: () =>
+        new Promise<SaveOutcome>((resolve) => {
+          release = resolve
+        }),
+      onState: () => undefined,
+    })
+    expect(autosave.pending).toBe(false)
+    autosave.change(text('a'))
+    expect(autosave.pending).toBe(true)
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(autosave.dirty).toBe(false)
+    expect(autosave.pending).toBe(true)
+    release(SAVED)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(autosave.pending).toBe(false)
+  })
+})
+
 describe('the paths that must not lose the debounce', () => {
   it('leaves the debounce armed after an over-budget keepalive attempt, so staying on the page still saves', async () => {
     const { autosave, requests } = harness()
@@ -446,6 +469,36 @@ describe('the paths that must not lose the debounce', () => {
     await autosave.flush()
     await autosave.flush(true)
     expect(requests.length).toBe(1)
+  })
+
+  it('treats a save that throws before it returns a promise as a failed one too', async () => {
+    const requests: SaveRequest[] = []
+    const autosave = new Autosave({
+      updatedAt: 'v1',
+      save: (request) => {
+        requests.push(request)
+        throw new TypeError('Invalid URL')
+      },
+      onState: () => undefined,
+    })
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(autosave.state).toBe('retrying')
+    expect(autosave.dirty).toBe(true)
+    expect(autosave.message).toBe('Invalid URL')
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS)
+    expect(requests.length).toBe(2)
+  })
+
+  it('keeps what a save rejected with even when that is not an Error', async () => {
+    const autosave = new Autosave({
+      updatedAt: 'v1',
+      save: () => Promise.reject(Object.assign(Object.create(null) as object, { toString: () => 'offline' })),
+      onState: () => undefined,
+    })
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(autosave.message).toBe('offline')
   })
 
   it('treats a save that throws as a failed one, rather than dropping the edit as saved', async () => {
