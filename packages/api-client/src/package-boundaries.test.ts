@@ -48,6 +48,23 @@ describe('the barrel is the whole public surface', () => {
     expect(Object.keys(api)).toContain('createLinkClient')
     expect(Object.keys(api)).toContain('login')
   })
+
+  it('exports the path builders, so a caller need not reach past the exports map (ADR 0036)', () => {
+    const named = Object.keys(api)
+    for (const builder of ['projectPath', 'taskPath', 'tabPath']) expect(named).toContain(builder)
+    for (const root of ['PROJECTS_PATH', 'SEARCH_PATH', 'CURRENT_SHARE_PATH', 'LOGIN_PATH']) {
+      expect(named).toContain(root)
+    }
+  })
+
+  it('builds the same path through the barrel as the operations build internally', () => {
+    expect(api.projectPath('01M240ERCRWWCN16Q5AHP1FZAQ')).toBe(
+      `${api.PROJECTS_PATH}/01M240ERCRWWCN16Q5AHP1FZAQ`,
+    )
+    expect(api.tabPath({ projectId: 'p 1', taskId: 't1', tabId: 'b1' })).toBe(
+      `${api.PROJECTS_PATH}/p%201/tasks/t1/tabs/b1`,
+    )
+  })
 })
 
 describe('shipped source carries no type suppression', () => {

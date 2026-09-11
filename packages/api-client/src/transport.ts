@@ -22,6 +22,16 @@ export interface Call {
 
   /** Further headers, such as the `If-Match` a conditional write carries. */
   readonly headers?: Readonly<Record<string, string>>
+
+  /**
+   * A signal that cancels the request, for a debounced search or a superseded read.
+   *
+   * An already-aborted signal rejects **before** `fetch` is called, so a cancelled call issues
+   * no request at all rather than one whose answer is thrown away. Optional, so nothing existing
+   * changes shape; the cost is that a transport that failed to forward it would cancel nothing
+   * and say so to nobody (ADR 0036).
+   */
+  readonly signal?: AbortSignal
 }
 
 /** The two ways a response comes back: decoded through a contract schema, or with no body. */
@@ -57,9 +67,10 @@ const headersFor = (
 
 const initFor = (options: ClientOptions, token: string | null, call: Call): RequestInit => {
   const headers = headersFor(options, token, call)
+  const cancellable = call.signal === undefined ? {} : { signal: call.signal }
   return call.body === undefined
-    ? { method: call.method, headers }
-    : { method: call.method, headers, body: JSON.stringify(call.body) }
+    ? { method: call.method, headers, ...cancellable }
+    : { method: call.method, headers, body: JSON.stringify(call.body), ...cancellable }
 }
 
 /**
@@ -74,6 +85,11 @@ const initFor = (options: ClientOptions, token: string | null, call: Call): Requ
  * `token` is nullable for exactly one caller: `login`, which is the route that mints a token and
  * so cannot present one. Nothing else passes `null`.
  *
+ * A call carrying an already-aborted `signal` rejects before the fetcher is reached, so a
+ * superseded request issues nothing at all. The check is here rather than left to `fetch`
+ * because it is the injectable seam: a caller's instrumented fetch, or a test double, would
+ * otherwise decide whether cancellation means anything.
+ *
  * A non-2xx becomes a thrown {@link ApiError} rather than a returned union, so a caller that
  * forgets to check gets a rejection instead of a value it will read as data. Success bodies are
  * parsed by the contract schema the API declares the response with, so a server that starts
@@ -82,6 +98,7 @@ const initFor = (options: ClientOptions, token: string | null, call: Call): Requ
 export function createTransport(options: ClientOptions, token: string | null): Transport {
   const fetcher: Fetcher = options.fetch ?? ((url, init) => globalThis.fetch(url, init))
   const send = async (call: Call): Promise<Response> => {
+    call.signal?.throwIfAborted()
     const response = await fetcher(urlFor(options.baseUrl, call), initFor(options, token, call))
     if (!response.ok) throw await errorFrom(response, call.path)
     return response

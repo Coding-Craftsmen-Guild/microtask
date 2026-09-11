@@ -1,9 +1,23 @@
 export { createAdminClient, type AdminClient } from './admin-client.js'
 export { createLinkClient, type LinkClient } from './link-client.js'
 export { login, type AdminSessionValue } from './login.js'
-export { ApiError, type ApiErrorInit } from './api-error.js'
+export {
+  ApiError,
+  type ApiErrorInit,
+  type FieldError,
+  type ValidationTarget,
+} from './api-error.js'
 export { createTransport, type Call, type Transport } from './transport.js'
 export { createSurface, type MicrotaskApi } from './surface.js'
+export {
+  CURRENT_SHARE_PATH,
+  LOGIN_PATH,
+  PROJECTS_PATH,
+  SEARCH_PATH,
+  projectPath,
+  tabPath,
+  taskPath,
+} from './paths.js'
 export type { FoldersApi } from './operations/folders.js'
 export type { Project, ProjectsApi } from './operations/projects.js'
 export type { NewShareLink, ShareLinkChange, ShareLinksApi } from './operations/share-links.js'
