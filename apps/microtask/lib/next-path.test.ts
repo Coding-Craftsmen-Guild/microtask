@@ -115,6 +115,12 @@ describe('safeNextPath — paths it honours', () => {
     expect(safeNextPath(short)).toBe('/')
   })
 
+  it('bounds what it receives as well, even when the path it normalises to is short', () => {
+    const long = `${'/a/..'.repeat(110)}/p/01H`
+    expect(long.length).toBeGreaterThan(MAX_NEXT_LENGTH)
+    expect(safeNextPath(long)).toBe('/')
+  })
+
   it('accepts a value at exactly the cap, so the bound is not off by one', () => {
     const atCap = `/${'a'.repeat(MAX_NEXT_LENGTH - 1)}`
     expect(atCap.length).toBe(MAX_NEXT_LENGTH)
