@@ -22,7 +22,9 @@ credential dump with no dialog at all.
 ## Decision
 
 **A project in a list carries `shareLinkCount?: number` and no `shareLinks`.** Tokens appear only
-on `projects.read()`, which is the request that renders the share manager. The count is present
+on `projects.read()` and `GET .../share-links` — and neither may be rendered into a **page**: the
+project page reads `projects.read()` on the server, renders a count, and the share manager loads the
+links when it is opened (see the second amendment below). The count is present
 exactly when `shareLinks` would have been — see the amendment below, which supersedes the
 unconditional reading this ADR first gave it.
 
@@ -42,7 +44,9 @@ predicate to drift (ADR 0009).
   list.
 - A caller that is refused `share:read` sees **no** `shareLinkCount` at all, the same way it sees
   no `shareLinks` — the amendment below replaces the unconditional count this ADR first accepted.
-- The share manager needs `projects.read()`, which it already calls to render the project page.
+- ~~The share manager needs `projects.read()`, which it already calls to render the project page.~~
+  Corrected by the second amendment below: it calls `GET .../share-links` when it is opened, because
+  a page that rendered it from `projects.read()` would put every token in its own HTML.
 - Two shapes now exist for a project — one with links, one with a count — and the OpenAPI document
   says which endpoint returns which. That is a real cost in schema surface, paid once.
 
@@ -58,7 +62,10 @@ page source. ADR 0027's position on unenforced conventions applies exactly.
 
 **Add a separate `GET /share-links` for the share manager and drop links from every project
 response.** Cleaner in isolation, and it splits one screen's data across two requests for no gain,
-since the share manager is always rendered from a project the caller has just read.
+since the share manager is always rendered from a project the caller has just read. *The gain turned
+out to be the whole point, and the route already existed: see the second amendment below.* Links are
+still not dropped from `projects.read()`, which the API shapes per caller and which the admin's own
+server still reads.
 
 ## Amended · 2026-09-11 — the count is gated on the same decision the links were
 
@@ -88,3 +95,34 @@ Three consequences of the stricter rule, all of them wanted:
 The cost is that reusing the predicate means the list still walks each project's links to count
 them. That walk is per project and bounded by 50; what this ADR removes is shipping them, not
 reading them.
+
+## Amended · 2026-09-11 — the page ships a count too; the links load when the dialog opens
+
+This ADR moved tokens off the **list** and left them on `projects.read()`, "the request that renders
+the share manager". Building that page showed the same leak one screen further in. The share
+manager is a client component — it copies, renames, revokes — and anything a Server Component hands
+a client component is serialised into the Flight payload and lands in the HTML. A project page that
+rendered the manager from `projects.read()` would put up to 50 live tokens into its own page source
+on every load, whether or not the admin ever opened the dialog. The plan that asked for the manager
+also asked for no share token in the project page's HTML; as written, those two contradicted each
+other.
+
+**The project page renders a count, and the share manager loads its links when it is opened.** It keeps
+the shape the app being replaced had — a dialog behind a button — with the links fetched when the
+dialog opens rather than held by the page. Concretely:
+
+- The page reads `projects.read()` on the server and reduces it to a model **copied field by field**
+  (`components/projects/page-model.ts`), holding the link count and a per-task count of task-scoped
+  links, and no link. Nothing the page hands a component is a token.
+- Opening the dialog calls a Server Action that asks `GET .../share-links` — the route that already
+  existed — and closing it drops the links from the browser's memory. An answer that arrives after
+  the dialog closed is discarded. So a token reaches a browser only when an admin asks to see it,
+  and only for as long as the dialog that shows it is open.
+- The project page's test renders a project holding live links and asserts none of the token
+  strings occurs in the rendered output **or in any prop the page hands a component**, the second
+  being what the Flight payload would carry.
+
+This is the ADR applied to the page rather than only to the list endpoint: a credential shipped in
+bulk into page data lands in the HTML, whichever endpoint it came from. It costs one request per
+dialog open, which is the request the alternative above rejected as having "no gain" — the gain is
+that the project page stops being a credential dump for every admin who loads it.

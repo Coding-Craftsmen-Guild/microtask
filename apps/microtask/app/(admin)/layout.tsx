@@ -12,10 +12,10 @@ export interface AdminLayoutProps {
 /**
  * The admin surface's frame: the brand bar with Sign out, and the page column.
  *
- * Sign out is a form posting to the `signOut` action, never a link: a link to `/login` would be a
- * GET that a prefetch could follow, and `proxy.ts` clears `mt_admin` on every navigation to
- * `/login`. It is on every admin page rather than on the index alone, as it was — the app being
- * replaced made an admin walk back to `/` to sign out.
+ * Sign out is a form posting to the `signOut` action, never a link: ending a session changes state,
+ * a `GET` must not, and Next prefetches every `<Link>` it renders — the reason `proxy.ts` stopped
+ * clearing a cookie on a `GET` of `/login` (ADR 0032). It is on every admin page rather than on
+ * the index alone, as it was: the app being replaced made an admin walk back to `/` to sign out.
  */
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
