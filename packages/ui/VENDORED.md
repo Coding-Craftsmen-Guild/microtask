@@ -41,7 +41,11 @@ it, which is behaviourally identical because the spread already sat after the ex
 - **The `cn` import in 21 files.** Generated components import `cn` from the published `cn` package,
   not from `@repo/ui/lib/utils`, and setting `aliases.utils` does not change that. `src/lib/utils.ts`
   re-exports the same package, so there is one implementation and no import line needs patching.
-  `cn@0.2.6` was measured equivalent to `twMerge(clsx(...))` — see ADR 0025.
+  `cn@0.2.6` is not a concatenator: its `cn` is `wrapClsx(engine.mergeString, engine)` over
+  precompiled Tailwind conflict tables, and it was measured identical to `twMerge(clsx(...))` on
+  400,000 generated argument lists drawn from 22,190 candidate classes, plus 20 hand-written
+  conflict cases - zero divergences. `clsx` and `tailwind-merge` are therefore no longer
+  dependencies of this package.
 - **`jsdoc/require-jsdoc` and `max-lines`.** Vendored output violates exactly those two rules, 103
   and 9 times. They are turned off for `src/components/**/*.tsx` only, by spreading
   `vendoredComponents()` from `@repo/eslint-config` into `eslint.config.js` — the glob has to be

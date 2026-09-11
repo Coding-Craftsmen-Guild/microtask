@@ -1,10 +1,8 @@
-import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-
 /**
  * Merges conditional class names and resolves conflicting Tailwind utilities,
- * last one winning. This is the helper every vendored shadcn primitive imports.
+ * last one winning. Re-exported from `cn`, the package the 21 vendored
+ * primitives import directly, so `packages/ui` has one implementation of this
+ * and no regenerable import line needs patching. The equivalence measurement
+ * behind that is in `packages/ui/VENDORED.md`.
  */
-export function cn(...inputs: ClassValue[]): string {
-  return twMerge(clsx(inputs))
-}
+export { cn } from 'cn'
