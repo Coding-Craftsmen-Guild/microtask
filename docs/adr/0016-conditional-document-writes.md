@@ -167,7 +167,7 @@ save every four seconds for as long as it stayed open — a hundred console 401s
 while its indicator read *"Not saved — retrying…"* beside *"… cannot be saved through this link"*.
 Both halves were true, and together they were a lie. The loop retried every refusal that was not
 a 409, and a 401 for a revoked token, like a 403 for a link downgraded to view, is refused again
-every time it is sent. The app being replaced did the same (parity feature 34, UX row 200); it is
+every time it is sent. The app being replaced did the same (parity feature 34, non-obvious UX row U34); it is
 not reproduced.
 
 **Decision.** A save's answer is sorted by status into what a retry can outlast and what it cannot.

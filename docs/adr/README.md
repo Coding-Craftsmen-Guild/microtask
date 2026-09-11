@@ -8,10 +8,11 @@ The implementation-facing detail — domain model, page map, cutover runbook —
 [`../superpowers/specs/2026-09-10-monorepo-restructure-design.md`](../superpowers/specs/2026-09-10-monorepo-restructure-design.md),
 which references these by number. The full behavioural inventory of the app being replaced, captured
 before it was deleted, is [`../parity/legacy-microtask.md`](../parity/legacy-microtask.md): 71
-features, 25 routes and 41 non-obvious behaviours, each of which is reproduced or deliberately
-dropped by one of the decisions here. That app's code is at the `legacy-prod` tag, which
-predates the move into `apps/legacy/`: a path cited below as `apps/legacy/server.js:97` is
-`server.js:97` at that tag, same line, and no longer exists in the working tree.
+features, 25 routes and 41 non-obvious behaviours. Its audit marks every one of them reproduced,
+changed or dropped, with the decision that says so, or a gap, with why it is still open. That
+app's code is at the `legacy-prod` tag, which predates the move into `apps/legacy/`: a path cited
+below as `apps/legacy/server.js:97` is `server.js:97` at that tag, same line, and no longer exists
+in the working tree.
 
 | # | Decision | Status |
 | --- | --- | --- |
