@@ -26,6 +26,7 @@ describe('LoginPage', () => {
 
   it('renders / when next= is repeated, rather than picking one of them', async () => {
     expect(await hiddenNext({ next: ['/p/a', '//evil.example'] })).toBe('/')
+    expect(await hiddenNext({ next: ['/p/a', '/p/b'] })).toBe('/')
   })
 
   it('renders / when there is no next= at all', async () => {

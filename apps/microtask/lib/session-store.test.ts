@@ -102,6 +102,11 @@ describe('sealing', () => {
     expect(jar.store.get(ADMIN_COOKIE)?.maxAge).not.toBe(LINK_MAX_AGE_SECONDS)
   })
 
+  it("follows a bearer lifetime longer than an hour rather than capping it", () => {
+    cookiesFor().sealAdmin('bearer', 86_400)
+    expect(jar.store.get(ADMIN_COOKIE)?.maxAge).toBe(86_400)
+  })
+
   it('gives mt_link thirty days', () => {
     cookiesFor().sealLink('share')
     expect(jar.store.get(LINK_COOKIE)?.maxAge).toBe(LINK_MAX_AGE_SECONDS)
@@ -175,6 +180,16 @@ describe('clearing', () => {
     const link = jar.store.get(LINK_COOKIE)
     session.clearAdmin()
     expect(jar.store.get(LINK_COOKIE)).toBe(link)
+  })
+})
+
+describe('clearing, and Secure', () => {
+  it.each([true, false])('clears each cookie with the Secure the request arrived with (%s)', (secure) => {
+    const session = cookiesFor(secure)
+    session.clearAdmin()
+    session.clearLink()
+    expect(jar.store.get(ADMIN_COOKIE)?.secure).toBe(secure)
+    expect(jar.store.get(LINK_COOKIE)?.secure).toBe(secure)
   })
 })
 

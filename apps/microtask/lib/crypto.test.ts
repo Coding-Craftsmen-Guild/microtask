@@ -71,6 +71,25 @@ describe('seal and open', () => {
     expect(open(other, seal(secret, payload))).toBeNull()
   })
 
+  it('keeps the payload confidential: no plaintext survives in the decoded blob', () => {
+    const token = 'sharetokenabcdef0123456789'
+    const decoded = Buffer.from(seal(secret, payload), 'base64url')
+    expect(decoded.includes(Buffer.from(token, 'utf8'))).toBe(false)
+    expect(decoded.includes(Buffer.from('"kind"', 'utf8'))).toBe(false)
+  })
+
+  it('derives the key from every byte of the secret, not a prefix of it', () => {
+    const long = 'k'.repeat(48)
+    const differsLast = `${'k'.repeat(47)}q`
+    expect(open(differsLast, seal(long, payload))).toBeNull()
+  })
+
+  it('derives the key from the secret as UTF-8, so two non-ASCII secrets never share a key', () => {
+    const euro = `${'k'.repeat(32)}€`
+    const negation = `${'k'.repeat(32)}¬`
+    expect(open(negation, seal(euro, payload))).toBeNull()
+  })
+
   it.each([
     ['an empty string', ''],
     ['a value that is not base64url', 'not*valid*base64url'],
