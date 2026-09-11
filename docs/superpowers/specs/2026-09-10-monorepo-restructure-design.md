@@ -574,43 +574,33 @@ only when editable. Toolbar `B I S </> | H1 H2 H3 | ☑ • 1. ❝ ― | 🔗`, 
 selection survives. The link dialog removes the mark on empty input and prefixes a schemeless value
 with `https://`.
 
-**The editor lives in `apps/microtask`, not in `packages/ui`.** Tiptap is the Microtask checklist
-document editor; Macroplan is a different product and does not need it. ADR 0001 puts what is not
-shared in the app, and this is not shared — which also permanently avoids the duplicate-ProseMirror
-hazard a shared Tiptap would create, since every ProseMirror package breaks if two copies load.
+**Tiptap 3.31.3, and it lives in `apps/microtask`.** The editor is app code, not a `packages/ui`
+component, and the `@tiptap/*` set is catalogued in `pnpm-workspace.yaml` at one exact version and
+bumped as a unit. **Why it is not shared, and the measurement behind every setting below, is
+[ADR 0039](../../adr/0039-tiptap-in-the-app-and-v3.md)** — including the one that matters most: the
+stored document format is unchanged from the app being replaced, so there is no migration. What to
+build:
 
-**Tiptap 3, and the port is not a copy.** The app being replaced pins `^2.27.3`; current is
-`3.31.3`. Measured against the real production files:
-
-- **Stored documents are compatible.** `taskList` / `taskItem` and the boolean `attrs.checked` are
-  byte-for-byte unchanged between the two versions — verified by reading both node specs and by
-  round-tripping the production documents through `getSchema(...).nodeFromJSON(doc).check()`. No
-  migration, and every progress number stays identical.
-- **Packages consolidated.** `TaskList` and `TaskItem` come from `@tiptap/extension-list`,
-  `Placeholder` from `@tiptap/extensions`. The old `extension-task-list` / `-task-item` /
-  `-placeholder` packages still publish, as two-line re-export shims. Use the real packages.
-- **Every `@tiptap/*` v3 package peer-pins its siblings to the exact string `3.31.3`**, not a range,
-  so the whole set is catalogued at one exact version and bumped as a unit. With peer enforcement now
-  actually in effect (see ADR 0024's amendment), a partial bump is an install error.
-- **StarterKit v3 bundles `Link`, `TrailingNode`, `Underline` and `ListKeymap`**, which v2 did not,
-  and renamed `History` to `UndoRedo` (option key `undoRedo`; a `history` option is now silently
-  ignored). Passing StarterKit *plus* a separate `Link` — what the legacy code does — logs
-  "Duplicate extension names found: [link]", so the options move into `StarterKit.configure`.
-  `Underline` adds a mark v2 had no concept of, which stored-document validation must accept.
-- **`TrailingNode` silently mutates stored documents and is passed `false`.** It appends an empty
-  trailing paragraph on the **first transaction** for any document not ending in a paragraph, which
-  both production checklist tabs are. Measured: children before 2, after 3 with it on; before 2,
-  after 2 with `trailingNode: false`. It surfaces as a spurious dirty flag and an autosave the user
-  never caused.
-- **The React binding changed shape.** `immediatelyRender: false` is required under the App Router —
-  it also selects the `Editor | null` overload, which is what happens at runtime, so every editor
-  access needs a guard. `shouldRerenderOnTransaction` now **defaults to false**, so porting the
-  legacy `onSelectionUpdate` / `onTransaction` toolbar pattern gives buttons that never light up:
-  toolbar state comes from `useEditorState({ editor, selector })` instead.
+- **`StarterKit.configure({ ... })` and nothing alongside it.** The `Link` options go *inside* it —
+  v3 bundles `Link`, and a separate `Link` extension is a duplicate-name error. Also
+  `trailingNode: false` (required: it otherwise rewrites any tab ending in a `taskList` on the first
+  keystroke), `undoRedo` rather than `history` (a `history` key is silently ignored), headings 1–3,
+  `codeBlock` spellcheck off. `Underline` is in the schema now; validation must accept the mark.
+- **`TaskList` / `TaskItem` from `@tiptap/extension-list`, `Placeholder` from `@tiptap/extensions`.**
+  The old `extension-task-list` / `-task-item` / `-placeholder` packages are re-export shims.
+- **`useEditor({ ..., immediatelyRender: false })`**, required under the App Router; it types the
+  editor as `Editor | null`, which is what it is on first render, so every access is null-guarded.
+  Toolbar state comes from `useEditorState({ editor, selector })`, not from `onSelectionUpdate` /
+  `onTransaction` — `shouldRerenderOnTransaction` defaults to `false` in v3.
+- **`generateHTML` / `generateJSON` from `@tiptap/core`.** `@tiptap/html` is not a dependency; it
+  takes a non-optional `happy-dom` peer.
+- **The production documents in `data/projects/` are test fixtures.** Two checks, both of which fail
+  if a bump breaks compatibility or the `trailingNode` option is dropped:
+  `getSchema(...).nodeFromJSON(doc).check()` with an unchanged progress count (12 `taskItem` nodes,
+  12 checked), and one transaction against a tab ending in a `taskList` asserting 2 root children in,
+  2 out.
 - **Peer dependencies are not optional.** `@tiptap/react` requires `@types/react` and
-  `@types/react-dom`, and `@tiptap/html` carries a non-optional `happy-dom` peer — so
-  `generateHTML` / `generateJSON` come from `@tiptap/core` and `@tiptap/html` is skipped entirely.
-  All three reproduced as `ERR_PNPM_PEER_DEP_ISSUES`.
+  `@types/react-dom`; omitting either reproduces as `ERR_PNPM_PEER_DEP_ISSUES`.
 - **No new `allowBuilds` entry is needed.** Nothing in the Tiptap/ProseMirror graph declares
   `preinstall`, `install` or `postinstall`, and `prepare` does not run for registry tarballs.
 
