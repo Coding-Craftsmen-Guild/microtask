@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "fixture:derive": "node scripts/derive-legacy-fixture.mjs"
   },
   "dependencies": { "zod": "catalog:" },
   "devDependencies": {

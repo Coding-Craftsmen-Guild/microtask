@@ -1,18 +1,86 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import * as contracts from './index.js'
 import { countTasks, emptyDocument, SAFE_HREF_SCHEMES } from './document-facts.js'
 import { MAX_DOCUMENT_DEPTH } from './limits.js'
 
+/**
+ * The project the cutover runbook checks, and the fixture derived from it by
+ * `scripts/derive-legacy-fixture.mjs`.
+ *
+ * `data/` is gitignored and holds production customer data, so a fresh clone, a CI runner and
+ * every container build have no such file — and a suite that needs one cannot prove the image
+ * builds (ADR 0026). The fixture carries, mechanically derived and asserted below against the
+ * real file wherever that exists: the four tabs and their `position`; every node type and its
+ * count (`doc`, `paragraph`, `text`, `taskList`, `taskItem`, `heading`); every `attrs`, so all
+ * twelve `taskItem`s and the 12-of-12 `checked` distribution behind the measured per-tab numbers
+ * survive; the absence of any `marks` array; and the nesting depth of five. That is everything
+ * `countTasks` walks and everything `DocumentJson` parses, which is what makes it sufficient:
+ * what it drops is the text, and `countTasks` never reads text.
+ */
+const FIXTURE = new URL('./testing/legacy-project.fixture.json', import.meta.url)
 const PRODUCTION = new URL('../../../data/projects/01M240ERCRWWCN16Q5AHP1FZAQ.json', import.meta.url)
+const hasProduction = existsSync(PRODUCTION)
+
+const FILLER = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor '
 
 interface StoredTab {
   readonly name: string
+  readonly position: number
   readonly document: unknown
 }
 
-const stored = (): readonly StoredTab[] =>
-  (JSON.parse(readFileSync(PRODUCTION, 'utf8')) as { tabs: readonly StoredTab[] }).tabs
+interface Facts {
+  nodes: Record<string, number>
+  marks: string[]
+  depth: number
+  items: number
+  checked: number
+  texts: string[]
+}
+
+const tabsIn = (source: URL): readonly StoredTab[] =>
+  (JSON.parse(readFileSync(source, 'utf8')) as { tabs: readonly StoredTab[] }).tabs
+
+const fixture = (): readonly StoredTab[] => tabsIn(FIXTURE)
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object'
+
+const childrenOf = (record: Record<string, unknown>, key: string): readonly unknown[] =>
+  Array.isArray(record[key]) ? (record[key] as readonly unknown[]) : []
+
+function tally(node: Record<string, unknown>, type: string, into: Facts): void {
+  into.nodes[type] = (into.nodes[type] ?? 0) + 1
+  if (type === 'text') into.texts.push(String(node['text']))
+  if (type !== 'taskItem') return
+  into.items += 1
+  const attrs = node['attrs']
+  if (isRecord(attrs) && attrs['checked'] === true) into.checked += 1
+}
+
+function gather(node: unknown, depth: number, into: Facts): Facts {
+  if (!isRecord(node)) return into
+  const type = node['type']
+  if (typeof type === 'string') {
+    into.depth = Math.max(into.depth, depth)
+    tally(node, type, into)
+  }
+  for (const mark of childrenOf(node, 'marks')) {
+    if (isRecord(mark) && typeof mark['type'] === 'string') into.marks.push(mark['type'])
+  }
+  for (const child of childrenOf(node, 'content')) gather(child, depth + 1, into)
+  return into
+}
+
+const facts = (document: unknown): Facts =>
+  gather(document, 1, { nodes: {}, marks: [], depth: 0, items: 0, checked: 0, texts: [] })
+
+const structure = (tabs: readonly StoredTab[]): readonly unknown[] =>
+  tabs.map(({ position, document }) => {
+    const { texts, ...rest } = facts(document)
+    return { position, textNodes: texts.length, ...rest }
+  })
 
 const doc = (...content: readonly unknown[]): unknown => ({ type: 'doc', content })
 
@@ -40,18 +108,75 @@ describe('SAFE_HREF_SCHEMES', () => {
 
 describe('countTasks against the documents production actually holds', () => {
   it('counts each stored tab the way the app being replaced counted it', () => {
-    const counted = stored().map((tab) => [tab.name, countTasks(tab.document)] as const)
+    const counted = fixture().map((tab) => [tab.position, countTasks(tab.document)] as const)
+    expect(counted).toEqual([
+      [0, { done: 6, total: 6 }],
+      [1, { done: 6, total: 6 }],
+      [2, { done: 0, total: 0 }],
+      [3, { done: 0, total: 0 }],
+    ])
+  })
+
+  it('reads four stored tabs, every one of them valid input to Tiptap 3', () => {
+    expect(fixture()).toHaveLength(4)
+    for (const tab of fixture()) {
+      expect(contracts.DocumentJson.safeParse(tab.document).success).toBe(true)
+    }
+  })
+
+  it('reads documents carrying the node types, depth and checked distribution production stores', () => {
+    expect(structure(fixture())).toEqual([
+      {
+        position: 0,
+        textNodes: 7,
+        nodes: { doc: 1, paragraph: 7, text: 7, taskList: 1, taskItem: 6 },
+        marks: [],
+        depth: 5,
+        items: 6,
+        checked: 6,
+      },
+      {
+        position: 1,
+        textNodes: 7,
+        nodes: { doc: 1, heading: 1, paragraph: 6, text: 7, taskList: 1, taskItem: 6 },
+        marks: [],
+        depth: 5,
+        items: 6,
+        checked: 6,
+      },
+      {
+        position: 2,
+        textNodes: 1,
+        nodes: { doc: 1, paragraph: 1, text: 1 },
+        marks: [],
+        depth: 3,
+        items: 0,
+        checked: 0,
+      },
+      { position: 3, textNodes: 0, nodes: { doc: 1, paragraph: 1 }, marks: [], depth: 2, items: 0, checked: 0 },
+    ])
+  })
+
+  it('carries no customer text: every text node and every tab name is filler', () => {
+    for (const tab of fixture()) {
+      expect(FILLER.startsWith(tab.name)).toBe(true)
+      for (const text of facts(tab.document).texts) expect(FILLER.startsWith(text)).toBe(true)
+    }
+  })
+
+  it.skipIf(!hasProduction)('counts the real file the same, on a machine that holds data/', () => {
+    const counted = tabsIn(PRODUCTION).map((tab) => [tab.name, countTasks(tab.document)] as const)
     expect(counted).toEqual([
       ['Go-live', { done: 6, total: 6 }],
       ['General', { done: 6, total: 6 }],
       ['Content', { done: 0, total: 0 }],
       ['test', { done: 0, total: 0 }],
     ])
+    expect(readFileSync(PRODUCTION, 'utf8')).toContain('"taskItem"')
   })
 
-  it('reads the real file rather than a fixture that happens to agree', () => {
-    expect(stored().length).toBeGreaterThan(1)
-    expect(readFileSync(PRODUCTION, 'utf8')).toContain('"taskItem"')
+  it.skipIf(!hasProduction)('derives that fixture from the real file: every structural fact agrees', () => {
+    expect(structure(fixture())).toEqual(structure(tabsIn(PRODUCTION)))
   })
 })
 
