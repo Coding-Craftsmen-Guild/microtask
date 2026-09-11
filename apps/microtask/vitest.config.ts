@@ -9,7 +9,7 @@ const node = {
   test: {
     name: 'node',
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'actions/**/*.test.ts', '*.test.ts'],
+    include: ['lib/**/*.test.ts', 'actions/**/*.test.ts', 'app/**/*.test.ts', '*.test.ts'],
   },
 }
 
