@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { RoleValue, ScopeValue } from '@repo/contracts'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -126,6 +127,21 @@ describe('/s/<token>/t/<taskId> on a project-scoped link', () => {
     const { container } = render(await LinkTaskPage(props()))
     expect(screen.getByText('1 share link')).toBeTruthy()
     expect(container.innerHTML).not.toMatch(/tok_(THISTASK|OTHERTASK|WHOLEPROJECT)/)
+  })
+
+  it('draws no Share for a view link, whose capabilities clear neither listing nor minting', async () => {
+    holding('view', PROJECT_SCOPE)
+    render(await LinkTaskPage(props()))
+    expect(screen.getByTestId('workspace')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
+  })
+
+  it('offers a manage link only this task to mint over, as the admin task page does', async () => {
+    holding('manage', PROJECT_SCOPE)
+    render(await LinkTaskPage(props()))
+    await userEvent.click(screen.getByRole('button', { name: 'Share' }))
+    const opens = within(screen.getByRole('dialog')).getByRole<HTMLSelectElement>('combobox', { name: 'Opens' })
+    expect([...opens.options].map((one) => one.textContent)).toEqual(['Go-live'])
   })
 
   it('reads no cookie', async () => {

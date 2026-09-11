@@ -137,6 +137,14 @@ describe('a task-scoped link lands on its task', () => {
     expect(api.received.at(-1)).toMatchObject({ method: 'POST', bearer: TOKEN, body: { name: 'Added' } })
   })
 
+  it('shows the API’s own sentence in place of a task it could not read', async () => {
+    holding('view', TASK_SCOPE)
+    api.answers.set(`GET /v1/microtask/projects/${P}/tasks/${T1}`, () => problemAnswer(500, 'The task store is busy.'))
+    await show()
+    expect(screen.getByText('The task store is busy.')).toBeTruthy()
+    expect(screen.queryByTestId('workspace')).toBeNull()
+  })
+
   it('draws no task list and no link to a sibling task', async () => {
     holding('manage', TASK_SCOPE)
     const { container } = await show()
@@ -178,6 +186,28 @@ describe('Share, in exactly the form capabilities() allows', () => {
     holding(role, PROJECT_SCOPE)
     await show()
     expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
+  })
+
+  it.each(['view', 'write'] as const)('draws no Share on a %s link’s task page', async (role) => {
+    holding(role, TASK_SCOPE)
+    await show()
+    expect(screen.getByTestId('workspace')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
+  })
+
+  it('offers a project-scoped manage link every task and the whole project, behind a confirm naming what it opens', async () => {
+    holding('manage', PROJECT_SCOPE)
+    await show()
+    await userEvent.click(screen.getByRole('button', { name: 'Share' }))
+    const dialog = screen.getByRole('dialog')
+    const opens = within(dialog).getByRole<HTMLSelectElement>('combobox', { name: 'Opens' })
+    expect([...opens.options].map((one) => one.textContent)).toEqual(['Go-live', 'Kickoff', 'Whole project'])
+    await userEvent.selectOptions(opens, 'Whole project')
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Who is this link for?' }), 'Everyone{Enter}')
+    expect(screen.getByRole('heading', { name: 'Share the whole project?' })).toBeTruthy()
+    expect(document.body.textContent).toContain('Folders: ACME. Tasks: Go-live, Kickoff.')
+    await userEvent.click(screen.getByRole('button', { name: 'Add project link' }))
+    expect(api.received.at(-1)).toMatchObject({ method: 'POST', path: `/v1/microtask/projects/${P}/share-links`, bearer: TOKEN, body: { scope: PROJECT_SCOPE } })
   })
 
   it('gives a task-scoped manage link a create-only Share that never asks for the list', async () => {
