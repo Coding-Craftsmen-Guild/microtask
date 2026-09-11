@@ -31,19 +31,19 @@ afterEach(() => {
 describe('register, which Next calls once when the server boots', () => {
   it('kills the process on a 31-byte COOKIE_SECRET rather than serving 500s behind a healthy container', async () => {
     vi.stubEnv('COOKIE_SECRET', 'a'.repeat(31))
-    await boot()
+    await expect(boot()).resolves.toBeUndefined()
     expect(exited).toEqual([1])
   })
 
   it.each(['API_BASE_URL', 'API_KEY', 'COOKIE_SECRET'])('exits non-zero with no %s', async (key) => {
     vi.stubEnv(key, '')
-    await boot()
+    await expect(boot()).resolves.toBeUndefined()
     expect(exited).toEqual([1])
   })
 
   it('says which variable it refused on before it goes, so the crash is diagnosable from the logs', async () => {
     vi.stubEnv('API_KEY', '')
-    await boot()
+    await expect(boot()).resolves.toBeUndefined()
     expect(logged.join('\n')).toMatch(/API_KEY/)
   })
 
