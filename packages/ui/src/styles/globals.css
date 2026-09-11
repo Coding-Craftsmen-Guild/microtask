@@ -7,6 +7,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+    --color-brand: #2e2456;
+    --color-brand-soft: #efecfa;
+    --color-gold: #ffd24a;
+    --color-gold-deep: #e0ac00;
+    --color-ok: #1f9d6b;
+    --color-ok-light: #43c58c;
+
+    --animate-progress-fill: progress-fill 0.25s ease;
+
+    @keyframes progress-fill {
+        from {
+            width: 0;
+        }
+    }
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);

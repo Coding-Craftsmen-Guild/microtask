@@ -8,6 +8,7 @@
   ],
   "exports": {
     "./components/*": "./src/components/*.tsx",
+    "./shell/*": "./src/shell/*.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./globals.css": "./src/styles/globals.css"
   },
