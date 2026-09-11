@@ -660,9 +660,10 @@ other way round: an old project becomes a Project and each old tab a Task holdin
 one `General` tab (spec §7.6). The UI rows below are audited against the task page; the data rows
 against the API and the domain.
 
-**Totals.** Features: 23 reproduced, 43 changed (2 of them †), 0 dropped, 5 gaps. Routes: 1
-reproduced, 22 changed, 1 dropped, 1 gap. Non-obvious UX: 22 reproduced, 18 changed (2 of them †),
-0 dropped, 1 gap.
+**Totals**, restated on 2026-09-12 as unit H2 left them. Features: 23 reproduced, 45 changed, 0
+dropped, 3 gaps. Routes: 1 reproduced, 22 changed, 1 dropped, 1 gap. Non-obvious UX: 22 reproduced,
+19 changed, 0 dropped, 0 gaps. **No row carries a dagger any more**: every behaviour built without a
+decision record now has one (ADR 0042, ADR 0043), and the dagger is free for whatever earns it next.
 
 **Closed in this unit** (each was a gap when the audit started): the task page's title-row overall
 progress (feature 16); the editor's prose and checklist styling, and its placeholder, which no CSS
@@ -703,7 +704,7 @@ styling (U14, U15, U38), the 640px steps (U37) and Escape on the share dialog (f
 | 25 | Per-tab progress row | REPRODUCED | All three empty sentences, and the bar omitted for a link at zero. `tab-progress-row.tsx` · `task-workspace.test` "the open tab’s progress row" block; `tab-controls.test` emptyProgressText |
 | 26 | Rich-text editing | CHANGED | Tiptap 3.31.3 in the app (ADR 0039, spec §11); the island remounts per tab (ADR 0016); the placeholder drops the `/` it could not keep (row U30). **Closed in this unit:** legacy's prose styling and the placeholder itself were missing — preflight stripped bullets and heading sizes, and nothing drew `data-placeholder`. `extensions.ts` · `extensions.test` "styles the document as legacy did", "draws the placeholder"; `document-editor.test` "THE test: a stored production document survives mount and unmount untouched" |
 | 27 | Formatting toolbar | REPRODUCED | Order, titles, glyph styles, `mousedown` prevented, live active states, wrap, sticky, hidden when read-only. `toolbar.test` (all); `document-editor.test` "pads the document 26px … with a sticky toolbar", "draws no toolbar and no save state". Where the save state sits on a link page is row 35 |
-| 28 | Checklist items | CHANGED† | Toolbar, `Mod-Shift-9`, `[ ]`/`[x]` rules, nesting, struck-through checked items — reproduced and now pinned. A read-only checkbox is **disabled** rather than left to snap back (defect (d) of this unit): `editing-keys.test` "turns %j at the start of a line into a checklist item", "wraps the line in a checklist on Mod-Shift-9", "sinks a checklist item"; `extensions.test` "lays a checklist out as legacy did"; `document-editor.test` "ticks a checkbox as a normal transaction", "marks every checkbox disabled". † spec §10.3 and §11 still say "snaps back" |
+| 28 | Checklist items | CHANGED | Toolbar, `Mod-Shift-9`, `[ ]`/`[x]` rules, nesting, struck-through checked items — reproduced and now pinned. A read-only checkbox is **disabled** rather than left to snap back (defect (d) of this unit): `editing-keys.test` "turns %j at the start of a line into a checklist item", "wraps the line in a checklist on Mod-Shift-9", "sinks a checklist item"; `extensions.test` "lays a checklist out as legacy did"; `document-editor.test` "ticks a checkbox as a normal transaction", "marks every checkbox disabled". Recorded by [ADR 0042](../adr/0042-three-parity-departures-on-the-surfaces.md); spec §10.3 and §11 corrected in place on 2026-09-12 |
 | 29 | Editor keyboard shortcuts | REPRODUCED | Tiptap's own keymap, the ones legacy relied on pinned. `editing-keys.test` "bolds on Mod-B", "undoes on Mod-Z", "sinks … on Tab, and lifts it back on Shift-Tab", "binds nothing to Mod-K" |
 | 30 | Markdown input rules | REPRODUCED | `editing-keys.test` "turns %j into a heading of level %i", "leaves #### as text", "turns %j into a %s", "turns --- into a divider", "turns **text** into bold text"; `extensions.test` "keeps autolink, linkOnPaste and the rel" |
 | 31 | Add / edit / remove a link | CHANGED | Legacy's dialog, and a hostile href is refused before anything is sent (ADR 0029). `link-dialog.test` (all); `safe-href.test` (all) |
@@ -718,7 +719,7 @@ styling (U14, U15, U38), the 640px steps (U37) and Escape on the share dialog (f
 | 40 | Live tab count patching | REPRODUCED | On both surfaces; legacy's share-page rebuild is deliberately not reproduced (plan Task 11). `task-workspace.test` "patches the open tab’s count in place, leaving every tab element the same node", "never animates a count pill" |
 | 41 | Detail page boot failure | CHANGED | A missing or malformed id renders the route's not-found page with the way back; any other failure a plain sentence in place of the document, or the error boundary without the thrown message; a 401 goes to `/login?next=` (ADR 0032; ADR 0016 last amendment for the words). `p/[projectId]/page.test` "renders not-found for a project that does not exist", "says why the project could not load"; `boundaries.test` "says a missing project is not found, and offers the way back"; `t/[taskId]/page.test` "shows a refusal in place of the document"; `t/[taskId]/error.test` |
 | 42 | Open the share manager | CHANGED | Gold Share; *Share this project* or *Share this task*; the stale hint is not carried; *Done* and Escape close it; links load only when it opens, never in the page (ADR 0033). `share-manager.test` "loads the links for this project when opened", "does not carry the stale legacy hint", "closes on Escape as well as on Done", "forgets the links when closed" |
-| 43 | Create a share link | CHANGED† | Name, then role — `view` (default), `write`, `manage` (ADR 0008) — then scope, a task by default with a confirm before a project-wide one (ADR 0011); capped at 50; *Link created.* said inline (row 60). † A name is now **required**: `CreateShareLinkPayload` refuses a blank one where legacy allowed it, and no ADR records the change. `create-link-form.test` (all), "makes no request without a name, and says so"; `actions/share-links.test` "reports the cap the API hit" |
+| 43 | Create a share link | CHANGED | Name, then role — `view` (default), `write`, `manage` (ADR 0008) — then scope, a task by default with a confirm before a project-wide one (ADR 0011); capped at 50; *Link created.* said inline (row 60). A name is now **required**: `CreateShareLinkPayload` refuses a blank one where legacy allowed it, while a read and a rename still accept the blank production data holds — recorded, with the asymmetry argued, by [ADR 0042](../adr/0042-three-parity-departures-on-the-surfaces.md). `create-link-form.test` (all), "makes no request without a name, and says so"; `actions/share-links.test` "reports the cap the API hit" |
 | 44 | Share link row | CHANGED | Name or *Unnamed link*, role badge (three roles), what it opens, a readonly `<origin>/s/<token>` built from the request's origin (ADR 0037), Copy, ⋯. `labels.test` "renders a blank name as "Unnamed link"", "keeps legacy’s two labels and names the third role", shareUrlFor; `share-manager.test` "builds each URL on the origin this page was requested from" |
 | 45 | Copy a share link | CHANGED | Selects the URL, falls back to `execCommand`, and says *Link copied.* only when it was (plan Task 13). `copy.test` (all); `link-row.test` "says the link was copied only when it was", "says it could not copy when both the clipboard and the fallback fail" |
 | 46 | Rename a share link | REPRODUCED | *Name this link* / *Who is it for?* / *Jane at ACME* / *Save*, blank allowed; the token is kept (ADR 0035). `link-row.test` "renames with a PATCH that keeps the token, and may clear the name", "shows the name the server stored after a rename" |
@@ -726,7 +727,7 @@ styling (U14, U15, U38), the 640px steps (U37) and Escape on the share dialog (f
 | 48 | Revoke a share link | CHANGED | Same confirm and wording; the revocation cascades through lineage and says how many went (ADR 0010); *Link revoked.* inline (row 60); the URL then lands on `/s/unavailable`. `link-row.test` "revokes after a confirm that names the link", "asks "Revoke this link?" for an unnamed link", "drops every row a cascade took, and counts them"; `labels.test` revokeTitle |
 | 49 | Share dialog empty state | REPRODUCED | `share-manager.test` "says so, verbatim, when there are no links" |
 | 50 | Open a share link | CHANGED | `/s/<token>`, with `/share/<token>` a 308 to it (ADR 0037, 0022); the token in the URL is the only credential (ADR 0040); a malformed or revoked token lands on `/s/unavailable`. The view is still narrow, but the project id is now in the link surface's own paths (ADR 0013). `s/[token]/page.test` "asks what the token reaches", "never reads a cookie or a header", "goes to the terminal page without a request for a segment that cannot be a token"; `share/[token]/route.test` "answers 308 to /s/<token>" |
-| 51 | Client-view header | GAP | Heading, `Overall progress` or *A shared project workspace*, and *You can edit* / *View only* are reproduced — the progress now live on a task page (this unit). **`Signed in as <link name>` is not drawn**: `ShareView` carries no link name, and nothing decides to drop the line. `link-head.test` (all); `page.editor.test` "follows a ticked checkbox in the head’s overall progress" |
+| 51 | Client-view header | CHANGED | Heading, `Overall progress` or *A shared project workspace*, and *You can edit* / *View only* are reproduced — the progress now live on a task page (this unit). **`Signed in as <link name>` is dropped, not owed**: `ShareView` carries no link name, and [ADR 0043](../adr/0043-client-head-names-no-visitor.md) decides the line goes rather than the field arrives — the name is an admin’s label for a credential, not the holder’s identity, and a bearer URL can be forwarded to anyone. `link-head.test` (all), "says nothing about who the link is for, since the bootstrap answer carries no link name"; `page.editor.test` "follows a ticked checkbox in the head’s overall progress" |
 | 52 | Client tab strip | CHANGED | A view link: no `+`, menu, caret or title, and the browser's right-click, as legacy. A write link gets a menu with Rename (row 55; spec §10.3). The strip keeps its DOM and scroll and the open tab scrolls into view — legacy's rebuild is not reproduced (plan Task 11). `task-workspace.test` "gives a view link no +, no menu, no caret, a read-only editor, and the browser’s right-click", "gives a write link + and Rename, but neither Move nor Delete" |
 | 53 | Client tab switch | REPRODUCED | The admin's workspace, unchanged (ADR 0038). `s/[token]/page.test` "hands the workspace the task’s tabs in order, for the link audience"; the switching block of `task-workspace.test` |
 | 54 | Client adds a tab | CHANGED | Same `+`, flush and open; the prompt is the admin's, which adds the *Tab name* label legacy's share page lacked; `write` and `manage` only (spec §10.3); no *Added "…"* toast (row 60). `s/[token]/page.test` "binds every tab write to this token, so a create goes out under it"; `page.editor.test` "gets an editable editor with its toolbar, and +"; `actions/link-tabs.test` "creates the tab through that token" |
@@ -735,7 +736,7 @@ styling (U14, U15, U38), the 640px steps (U37) and Escape on the share dialog (f
 | 57 | Read-only presentation | CHANGED | Not editable, no toolbar, transparent caret, spellcheck off, no placeholder, links open, text selectable; checkboxes **disabled** (this unit, row 28). `document-editor.test` "draws no toolbar and no save state, and is not contenteditable", "carries the read-only surface props", "marks every checkbox disabled"; `page.editor.test` "gets a non-editable editor, no toolbar and no +", "marks every checkbox disabled for assistive technology" |
 | 58 | Share page failure state | CHANGED | A redirect to `/s/unavailable`: *Link unavailable* and legacy's sentence, no call, no `/login` (ADR 0032, 0040); an unreachable API is said as that. `s/unavailable/page.test` "says the link is unavailable, in legacy’s words"; `s/[token]/page.test` "goes to the terminal page on a 401, and never to /login", "shows an unreachable API as that, not as a dead link" |
 | 59 | Share pages noindex | CHANGED | Every `/s/*` page, plus `X-Robots-Tag`, `no-referrer` and `no-store` on `/s/*` and `/share/*` (ADR 0037, 0040); `/login` is `noindex` too. `s/layout.test` "is noindex and nofollow, for every page under it"; `next.config.test`; `login/page.test` "asks search engines not to index the sign-in form" |
-| 60 | Toast notifications | GAP | The replacement never toasts: every outcome is said beside the control that caused it, as a `status` or `alert`, or shown by the change itself. Spec §11 still says "toasts auto-hide at 2600 ms", and no ADR chooses between them |
+| 60 | Toast notifications | CHANGED | The replacement never toasts: every outcome is said beside the control that caused it, as a `status` or `alert`, or shown by the change itself. Chosen, with legacy’s two failure modes as the argument, in the spec §11 correction of 2026-09-12; `sonner` is vendored in `packages/ui` and mounted nowhere, and `2600` is in no source file |
 | 61 | Prompt dialog primitive | REPRODUCED | On Radix Dialog rather than `<dialog>` (ADR 0025). `packages/ui/src/shell/prompt-dialog.test.tsx` (all) |
 | 62 | Confirm dialog primitive | REPRODUCED | Legacy's danger-focuses-nothing quirk kept on purpose. `packages/ui/src/shell/confirm-dialog.test.tsx` (all) |
 | 63 | Popup menu primitive | CHANGED | The shared Radix dropdown (ADR 0025): disabled and danger items, one open at a time, collision flipping and layering — the last two are Radix's and cannot be measured in happy-dom. `options-menu.test` (both); `link-row.test` "changes role with a PATCH, the current role disabled" |
@@ -744,7 +745,7 @@ styling (U14, U15, U38), the 640px steps (U37) and Escape on the share dialog (f
 | 66 | Write serialisation | CHANGED | One process-wide queue, temp file then rename, and a directory per project — a manifest plus one file per task, written in order (ADR 0005, 0006). `packages/store/src/queue-lock.test.ts` "never overlaps two pieces of work"; `node-file-system.test.ts` "leaves one whole payload behind, never a mix of two"; `packages/microtask-domain/.../fs-project-store.ordering.test.ts` |
 | 67 | Legacy share-link migration | GAP | Spec §7.6 decides it — a link with no `permission` becomes `write` — but there is no importer at all (spec §7, ADR 0017, 0019), so nothing reads a legacy project file |
 | 68 | Token index rebuilt at boot | REPRODUCED | Same single-process design (ADR 0002). `apps/api/src/runtime.test.ts` "indexes every share link already on disk, across every project", "resolves no token at all before it runs"; `share-index.test.ts` (all) |
-| 69 | Static asset serving | CHANGED | Next serves the app (ADR 0002, 0026): the raw shells are gone, the logo is `public/img/logo.webp`, and the proxy's matcher leaves assets alone. Caching is Next's own, not the `no-cache` / `max-age=86400` split spec §11 still describes. `app/layout.test` "serves that icon from this app’s own public directory"; `proxy.test` config block |
+| 69 | Static asset serving | CHANGED | Next serves the app (ADR 0002, 0026): the raw shells are gone, the logo is `public/img/logo.webp`, and the proxy's matcher leaves assets alone. Caching is Next's own, not the `no-cache` / `max-age=86400` split spec §11 used to describe — corrected there on 2026-09-12, which leaves one measurement owed rather than a contradiction: the logo is not content-hashed, and what Next serves it with has not been measured. `app/layout.test` "serves that icon from this app’s own public directory"; `proxy.test` config block |
 | 70 | Error response shape | CHANGED | RFC 7807 problem documents with a closed code set (spec §12, ADR 0036). `apps/api/src/http/error-handler.test.ts`; `app/_document` routes' problem bodies in both document route tests |
 | 71 | Startup configuration guard | GAP | Reproduced: `apps/api` refuses to start without `ADMIN_PASSWORD`, warns under 8, defaults `PORT` to 4321; `DATA_DIR`, `SESSION_SECRET` and `SERVICE_KEYS` have no default (changed); the app's `register()` refuses a missing or short secret. **Missing: nothing in `apps/api/src/server.ts` handles `SIGTERM` or `SIGINT`**, which legacy closed on with exit 0. `apps/api/src/config.test.ts` "refuses to produce a config without it", "accepts a password shorter than 8", "defaults PORT to legacy 4321"; `instrumentation.test` |
 
@@ -809,7 +810,7 @@ Numbered U1–U41 in the order of the list above.
 | U19 | Escape closes every dialog | REPRODUCED | `prompt-dialog.test` and `confirm-dialog.test` Escape cases; `share-manager.test` "closes on Escape as well as on Done" (pinned in this unit) |
 | U20 | One menu at a time, dismissal armed after opening | CHANGED | Radix's (ADR 0025). `task-workspace.test` "returns focus to the tab when its menu is dismissed" |
 | U21 | Menus flip and mount inside an open dialog | CHANGED | Radix's collision handling and portal layering (ADR 0025); happy-dom has no layout to measure it in |
-| U22 | One toast node, one 2600 ms timer | GAP | Row 60 |
+| U22 | One toast node, one 2600 ms timer | CHANGED | Row 60 |
 | U23 | Copy selects, falls back, and always says *Link copied* | CHANGED | Says so only when it was (plan Task 13). Row 45 |
 | U24 | Curly-quoted delete and revoke titles | REPRODUCED | `delete-project.test` "asks first, with the name in the title"; `labels.test` "quotes the name, or asks about "this link" when there is none" |
 | U25 | *Unnamed link*, and a name can be cleared | REPRODUCED | `labels.test` "renders a blank name as "Unnamed link""; `link-row.test` "may clear the name" |
@@ -819,50 +820,66 @@ Numbered U1–U41 in the order of the list above.
 | U29 | The stale share hint | REPRODUCED | Not carried forward, as the table at the top decides. `share-manager.test` "does not carry the stale legacy hint" |
 | U30 | The `press /` placeholder | REPRODUCED | Not carried forward. `extensions.test` "promises nothing the editor cannot do" |
 | U31 | Links open only in a read-only view; `_blank` and `rel` always | REPRODUCED | Row 32; `extensions.test` "keeps autolink, linkOnPaste and the rel that stops a tabnabbing link" |
-| U32 | A read-only checkbox snaps back | CHANGED† | Disabled instead, so assistive technology hears that it cannot be ticked and neither a click nor a key reaches it (defect (d) of this unit). `document-editor.test` "marks every checkbox disabled". † Spec §10.3 and §11 still say "snaps back" |
+| U32 | A read-only checkbox snaps back | CHANGED | Disabled instead, so assistive technology hears that it cannot be ticked and neither a click nor a key reaches it (defect (d) of this unit). `document-editor.test` "marks every checkbox disabled". [ADR 0042](../adr/0042-three-parity-departures-on-the-surfaces.md); spec §10.3 and §11 corrected on 2026-09-12 |
 | U33 | Prompts allow 200, the server keeps 80 | REPRODUCED | Row 64 |
 | U34 | A downgrade mid-session: a 403 and a forever-retry | CHANGED | The page still looks editable until reloaded, but its first refused save stops the loop and says *This link is read-only now…* with *Try again* (**closed in this unit**, ADR 0016 last amendment). `s/[token]/refused-save.test` "says the link is read-only now" |
 | U35 | Last write wins | CHANGED | `If-Match` and a visible conflict (ADR 0016). `app/api/.../document/route.test.ts` "twenty concurrent writes on one If-Match"; `save-indicator.test` conflict block |
 | U36 | No realtime, no polling | REPRODUCED | On purpose (the table at the top; spec §3.1): the app opens no socket and sets no poll. Unlike every other mark here it rests on a search rather than a test — `setInterval`, `WebSocket` and `EventSource` appear in no source file of `apps/microtask` — because an absence with no code to break has nothing to fail |
 | U37 | The 640px step | REPRODUCED | Pinned in this unit. `packages/ui/src/shell/page.test.tsx` "with the mobile padding step"; `document-editor.test` "pads the document 26px, stepping to 16px on a phone"; `task-workspace.test` "steps its left padding to 16px on a phone"; `project-list.test` "lets a row wrap on a phone" |
 | U38 | Gold focus rings on inputs, buttons and tabs | CHANGED | Tabs keep the 2px gold-deep ring with a 1px offset (pinned in this unit: `task-workspace.test` "rings a focused tab in gold"); buttons and inputs take the shared shadcn ring (ADR 0025) |
-| U39 | Sign out only on the list page | CHANGED† | On every admin page. `(admin)/layout.test` "signs out with a form post, never a link". † Recorded only in `app/(admin)/layout.tsx` |
+| U39 | Sign out only on the list page | CHANGED | On every admin page. `(admin)/layout.test` "signs out with a form post, never a link", "renders no link to /login anywhere". Recorded by [ADR 0042](../adr/0042-three-parity-departures-on-the-surfaces.md), which argues the placement from the depth of the new admin surface |
 | U40 | 30-day `HttpOnly; SameSite=Lax` cookie, `Secure` behind a proxy | CHANGED | The bearer's own lifetime, same attributes, `Secure` from `x-forwarded-proto` (ADR 0032). `lib/session-store.test` "gives mt_admin the bearer's own lifetime", "marks the cookie httpOnly, Path=/ and SameSite=Lax", "takes Secure from the proxy protocol" |
 | U41 | Timing-safe compare; the cookie is the hash; no revocation | CHANGED | Still timing-safe (`apps/api/src/auth/admin-verifier.ts`); the cookie seals a bearer rather than being the hash (ADR 0012, 0032); still no individual revocation, now a recorded limit (ADR 0032; spec §11 Auth). `actions/auth.test` "makes no API call, because there is deliberately no logout route" |
 
 ### Open, and why
 
-**Gaps this unit could not close.**
+**Settled on 2026-09-12, by unit H2.** Three behaviours were built and tested with no decision
+record and are now recorded in [ADR 0042](../adr/0042-three-parity-departures-on-the-surfaces.md) —
+a read-only checkbox `disabled` rather than snapping back (feature 28, U32), a share-link name
+required at minting while a blank one is still read and rendered (feature 43), and Sign out on every
+admin page (feature 2, U39). One parity loss is decided in
+[ADR 0043](../adr/0043-client-head-names-no-visitor.md): `Signed in as <link name>` is dropped
+rather than added to `ShareView`, and §10.3’s never-built third badge goes with it (feature 51).
+Toasts are chosen against in the spec itself (feature 60, U22). The design spec's six
+contradictions of the code are corrected where each sentence lives, dated and left visible, and the
+plan's one alongside them.
+
+**Gaps still open.** Each is code that does not exist, not a record that is missing; the decision
+each needs is named, and none is this unit's to take.
 
 - **Feature 67 — there is no importer.** Spec §7 and ADRs 0017 and 0019 decide it, and nothing
   builds it, so no legacy project file can be read into the new store and the `permission`-less
   link rule of §7.6 has no code. This is the largest gap in the audit and a cutover blocker (ADR
-  0022); it is API and domain work, outside this unit's files.
+  0022); it is API and domain work. ADR 0042 adds one thing for it to honour: an imported link with
+  no **name** must be accepted, because import is not minting.
 - **Feature 37 — Back and Forward.** Evaluated in ADR 0016: no approach under the App Router is
   reliable enough to build.
-- **Feature 60, U22 — toasts.** The replacement says every outcome inline instead. That may be
-  the better design, but spec §11 still describes toasts and no ADR decides; recording the decision
-  needs an ADR, or a spec correction, outside this unit's files.
-- **Feature 51 — `Signed in as <link name>`.** `ShareView` carries no link name. Either the API
-  adds the name (contracts and API, outside this unit) or an ADR drops the line.
 - **Feature 71 — signal handling.** `apps/api/src/server.ts` installs no `SIGTERM`/`SIGINT`
-  handler; legacy closed and exited 0. Whether that matters depends on the API image's PID 1,
-  which is the Dockerfile's; both are outside this unit's files.
+  handler; legacy closed and exited 0. Whether that matters depends on the API image's PID 1, which
+  is the Dockerfile's; both are code.
 - **Route R3 — `/admin/projects/:projectId`.** Old admin addresses lead nowhere. A redirect to
   `/p/:projectId` is safe if the importer preserves project ids, as spec §7.6 says it will; mapping
   a legacy `?tab=` needs the importer's tab-to-task id rule, which does not exist yet. Needs a
-  decision alongside ADR 0022.
+  decision alongside ADR 0022, and it cannot be taken before the importer exists.
+- **One replica, and the lock that assumes it.** Not a numbered row, and carried here because it is
+  the other scheduled code gap a reader looks for: `QueueLock` is per-process and the token index is
+  an in-memory `Map`, so a second API replica against the same data loses updates and cannot resolve
+  the other replica's freshly minted tokens. Both are ports now, so the fix is an adapter rather
+  than a rewrite (ADR 0030), and plan 2 says ADR 0006 should record whichever way it goes.
 
-**Changes built without a decision record (†).** Each is deliberate and tested; none is recorded
-in an ADR, a spec section or a plan task.
+**Changes built without a decision record (†).** None. The three that were here — features 28, 43
+and U32, U39 — are ADR 0042, and feature 51 is ADR 0043. The mark is left defined so the next one
+has somewhere to land.
 
-- Feature 28, U32 — a read-only checkbox is disabled rather than snapping back. Spec §10.3 and
-  §11 say "snaps back" and are now wrong.
-- Feature 43 — a new share link must be named; legacy allowed a blank one.
-- U39 — Sign out on every admin page.
+**Spec statements the code contradicts.** None outstanding. Six were found by this audit and all six
+are corrected in the spec, in place, dated 2026-09-12 and left visible as the `relativeTime`
+correction was: §11 "toasts auto-hide at 2600 ms" (row 60, U22); §11 "code assets are `no-cache` and
+images `max-age=86400`" (row 69); §11 "Title editing — `contenteditable="plaintext-only"`" (an
+`<input>`, row 15); §10.3 and §11 "checkbox snaps back", which is two places (row 28, U32); and
+§10.3's `You manage this` badge, which `components/link/access-badge.tsx` never drew (row 51). The
+code was checked against each before the sentence was touched and is right in all six. One of them
+leaves a measurement owed rather than a contradiction: `public/img/logo.webp` is not
+content-hashed, legacy cached it for a day, and what Next serves it with has not been measured.
 
-**Spec statements the code contradicts** (found by this audit; the spec is outside this unit's
-files): §11 "toasts auto-hide at 2600 ms" (row 60); §11 "code assets are `no-cache` and images
-`max-age=86400`" (row 69); §11 "Title editing — `contenteditable="plaintext-only"`" (an `<input>`,
-row 15); §10.3 and §11 "checkbox snaps back" (row 28); §10.3's `You manage this` badge for a
-`manage` link, which `components/link/access-badge.tsx` does not draw.
+The plan carried the same "snaps back" error in one acceptance criterion
+(`docs/superpowers/plans/2026-09-11-microtask-app.md`, Task 12) and is corrected the same way.

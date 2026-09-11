@@ -57,6 +57,8 @@ in the working tree.
 | [0039](0039-tiptap-in-the-app-and-v3.md) | The Tiptap editor lives in the app, and what Tiptap 3 changed | Accepted |
 | [0040](0040-link-surface-url-token-authority.md) | The link surface authenticates from its URL, and holds no cookie | Accepted |
 | [0041](0041-api-internal-only.md) | The API is internal-only: no published port and no domain | Accepted |
+| [0042](0042-three-parity-departures-on-the-surfaces.md) | Three departures from the app being replaced: a disabled checkbox, a named link, Sign out everywhere | Accepted |
+| [0043](0043-client-head-names-no-visitor.md) | The client head names no visitor: `Signed in as` is dropped, and the badge stays two-state | Accepted |
 
 ## Amendments
 
@@ -91,6 +93,32 @@ Amended on 2026-09-11, from executed measurements and from decisions recorded si
 | [0038](0038-capabilities-role-and-scope.md) | One answer per action is not enough: `project:read` is gated on **two** targets, so the projection is `mayReach(role, scope, action, target)` with `capabilities()` as the record over it. And a task-scoped `manage` holder was said to get no share manager; the record grants it `share:create`, so it gets a create-only one with no list |
 | [0039](0039-tiptap-in-the-app-and-v3.md) | The server pass with `immediatelyRender: true` warns and overrules the flag rather than throwing, and a Tiptap 2 link mark gains `title: null` rather than round-tripping unchanged |
 | [0040](0040-link-surface-url-token-authority.md) | "Every `/s/*` response carries `Cache-Control: private, no-store`" — a Server Action answer on `/s/<token>`, the share-link list included, keeps Next's own `no-cache, no-store, …`; uncacheable still, but not what the sentence said |
+
+Amended on 2026-09-12. **No ADR was factually wrong this time.** What was wrong is the design
+spec, in six places, and two behaviours had no record at all. So the spec is corrected where each
+sentence lives — dated, and left visible, as the `relativeTime` correction in the app plan was —
+and the two decisions are new ADRs rather than amendments, because a decision nobody took cannot be
+an amendment to one somebody did. The rows below are the map from the debt to where it now lives,
+kept here because this index is where a reader looks for it.
+
+| Record | What was wrong, and where it is settled |
+| --- | --- |
+| spec §10.3, Editor row | "checkbox snaps back". It is `disabled`, so neither a pointer nor a key reaches it. Corrected in place; decided by [0042](0042-three-parity-departures-on-the-surfaces.md) |
+| spec §11, Editor paragraph | "no `onReadOnlyChecked` (so read-only checkboxes snap back)". The configuration is exactly as written; the parenthetical is not, because a read-only view also sets `disabled`, and the omission is the floor under it rather than the mechanism ([0042](0042-three-parity-departures-on-the-surfaces.md)) |
+| spec §10.3, Badge row | "You manage this", promised for a `manage` link at either scope and never built. The badge is two-state, from `capabilities(role, scope)['tab:write']`; at task scope the third string would have named an authority the page withholds ([0043](0043-client-head-names-no-visitor.md)) |
+| spec §11, Title editing | `contenteditable="plaintext-only"`. It is an uncontrolled `<input>`, which is what takes `maxLength` from the contract and an accessible name from `aria-label`; every behavioural clause in the sentence survived the change of element |
+| spec §11, Small things | "toasts auto-hide at 2600 ms". There are no toasts: every outcome is said beside the control that caused it. `sonner` is vendored in `packages/ui` and mounted nowhere, and `2600` is in no source file. The correction carries the argument, so parity feature 60 and U22 stop being gaps |
+| spec §11, Small things | "code assets are `no-cache` and images `max-age=86400`". Nothing sets either; the only `Cache-Control` the app sets is `private, no-store` on `/s/*` and `/share/*` (ADR 0040). One half is right not to be built — `_next/static` is content-hashed — and the other leaves a **measurement owed**: `public/img/logo.webp` is not, legacy cached it for a day, and what Next serves it with is unmeasured |
+| (no ADR) → [0042](0042-three-parity-departures-on-the-surfaces.md) | Three behaviours built and tested with a record nowhere but their TSDoc: a read-only checkbox `disabled`, a share-link name required at minting, Sign out on every admin page (parity features 28, 43, 2 and U32, U39) |
+| (no ADR) → [0043](0043-client-head-names-no-visitor.md) | The one parity loss nothing decided: legacy's `Signed in as <link name>` is dropped rather than added to `ShareView` (parity feature 51) |
+
+The code gaps are deliberately **not** given a decision here, because each is scheduled work the
+parity audit already names and none of them is a record problem: as at this commit there is no
+importer (feature 67), no `SIGTERM`/`SIGINT` handler (feature 71), no redirect from the old admin
+addresses (route R3), and `QueueLock` plus the token index still assume a single replica (ADR 0030;
+plan 2 says ADR 0006 records whichever way that goes). Inventing decisions for them would put a
+choice in the index that nobody has made; each is named in the parity audit instead, with what it
+is waiting on.
 
 ## Verification
 
