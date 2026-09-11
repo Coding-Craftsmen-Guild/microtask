@@ -224,6 +224,15 @@ taking `(from, now)` — never reading the clock itself.
 The only `process.env` reader is `lib/env.ts`, validated at module load: `API_BASE_URL`, `API_KEY`,
 `COOKIE_SECRET` (≥32 bytes). A missing or short secret is a boot failure, not a runtime one.
 
+**Corrected after the fact:** not at module load. `next build` imports every route's module graph to
+collect its configuration, so a module-level `readEnv(process.env)` made the **build** require
+production secrets — measured as `Failed to collect configuration for /login`, and
+`export const dynamic = 'force-dynamic'` does not avoid it. `lib/env.ts` exports `appEnv()`, a
+memoised function, and `register()` in `instrumentation.ts` calls it once at server start, which Next
+skips during `next build`. The boot failure the plan asked for is kept: measured against the
+standalone server with `COOKIE_SECRET` unset, boot logs the error and every request is a 500 (ADR
+0032, amendment (d)).
+
 `crypto.ts` seals a principal into an AES-256-GCM blob (`node:crypto`, no dependency). Signing would
 prove integrity only, and the payload is a live share token sent on every request under `Path=/`.
 
@@ -239,6 +248,8 @@ prove integrity only, and the payload is a live share token sent on every reques
       opening a client's link must not lose their session, which one shared cookie would have done.
 - [ ] `apiForSession()` sends both `x-api-key` and `Authorization: Bearer`; a service key with no
       bearer is a 401 by the API's design and the client must not attempt to paper over it.
+      **Corrected after the fact:** it is `apiForSession(audience)`. With two disjoint cookies a
+      bare call cannot know which to read, and the audience is fixed by the route (ADR 0012).
 - [ ] `env.ts` throws on a 31-byte `COOKIE_SECRET`. Pinned, because a short key silently weakens
       everything above.
 - [ ] `grep` proves exactly one `process.env` site in the app.
@@ -246,6 +257,10 @@ prove integrity only, and the payload is a live share token sent on every reques
 ### Task 8: `/login`, logout, and the 401 branch
 
 **Files:** `app/login/page.tsx`, `actions/auth.ts`, `middleware.ts`, `lib/problem.ts`.
+
+**Corrected after the fact:** `proxy.ts`, not `middleware.ts`. Next 16.3.4 deprecates the
+`middleware` file convention — `next build` warns and names the `middleware-to-proxy` codemod — so
+the gate was built under its current name, with the same role (ADR 0032, amendment (a)).
 
 - [ ] A wrong password and an unknown service key are indistinguishable in the response and
       distinguishable in the logs — the login route must not become a password oracle.
@@ -256,7 +271,11 @@ prove integrity only, and the payload is a live share token sent on every reques
       always landed on `/`.
 - [ ] A link 401 **never** reaches `/login`. It renders the terminal "this link is no longer
       available" page and clears `mt_link`. A revoked client shown an admin password form is the
-      worst available answer.
+      worst available answer. **Corrected after the fact:** it redirects to `/s/unavailable` and
+      clears nothing. A render cannot write a cookie, and the proxy clear on arrival that replaced
+      it made a `GET` — and so a Next prefetch — change state; a stale `mt_link` decides nothing,
+      because the URL wins. The same goes for `mt_admin` on `/login`: nothing clears it there, and a
+      signed-in admin who opens `/login` keeps their session, as in legacy (ADR 0032, amendment (b)).
 - [ ] Logout clears the cookie. The report states plainly that the bearer stays valid until its TTL
       and that this is a recorded limit (ADR 0032), not an oversight.
 
@@ -339,6 +358,15 @@ Autosave: 700ms debounce, 4000ms retry, `keepalive` on `beforeunload` and on
 awaiting and restores it on failure, so typing during an in-flight save cannot produce a false
 "Saved".
 
+**Corrected after the fact:** `visibilitychange → hidden` sends a **normal** request, not a
+`keepalive` one. This plan contradicted ADR 0028, whose decision 2 says so: the page is usually still
+alive when that event fires, a normal request has no size limit, and a `keepalive` body shares a
+64 KiB budget across the fetch group, so a real document would fail there as a network error — the
+silent loss the flush exists to prevent. Only `beforeunload` sends `keepalive`, and only under 50 KB.
+The code follows the ADR (`components/editor/use-autosave.ts`). Writes are also **serialised**, one
+in flight per tab, because `If-Match` makes two overlapping writes conflict with each other (ADR 0016
+amendment).
+
 - [ ] A stored production document round-trips byte-identically through mount and unmount with no
       edit. This is the single most important test in the plan: it is what proves Tiptap 3 did not
       silently rewrite live data.
@@ -383,7 +411,11 @@ Parity rows 42–49. List, create, copy, rename, change role, revoke.
 - [ ] A task-scoped link lands on its task; a project-scoped link lands on a task list, and its tasks
       link to `/s/<token>/t/<taskId>`.
 - [ ] A revoked token renders the terminal unavailable page, clears `mt_link`, and never redirects to
-      `/login`.
+      `/login`. **Corrected after the fact:** it redirects to `/s/unavailable` and clears nothing —
+      see Task 8. The reseal of `mt_link` on `/s/<token>` meets the same constraint: a page render
+      cannot write a cookie, and `proxy.ts` is tested to write none, so settle first whether any
+      route still reads `mt_link` now that every client URL carries its token (ADR 0032, amendment
+      (e)).
 - [ ] `/share/<token>` 308s to `/s/<token>`, for links already in clients' hands.
 - [ ] A `view` link gets a non-editable editor and no toolbar; a `write` link can add and rename tabs
       but cannot delete or reorder them — matching the API, which refuses those.
@@ -419,7 +451,12 @@ Only after Tasks 1–14 are green and the parity audit is done.
 - [ ] `node scripts/check-exports.mjs` exits 0.
 - [ ] Exactly one `process.env` site in `apps/microtask`.
 - [ ] No share token in any rendered HTML, asserted on response bodies for the projects index, the
-      project page and the share pages.
+      project page and the share pages. **Added after the fact:** on the project page this holds
+      because the share manager loads its links when it is opened, rather than receiving them from
+      the page's server render — anything a Server Component hands a client component is
+      serialised into the Flight payload in the HTML (ADR 0033), so a `shareLinks` prop would put
+      every token in the page source. Unit D1 builds the manager that way; assert it on a project
+      that has at least one link, or the check passes vacuously.
 - [ ] `capabilities()` agrees with `can()` across the full cross product.
 - [ ] The parity audit is committed, not just performed.
 - [ ] The report names every deliberate difference from legacy, with its ADR.
