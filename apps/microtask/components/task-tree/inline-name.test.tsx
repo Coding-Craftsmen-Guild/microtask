@@ -2,6 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../actions/result'
+import { NO_ANSWER } from '../shared/no-answer'
 import { InlineName } from './inline-name'
 
 type Rename = (name: string) => Promise<ActionResult<string>>
@@ -104,6 +105,18 @@ describe('InlineName', () => {
     await user.clear(field())
     await user.type(field(), 'Yes{Enter}')
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('restores the stored name and says so when the server never answers, leaving no rejection unhandled', async () => {
+    const onDone = vi.fn()
+    const onRename = vi.fn<Rename>(() => Promise.reject(new TypeError('Failed to fetch')))
+    render(<InlineName label="Project name" name="Alpha" onDone={onDone} onRename={onRename} />)
+    const user = userEvent.setup()
+    await user.clear(field())
+    await user.type(field(), 'Mine{Enter}')
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', NO_ANSWER.detail)
+    expect(field().value).toBe('Alpha')
+    expect(onDone).toHaveBeenCalledTimes(1)
   })
 
   it('caps what can be typed at the name length the API accepts', () => {

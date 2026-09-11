@@ -6,6 +6,8 @@ import { capabilities, LIMITS, type Capabilities, type ProgressValue } from '@re
 import type { DocumentEditorProps } from '../editor/document-editor'
 import type { SaveOutcome } from '../editor/save-document'
 import { ADMIN_CAPABILITIES } from '../shared/admin-capabilities'
+import { NO_ANSWER } from '../shared/no-answer'
+import type * as Navigation from 'next/navigation'
 import type { TabActions } from './use-tab-operations'
 import type { WorkspaceTab } from './workspace-state'
 
@@ -42,7 +44,10 @@ vi.mock('../editor/document-editor', () => ({
 }))
 
 const router = { refresh: vi.fn() }
-vi.mock('next/navigation', () => ({ useRouter: () => router }))
+vi.mock('next/navigation', async (original) => ({
+  ...(await original<typeof Navigation>()),
+  useRouter: () => router,
+}))
 
 const { TaskWorkspace } = await import('./task-workspace')
 
@@ -845,4 +850,63 @@ describe('keyboard', () => {
     }
     expect(mounts).toHaveLength(1)
   })
+})
+
+describe('a tab write the server never answers', () => {
+  const dropped = () => Promise.reject(new TypeError('Failed to fetch'))
+
+  const menuOf = (name: string) => {
+    act(() => {
+      tabNamed(name).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    })
+  }
+
+  const inDialog = async (button: string, typed?: string) => {
+    const dialog = screen.getByRole('dialog')
+    if (typed !== undefined) {
+      const field = within(dialog).getByRole('textbox')
+      await userEvent.clear(field)
+      await userEvent.type(field, typed)
+    }
+    await userEvent.click(within(dialog).getByRole('button', { name: button }))
+  }
+
+  const DRIVE: { readonly [Name in keyof TabActions]: () => Promise<void> } = {
+    create: async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+      await inDialog('Create', 'Notes')
+    },
+    rename: async () => {
+      menuOf('b')
+      await userEvent.click(menuItem('Rename'))
+      await inDialog('Rename', 'Renamed')
+    },
+    remove: async () => {
+      menuOf('b')
+      await userEvent.click(menuItem('Delete tab'))
+      await inDialog('Delete tab')
+    },
+    reorder: async () => {
+      menuOf('b')
+      await userEvent.click(menuItem('Move right'))
+    },
+  }
+
+  it.each(Object.keys(DRIVE) as (keyof TabActions)[])(
+    'shows %s as failed under the strip and leaves the tabs as they were',
+    async (name) => {
+      actions[name].mockImplementation(dropped)
+      mount()
+      await DRIVE[name]()
+      expect((await screen.findByRole('alert')).textContent).toBe(NO_ANSWER.detail)
+      expect(actions[name]).toHaveBeenCalledTimes(1)
+      expect(within(strip()).getAllByRole('tab').map((one) => one.textContent?.slice(0, 5))).toEqual([
+        'Tab a',
+        'Tab b',
+        'Tab c',
+      ])
+      expect(tabNamed('a').getAttribute('aria-selected')).toBe('true')
+      expect(mounts).toHaveLength(1)
+    },
+  )
 })

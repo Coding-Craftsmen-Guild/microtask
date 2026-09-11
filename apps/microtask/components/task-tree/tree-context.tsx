@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import type { ActionResult } from '../../actions/result'
+import { eachOrNoAnswer, orNoAnswer } from '../shared/no-answer'
 import type { TreeControls } from './controls'
 import type { RowFolder, RowTask, TreeActions } from './types'
 
@@ -48,21 +49,25 @@ export interface TreeProviderProps {
  *
  * One line rather than one per row, because a move or a reorder fails for the whole tree's
  * reason — somebody else changed it — and the answer is the same wherever it was clicked.
+ *
+ * The actions are handed on guarded by `eachOrNoAnswer`, and `run` guards what it is given, so a
+ * write the server never answers is shown as failed wherever in the tree it was sent from.
  */
 export function TreeProvider({ scope, children }: TreeProviderProps) {
   const [problem, setProblem] = useState('')
+  const actions = useMemo(() => eachOrNoAnswer(scope.actions), [scope.actions])
   const report = useCallback((result: ActionResult<unknown>) => {
     setProblem(result.ok ? '' : result.detail)
   }, [])
   const run = useCallback(
     async (write: () => Promise<ActionResult<unknown>>) => {
-      const result = await write()
+      const result = await orNoAnswer(write)()
       report(result)
       return result.ok
     },
     [report],
   )
-  const state = useMemo(() => ({ ...scope, report, run, problem }), [scope, report, run, problem])
+  const state = useMemo(() => ({ ...scope, actions, report, run, problem }), [scope, actions, report, run, problem])
   return <Tree.Provider value={state}>{children}</Tree.Provider>
 }
 

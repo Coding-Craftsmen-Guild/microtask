@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionFailure } from '../../actions/result'
+import { NO_ANSWER } from '../shared/no-answer'
 import { CreateProject } from './create-project'
 
 const setup = (answer: ActionFailure | undefined = undefined) => {
@@ -35,6 +36,16 @@ describe('CreateProject', () => {
     await user.type(field, 'ACME{Enter}')
     expect(field.value).toBe('ACME')
     expect(screen.getByRole('alert').textContent).toBe('Too many projects')
+  })
+
+  it('keeps what was typed and says so when the server never answers, rather than throwing', async () => {
+    const onCreate = vi.fn<(name: string) => Promise<ActionFailure | undefined>>(() => Promise.reject(new TypeError('Failed to fetch')))
+    render(<CreateProject onCreate={onCreate} />)
+    const field = screen.getByRole<HTMLInputElement>('textbox')
+    await userEvent.setup().type(field, 'ACME{Enter}')
+    expect((await screen.findByRole('alert')).textContent).toBe(NO_ANSWER.detail)
+    expect(field.value).toBe('ACME')
+    expect(screen.getByRole('button', { name: 'Create project' })).toHaveProperty('disabled', false)
   })
 
   it('carries legacy’s placeholder and the name cap the API accepts', () => {

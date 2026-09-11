@@ -5,6 +5,7 @@ import { Button } from '@repo/ui/components/button'
 import { Input } from '@repo/ui/components/input'
 import { useState, useTransition, type FormEvent } from 'react'
 import type { ActionFailure } from '../../actions/result'
+import { orNoAnswer } from '../shared/no-answer'
 
 /** Props for {@link CreateProject}. */
 export interface CreateProjectProps {
@@ -19,7 +20,9 @@ export const GOLD = 'bg-gold text-brand hover:bg-gold-deep'
  * The inline create form at the top of the projects index.
  *
  * A name that trims to nothing is a silent no-op with no request, as it was. A refusal leaves the
- * field as typed — the user fixes the name rather than retyping it — and says why beneath it.
+ * field as typed — the user fixes the name rather than retyping it — and says why beneath it, and
+ * so does a create the server never answered (`orNoAnswer`). Success redirects, which is let
+ * through to Next rather than caught.
  */
 export function CreateProject({ onCreate }: CreateProjectProps) {
   const [problem, setProblem] = useState('')
@@ -29,7 +32,7 @@ export function CreateProject({ onCreate }: CreateProjectProps) {
     const name = String(new FormData(event.currentTarget).get('name') ?? '').trim()
     if (name === '') return
     startTransition(async () => {
-      const failure = await onCreate(name)
+      const failure = await orNoAnswer(onCreate)(name)
       setProblem(failure?.detail ?? '')
     })
   }

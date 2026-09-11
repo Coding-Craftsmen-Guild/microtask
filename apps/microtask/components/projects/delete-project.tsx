@@ -4,6 +4,7 @@ import { Button } from '@repo/ui/components/button'
 import { ConfirmDialog } from '@repo/ui/shell/confirm-dialog'
 import { useState } from 'react'
 import type { ActionResult } from '../../actions/result'
+import { orNoAnswer } from '../shared/no-answer'
 
 /** Props for {@link DeleteProject}. */
 export interface DeleteProjectProps {
@@ -25,13 +26,15 @@ export const DELETE_PROJECT_MESSAGE =
  * The confirm is the destructive kind, which focuses nothing that confirms, so Enter cannot
  * delete — only a click can. Legacy's message listed tabs, content and share links; a project is
  * now a level above what it called a project, so folders and tasks go too and are named.
+ *
+ * A refusal is said beside the button, and so is a delete the server never answered.
  */
 export function DeleteProject({ projectId, name, onDelete }: DeleteProjectProps) {
   const [asking, setAsking] = useState(false)
   const [problem, setProblem] = useState('')
   const confirmed = async () => {
     setAsking(false)
-    const result = await onDelete(projectId)
+    const result = await orNoAnswer(onDelete)(projectId)
     setProblem(result.ok ? '' : result.detail)
   }
   return (

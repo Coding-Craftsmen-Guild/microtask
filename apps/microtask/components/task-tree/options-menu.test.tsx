@@ -7,8 +7,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-const duplicateKeyWarnings = (spy: ReturnType<typeof vi.spyOn>): unknown[][] =>
-  spy.mock.calls.filter((call) => call.some((part) => String(part).includes('same key')))
+const duplicateKeyWarnings = (calls: readonly (readonly unknown[])[]): readonly (readonly unknown[])[] =>
+  calls.filter((call) => call.some((part) => String(part).includes('same key')))
 
 describe('OptionsMenu', () => {
   it('keys its items by id, so two items that read the same are still two items to React', async () => {
@@ -29,7 +29,7 @@ describe('OptionsMenu', () => {
     expect(items).toHaveLength(2)
     await user.click(items[1] as HTMLElement)
     expect(chosen).toEqual(['second'])
-    expect(duplicateKeyWarnings(errors)).toEqual([])
+    expect(duplicateKeyWarnings(errors.mock.calls)).toEqual([])
   })
 
   it('draws nothing when it has no items', () => {

@@ -1,8 +1,9 @@
 'use client'
 
 import type { NewShareLink, ShareLinkChange } from '@repo/api-client'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ActionResult } from '../../actions/result'
+import { eachOrNoAnswer } from '../shared/no-answer'
 import { revokedNotice } from './labels'
 import type { Link, ShareActions } from './types'
 
@@ -41,8 +42,12 @@ export interface ShareLinks {
  * A holder who may not list (`listable` false) is never asked about: its list is the links it
  * minted in this session, each shown once, which is the only time its token is handed back.
  * `taskId` narrows the list to one task's links, for the manager on that task's page.
+ *
+ * Every call goes through `eachOrNoAnswer`, so a list the server never answers ends in `failed`
+ * with Try again rather than in `loading` for ever, and a write that gets no answer is a refusal.
  */
-export function useShareLinks(projectId: string, taskId: string | null, actions: ShareActions, listable: boolean): ShareLinks {
+export function useShareLinks(projectId: string, taskId: string | null, given: ShareActions, listable: boolean): ShareLinks {
+  const actions = useMemo(() => eachOrNoAnswer(given), [given])
   const [links, setLinks] = useState<readonly Link[]>([])
   const [state, setState] = useState<LoadState>('idle')
   const [problem, setProblem] = useState('')

@@ -4,6 +4,7 @@ import { LIMITS } from '@repo/contracts'
 import { cn } from '@repo/ui/lib/utils'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ActionResult } from '../../actions/result'
+import { orNoAnswer } from '../shared/no-answer'
 
 /** Props for {@link InlineName}. */
 export interface InlineNameProps {
@@ -60,6 +61,9 @@ const keyed = (event: KeyboardEvent<HTMLInputElement>, stored: string) => {
  * driven by something else — a refresh after another control's write — would otherwise replace
  * what the user is typing mid-word. So the input is uncontrolled and every write goes through one
  * guarded painter, including the late answer to a rename the user has already moved past.
+ *
+ * `onRename` is called through `orNoAnswer`, so a rename the server never answers restores the
+ * stored name and says so like a refusal, whichever surface handed the action in.
  */
 export function InlineName({ name, label, onRename, className, autoFocus = false, onDone }: InlineNameProps) {
   const { field, stored, paint } = useStoredName(name)
@@ -71,7 +75,7 @@ export function InlineName({ name, label, onRename, className, autoFocus = false
   const commit = async (input: HTMLInputElement) => {
     const next = collapse(input.value)
     if (next !== '' && next !== stored.current) {
-      const result = await onRename(next)
+      const result = await orNoAnswer(onRename)(next)
       if (result.ok) stored.current = result.value
       setProblem(result.ok ? '' : result.detail)
     }

@@ -1,7 +1,9 @@
 'use client'
 
 import type { TabRef, TaskRef } from '@repo/api-client'
+import { useMemo } from 'react'
 import type { ActionResult } from '../../actions/result'
+import { eachOrNoAnswer } from '../shared/no-answer'
 import { markChanged } from './changed-tasks'
 import { movedOrder, type MoveDirection } from './reorder'
 import { useNotice, type Notice } from './use-notice'
@@ -77,9 +79,13 @@ export const TAB_HELD = 'This tab has edits that are not saved, so it stays open
  * the app being replaced did for the reason it did: a queued autosave must not write into the
  * tab being deleted. Deleting another tab flushes the open one instead — legacy cleared its dirty
  * flag whichever tab was deleted, and so dropped the open tab's pending edit.
+ *
+ * The actions are called through `eachOrNoAnswer`, so one the server never answers is shown
+ * under the strip as a refusal would be, and changes nothing on the page.
  */
-export function useTabOperations(workspace: Workspace, actions: TabActions, task: TaskRef): TabOperations {
+export function useTabOperations(workspace: Workspace, given: TabActions, task: TaskRef): TabOperations {
   const { state, dispatch, editor } = workspace
+  const actions = useMemo(() => eachOrNoAnswer(given), [given])
   const open = state.tabs.find((tab) => tab.id === state.active)
   const { notice, say, sayAbout } = useNotice(`${String(state.mount)}:${open?.updatedAt ?? ''}`)
   const flush = (): Promise<boolean> => editor.current?.flush() ?? Promise.resolve(true)

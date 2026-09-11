@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../actions/result'
+import { NO_ANSWER } from '../shared/no-answer'
 import { DeleteProject } from './delete-project'
 
 const P = '01HZZZZZZZZZZZZZZZZZZZZZZ1'
@@ -52,5 +53,16 @@ describe('DeleteProject', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await user.click(screen.getByRole('button', { name: 'Delete project' }))
     expect(screen.getByRole('alert').textContent).toBe('Project not found')
+  })
+})
+
+describe('DeleteProject, when the server never answers', () => {
+  it('says so beside the button, rather than leaving the rejection unhandled', async () => {
+    const onDelete = vi.fn<(projectId: string) => Promise<ActionResult<null>>>(() => Promise.reject(new TypeError('Failed to fetch')))
+    render(<DeleteProject name="ACME Website" onDelete={onDelete} projectId={P} />)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete project' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(NO_ANSWER.detail)
   })
 })
