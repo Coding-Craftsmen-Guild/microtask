@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { LINK_UNAVAILABLE_PATH } from '../lib/routes'
 import { STALE_ORDER } from './permutation'
 import { problem, Redirected, redirectOf, ulid } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 type AnyCall = Mock<(...args: never[]) => Promise<unknown>>
 
@@ -90,7 +91,7 @@ describe('every link tab action presents the token it was handed, and no other a
 describe('what the API refuses a link comes back to be shown', () => {
   it('answers the 403 a write link gets for a delete, rather than an empty success', async () => {
     fake.tabs.remove.mockRejectedValue(problem(403, 'Not permitted: tab:delete'))
-    expect(await deleteLinkTab(TOKEN, { ...TASK, tabId: B })).toEqual({ ok: false, status: 403, detail: 'Not permitted: tab:delete' })
+    expect(await deleteLinkTab(TOKEN, { ...TASK, tabId: B })).toEqual({ ok: false, status: 403, detail: plainRefusal(403, ACTION_REFUSALS.link) })
   })
 
   it('answers the 403 a view link gets for a create', async () => {

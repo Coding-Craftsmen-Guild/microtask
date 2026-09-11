@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { seal } from '../../../../../../../../../../../lib/crypto'
 import { payloadOf } from '../../../../../../../../../../../lib/principal'
+import { DOCUMENT_REFUSALS, plainRefusal } from '../../../../../../../../../../../lib/refusal'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 const ADMIN = `mt_admin=${seal(SECRET, payloadOf({ kind: 'admin', token: 'admin.1.sig' }))}`
@@ -149,7 +150,7 @@ describe('PUT /s/<token>/api/…/document refuses before it spends anything', ()
     async (token) => {
       const response = await put({ token })
       expect(response.status).toBe(401)
-      expect(await bodyOf(response)).toMatchObject({ code: 'unknown_principal' })
+      expect(await bodyOf(response)).toMatchObject({ code: 'unknown_principal', detail: DOCUMENT_REFUSALS.link.unauthorised })
       expect(sent).toHaveLength(0)
     },
   )
@@ -195,12 +196,26 @@ describe('PUT /s/<token>/api/…/document passes the API answer through unchange
     expect(response.status).toBe(401)
     const body = await bodyOf(response)
     expect(body).toMatchObject({ code: 'unknown_principal', instance: API_PATH })
-    expect(body['detail']).toMatch(/^This share link is no longer available. This tab keeps its edits until you leave it/)
+    expect(body['detail']).toBe(DOCUMENT_REFUSALS.link.unauthorised)
   })
 
-  it('keeps the sentence of every refusal that is not a 401 the API’s own', async () => {
+  it('tells a link downgraded to view that it is read-only now, never "Not permitted: tab:write"', async () => {
     answer = () => problem(403, 'forbidden', { detail: 'Not permitted: tab:write' })
-    expect(await bodyOf(await put())).toMatchObject({ status: 403, detail: 'Not permitted: tab:write' })
+    const body = await bodyOf(await put())
+    expect(body).toMatchObject({ status: 403, code: 'forbidden', detail: DOCUMENT_REFUSALS.link.forbidden })
+    expect(JSON.stringify(body)).not.toContain('Not permitted')
+  })
+
+  it.each([
+    [404, 'not_found', 'Tab not found'],
+    [413, 'payload_too_large', 'Too large'],
+    [422, 'invalid', 'Document is nested too deeply'],
+    [500, 'internal_error', 'The server could not complete the request.'],
+  ])('says a %i in the link surface’s words, never the API’s', async (status, code, detail) => {
+    answer = () => problem(status, code, { detail })
+    const body = await bodyOf(await put())
+    expect(body).toMatchObject({ status, code, detail: plainRefusal(status, DOCUMENT_REFUSALS.link) })
+    expect(JSON.stringify(body)).not.toContain(detail)
   })
 
   it('keeps the 403 a view link gets a 403', async () => {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { asClient, fakeAdmin, problem, Redirected, redirectOf, ulid, type FakeAdmin } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 let fake: FakeAdmin
 const refresh = vi.fn()
@@ -43,7 +44,7 @@ describe('createTask', () => {
 
   it('answers a refusal without navigating', async () => {
     fake.tasks.create.mockRejectedValue(problem(422, 'Too many tasks'))
-    expect(await createTask(P, 'x', null)).toEqual({ ok: false, status: 422, detail: 'Too many tasks' })
+    expect(await createTask(P, 'x', null)).toEqual({ ok: false, status: 422, detail: plainRefusal(422, ACTION_REFUSALS.admin) })
   })
 })
 

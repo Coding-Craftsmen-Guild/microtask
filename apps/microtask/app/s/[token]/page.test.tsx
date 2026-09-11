@@ -10,6 +10,7 @@ import { SERVICE_UNAVAILABLE } from '../../../lib/problem'
 import { LINK_UNAVAILABLE_PATH } from '../../../lib/routes'
 import type { TaskWorkspaceProps } from '../../../components/tabs/task-workspace'
 import { fakeLinkApiState, fakeLinkFetch, P, problemAnswer, T1, T2, TAB_A, TAB_B, type FakeLinkApiState } from '../../../components/link/testing/fake-link-api'
+import { ACTION_REFUSALS } from '../../../lib/refusal'
 
 const consulted: string[] = []
 const seen: TaskWorkspaceProps[] = []
@@ -139,11 +140,12 @@ describe('a task-scoped link lands on its task', () => {
     expect(api.received.at(-1)).toMatchObject({ method: 'POST', bearer: TOKEN, body: { name: 'Added' } })
   })
 
-  it('shows the API’s own sentence in place of a task it could not read', async () => {
+  it('shows the link surface’s plain sentence in place of a task it could not read, never the API’s', async () => {
     holding('view', TASK_SCOPE)
     api.answers.set(`GET /v1/microtask/projects/${P}/tasks/${T1}`, () => problemAnswer(500, 'The task store is busy.'))
     await show()
-    expect(screen.getByText('The task store is busy.')).toBeTruthy()
+    expect(screen.getByText(ACTION_REFUSALS.link.broken)).toBeTruthy()
+    expect(screen.queryByText('The task store is busy.')).toBeNull()
     expect(screen.queryByTestId('workspace')).toBeNull()
   })
 

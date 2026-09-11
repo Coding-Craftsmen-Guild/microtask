@@ -1,5 +1,6 @@
 import type { TabRef } from '@repo/api-client'
 import type { SessionClient } from '../../lib/api'
+import type { RefusalCopy } from '../../lib/refusal'
 import { documentBody } from './document-body'
 import { forwardedProblem, problemResponse } from './problem-response'
 import { isSameOrigin } from './same-origin'
@@ -15,12 +16,16 @@ export interface DocumentWrite {
    */
   readonly client: () => Promise<SessionClient | null>
 
+  /** The code of the 401 a request with no such credential gets. */
+  readonly refusedCode: string
+
   /**
-   * The 401 a request with no such credential gets: its code, and the sentence the island shows —
-   * which is also what an API 401 says in place of the API's own, since to the person at the
-   * editor a credential the API no longer accepts is the same fact as none.
+   * The surface's plain sentences, one per status: what the island shows for a refusal, the API's
+   * and this route's alike. A request with no credential gets `unauthorised`, as an API 401
+   * does, since to the person at the editor a credential the API no longer accepts is the same
+   * fact as none.
    */
-  readonly refused: { readonly code: string; readonly detail: string }
+  readonly copy: RefusalCopy
 
   /** The tab written, named by the whole path down to it. */
   readonly tab: TabRef
@@ -49,13 +54,15 @@ export async function putDocument(request: Request, write: DocumentWrite): Promi
     return problemResponse({ status: 403, code: 'forbidden', detail: CROSS_ORIGIN, instance })
   }
   const client = await write.client()
-  if (client === null) return problemResponse({ status: 401, ...write.refused, instance })
+  if (client === null) {
+    return problemResponse({ status: 401, code: write.refusedCode, detail: write.copy.unauthorised, instance })
+  }
   const body = await documentBody(request, instance)
   if (!body.ok) return body.refusal
   try {
     const saved = await client.tabs.writeDocument(write.tab, body.document, request.headers.get('if-match') ?? '')
     return Response.json(saved, { status: 200, headers: { 'cache-control': 'no-store' } })
   } catch (error) {
-    return forwardedProblem(error, instance, write.refused.detail)
+    return forwardedProblem(error, instance, write.copy)
   }
 }

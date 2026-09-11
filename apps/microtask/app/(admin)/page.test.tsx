@@ -8,6 +8,7 @@ import {
   redirectOf,
   type FakeAdmin,
 } from '../../actions/testing/fake-admin'
+import { ACTION_REFUSALS } from '../../lib/refusal'
 
 let fake: FakeAdmin
 let session: 'present' | 'absent' = 'present'
@@ -77,7 +78,7 @@ describe('the projects index', () => {
   it('says why the list could not load, and still offers create', async () => {
     fake.projects.list.mockRejectedValue(problem(500, 'Something broke.'))
     render(await ProjectsPage())
-    expect(screen.getByRole('alert').textContent).toBe('Something broke.')
+    expect(screen.getByRole('alert').textContent).toBe(ACTION_REFUSALS.admin.broken)
     expect(screen.getByRole('button', { name: 'Create project' })).toBeTruthy()
   })
 

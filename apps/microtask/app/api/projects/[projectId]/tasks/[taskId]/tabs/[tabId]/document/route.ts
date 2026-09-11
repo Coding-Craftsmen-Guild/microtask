@@ -1,4 +1,5 @@
 import { apiForSession } from '../../../../../../../../../lib/api'
+import { DOCUMENT_REFUSALS } from '../../../../../../../../../lib/refusal'
 import { putDocument } from '../../../../../../../../_document/put-document'
 
 /** The path segments Next hands this handler, which the API validates in its turn. */
@@ -6,9 +7,6 @@ export interface DocumentRouteContext {
   /** Which tab is being written, named by the whole path down to it. */
   readonly params: Promise<{ projectId: string; taskId: string; tabId: string }>
 }
-
-const NO_SESSION =
-  'This browser is not signed in as the admin. Sign in again in another tab; this tab keeps its edits and saves on its next retry.'
 
 /**
  * `PUT` one tab's document on the **admin** surface, which reads `mt_admin` and nothing else.
@@ -22,7 +20,8 @@ export async function PUT(request: Request, context: DocumentRouteContext): Prom
   return putDocument(request, {
     instance: new URL(request.url).pathname,
     client: () => apiForSession('admin'),
-    refused: { code: 'no_principal', detail: NO_SESSION },
+    refusedCode: 'no_principal',
+    copy: DOCUMENT_REFUSALS.admin,
     tab: await context.params,
   })
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AdminPrincipal, LinkPrincipal } from '../../../../../../../../../lib/principal'
+import { DOCUMENT_REFUSALS, plainRefusal } from '../../../../../../../../../lib/refusal'
 
 const held: { admin: AdminPrincipal | null; link: LinkPrincipal | null } = { admin: null, link: null }
 
@@ -185,7 +186,7 @@ describe('PUT …/document establishes authority itself, since proxy.ts passes /
     const response = await PUT(sameOrigin(), params)
     expect(response.status).toBe(401)
     expect(response.headers.get('content-type')).toBe('application/problem+json')
-    expect((await bodyOf(response))['code']).toBe('no_principal')
+    expect(await bodyOf(response)).toMatchObject({ code: 'no_principal', detail: DOCUMENT_REFUSALS.admin.unauthorised })
     expect(sent).toHaveLength(0)
   })
 
@@ -227,7 +228,7 @@ describe('PUT …/document passes the API answer through unchanged in kind', () 
       title: 'Conflict',
       status: 409,
       code: 'conflict',
-      detail: 'This tab changed elsewhere',
+      detail: DOCUMENT_REFUSALS.admin.conflict,
       instance: API_PATH,
     })
   })
@@ -238,7 +239,23 @@ describe('PUT …/document passes the API answer through unchanged in kind', () 
     expect(response.status).toBe(401)
     const body = await bodyOf(response)
     expect(body).toMatchObject({ code: 'unknown_principal', instance: API_PATH })
-    expect(body['detail']).toMatch(/^This browser is not signed in as the admin. Sign in again in another tab/)
+    expect(body['detail']).toBe(DOCUMENT_REFUSALS.admin.unauthorised)
+  })
+
+  it.each([
+    [403, 'forbidden', 'Not permitted: tab:write'],
+    [404, 'not_found', 'Tab not found'],
+    [413, 'payload_too_large', 'Too large'],
+    [422, 'invalid', 'Document is nested too deeply'],
+    [429, 'too_many_requests', 'Too Many Requests'],
+    [500, 'internal_error', 'The server could not complete the request.'],
+  ])('keeps a %i its status and code, but says it in the admin surface’s words, never the API’s', async (status, code, detail) => {
+    answer = () => problem(status, code, detail)
+    const response = await PUT(sameOrigin(), params)
+    expect(response.status).toBe(status)
+    const body = await bodyOf(response)
+    expect(body).toMatchObject({ status, code, detail: plainRefusal(status, DOCUMENT_REFUSALS.admin) })
+    expect(JSON.stringify(body)).not.toContain(detail)
   })
 
   it('keeps a 413 a 413 carrying maxBytes', async () => {

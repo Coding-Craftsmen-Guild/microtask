@@ -10,6 +10,7 @@ import {
   type FakeAdmin,
 } from '../../../../actions/testing/fake-admin'
 import { fixtureProject, LIVE_TOKENS, P, T1 } from '../../../../components/projects/testing/project-fixture'
+import { ACTION_REFUSALS } from '../../../../lib/refusal'
 
 let fake: FakeAdmin
 
@@ -103,7 +104,7 @@ describe('the project page', () => {
   it('says why the project could not load', async () => {
     fake.projects.read.mockRejectedValue(problem(500, 'Something broke.'))
     render(await ProjectPage(params()))
-    expect(screen.getByRole('alert').textContent).toBe('Something broke.')
+    expect(screen.getByRole('alert').textContent).toBe(ACTION_REFUSALS.admin.broken)
   })
 
   it('names the tab after the project, as legacy did', async () => {

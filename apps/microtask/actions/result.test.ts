@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { asClient, fakeAdmin, problem, Redirected, redirectOf, type FakeAdmin } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 let fake: FakeAdmin
 let session: 'present' | 'absent' = 'present'
@@ -62,13 +63,13 @@ describe('adminCall', () => {
 
   it('answers a 403 as a failure the user sees, never as a success', async () => {
     const result = await adminCall('/', () => Promise.reject(problem(403, 'Not yours.')))
-    expect(result).toEqual({ ok: false, status: 403, detail: 'Not yours.' })
+    expect(result).toEqual({ ok: false, status: 403, detail: plainRefusal(403, ACTION_REFUSALS.admin) })
   })
 
   it('answers a 409 once, as a conflict, and never retries it', async () => {
     const call = vi.fn(() => Promise.reject(problem(409, 'Someone else changed this.')))
     const result = await adminCall('/', call)
-    expect(result).toEqual({ ok: false, status: 409, detail: 'Someone else changed this.' })
+    expect(result).toEqual({ ok: false, status: 409, detail: plainRefusal(409, ACTION_REFUSALS.admin) })
     expect(call).toHaveBeenCalledTimes(1)
   })
 
@@ -99,9 +100,9 @@ describe('adminRead', () => {
     expect(await outcomeOf(adminRead('/p/x', () => Promise.reject(problem(status))))).toBeInstanceOf(NotFound)
   })
 
-  it('answers any other refusal as its sentence, for the page to show', async () => {
+  it('answers any other refusal in plain words, for the page to show', async () => {
     const result = await adminRead('/p/x', () => Promise.reject(problem(500, 'Boom.')))
-    expect(result).toEqual({ ok: false, status: 500, detail: 'Boom.' })
+    expect(result).toEqual({ ok: false, status: 500, detail: plainRefusal(500, ACTION_REFUSALS.admin) })
   })
 
   it('sends a 401 to sign in, back to the page it reads for', async () => {

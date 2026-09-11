@@ -2,6 +2,7 @@ import type { AdminClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { STALE_ORDER } from './permutation'
 import { problem, Redirected, redirectOf, ulid } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 type AnyCall = Mock<(...args: never[]) => Promise<unknown>>
 
@@ -55,7 +56,7 @@ describe('createTab', () => {
 
   it('answers the API’s refusal as a failure the page can show', async () => {
     fake.tabs.create.mockRejectedValue(problem(422, 'Too many tabs'))
-    expect(await createTab(TASK, 'x')).toEqual({ ok: false, status: 422, detail: 'Too many tabs' })
+    expect(await createTab(TASK, 'x')).toEqual({ ok: false, status: 422, detail: plainRefusal(422, ACTION_REFUSALS.admin) })
   })
 })
 
@@ -80,7 +81,7 @@ describe('deleteTab', () => {
     expect(await deleteTab({ ...TASK, tabId: A })).toEqual({
       ok: false,
       status: 422,
-      detail: 'A task must keep at least one tab',
+      detail: plainRefusal(422, ACTION_REFUSALS.admin),
     })
   })
 })

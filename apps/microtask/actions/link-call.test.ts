@@ -3,6 +3,7 @@ import { seal } from '../lib/crypto'
 import { payloadOf } from '../lib/principal'
 import { LINK_UNAVAILABLE_PATH } from '../lib/routes'
 import { Redirected, redirectOf } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 const TOKEN = 'tok_CLIENTSOWNTOKEN_0001'
@@ -108,12 +109,12 @@ describe('linkCall — the token handed in is the only authority', () => {
     expect(await redirectOf(linkCall(TOKEN, (api) => api.projects.list()))).toBe(LINK_UNAVAILABLE_PATH)
   })
 
-  it('answers a 403 as a failure the visitor sees, never as a success and never as a redirect', async () => {
+  it('answers a 403 as a failure the visitor sees in plain words, never as a success, a redirect or the API’s sentence', async () => {
     answer = () => problem(403, 'Not permitted: tab:delete')
     expect(await linkCall(TOKEN, (api) => api.projects.list())).toEqual({
       ok: false,
       status: 403,
-      detail: 'Not permitted: tab:delete',
+      detail: plainRefusal(403, ACTION_REFUSALS.link),
     })
   })
 
@@ -135,9 +136,9 @@ describe('linkRead', () => {
     expect(await outcomeOf(linkRead(TOKEN, (api) => api.projects.list()))).toBeInstanceOf(NotFound)
   })
 
-  it('answers any other refusal as its sentence', async () => {
+  it('answers any other refusal in the link surface’s plain words', async () => {
     answer = () => problem(500, 'Boom.')
-    expect(await linkRead(TOKEN, (api) => api.projects.list())).toEqual({ ok: false, status: 500, detail: 'Boom.' })
+    expect(await linkRead(TOKEN, (api) => api.projects.list())).toEqual({ ok: false, status: 500, detail: plainRefusal(500, ACTION_REFUSALS.link) })
   })
 
   it('sends a 401 to the terminal page', async () => {

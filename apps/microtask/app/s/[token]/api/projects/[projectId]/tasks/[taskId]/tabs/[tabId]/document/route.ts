@@ -1,4 +1,5 @@
 import { apiForLink } from '../../../../../../../../../../../lib/api'
+import { DOCUMENT_REFUSALS } from '../../../../../../../../../../../lib/refusal'
 import { putDocument } from '../../../../../../../../../../_document/put-document'
 
 /** The path segments Next hands this handler: the credential, then the tab it writes. */
@@ -6,9 +7,6 @@ export interface LinkDocumentRouteContext {
   /** The share token, and the tab named by the whole path down to it. */
   readonly params: Promise<{ token: string; projectId: string; taskId: string; tabId: string }>
 }
-
-const LINK_GONE =
-  'This share link is no longer available. This tab keeps its edits until you leave it, but they cannot be saved through this link.'
 
 const withoutToken = (pathname: string): string => pathname.replace(/^\/s\/[^/]+/, '/s/[token]')
 
@@ -30,7 +28,8 @@ export async function PUT(request: Request, context: LinkDocumentRouteContext): 
   return putDocument(request, {
     instance: withoutToken(new URL(request.url).pathname),
     client: () => Promise.resolve(apiForLink(token)),
-    refused: { code: 'unknown_principal', detail: LINK_GONE },
+    refusedCode: 'unknown_principal',
+    copy: DOCUMENT_REFUSALS.link,
     tab,
   })
 }

@@ -2,6 +2,7 @@ import type { LinkClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LINK_UNAVAILABLE_PATH } from '../lib/routes'
 import { fakeAdmin, problem, Redirected, redirectOf, ulid, type FakeAdmin } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 let fake: FakeAdmin
 const presented: string[] = []
@@ -65,7 +66,7 @@ describe('listLinkShareLinks', () => {
 
   it('reports the 403 a task-scoped manage link gets rather than an empty list', async () => {
     fake.shareLinks.list.mockRejectedValue(problem(403, 'Not permitted: share:read'))
-    expect(await listLinkShareLinks(MINE, P, T)).toEqual({ ok: false, status: 403, detail: 'Not permitted: share:read' })
+    expect(await listLinkShareLinks(MINE, P, T)).toEqual({ ok: false, status: 403, detail: plainRefusal(403, ACTION_REFUSALS.link) })
   })
 
   it('sends a revoked caller to the terminal page', async () => {

@@ -1,6 +1,7 @@
 import { ApiError } from '@repo/api-client'
 import { loginPathFor } from './next-path'
 import type { PrincipalKind } from './principal'
+import { ACTION_REFUSALS, plainRefusal } from './refusal'
 import { LINK_UNAVAILABLE_PATH } from './routes'
 
 /** What the UI says when the API could not be reached or answered something unusable. */
@@ -34,7 +35,7 @@ export type Remedy =
       /** The HTTP status, or `0` when the API could not be reached at all. */
       readonly status: number
 
-      /** The sentence to put in front of the user. */
+      /** The sentence to put in front of the user: this surface's plain copy, never the API's. */
       readonly detail: string
     }
 
@@ -54,6 +55,11 @@ const UNAUTHORIZED = 401
  * reading a log, not to a browser: whichever credential was missing, this browser has no usable
  * session of its audience's kind.
  *
+ * Every other refusal is a `'problem'` carrying the audience's plain sentence for its status
+ * (`lib/refusal.ts`), never the API's `detail`: `Not permitted: tab:write` is a fact about the
+ * API's policy, and an admin downgrading a write link under an open page should leave the
+ * visitor reading that the link does not allow it, as legacy's `This link is read-only` did.
+ *
  * Anything that is not an `ApiError` — a DNS failure, a dead socket, a body the contract schema
  * refused — is a `'problem'` with status `0` and a fixed sentence. It is deliberately not a
  * `'login'`: signing in again cannot fix an unreachable API, and redirecting there would turn an
@@ -64,7 +70,7 @@ export function remedyFor(error: unknown, audience: PrincipalKind, pathname: str
     return { kind: 'problem', status: 0, detail: SERVICE_UNAVAILABLE }
   }
   if (error.status !== UNAUTHORIZED) {
-    return { kind: 'problem', status: error.status, detail: error.detail }
+    return { kind: 'problem', status: error.status, detail: plainRefusal(error.status, ACTION_REFUSALS[audience]) }
   }
   return audience === 'admin'
     ? { kind: 'login', location: loginPathFor(pathname) }

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { asClient, fakeAdmin, problem, Redirected, redirectOf, ulid, type FakeAdmin } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 let fake: FakeAdmin
 const refresh = vi.fn()
@@ -34,7 +35,7 @@ describe('createFolder', () => {
 
   it('shows a 403 rather than pretending it worked', async () => {
     fake.folders.create.mockRejectedValue(problem(403, 'Not allowed'))
-    expect(await createFolder(P, 'ACME')).toEqual({ ok: false, status: 403, detail: 'Not allowed' })
+    expect(await createFolder(P, 'ACME')).toEqual({ ok: false, status: 403, detail: plainRefusal(403, ACTION_REFUSALS.admin) })
     expect(refresh).not.toHaveBeenCalled()
   })
 })

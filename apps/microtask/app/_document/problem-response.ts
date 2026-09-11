@@ -1,5 +1,6 @@
 import { ApiError } from '@repo/api-client'
 import { SERVICE_UNAVAILABLE } from '../../lib/problem'
+import { plainRefusal, type RefusalCopy } from '../../lib/refusal'
 
 const TITLES: Readonly<Record<number, string>> = {
   400: 'Bad Request',
@@ -53,32 +54,33 @@ const extensionsOf = (error: ApiError): object => ({
   ...(error.in === null ? {} : { in: error.in, errors: error.errors }),
 })
 
-const UNAUTHORIZED = 401
-
 /**
  * The API's refusal, handed back to the browser **unchanged in kind**.
  *
- * The status is the API's own, whatever it is: a 409 stays a 409, because the island reads a
- * conflict as "reload, never retry" and anything else as "retry in four seconds" (ADR 0016), so
- * turning one into the other either loops a stale write forever or silently drops a good one.
+ * The status is the API's own, whatever it is, because the island decides on it: a 409 is
+ * "reload, never retry", a 408, 429 or 5xx is "retry in four seconds", and any other refusal is
+ * "stop, and retry when asked" (ADR 0016). Turning one into another either loops a write that
+ * cannot land, or gives up on one that could.
  * A 413 keeps `maxBytes` and a 422 keeps `in` and `errors`, read back off the `ApiError` the
  * client built from the API's document.
  *
- * A 401 keeps its status and code but not its sentence, which is written for an operator — "The
- * bearer token does not name anyone." — and is shown by the island under the editor. It gets
- * `unauthorised` instead, the route's own sentence for a credential that names nobody: sign in
- * again, for an admin whose session lapsed; the link is gone, for a visitor whose link was
- * revoked. The per-cause codes stay for a log, as `lib/problem.ts` keeps them.
+ * No refusal keeps its sentence, which is written for whoever reads the API — "The bearer token
+ * does not name anyone.", "Not permitted: tab:write" — and would be shown by the island under
+ * the editor. Each gets the surface's own plain sentence for its status from `copy` instead
+ * (`lib/refusal.ts`): sign in again, for an admin whose session lapsed; the link is gone, for a
+ * visitor whose link was revoked; the link is read-only now, for one downgraded to view. The
+ * status and the per-cause code stay, because the island decides retry or stop on the status
+ * and a log reads the code.
  *
  * Anything that is not an `ApiError` — the API unreachable, or a success body the contract
  * refused — is a 503. Never a 500, which would claim this app broke, and never a 200, which
  * would claim the tab was saved.
  */
-export function forwardedProblem(error: unknown, instance: string, unauthorised: string): Response {
+export function forwardedProblem(error: unknown, instance: string, copy: RefusalCopy): Response {
   if (!(error instanceof ApiError)) {
     return problemResponse({ status: 503, code: 'service_unavailable', detail: SERVICE_UNAVAILABLE, instance })
   }
-  const detail = error.status === UNAUTHORIZED ? unauthorised : error.detail
+  const detail = plainRefusal(error.status, copy)
   const fields = { status: error.status, code: error.code, detail, instance: error.instance }
   return problemResponse(fields, extensionsOf(error))
 }

@@ -1,6 +1,7 @@
 import { ApiError } from '@repo/api-client'
 import { describe, expect, it } from 'vitest'
 import { SERVICE_UNAVAILABLE, remedyFor, remedyForNoSession } from './problem'
+import { ACTION_REFUSALS, plainRefusal } from './refusal'
 import { LINK_UNAVAILABLE_PATH } from './routes'
 
 const refusal = (code: string, status = 401): ApiError =>
@@ -53,19 +54,33 @@ describe('remedyFor — the link branch', () => {
 })
 
 describe('remedyFor — everything that is not a 401', () => {
-  it.each([403, 404, 409, 413, 422, 500, 503])('shows a %s with the API detail', (status) => {
-    expect(remedyFor(refusal('forbidden', status), 'admin', '/p/01H')).toEqual({
-      kind: 'problem',
-      status,
-      detail: 'the API said forbidden',
-    })
-  })
+  it.each([403, 404, 409, 413, 422, 429, 500, 503])(
+    'shows a %s in the admin surface’s plain words, never the API’s sentence',
+    (status) => {
+      expect(remedyFor(refusal('forbidden', status), 'admin', '/p/01H')).toEqual({
+        kind: 'problem',
+        status,
+        detail: plainRefusal(status, ACTION_REFUSALS.admin),
+      })
+    },
+  )
 
-  it('shows a 403 to a link holder rather than ending their session', () => {
-    expect(remedyFor(refusal('forbidden', 403), 'link', '/s/tokena')).toMatchObject({
-      kind: 'problem',
-      status: 403,
-    })
+  it.each([403, 404, 409, 413, 422, 429, 500, 503])(
+    'shows a %s in the link surface’s plain words, never the API’s sentence',
+    (status) => {
+      expect(remedyFor(refusal('forbidden', status), 'link', '/s/tokena')).toEqual({
+        kind: 'problem',
+        status,
+        detail: plainRefusal(status, ACTION_REFUSALS.link),
+      })
+    },
+  )
+
+  it('shows a 403 to a link holder rather than ending their session, and never "Not permitted: tab:write"', () => {
+    const downgraded = new ApiError({ status: 403, code: 'forbidden', detail: 'Not permitted: tab:write', instance: '/v1/x' })
+    const remedy = remedyFor(downgraded, 'link', '/s/tokena')
+    expect(remedy).toEqual({ kind: 'problem', status: 403, detail: ACTION_REFUSALS.link.forbidden })
+    expect(JSON.stringify(remedy)).not.toContain('Not permitted')
   })
 
   it.each([

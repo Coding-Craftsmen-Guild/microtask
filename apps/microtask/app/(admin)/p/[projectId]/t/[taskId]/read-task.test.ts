@@ -1,5 +1,6 @@
 import { ApiError, type AdminClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ACTION_REFUSALS, plainRefusal } from '../../../../../../lib/refusal'
 
 class Redirected extends Error {
   constructor(readonly location: string) {
@@ -83,10 +84,10 @@ describe('readTask', () => {
     expect((outcome as Redirected).location).toBe(LOGIN)
   })
 
-  it('answers any other refusal as its sentence, for the page to show in place of the document', async () => {
+  it('answers any other refusal in plain words, for the page to show in place of the document', async () => {
     read.mockRejectedValue(problem(500, 'Boom'))
     const id = fresh()
-    expect(await readTask(P, id)).toEqual({ ok: false, status: 500, detail: 'Boom' })
+    expect(await readTask(P, id)).toEqual({ ok: false, status: 500, detail: plainRefusal(500, ACTION_REFUSALS.admin) })
   })
 
   it('answers an unreachable API as the fixed sentence rather than a login loop', async () => {

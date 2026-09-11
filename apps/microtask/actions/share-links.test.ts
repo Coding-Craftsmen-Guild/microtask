@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { asClient, fakeAdmin, problem, Redirected, redirectOf, ulid, type FakeAdmin } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 let fake: FakeAdmin
 const refresh = vi.fn()
@@ -42,7 +43,7 @@ describe('listShareLinks', () => {
 
   it('reports a refusal rather than an empty list', async () => {
     fake.shareLinks.list.mockRejectedValue(problem(403, 'Not allowed'))
-    expect(await listShareLinks(P, null)).toEqual({ ok: false, status: 403, detail: 'Not allowed' })
+    expect(await listShareLinks(P, null)).toEqual({ ok: false, status: 403, detail: plainRefusal(403, ACTION_REFUSALS.admin) })
   })
 
   it('sends an expired session to sign in, back to this project', async () => {
@@ -76,7 +77,7 @@ describe('createShareLink', () => {
   it('reports the cap the API hit', async () => {
     fake.shareLinks.create.mockRejectedValue(problem(422, 'Too many share links'))
     const seat = { name: 'x', role: 'view', scope: { kind: 'project', projectId: P } } as const
-    expect(await createShareLink(P, seat)).toEqual({ ok: false, status: 422, detail: 'Too many share links' })
+    expect(await createShareLink(P, seat)).toEqual({ ok: false, status: 422, detail: plainRefusal(422, ACTION_REFUSALS.admin) })
     expect(refresh).not.toHaveBeenCalled()
   })
 })
@@ -109,6 +110,6 @@ describe('revokeShareLink', () => {
 
   it('reports a link already gone', async () => {
     fake.shareLinks.revoke.mockRejectedValue(problem(404, 'Share link not found'))
-    expect(await revokeShareLink(P, TOKEN)).toEqual({ ok: false, status: 404, detail: 'Share link not found' })
+    expect(await revokeShareLink(P, TOKEN)).toEqual({ ok: false, status: 404, detail: plainRefusal(404, ACTION_REFUSALS.admin) })
   })
 })

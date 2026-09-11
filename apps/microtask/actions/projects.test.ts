@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { asClient, fakeAdmin, problem, Redirected, redirectOf, ulid, type FakeAdmin } from './testing/fake-admin'
+import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 
 let fake: FakeAdmin
 const refresh = vi.fn()
@@ -30,7 +31,7 @@ describe('createProject', () => {
 
   it('answers a refusal without navigating, so the form keeps what was typed', async () => {
     fake.projects.create.mockRejectedValue(problem(422, 'Name is required'))
-    expect(await createProject(' ')).toEqual({ ok: false, status: 422, detail: 'Name is required' })
+    expect(await createProject(' ')).toEqual({ ok: false, status: 422, detail: plainRefusal(422, ACTION_REFUSALS.admin) })
   })
 
   it('sends an expired session to sign in, back to the index', async () => {
@@ -51,7 +52,7 @@ describe('renameProject', () => {
     await renameProject(P, 'x')
     expect(refresh).toHaveBeenCalledTimes(1)
     fake.projects.rename.mockRejectedValue(problem(409, 'Conflict'))
-    expect(await renameProject(P, 'y')).toEqual({ ok: false, status: 409, detail: 'Conflict' })
+    expect(await renameProject(P, 'y')).toEqual({ ok: false, status: 409, detail: plainRefusal(409, ACTION_REFUSALS.admin) })
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
@@ -71,7 +72,7 @@ describe('deleteProject', () => {
 
   it('reports a project already gone, and refreshes nothing', async () => {
     fake.projects.remove.mockRejectedValue(problem(404, 'Project not found'))
-    expect(await deleteProject(P)).toEqual({ ok: false, status: 404, detail: 'Project not found' })
+    expect(await deleteProject(P)).toEqual({ ok: false, status: 404, detail: plainRefusal(404, ACTION_REFUSALS.admin) })
     expect(refresh).not.toHaveBeenCalled()
   })
 })
