@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import type { DocumentValue } from '@repo/contracts'
-import { KEEPALIVE_MAX_BYTES, SAVE_DEBOUNCE_MS } from './autosave'
+import { KEEPALIVE_MAX_BYTES, SAVE_DEBOUNCE_MS, SAVE_RETRY_MS } from './autosave'
 import type { SaveOutcome, SaveRequest } from './save-document'
 import { useAutosave, type AutosaveHandle } from './use-autosave'
 
@@ -16,9 +16,16 @@ const versions: number[] = []
 
 let handle: AutosaveHandle | null = null
 
+let failing = false
+
+let gate: Promise<void> | null = null
+
 const save = (request: SaveRequest): Promise<SaveOutcome> => {
   requests.push(request)
-  return Promise.resolve<SaveOutcome>({ kind: 'saved', updatedAt: 'v2' })
+  const answer: SaveOutcome = failing
+    ? { kind: 'failed', message: 'down' }
+    : { kind: 'saved', updatedAt: 'v2' }
+  return (gate ?? Promise.resolve()).then(() => answer)
 }
 
 function Probe({ version }: { version: number }) {
@@ -59,6 +66,8 @@ beforeEach(() => {
   requests.length = 0
   versions.length = 0
   handle = null
+  failing = false
+  gate = null
 })
 
 afterEach(() => {
@@ -178,9 +187,19 @@ describe('force save', () => {
 })
 
 describe('unmounting', () => {
-  it('stops the debounce, so an editor that is gone never writes', async () => {
+  it('writes a pending edit once, so leaving inside the debounce loses nothing', async () => {
     render(<Plain />)
     act(() => mounted().change(text('a')))
+    cleanup()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS * 10)
+    })
+    expect(requests.map((request) => request.document)).toEqual([text('a')])
+    expect(requests[0]?.keepalive).toBe(false)
+  })
+
+  it('writes nothing when there was nothing pending', async () => {
+    render(<Plain />)
     cleanup()
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS * 10)
@@ -188,12 +207,73 @@ describe('unmounting', () => {
     expect(requests).toEqual([])
   })
 
-  it('unhooks the page listeners, so a later unload writes nothing', () => {
+  it('writes nothing after markClean, which is what stops a deleted tab coming back', async () => {
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    act(() => mounted().markClean())
+    cleanup()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS * 10)
+    })
+    expect(requests).toEqual([])
+  })
+
+  it('makes one attempt and no retry loop, since nothing is left on screen to report it', async () => {
+    failing = true
     render(<Plain />)
     act(() => mounted().change(text('a')))
     cleanup()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS * 10)
+    })
+    expect(requests.length).toBe(1)
+  })
+
+  it('unhooks the page listeners, so a later unload writes nothing more', async () => {
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    cleanup()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    const written = requests.length
     act(() => hide('hidden'))
     act(() => unload())
-    expect(requests).toEqual([])
+    act(() => press('s', false))
+    expect(requests.length).toBe(written)
+  })
+})
+
+describe('the flush a caller awaits before switching tab', () => {
+  it('hands back a promise that settles only once the write has', async () => {
+    let release = (): void => undefined
+    gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    let settled = false
+    const pending = mounted().flush().then(() => {
+      settled = true
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10)
+    })
+    expect(settled).toBe(false)
+    release()
+    await act(async () => {
+      await pending
+    })
+    expect(settled).toBe(true)
+  })
+
+  it('writes now and resolves once the write has landed', async () => {
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    await act(async () => {
+      await mounted().flush()
+    })
+    expect(requests.length).toBe(1)
+    expect(mounted().state).toBe('saved')
   })
 })

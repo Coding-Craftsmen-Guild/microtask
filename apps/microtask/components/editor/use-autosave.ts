@@ -25,8 +25,8 @@ export interface AutosaveHandle {
   /** Records an edit and arms the 700 ms debounce. */
   readonly change: (document: DocumentValue) => void
 
-  /** Writes now, overtaking the debounce. */
-  readonly flush: () => void
+  /** Writes now, overtaking the debounce, and settles once the write has. */
+  readonly flush: () => Promise<void>
 
   /** Drops the pending write, for a tab being left or deleted. */
   readonly markClean: () => void
@@ -54,7 +54,7 @@ const listen = (autosave: Autosave): (() => void) => {
     document.removeEventListener('visibilitychange', hidden)
     window.removeEventListener('beforeunload', leaving)
     window.removeEventListener('keydown', keydown)
-    autosave.dispose()
+    void autosave.flush(false).finally(() => autosave.dispose())
   }
 }
 
@@ -73,6 +73,12 @@ const listen = (autosave: Autosave): (() => void) => {
  * - `Ctrl/Cmd+S` writes now and suppresses the browser's Save-Page dialog. Legacy wired this on
  *   the admin page alone, so `Cmd+S` on a read-write share link opened that dialog over unsaved
  *   work; the asymmetry was an omission rather than a decision, and it is not reproduced.
+ *
+ * Unmounting writes a pending edit once, as a normal request, and then stops. Switching tab
+ * remounts the island by key and a Next navigation fires neither `beforeunload` nor
+ * `visibilitychange`, so without it an edit made inside the debounce window is simply dropped.
+ * A failed unmount write is not retried — nothing is left on screen to say so — and a tab being
+ * deleted calls `markClean` first, so there is nothing pending to resurrect it with.
  *
  * The instance is created by a `useState` initialiser and never rebuilt, so a parent passing an
  * inline `save` closure cannot restart the loop mid-debounce and write the same edit twice. The
@@ -98,7 +104,7 @@ export function useAutosave({ updatedAt, save }: UseAutosaveOptions): AutosaveHa
       state: status.state,
       message: status.message,
       change: (document_: DocumentValue) => autosave.change(document_),
-      flush: () => void autosave.flush(false),
+      flush: () => autosave.flush(false),
       markClean: () => autosave.markClean(),
     }),
     [autosave, status],
