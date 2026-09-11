@@ -4,8 +4,8 @@ import type { Decoded, NewShareLink, ShareLinkChange } from '@repo/api-client'
 import type { ShareLink } from '@repo/contracts'
 import { refresh } from 'next/cache'
 import { projectPagePath, taskPagePath } from '../components/projects/paths'
-import { scopedToTask } from '../components/share-manager/task-share'
 import { adminCall, type ActionResult } from './result'
+import { changeOf, listedFor } from './share-link-parts'
 
 type Link = Decoded<typeof ShareLink>
 
@@ -17,15 +17,11 @@ type Link = Decoded<typeof ShareLink>
  * reaches a browser only when an admin opens the dialog that exists to show it (ADR 0033).
  *
  * `taskId` is the task page's manager asking for the links scoped to its task, and the rest are
- * dropped **here**, on the server, so the dialog never holds a token it does not show. `null` is
- * the project page asking for every link. Either way it only narrows what the API answered.
+ * dropped on the server (`listedFor`); `null` is the project page asking for every link.
  */
 export async function listShareLinks(projectId: string, taskId: string | null): Promise<ActionResult<readonly Link[]>> {
   const page = taskId === null ? projectPagePath(projectId) : taskPagePath(projectId, taskId)
-  return adminCall(page, async (api) => {
-    const { shareLinks } = await api.shareLinks.list(projectId)
-    return taskId === null ? shareLinks : shareLinks.filter((link) => scopedToTask(link.scope, taskId))
-  })
+  return adminCall(page, async (api) => listedFor((await api.shareLinks.list(projectId)).shareLinks, taskId))
 }
 
 /** Mints a seat and answers it: the one response that hands its token back unasked. */
@@ -37,17 +33,11 @@ export async function createShareLink(projectId: string, seat: NewShareLink): Pr
   return result
 }
 
-const changeOf = (sent: ShareLinkChange): ShareLinkChange => ({
-  ...(sent.name !== undefined && { name: sent.name }),
-  ...(sent.role !== undefined && { role: sent.role }),
-})
-
 /**
  * Renames a seat or changes its role, **keeping its token** so the client's URL still works.
  *
- * Only `name` and `role` are forwarded, whatever else arrived beside them: scope is immutable
- * (ADR 0011, ADR 0035). The API strips the rest too and stays the gate; this is so the request
- * this app sends says exactly what the UI asked for.
+ * Only `name` and `role` are forwarded, whatever else arrived beside them (`changeOf`): scope is
+ * immutable (ADR 0011, ADR 0035).
  */
 export async function updateShareLink(
   projectId: string,

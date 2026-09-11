@@ -3,9 +3,9 @@
 import type { Decoded, NewShareLink, ShareLinkChange } from '@repo/api-client'
 import type { ShareLink } from '@repo/contracts'
 import { refresh } from 'next/cache'
-import { scopedToTask } from '../components/share-manager/task-share'
 import { linkCall } from './link-call'
 import type { ActionResult } from './result'
+import { changeOf, listedFor } from './share-link-parts'
 
 type Link = Decoded<typeof ShareLink>
 
@@ -20,17 +20,14 @@ type Link = Decoded<typeof ShareLink>
  *
  * As on the admin surface, the links reach the browser only in the answer to this call, when the
  * dialog that exists to show them is opened — never in a page's HTML or Flight payload (ADR 0033).
- * `taskId` narrows the answer on the server to the links scoped to that task.
+ * `taskId` narrows the answer on the server to the links scoped to that task (`listedFor`).
  */
 export async function listLinkShareLinks(
   token: string,
   projectId: string,
   taskId: string | null,
 ): Promise<ActionResult<readonly Link[]>> {
-  return linkCall(token, async (api) => {
-    const { shareLinks } = await api.shareLinks.list(projectId)
-    return taskId === null ? shareLinks : shareLinks.filter((link) => scopedToTask(link.scope, taskId))
-  })
+  return linkCall(token, async (api) => listedFor((await api.shareLinks.list(projectId)).shareLinks, taskId))
 }
 
 /** Mints a link through `token`, which becomes its parent in the revocation cascade (ADR 0010). */
@@ -44,17 +41,12 @@ export async function createLinkShareLink(
   return result
 }
 
-const changeOf = (sent: ShareLinkChange): ShareLinkChange => ({
-  ...(sent.name !== undefined && { name: sent.name }),
-  ...(sent.role !== undefined && { role: sent.role }),
-})
-
 /**
  * Renames a link or changes its role through `token`, keeping the link's own token.
  *
  * `linkToken` is the link being changed and `token` the one presenting the request — two
  * different credentials, and only the second is authority. Only `name` and `role` are forwarded,
- * whatever else arrived: scope is immutable (ADR 0011, ADR 0035).
+ * whatever else arrived (`changeOf`): scope is immutable (ADR 0011, ADR 0035).
  */
 export async function updateLinkShareLink(
   token: string,

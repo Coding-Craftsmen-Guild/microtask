@@ -1,6 +1,6 @@
 import { adminCall } from '../../../../../../actions/result'
 import { taskPagePath } from '../../../../../../components/projects/paths'
-import { scopedToTask } from '../../../../../../components/share-manager/task-share'
+import { listedFor } from '../../../../../../actions/share-link-parts'
 
 /**
  * How many share links are scoped to this task, for the count beside the task page's Share.
@@ -14,9 +14,8 @@ import { scopedToTask } from '../../../../../../components/share-manager/task-sh
  * sign in and back to this task, as every read on this page does.
  */
 export async function readShareCount(projectId: string, taskId: string): Promise<number | undefined> {
-  const result = await adminCall(taskPagePath(projectId, taskId), async (api) => {
-    const { shareLinks } = await api.shareLinks.list(projectId)
-    return shareLinks.filter((link) => scopedToTask(link.scope, taskId)).length
-  })
+  const result = await adminCall(taskPagePath(projectId, taskId), async (api) =>
+    listedFor((await api.shareLinks.list(projectId)).shareLinks, taskId).length,
+  )
   return result.ok ? result.value : undefined
 }

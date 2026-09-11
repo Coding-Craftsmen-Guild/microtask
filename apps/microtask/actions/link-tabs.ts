@@ -2,8 +2,8 @@
 
 import type { TabRef, TaskRef } from '@repo/api-client'
 import { linkCall } from './link-call'
-import { isPermutationOf, STALE_ORDER } from './permutation'
-import { flattened, rejected, type ActionResult } from './result'
+import { flattened, type ActionResult } from './result'
+import { checkedTabOrder } from './tab-order'
 import type { TabValue } from './tabs'
 
 /**
@@ -32,24 +32,11 @@ export async function deleteLinkTab(token: string, ref: TabRef): Promise<ActionR
   })
 }
 
-/**
- * Renumbers the task's tabs with the authority of `token`, checked against a fresh read first.
- *
- * The same guard the admin reorder has: an order built from a stale page is refused unless it
- * names each tab exactly once, and the API stays the gate behind it — it refuses a reorder to
- * anything short of `manage`.
- */
+/** Renumbers the task's tabs with the authority of `token`, checked against a fresh read first (`checkedTabOrder`). */
 export async function reorderLinkTabs(
   token: string,
   ref: TaskRef,
   tabIds: readonly string[],
 ): Promise<ActionResult<readonly TabValue[]>> {
-  return flattened(
-    await linkCall(token, async (api): Promise<ActionResult<readonly TabValue[]>> => {
-      const { tabs } = await api.tasks.read(ref)
-      if (!isPermutationOf(tabs.map((tab) => tab.id), tabIds)) return rejected(409, STALE_ORDER)
-      const ordered = await api.tabs.reorder(ref, tabIds)
-      return { ok: true, value: ordered.tabs }
-    }),
-  )
+  return flattened(await linkCall(token, (api) => checkedTabOrder(api, ref, tabIds)))
 }

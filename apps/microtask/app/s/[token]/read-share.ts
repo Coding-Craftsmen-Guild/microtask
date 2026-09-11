@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { cache } from 'react'
 import { linkCall, linkRead } from '../../../actions/link-call'
 import type { ActionResult } from '../../../actions/result'
-import { scopedToTask } from '../../../components/share-manager/task-share'
+import { listedFor } from '../../../actions/share-link-parts'
 import { LINK_UNAVAILABLE_PATH } from '../../../lib/routes'
 
 /** What a link page renders from: what its token reaches, or the sentence the API refused with. */
@@ -56,9 +56,6 @@ export async function readLinkShareCount(
   projectId: string,
   taskId: string | null,
 ): Promise<number | undefined> {
-  const result = await linkCall(token, async (api) => {
-    const { shareLinks } = await api.shareLinks.list(projectId)
-    return taskId === null ? shareLinks.length : shareLinks.filter((link) => scopedToTask(link.scope, taskId)).length
-  })
+  const result = await linkCall(token, async (api) => listedFor((await api.shareLinks.list(projectId)).shareLinks, taskId).length)
   return result.ok ? result.value : undefined
 }
