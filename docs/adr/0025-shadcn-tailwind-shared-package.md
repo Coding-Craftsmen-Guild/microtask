@@ -113,7 +113,13 @@ ADR 0001 and would duplicate the app shell.
 The decision holds — one stylesheet in the package, explicit `@source`, no build step, no barrel —
 and the arithmetic it turns on is now proven rather than reasoned. **Double ablation:** deleting the
 package scan root collapses the built CSS from 70,519 to 10,806 bytes and every `packages/ui` class
-vanishes; deleting the app root drops the app's class and keeps the package's. Note for anyone
+vanishes; deleting the app root drops the app's class and keeps the package's. Those two byte counts
+are a snapshot of the tree on 2026-09-11 before `src/shell/**` existed, not a constant — repeating
+the ablation after the shared shell landed measures 86,109 and 10,634. What reproduces is the
+collapse and the disappearance, so assert on those and not on the sizes. The sharpest single check
+is that Tailwind tree-shakes unused `@theme` variables: `--color-brand-soft` is declared and used by
+no class and is **absent** from the full build, so the presence of a token in the output is itself
+proof the scanner read the file that uses it. Note for anyone
 repeating it: grepping built CSS for a bracket value returns 0 even when the class **is** emitted,
 because the selector is escaped and the declaration minified. Match on the declaration, not the
 class.
