@@ -86,6 +86,15 @@ describe('errorFrom survives a body written by something other than this API', (
     expect([error.status, error.code, error.in, error.maxBytes]).toEqual([502, 'http_502', null, null])
   })
 
+  it('treats an empty code, detail or instance as absent rather than showing a blank', async () => {
+    const blank = { status: 502, code: '', detail: '', instance: '' }
+    const error = await errorFrom(
+      new Response(JSON.stringify(blank), { status: 502, statusText: 'Bad Gateway' }),
+      INSTANCE,
+    )
+    expect([error.code, error.detail, error.instance]).toEqual(['http_502', 'Bad Gateway', INSTANCE])
+  })
+
   it('ignores an "in" the API could never send, so a stranger cannot widen the union', async () => {
     const error = await errorFrom(sent(422, { ...validation, in: 'body' }), INSTANCE)
     expect(error.in).toBeNull()

@@ -110,6 +110,14 @@ describe('cacheAgrees decides whether a read has to correct the entry (ADR 0007)
     expect(cacheAgrees(entry(['Second', 'First']), counted)).toBe(false)
   })
 
+  it('needs every name to match, so one stale name among current ones is still stale', () => {
+    const two = task([tab('First', 0, checklist(0, 0)), tab('Second', 1, checklist(0, 0))])
+    const counted = taskCache(two)
+    const entry = (tabNames: readonly string[]): TaskEntry => taskEntry(TASK, 'Ship it', { ...counted, tabNames })
+    expect(cacheAgrees(entry(['First', 'Renamed']), counted)).toBe(false)
+    expect(cacheAgrees(entry(['Renamed', 'Second']), counted)).toBe(false)
+  })
+
   it('compares how many names there are too, so a truncated list is not read as current', () => {
     const two = task([tab('First', 0, checklist(0, 0)), tab('Second', 1, checklist(0, 0))])
     const counted = taskCache(two)
