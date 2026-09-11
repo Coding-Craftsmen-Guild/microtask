@@ -45,3 +45,29 @@ output.
 
 **Non-strict mode to move faster.** Rejected — porting untyped JavaScript is exactly when strictness
 pays, because it surfaces the implicit assumptions the original code was relying on.
+
+## Amended by measurement · 2026-09-11
+
+The prediction above — that `noUncheckedIndexedAccess` "will be irritating exactly where it should
+be" — was wrong, in a useful direction, and the first real body of foreign code to hit the config
+says so.
+
+Typechecking the 22 vendored shadcn primitives under the strict base produced **2 errors across 22
+files**, both `TS2375` from `exactOptionalPropertyTypes`, both a single expression:
+`dropdown-menu.tsx:93` hands a possibly-`undefined` `checked` straight back to a prop that does not
+accept `undefined`, and `sonner.tsx:11` widens an indexed access through an `as` assertion.
+`noUncheckedIndexedAccess` — the flag expected to do the irritating — cost **zero**.
+
+Two things follow, and both are decisions rather than observations.
+
+**The strict flags stay on for vendored code**, because two mechanical lines is not a reason to
+disable a flag for every component the app will ever have. The errors are patched at the call site;
+ADR 0031 records that, and records why a build step for `packages/ui` was rejected as a way of
+hiding them.
+
+**The cost of strictness is concentrated in `exactOptionalPropertyTypes`, not in
+`noUncheckedIndexedAccess`.** That matters for the port ahead: the legacy code indexes arrays freely
+(`project.tabs[0]`, `tabs[Math.max(0, index - 1)]`) and each of those still becomes an explicit
+decision — but the flag that will actually generate volume is the one about `undefined` crossing a
+prop boundary, which is a React-shaped problem rather than a port-shaped one. The honest reading is
+that the config is cheaper than this ADR expected, and expensive somewhere else than it guessed.

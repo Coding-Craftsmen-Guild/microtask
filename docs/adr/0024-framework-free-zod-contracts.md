@@ -58,10 +58,12 @@ overrides:
 ```
 
 Pinned **exactly**, not as `^4.6.1`: with `overrides` in play a range still lets transitive
-dependencies float within `^4`, which is the thing being prevented. `strict-peer-dependencies` is
-set in `.npmrc` rather than here, because `auto-install-peers` is also on — and that pairing is
-what makes this override load-bearing rather than belt-and-braces, since auto-installing peers is
-the most likely route to a second physical copy.
+dependencies float within `^4`, which is the thing being prevented. Auto-installed peers are the
+most likely route to a second physical copy, so `autoInstallPeers: false` and
+`strictPeerDependencies: true` belong with the catalog and the overrides — **in
+`pnpm-workspace.yaml`, not in `.npmrc`**, which is where this ADR first put them and where pnpm 10+
+does not read them at all. See the amendment below; until they moved, neither setting was in effect
+and this override was the only thing keeping one physical Zod.
 
 Every `package.json` uses `"zod": "catalog:"`. Verified after install with `pnpm why zod -r`
 (exactly one version) and `ls node_modules/.pnpm | grep -c '^zod@'` (exactly `1`). That assertion
@@ -136,3 +138,27 @@ because it means maintaining ref rewriting and input/output passes by hand.
 **A note on enforcement:** aliasing `hono` to `false` in a `webpack()` config to prove it never
 reaches the client bundle is a tempting CI check, but the mere presence of a `webpack()` key fails
 `next build` under Turbopack in Next 16. The ESLint rule is the enforcement.
+
+## Amended by measurement · 2026-09-11 — `strict-peer-dependencies` was never in effect
+
+Every claim anywhere in these documents that a peer-range violation is "a hard install failure"
+described a setting that was doing nothing. **pnpm 10+ reads pnpm-specific settings from
+`pnpm-workspace.yaml`, not `.npmrc`.**
+
+Proven four ways, by execution:
+
+- `pnpm config get strict-peer-dependencies` returns `undefined`.
+- With only `.npmrc` present, `auto-install-peers=false` and `auto-install-peers=true` resolved the
+  **identical 67 packages** — the flag had no effect in either direction.
+- An install with a deliberately missing peer exited **0**, with no error and no warning.
+- Moving the same two keys into `pnpm-workspace.yaml` as `strictPeerDependencies: true` and
+  `autoInstallPeers: false` immediately produced `ERR_PNPM_PEER_DEP_ISSUES`.
+
+So the settings work; the file did not. Anything reasoned from "the install would have caught that"
+has to be re-checked rather than assumed — the version pinning across this repo was being held by
+exact versions and the `overrides` block above, not by peer enforcement.
+
+The pairing this ADR describes is still the right one, and it is now in a file pnpm reads. The
+notable second-order effect is that turning it on genuinely does fail installs: the Tiptap 3 set
+peer-pins its siblings to an exact string, so a partial bump is now an error instead of a silently
+mixed graph — which is the behaviour that was wanted all along.

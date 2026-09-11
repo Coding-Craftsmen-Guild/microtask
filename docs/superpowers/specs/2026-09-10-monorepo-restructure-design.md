@@ -3,7 +3,8 @@
 **Status:** ready for review
 **Date:** 2026-09-10
 **Branch:** `feat/monorepo-restructure`
-**Decisions:** [`docs/adr/`](../../adr/README.md) — 28 records
+**Decisions:** [`docs/adr/`](../../adr/README.md) — 38 records
+**Legacy inventory:** [`docs/parity/legacy-microtask.md`](../../parity/legacy-microtask.md)
 
 ## 1. Why
 
@@ -65,6 +66,16 @@ states what to build.
 | Images | `node:24`, one `turbo prune` per image, Next standalone | [0026](../../adr/0026-docker-turbo-prune-standalone.md) |
 | Code style | SOLID, 80-line `.tsx` / 150-line `.ts`, TSDoc only, ESLint-enforced | [0027](../../adr/0027-code-style-solid-enforced.md) |
 | Autosave | Flush-on-unload is best-effort only — `keepalive` caps at 64 KiB | [0028](../../adr/0028-autosave-under-keepalive-cap.md) |
+| Documents | Sanitised at the boundary, by walking them | [0029](../../adr/0029-document-sanitised-at-the-boundary.md) |
+| Services | One context of ports; a double never re-implements a correctness component | [0030](../../adr/0030-service-context-of-ports.md) |
+| Vendored lint | Vendored primitives are a separate regime, applied where its glob resolves | [0031](../../adr/0031-vendored-primitives-separate-lint-regime.md) |
+| Sessions | Two cookies, encrypted; the URL always wins | [0032](../../adr/0032-two-cookies-url-wins.md) |
+| List payloads | The project list ships a share-link **count**, never share links | [0033](../../adr/0033-list-ships-no-share-tokens.md) |
+| Manifest | `TaskEntry` carries what a list row renders | [0034](../../adr/0034-task-entry-carries-list-row.md) |
+| Share links | Renamable, role changeable; scope still immutable | [0035](../../adr/0035-share-links-renamable-role-changeable.md) |
+| Shared facts | Caps, problem codes and the document walk live in `contracts` | [0036](../../adr/0036-wire-facts-live-in-contracts.md) |
+| Share URLs | `/s/<token>`, plus `/t/<taskId>` when the scope is a project; `/share/` 308s | [0037](../../adr/0037-share-url-shape.md) |
+| UI gating | Controls gate on role **and** scope, never role alone | [0038](../../adr/0038-capabilities-role-and-scope.md) |
 
 Also settled, without needing a record of their own: one shared `ADMIN_PASSWORD`; Macroplan ships as
 a working shell; deploy is one compose file with three services and two domains.
@@ -73,6 +84,27 @@ Two things are deliberately **not** settled, and are called out where they matte
 guessed: the end-to-end Zod-`.meta()`-to-OpenAPI path (ADR 0024 — a short spike before
 implementation), and everything Coolify-specific, above all whether Coolify renames named volumes
 (ADR 0026, §15.1 step 1 — verified on the server before cutover).
+
+### 3.1 Deliberately not built
+
+Named here so their absence reads as a decision rather than an oversight.
+
+**No realtime and no polling.** The app being replaced had neither — an admin does not see a client's
+edits without a reload — and that is unchanged on purpose, not overlooked.
+
+**No relative-move route.** `POST …/tabs/:tabId/move {direction}` does not exist; the app computes a
+permutation and calls `…/tabs/reorder`. See §8.2.
+
+**No token refresh route.** Minting a bearer needs the password, so a refresh route would either
+hold the password or mint tokens from tokens. `mt_admin`'s lifetime tracks the bearer instead, which
+turns expiry into a clean re-login (ADR 0032).
+
+**No `/healthz` method on `@repo/api-client`.** The probe is for Docker and compose, and it takes no
+credential; a typed client method would only invite a page to call it.
+
+**Import/export comes last**, by instruction. That means **cutover stays blocked on it**, and this
+phase does not claim otherwise: every step of the runbook in §15.1 from step 4 onwards depends on
+the importer existing.
 
 ## 4. Domain model
 
@@ -94,8 +126,9 @@ file would balloon and every keystroke would rewrite all of it.
 
 ```
 data/microtask/projects/<projectId>/
-  project.json          manifest: name, folders[], tasks[] (id/name/position/folderId),
-                        shareLinks[] (project- and task-scoped), progress cache, timestamps
+  project.json          manifest: name, folders[], tasks[] (id/name/position/folderId +
+                        progress/updatedAt/tabCount/tabNames as cache),
+                        shareLinks[] (project- and task-scoped), timestamps
   tasks/<taskId>.json   tabs[] only
 data/macroplan/…        reserved, same shape rules
 ```
@@ -103,6 +136,13 @@ data/macroplan/…        reserved, same shape rules
 Task name, position and `folderId` live **only** in the manifest, so there is nothing to drift.
 Task files hold only tabs. This buys: autosave rewrites one small file, search is one read per
 project, and the boot-time token index reads only manifests.
+
+`TaskEntry` also carries `updatedAt`, `tabCount` and `tabNames` — the first eight, matching the
+legacy `slice(0, 8)` chips — on the same terms as `progress` (ADR 0034): the task file is the source
+of truth, the entry is a cache written by the same operation, and a stale entry is recomputed on
+read of that task. All three are free, because the mapper already reads the whole task document to
+count progress. Without them the tab count, the name chips and "updated 3h ago" have no data source
+but a full read per row.
 
 ### 5.1 Invariants
 
@@ -139,19 +179,34 @@ type Principal = { kind: 'admin' } | { kind: 'link', role: Role, scope: Scope, t
 can(principal: Principal, action: Action, target: Target): boolean
 ```
 
-| | view | write | manage | admin |
-| --- | :-: | :-: | :-: | :-: |
-| read project, folders, tasks, tabs | ✓ | ✓ | ✓ | ✓ |
-| edit documents, tick checklist items | | ✓ | ✓ | ✓ |
-| create / rename task, folder, tab | | ✓ | ✓ | ✓ |
-| delete / reorder / move between folders | | | ✓ | ✓ |
-| read, create, revoke share links (any role) | | | ✓ | ✓ |
-| rename or delete the scope itself | | | ✓ | ✓ |
-| export | | | ✓ | ✓ |
-| list all projects, create project, import | | | | ✓ |
+**A role alone does not decide anything — a role and a scope do.** The columns below are
+`role × scope`, because scope containment refuses a `folder` target outright and refuses every
+`project:*` action except `project:read`, so a task-scoped holder of a role can do strictly less
+than a project-scoped holder of the same role. `T` is task scope, `P` is project scope.
+
+| | view T | view P | write T | write P | manage T | manage P | admin |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| read its own task and tabs | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| read the project's name | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| read sibling tasks, the folder tree, folder names | | ✓ | | ✓ | | ✓ | ✓ |
+| edit documents, tick checklist items | | | ✓ | ✓ | ✓ | ✓ | ✓ |
+| create / rename a tab in its own task | | | ✓ | ✓ | ✓ | ✓ | ✓ |
+| create / rename a task or folder | | | | ✓ | | ✓ | ✓ |
+| delete / reorder / move between folders | | | | | tabs only | ✓ | ✓ |
+| mint a share link within its own scope | | | | | ✓ | ✓ | ✓ |
+| list and revoke the project's share links | | | | | | ✓ | ✓ |
+| rename or delete the project itself | | | | | | ✓ | ✓ |
+| export | | | | | | ✓ | ✓ |
+| list all projects, create project, import | | | | | | | ✓ |
 
 `manage` is admin **within its scope** and blind outside it — that is the "everything except top
 level" line. Import is admin-only because an import can create projects.
+
+The asymmetry in the `manage T` column is real and is the reason this table has a scope axis at all:
+minting is authorized against the **new link's** scope, while listing and revoking are authorized
+against the project, so a task-scoped `manage` holder can mint a link it can then neither list nor
+revoke. The UI must not render from role alone — `capabilities(role, scope)` in `@repo/contracts`
+returns this table, and a contract test holds it to `can()` for every triple (ADR 0038).
 
 ### 6.1 Two rules that are not in the matrix
 
@@ -306,28 +361,47 @@ API therefore always has a real principal, and `AccessPolicy` is genuinely the o
 Namespaced per product from day one, because Macroplan has its own entities.
 
 ```
-POST   /v1/auth/login · POST /v1/auth/logout
+POST   /v1/auth/login                      no logout route — see below
 GET    /v1/microtask/projects · POST /v1/microtask/projects
 GET|PATCH|DELETE  /v1/microtask/projects/:projectId
        /v1/microtask/projects/:projectId/folders[/:folderId]
+POST   …/folders/reorder
        /v1/microtask/projects/:projectId/tasks[/:taskId]
-POST   /v1/microtask/projects/:projectId/tasks/:taskId/move
+POST   …/tasks/reorder
+POST   /v1/microtask/projects/:projectId/tasks/:taskId/move        between folders
        /v1/microtask/projects/:projectId/tasks/:taskId/tabs[/:tabId]
 PUT    …/tabs/:tabId/document
-POST   …/tabs/:tabId/move
+POST   …/tabs/reorder                      a permutation, not a relative move
        /v1/microtask/projects/:projectId/share-links[/:token]
+PATCH  …/share-links/:token                {name?, role?} — ADR 0035
 GET    /v1/microtask/shares/current        bootstrap: what this link sees + its role
 GET    /v1/microtask/search?q=
 POST   /v1/microtask/imports · POST /v1/microtask/imports/:sessionId/confirm
 GET    /v1/microtask/export · /v1/microtask/projects/:projectId/export
 GET    /v1/macroplan/…                     reserved
-GET    /v1/openapi.json · /v1/docs · /healthz
+GET    /openapi.json · /docs · /healthz    root, above the /v1 mount
 ```
 
-Two deliberate choices: **`reorder` and `import` are real endpoints**, because they are role actions
-and "everything consumable via API" is a requirement. And **the bootstrap route takes no token in
-its path** — `/shares/current` reads the token from the `Authorization` header like every other
-route, keeping the credential out of server logs and `Referer`.
+**Reordering is a permutation, not a relative move.** There is no
+`POST …/tabs/:tabId/move {direction}` — the legacy pair of one-step swaps is replaced by
+`POST …/{collection}/reorder` taking the full order, for folders, tasks and tabs alike. The app
+computes the permutation, so a drag that moves an item three places is one request and one write
+rather than three, and a reorder is idempotent against what the client believed the order was.
+
+**The three meta routes sit at the root, not under `/v1`.** `/openapi.json`, `/docs` and `/healthz`
+are properties of the process rather than of an API version, and they are registered before the
+`/v1` mount because a `route()` call copies an already-complete child (ADR 0024).
+
+**There is no `POST /v1/auth/logout`, deliberately.** The admin bearer is a self-contained HMAC the
+API cannot revoke without a store, and rotating `SESSION_SECRET` would sign out every admin at once.
+Logout clears the Next cookie; the bearer stays valid until it expires. ADR 0032 records that limit
+rather than letting an absent route imply it. There is no refresh route either — minting a token
+needs the password, and `mt_admin`'s lifetime makes expiry a clean re-login.
+
+Two further deliberate choices: **`reorder` and `import` are real endpoints**, because they are role
+actions and "everything consumable via API" is a requirement. And **the bootstrap route takes no
+token in its path** — `/shares/current` reads the token from the `Authorization` header like every
+other route, keeping the credential out of server logs and `Referer`.
 
 ### 8.3 Writes are conditional
 
@@ -338,11 +412,30 @@ likely to arrive late — can overwrite content saved after it was queued.
 ## 9. Data flow
 
 ```
-browser ──HMAC-signed httpOnly cookie──> Next server ──x-api-key + Bearer──> apps/api ──> data/
+browser ──encrypted httpOnly cookie──> Next server ──x-api-key + Bearer──> apps/api ──> data/
 ```
 
-The session cookie carries a **principal**, not a flag: `{kind:'admin'}` after password login, or
-`{kind:'link', token}` set when `/s/<token>` bootstraps.
+**Two cookies, read by disjoint route sets** (ADR 0032). `mt_admin` holds `{kind:'admin'}` after
+password login and is read by every route except `/s/*`; `mt_link` holds `{kind:'link', token}` and
+is read by `/s/*` and nothing else. One cookie for both would mean an admin opening a client link
+clobbered their own session — the single most common thing an admin does while testing a link.
+
+**Visiting `/s/<token>` overwrites `mt_link` unconditionally.** The URL is the authority; the cookie
+is only how the token survives the next navigation.
+
+**Both are AES-256-GCM encrypted and authenticated, not merely signed.** `mt_link`'s payload *is* a
+live credential, and `Path=/` sends it on every request, so integrity alone is not the property
+needed. `COOKIE_SECRET` (32 bytes or more) is required at boot, read by the same single module that
+reads `API_KEY`, and distinct from the API's `SESSION_SECRET`.
+
+**Lifetimes match the credential behind them.** `mt_admin` takes its `Max-Age` from the bearer's own
+`expiresInSeconds`; `mt_link` gets 30 days, because a share token has no expiry and lives until
+revoked. The legacy 30-day cookie against a one-hour bearer is the defect being fixed.
+
+**401 handling is per-cookie**, and the blanket "any 401 goes to `/login`" is wrong: an admin 401
+clears `mt_admin` and redirects to `/login?next=<pathname>` — which also fixes the legacy deep-link
+loss — while a link 401 clears `mt_link` and renders a terminal "this link is no longer available"
+page. A client is never shown a password form.
 
 **Exactly one file per app may read `process.env.API_KEY`** (`apps/*/lib/api.ts`). It exports
 `apiForSession()`, which returns a link client for link sessions and an admin client only for admin
@@ -365,10 +458,17 @@ delete, and "confirm this staged import".
 /projects/:projectId       folder + task tree, share manager, export      admin
 /projects/:projectId/tasks/:taskId?tab=<tabId>   tab bar + editor         admin
 /import                    drop zone, preview, confirm                    admin
-/login                     admin sign-in
-/s/:token?tab=<tabId>      client view                                    link
-/share/:token              301 → /s/:token                                (continuity)
+/login[?next=<pathname>]   admin sign-in                                  admin
+/s/:token?tab=<tabId>      task-scoped link: the task itself              link
+/s/:token                  project-scoped link: its task list             link
+/s/:token/t/:taskId?tab=<tabId>   project-scoped link: one task           link
+/share/:token              308 → /s/:token                                (continuity)
 ```
+
+The client surface is two shapes, not one, and which one a token gets is decided by its scope at
+bootstrap (ADR 0037). A single `/s/:token?tab=` cannot address a project-scoped link, because a tab
+id is only meaningful inside a task — so it would name a tab without naming which task. Every `/s/*`
+route is `noindex`; the legacy app marked one page, and here the client surface is a subtree.
 
 ### 10.2 The project page
 
@@ -390,25 +490,46 @@ Search filters this tree in place — it is names-only, so it is a client-side f
 manifest the page already has, and `GET /v1/microtask/search` serves the cross-project case on the
 projects list. A search result never shows a name outside the caller's scope.
 
+**A project in a list carries `shareLinkCount`, not `shareLinks`** (ADR 0033). Tokens appear only on
+`projects.read()`, which is the request that renders the share manager. The count is what the legacy
+"· N share links" row needed anyway, and the reason is not payload size: anything a Server Component
+hands a client component — such as this in-place filter — is serialised into the Flight stream and
+lands in the HTML, so a list carrying links would put every share token in the page source.
+
 ### 10.3 What each role sees at `/s/:token`
 
-| | view | write | manage |
-| --- | --- | --- | --- |
-| Badge | "View only" | "You can edit" | "You manage this" |
-| Editor | not editable; checkbox snaps back | editable | editable |
-| Toolbar | hidden | shown | shown |
-| Tab `+` | — | ✓ | ✓ |
-| Tab menu | — | Rename | Rename · Move · Delete |
-| Task / folder create | — | ✓ | ✓ |
-| Delete / reorder | — | — | ✓ |
-| Share manager | — | — | ✓ (own scope) |
-| Export | — | — | ✓ |
+Every row here is `capabilities(role, scope)`, never `role` on its own (ADR 0038). `T` is task
+scope — the default — and `P` is project scope.
 
-A task-scoped link shows only its task — never sibling task names, never the folder tree.
+| | view | write | manage T | manage P |
+| --- | --- | --- | --- | --- |
+| Badge | "View only" | "You can edit" | "You manage this" | "You manage this" |
+| Editor | not editable; checkbox snaps back | editable | editable | editable |
+| Toolbar | hidden | shown | shown | shown |
+| Tab `+` | — | ✓ | ✓ | ✓ |
+| Tab menu | — | Rename | Rename · Move · Delete | Rename · Move · Delete |
+| Task / folder create | — | P only | — | ✓ |
+| Delete / reorder | — | — | tabs only | ✓ |
+| Share manager | — | — | **mint only, no list** | ✓ (own scope) |
+| Export | — | — | — | ✓ |
+
+A task-scoped link shows only its task — never sibling task names, never the folder tree, and
+therefore no breadcrumb (ADR 0011). A task-scoped `manage` holder is shown no share list, because
+listing and revoking are authorized against the project it cannot name; that is why the table needs
+the scope column, and why rendering from role alone would put a 403 behind a button.
 
 ## 11. Feature parity with the app being replaced
 
-These behaviours are load-bearing and currently recorded nowhere but the code. Each must survive.
+These behaviours are load-bearing and were recorded nowhere but the code. The complete inventory —
+71 features, 25 routes, 41 non-obvious behaviours, captured from `apps/legacy` immediately before it
+was deleted — is [`../../parity/legacy-microtask.md`](../../parity/legacy-microtask.md). What follows
+is the subset that shapes the design; the inventory is the checklist, and each of its rows is either
+reproduced or deliberately dropped by a named decision.
+
+**`apps/legacy` is deleted at the end of this phase, not the start.** It is the only record of
+behaviour documented nowhere else, so the order is: capture the inventory, build to parity, then
+delete. `legacy-prod` is tagged at `6184c9d` so the running code stays recoverable after the
+directory is gone.
 
 **Autosave** — 700 ms debounce; `flush()` awaited before a tab switch and on `Ctrl/Cmd+S`. States:
 `Saving…` / `Saved` / `Not saved — retrying…`, retrying after 4 s. `dirty` clears before the request
@@ -445,9 +566,49 @@ URL, Copy (clipboard API with `execCommand` fallback), and a menu with Rename ·
 **Editor** — StarterKit with headings 1–3, `codeBlock` spellcheck off, TaskList, nested TaskItem
 with no `onReadOnlyChecked` (so read-only checkboxes snap back), Link with `openOnClick: !editable`,
 autolink, `linkOnPaste`, `rel="noopener noreferrer nofollow" target="_blank"`, and a placeholder
-only when editable. Toolbar `B I S </> | H1 H2 H3 | ☑ • 1. ❝ ― | 🔗`, active state refreshed on
-selection *and* transaction, `mousedown` prevented so the selection survives. The link dialog
-removes the mark on empty input and prefixes a schemeless value with `https://`.
+only when editable. Toolbar `B I S </> | H1 H2 H3 | ☑ • 1. ❝ ― | 🔗`, `mousedown` prevented so the
+selection survives. The link dialog removes the mark on empty input and prefixes a schemeless value
+with `https://`.
+
+**The editor lives in `apps/microtask`, not in `packages/ui`.** Tiptap is the Microtask checklist
+document editor; Macroplan is a different product and does not need it. ADR 0001 puts what is not
+shared in the app, and this is not shared — which also permanently avoids the duplicate-ProseMirror
+hazard a shared Tiptap would create, since every ProseMirror package breaks if two copies load.
+
+**Tiptap 3, and the port is not a copy.** The app being replaced pins `^2.27.3`; current is
+`3.31.3`. Measured against the real production files:
+
+- **Stored documents are compatible.** `taskList` / `taskItem` and the boolean `attrs.checked` are
+  byte-for-byte unchanged between the two versions — verified by reading both node specs and by
+  round-tripping the production documents through `getSchema(...).nodeFromJSON(doc).check()`. No
+  migration, and every progress number stays identical.
+- **Packages consolidated.** `TaskList` and `TaskItem` come from `@tiptap/extension-list`,
+  `Placeholder` from `@tiptap/extensions`. The old `extension-task-list` / `-task-item` /
+  `-placeholder` packages still publish, as two-line re-export shims. Use the real packages.
+- **Every `@tiptap/*` v3 package peer-pins its siblings to the exact string `3.31.3`**, not a range,
+  so the whole set is catalogued at one exact version and bumped as a unit. With peer enforcement now
+  actually in effect (see ADR 0024's amendment), a partial bump is an install error.
+- **StarterKit v3 bundles `Link`, `TrailingNode`, `Underline` and `ListKeymap`**, which v2 did not,
+  and renamed `History` to `UndoRedo` (option key `undoRedo`; a `history` option is now silently
+  ignored). Passing StarterKit *plus* a separate `Link` — what the legacy code does — logs
+  "Duplicate extension names found: [link]", so the options move into `StarterKit.configure`.
+  `Underline` adds a mark v2 had no concept of, which stored-document validation must accept.
+- **`TrailingNode` silently mutates stored documents and is passed `false`.** It appends an empty
+  trailing paragraph on the **first transaction** for any document not ending in a paragraph, which
+  both production checklist tabs are. Measured: children before 2, after 3 with it on; before 2,
+  after 2 with `trailingNode: false`. It surfaces as a spurious dirty flag and an autosave the user
+  never caused.
+- **The React binding changed shape.** `immediatelyRender: false` is required under the App Router —
+  it also selects the `Editor | null` overload, which is what happens at runtime, so every editor
+  access needs a guard. `shouldRerenderOnTransaction` now **defaults to false**, so porting the
+  legacy `onSelectionUpdate` / `onTransaction` toolbar pattern gives buttons that never light up:
+  toolbar state comes from `useEditorState({ editor, selector })` instead.
+- **Peer dependencies are not optional.** `@tiptap/react` requires `@types/react` and
+  `@types/react-dom`, and `@tiptap/html` carries a non-optional `happy-dom` peer — so
+  `generateHTML` / `generateJSON` come from `@tiptap/core` and `@tiptap/html` is skipped entirely.
+  All three reproduced as `ERR_PNPM_PEER_DEP_ISSUES`.
+- **No new `allowBuilds` entry is needed.** Nothing in the Tiptap/ProseMirror graph declares
+  `preinstall`, `install` or `postinstall`, and `prepare` does not run for registry tarballs.
 
 **Caps and invariants** — names collapse whitespace, trim, max 80 chars; ≤ 40 tabs per task;
 ≤ 50 share links per project; documents `type: 'doc'` with an array `content`, ≤ 2 MB; request
@@ -456,9 +617,19 @@ what an untrusted `write`/`manage` link holder can create**, and gain companions
 project, max folders per project, max projects.
 
 **Auth** — `ADMIN_PASSWORD` required at boot, process exits without it, warns under 8 characters;
-constant-time comparison; cookie `HttpOnly; SameSite=Lax; Max-Age=2592000`, `Secure` when
-`x-forwarded-proto` says HTTPS. Any 401 sends the browser to `/login`. `/healthz` stays
-unauthenticated. **New:** login throttling, and a session invalidation path.
+constant-time comparison; `HttpOnly; SameSite=Lax`, `Secure` when `x-forwarded-proto` says HTTPS.
+`/healthz` stays unauthenticated. **Changed** per ADR 0032: two cookies rather than one, encrypted
+rather than signed, `Max-Age` per credential rather than a flat 30 days, and 401 handling that is
+per-cookie — a client never sees `/login`. **New:** login throttling. **Not built:** there is no
+session invalidation path, and the reason is recorded rather than left as a gap — the bearer is a
+self-contained HMAC the API cannot revoke without a store, and rotating `SESSION_SECRET` would sign
+out every admin at once.
+
+**Conflicts are surfaced, not hidden.** Legacy document saves were last-write-wins: two tabs editing
+one document silently overwrote each other. The API requires `If-Match` (ADR 0016), so the app holds
+`updatedAt` and renders a 409 as "someone else saved this tab" with a reload affordance. This is a
+visible behaviour change from the app being replaced, and an improvement, so it is stated rather
+than smoothed over.
 
 **Small things that were bugs once** — a conditional child must not render as the literal string
 `"null"` (the fix in `HEAD`); popup menus reposition inside the viewport, flip when they overflow,
@@ -471,6 +642,13 @@ images `max-age=86400`.
 `AppError` subclasses in `packages/kernel` — `NotFound`, `Forbidden`, `Invalid`, `Conflict` — mapped
 by one Hono error middleware to RFC 7807 JSON, every variant declared in the OpenAPI document. Zod
 failures become 422 with field paths. A 403 never reveals whether the target exists.
+
+**The code set is a published contract, not a private table.** `ProblemCode`, `Problem` and
+`ValidationProblem` live in `@repo/contracts` and `apps/api/src/http/problem.ts` imports the code set
+rather than defining it, so a code the app switches on is the same list the API can emit (ADR 0036).
+`errorFrom` in `@repo/api-client` keeps the extension members — `in`, `errors[]`, `maxBytes` — which
+is the difference between "something went wrong" and a form that points at the field, or a message
+naming the cap a 413 hit.
 
 ## 13. Testing
 
@@ -495,12 +673,30 @@ packages/
   kernel/               roles, AccessPolicy, ids, errors, repository ports, transfer framework
   microtask-domain/     Project, Folder, Task, Tab + their services
   macroplan-domain/     stub — the seam, reserved
-  contracts/            Zod schemas only. Depends on `zod` and nothing else.
+  contracts/            Zod schemas, the wire facts both sides need, capabilities().
+                        Runtime dependency: `zod` and nothing else. `kernel` is a devDependency,
+                        for the contract test only.
   store/                filesystem adapters implementing kernel's ports
   api-client/           typed HTTP client; two non-interchangeable constructors
-  ui/                   shadcn/ui + Tailwind v4 + app shell, editor, dialogs, theming
+  ui/                   shadcn/ui + Tailwind v4 + app shell, dialogs, theming
+                        (no editor — ADR 0001 puts the unshared thing in the app)
   typescript-config/ · eslint-config/
 ```
+
+**`packages/contracts` holds more than schemas**, and the line is drawn narrowly (ADR 0036). The
+facts a browser needs in order to behave live there and are imported *from* there by
+`@repo/microtask-domain`, so there is one definition of each: `LIMITS`, `MAX_DOCUMENT_BYTES`,
+`MAX_DOCUMENT_DEPTH`, `SAFE_HREF_SCHEMES`, `emptyDocument()`, `countTasks()`, the closed
+`ProblemCode` set with `Problem` and `ValidationProblem`, and `capabilities(role, scope)`. What may
+live here is a value or a pure function over a document; what may not is anything that throws a
+domain error or touches a port — so `cleanName()` and `assertWithin()` stay in the domain. Without
+this the app hard-codes `40` and `80` and `2 MB`, re-implements the `taskItem` walk for its
+optimistic progress badge, cannot map a 422 to the field that caused it, and cannot tell a user
+which cap a 413 hit.
+
+`@repo/api-client` changes with it: `errorFrom` preserves `in`, `errors[]` and `maxBytes` instead of
+discarding them, the path helpers in `paths.ts` join the barrel, and `Call` gains an optional
+`signal` so a debounced search can be cancelled.
 
 **Compiled vs raw source.** `kernel`, `contracts`, `store` and the domain packages are compiled
 (`tsc` → `dist`, `exports` pointing at `dist` with types), because `apps/api` is plain Node and
@@ -548,10 +744,12 @@ Ordered, because the ordering is the safety (ADR 0022):
 5. **Deploy the new stack** with an empty data volume, on a temporary hostname.
 6. **Import** the converted data through the UI. Read the preview — project and task counts, and
    every share link with its role and scope — before confirming.
-7. **Verify against imported data**, not a fixture. Open a real client share link and confirm it
-   resolves to the right task with the right role. This is the step that catches what silently breaks.
+7. **Verify against imported data**, not a fixture. Open a real client share link of **each scope**
+   and confirm it resolves to the right task with the right role — a project-scoped link lands on a
+   task list, which the old app had no equivalent of and is therefore the case with nothing to
+   compare against. This is the step that catches what silently breaks.
 8. **Hand over the hostname.** Point the production FQDN at `microtask`, confirm `/share/<token>`
-   301s to `/s/<token>`.
+   **308**s to `/s/<token>` (ADR 0037).
 9. **Stop the old container.** Keep its volume untouched until you are satisfied.
 
 **The write gap** is between step 3 and step 8: any client edit in that window is lost, because it

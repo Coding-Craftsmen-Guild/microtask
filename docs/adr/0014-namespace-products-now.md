@@ -19,7 +19,8 @@ The product dimension goes in everywhere now, while nothing depends on it.
 ```
 /v1/microtask/projects/…          data/microtask/projects/…
 /v1/macroplan/…                   data/macroplan/…
-/v1/auth, /v1/openapi.json, /healthz     shared, product-agnostic
+/v1/auth                          shared, product-agnostic
+/openapi.json, /docs, /healthz    root: process-level, not version-level
 
 packages/kernel             roles, AccessPolicy, ids, errors, generic ports, transfer framework
 packages/store              generic adapters only — NodeFileSystem, QueueLock
@@ -59,3 +60,10 @@ what was wanted.
 
 **Defer namespacing until Macroplan is specced.** Rejected: doing it after an OpenAPI document and
 live client links exist is far more expensive than doing it now.
+
+## Amended · 2026-09-11 — the meta routes are not versioned
+
+`openapi.json` and `/docs` are served at the **root**, not under `/v1`, alongside `/healthz`. All
+three describe the process rather than an API version, and they are registered before the `/v1`
+mount because mounting copies an already-complete child (ADR 0024). The path list above said
+`/v1/openapi.json`; it is `/openapi.json`.

@@ -108,3 +108,31 @@ deployability that motivated ADR 0002.
 **Node 26 for its built-in `node:zlib` ZIP reader** (real, added in v26.8.0, Stability 1.0 — verified,
 not invented). Rejected: Node 26 is Current, not LTS until 2026-10-28, and the API is experimental.
 ADR 0020's zip reader stays a library behind a narrow port so it can be swapped when that lands.
+
+## Amended by measurement · 2026-09-11
+
+Standing up the Next app surfaced an interaction between the two halves of this ADR — `output:
+'standalone'` for the image, and Turborepo for the build — that neither half predicts.
+
+**Turbo silently refuses to cache `.next` when `output: 'standalone'` is set.** Every run reported
+`cache miss` with the matching artifact on disk, and emitted **no diagnostic at any verbosity**. The
+cause is the `node_modules` subtree that standalone output copies into `.next/standalone`, whose
+paths exceed Windows `MAX_PATH`; the cache write fails on those entries and the task is simply never
+recorded as cached.
+
+The fix is one glob. `apps/microtask/turbo.json` declares:
+
+```json
+"outputs": [".next/**", "!.next/cache/**", "!.next/standalone/**"]
+```
+
+`.next/standalone` stays on disk for the Docker builder stage, which copies it directly and never
+reads a Turbo cache, so nothing the images depend on is lost. What is given up is restoring
+`.next/standalone` from cache locally, which was never the artifact that mattered.
+
+**The hazard is not the one the ADRs warn about.** The warning elsewhere is "FULL TURBO restoring
+nothing" — a cache hit that skips a build whose output is incomplete. This is the opposite and it is
+harder to notice: **never FULL TURBO, with no explanation.** A build that is always a miss looks like
+a correctly configured pipeline that is merely slow, which is exactly the failure nobody
+investigates. Any `outputs` entry that can contain a deep `node_modules` tree needs the same
+exclusion, and the symptom to watch for is a task that never once reports a hit.

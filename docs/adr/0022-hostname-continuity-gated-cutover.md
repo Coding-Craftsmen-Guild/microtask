@@ -53,3 +53,21 @@ list of who holds every link.
 
 **Add a read-only mode to the current app first**, for a genuinely zero-gap cutover. Rejected as
 work on an app being deleted, for a window measured in minutes.
+
+## Amended · 2026-09-11 — the redirect is a 308, and it has two destinations
+
+`/share/<token>` redirects with **308**, not the 301 recorded above. Next's permanent redirect emits
+308 — both `permanent: true` in `next.config.js` and `permanentRedirect()` — so a 301 was describing
+a response this app would have to hand-write a route handler to produce. 308 also preserves the
+method, which costs nothing for the GETs that actually arrive from a bookmark and removes a question
+about what an intermediary may rewrite. Step 8 of the runbook checks for a 308.
+
+The destination is the token's canonical `/s/` form, which ADR 0037 splits by scope: a task-scoped
+token lands on its task, a project-scoped token lands on its task list. Verification at step 7 must
+therefore open a real link of **each** scope against imported data, not one link of either — a
+project-scoped client landing on a list is the case the old app had no equivalent of, so it is the
+case with nothing to compare against and the one most likely to be wrong.
+
+Everything else in this ADR is unchanged: the FQDN moves to Microtask, the merge is still not the
+cutover, the write gap is still accepted, and rollback is still redeploying the old image against
+the untouched backup.

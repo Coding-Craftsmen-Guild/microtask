@@ -46,3 +46,20 @@ authority a moving target and adds an escalation path for `manage` holders.
 
 **Folder scope as a third option.** Plausible once folders group by client, but it multiplies
 permission-resolution cases. Deferred; ADR-able if folders end up used that way.
+
+## Amended · 2026-09-11 — scope is immutable; role is not
+
+The consequence above reads "no PATCH can widen an existing link". ADR 0035 adds
+`PATCH .../share-links/{token}` accepting `{name?, role?}`, so that sentence needs its precise form:
+**no PATCH can change a link's scope**, which is the immutability this ADR is about and the one that
+governs disclosure. `role` is changeable in place.
+
+That is not an escalation path. ADR 0008 already lets a `manage` holder mint a link of **any** role
+inside its scope, so the authority a role change can confer was already reachable — by revoking and
+reminting, which issues a new token and breaks the client's existing URL. The PATCH removes the
+broken URL, not a restriction.
+
+The reason it matters here is that the two fields answer different questions. `scope` decides *what*
+a link reaches, and a project scope can expose one client's work to another, which is why this ADR
+freezes it. `role` decides what may be done with what the link already reaches, and no role change
+can reveal a task the token could not already read.

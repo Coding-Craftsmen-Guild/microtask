@@ -55,3 +55,24 @@ for the reason above.
 **Browser calls the API directly with the share token.** Removes the deputy entirely, but requires
 publishing the API and putting CORS and token handling in the browser. Rejected in favour of keeping
 the API internal-only.
+
+## Amended · 2026-09-11 — the Next app does need a secret of its own
+
+The consequence above — "`SESSION_SECRET` no longer needs to exist in two apps, since the API mints
+the admin token" — is true of the **bearer** and false of the **cookie**.
+
+The API mints and verifies the admin bearer, so no Next app needs `SESSION_SECRET`. But this ADR
+also has the Next cookie carry `{kind:'link', token}`, and the API never mints that value: it is
+assembled by the app from the URL. So the app holds a payload that **is** a live credential, on a
+`Path=/` cookie, and has to protect it itself.
+
+ADR 0032 resolves it: two cookies, `mt_admin` and `mt_link`, both AES-256-GCM encrypted and
+authenticated under a `COOKIE_SECRET` required at boot and distinct from the API's `SESSION_SECRET`.
+Signing would have been enough for an assertion about a credential and is not enough for the
+credential itself. `COOKIE_SECRET` is read by the same single module this ADR designates as the only
+reader of `API_KEY`, so the single-reader rule and its ESLint boundary cover both.
+
+There is also deliberately **no** `POST /v1/auth/logout`, which the spec listed. The bearer is a
+self-contained HMAC the API cannot revoke without a store, and rotating `SESSION_SECRET` would sign
+out every admin at once. Logout clears the cookie; a stolen bearer stays valid until it expires.
+ADR 0032 records that limit rather than implying it by an absent route.

@@ -34,8 +34,10 @@ optional.
 
 Overrides, because a cap applied where it does not belong produces worse code, not better:
 
-- `packages/ui/src/primitives/**` — vendored shadcn/ui components. `shadcn add` regenerates them and
-  several legitimately export a dozen subcomponents. Fighting the generator is pointless.
+- `packages/ui/src/components/**` — vendored shadcn/ui components. `shadcn add` regenerates them and
+  several legitimately export a dozen subcomponents. Fighting the generator is pointless. **This
+  override was written as `src/primitives/**` in the shared config, and both halves of that were
+  wrong** — the path and the place. It is corrected in ADR 0031 and in the amendment below.
 - `packages/contracts/**` — Zod schemas are declarative; splitting one to satisfy a line count
   scatters a single shape across files.
 - `**/*.test.ts`, `**/*.test.tsx` — a thorough test file is long by definition.
@@ -153,3 +155,30 @@ live and no judgement call at the point of writing. The cost is recorded above.
 component while 80 would shred a legitimate service module. The split is the point.
 
 **Rely on code review.** Rejected: unenforced conventions decay, and this codebase is the evidence.
+
+## Amended by measurement · 2026-09-11
+
+This ADR's own rule about flat config caught it out. It records, correctly, that
+`import/no-restricted-paths` is unusable in a shared config because its `files:` globs resolve
+relative to the **consuming** config's base path — and then it writes the vendored-components
+override as a repo-rooted glob in that same shared config. Measured against the real tree:
+`files: ['packages/ui/src/components/**/*.tsx']` in `packages/eslint-config` leaves all **112**
+problems standing, because the glob matches nothing. The same rule block written as
+`files: ['src/components/**/*.tsx']` inside `packages/ui/eslint.config.js` gives **0**.
+
+The override also named `src/primitives/**`, a directory the shadcn CLI never writes to and, given
+ADR 0025's exports map, never can.
+
+**Resolution: `packages/eslint-config` exports a named override factory** — `vendoredComponents()` —
+which `packages/ui/eslint.config.js` spreads. The rule set stays decided in one shared place, which
+is what this ADR wants; the glob is applied where it resolves, which is what flat config requires. A
+literal `rules` block copied into the package is not the fix. ADR 0031 carries the full reasoning,
+including what the 112 problems actually are: `jsdoc/require-jsdoc` 103 times and `max-lines` 9
+times, and **nothing else** — `local/tsdoc-comments-only` costs zero, because shadcn 4.21.0 emits no
+comments at all.
+
+The generalisation is worth stating plainly, because it applies to every rule this ADR scopes by
+path: **a path-scoped rule is decided centrally and applied locally.** Any `files:` glob in
+`packages/eslint-config` that begins with `apps/` or `packages/` is inert, and inertness here is
+invisible — the config reads as though the rule is in force. That is the mirror image of the
+file-level `eslint-disable` this ADR bans: visible intent, no effect.

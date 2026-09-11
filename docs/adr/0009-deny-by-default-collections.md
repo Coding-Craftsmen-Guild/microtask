@@ -88,3 +88,30 @@ accidental behaviour being prevented, not a real option.
 **Give collections a synthetic target** (a workspace object) and let the matrix handle them. Tidier
 in theory, but it hides top-level authority inside the same table as per-resource authority, which
 is exactly the distinction the `manage` role depends on.
+
+## Amended · 2026-09-11 — a third category: rendering
+
+The gate/filter distinction above is drawn inside `apps/api`, where `can()` is callable. The Next
+apps are not: ADR 0027 allows them `contracts`, `api-client` and `ui` only, so the process that
+decides whether to render a share manager cannot ask the policy.
+
+ADR 0038 adds the category this ADR was missing, under conditions that keep its refusal of duplicated
+security predicates intact:
+
+- **A gate** is one check on the way in, at the single `authorize()` call site. Unchanged.
+- **A filter** is a per-item predicate over a result set, calling `can()` where the items are.
+  Unchanged.
+- **A rendering question** — "should this control be on screen?" — is answered by
+  `capabilities(role, scope)` in `@repo/contracts`, a pure function that never stops a request.
+
+It is allowed to exist only because `packages/contracts` takes `@repo/kernel` as a **devDependency**
+and a contract test asserts the two agree for **every** role x scope x action triple. That test is
+the whole licence: a divergence is a red build, not a 403 a user finds. `withinTaskScope` and
+`inScope` stay private to `policy.ts` — `capabilities()` is checked against them, never a second
+implementation of them.
+
+The concrete reason it is needed is worth recording here too, because it is this ADR's own kind of
+edge: `share:create` is authorized against the new link's scope while `share:read` and
+`share:revoke` are authorized against `{kind:'project'}`, so a **task-scoped** `manage` holder can
+mint a link it can then neither list nor revoke. Role alone cannot express that, and task is the
+default scope (ADR 0011) — so the broken case is the common one.
