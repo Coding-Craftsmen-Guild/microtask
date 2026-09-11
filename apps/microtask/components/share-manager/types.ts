@@ -13,8 +13,11 @@ export type Link = Decoded<typeof ShareLink>
  * request goes out under.
  */
 export interface ShareActions {
-  /** Lists the links, token and all. Called when the dialog opens, never to render the page. */
-  list: (projectId: string) => Promise<ActionResult<readonly Link[]>>
+  /**
+   * Lists the links, token and all. Called when the dialog opens, never to render the page, and
+   * narrowed to the links scoped to `taskId` on a task page; `null` asks for every link.
+   */
+  list: (projectId: string, taskId: string | null) => Promise<ActionResult<readonly Link[]>>
   /** Mints a link, answering it with its token. */
   create: (projectId: string, seat: NewShareLink) => Promise<ActionResult<Link>>
   /** Renames a link or changes its role, keeping its token. */

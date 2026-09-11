@@ -8,9 +8,17 @@ const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const T = '01M240FB4GD6PF6V0PKZVF6FD9'
 
 let answer: TaskRead
+let shareCount: number | undefined
 const seen: TaskWorkspaceProps[] = []
 
 vi.mock('./read-task', () => ({ readTask: () => Promise.resolve(answer) }))
+vi.mock('./read-share-count', () => ({ readShareCount: () => Promise.resolve(shareCount) }))
+vi.mock('../../../../../../actions/share-links', () => ({
+  listShareLinks: vi.fn(),
+  createShareLink: vi.fn(),
+  updateShareLink: vi.fn(),
+  revokeShareLink: vi.fn(),
+}))
 vi.mock('../../../../../../actions/tabs', () => ({
   createTab: vi.fn(),
   renameTab: vi.fn(),
@@ -33,6 +41,8 @@ vi.mock('next/link', () => ({
 
 const page = await import('./page')
 const actions = await import('../../../../../../actions/tabs')
+const shareActions = await import('../../../../../../actions/share-links')
+const { TaskHeader } = await import('../../../../../../components/tabs/task-header')
 const { ADMIN_CAPABILITIES } = await import('../../../../../../components/shared/admin-capabilities')
 const { TaskWorkspace } = await import('../../../../../../components/tabs/task-workspace')
 
@@ -75,6 +85,7 @@ const show = async (query: Record<string, string | string[] | undefined> = {}) =
 beforeEach(() => {
   seen.length = 0
   answer = { ok: true, value: task([tab('b', 1), tab('a', 0), tab('c', 2)]) }
+  shareCount = 2
 })
 
 describe('the task page', () => {
@@ -143,5 +154,48 @@ describe('the task page title', () => {
   it('falls back to the generic title when the task could not be read', async () => {
     answer = { ok: false, status: 500, detail: 'x' }
     expect(await page.generateMetadata(props())).toEqual({ title: 'Task · CC Guild Microtask' })
+  })
+})
+
+const headerProps = (node: unknown): Record<string, unknown> | undefined => {
+  if (Array.isArray(node)) return node.map(headerProps).find((found) => found !== undefined)
+  if (!isValidElement<{ children?: unknown }>(node)) return undefined
+  if (node.type === TaskHeader) return node.props as Record<string, unknown>
+  return headerProps(node.props.children)
+}
+
+describe('the task page’s Share', () => {
+  it('mounts the share manager for this task, beside its name, with the count the server counted', async () => {
+    await show()
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy()
+    expect(screen.getByText('2 share links')).toBeTruthy()
+  })
+
+  it('hands the header this task, the admin capabilities and the admin share actions', async () => {
+    expect(headerProps(await page.default(props()))).toEqual({
+      projectId: P,
+      task: { id: T, name: 'Go-live' },
+      count: 2,
+      can: ADMIN_CAPABILITIES,
+      share: {
+        list: shareActions.listShareLinks,
+        create: shareActions.createShareLink,
+        update: shareActions.updateShareLink,
+        revoke: shareActions.revokeShareLink,
+      },
+    })
+  })
+
+  it('still draws Share, with no count, when the links could not be counted', async () => {
+    shareCount = undefined
+    await show()
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy()
+    expect(screen.queryByText(/share link/)).toBeNull()
+  })
+
+  it('draws no Share where the task could not be read', async () => {
+    answer = { ok: false, status: 500, detail: 'Boom' }
+    await show()
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
   })
 })

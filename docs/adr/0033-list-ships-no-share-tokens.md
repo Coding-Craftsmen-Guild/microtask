@@ -126,3 +126,25 @@ This is the ADR applied to the page rather than only to the list endpoint: a cre
 bulk into page data lands in the HTML, whichever endpoint it came from. It costs one request per
 dialog open, which is the request the alternative above rejected as having "no gain" — the gain is
 that the project page stops being a credential dump for every admin who loads it.
+
+## Amended · 2026-09-11 — the task page mounts the same manager, scoped to its task
+
+The second amendment put the share manager on the project page only. The app being replaced drew
+Share in the title row of the page that holds the editor — what is now the **task** page — so the
+task page mounts the same manager, and the rule above holds there unchanged: the page is handed a
+count and never a link, and the links load when the dialog opens.
+
+Scoped to the task, concretely:
+
+- The count beside Share is of the links **scoped to this task**, reduced to a number on the server
+  (`app/(admin)/p/[projectId]/t/[taskId]/read-share-count.ts`), so it is the same number that
+  task's row shows on the project page. A project-scoped link opens the task too and is not counted
+  or listed there: it is managed on the project page, beside the confirm that lists what it opens.
+- Opening the dialog asks `listShareLinks(projectId, taskId)`, and the action drops every other
+  link **on the server**, so the dialog never holds a token it does not show.
+- The create form offers this task and nothing wider. That also means a task-scoped `manage`
+  holder is never offered a project scope the API would refuse (ADR 0038).
+
+The task page's test asserts the same two things the project page's does — no token in the
+rendered output, and none in any prop the page hands a component — over a project holding live
+links, and the check was repeated on the bytes a running server returned.

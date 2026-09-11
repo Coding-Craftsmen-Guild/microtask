@@ -29,6 +29,8 @@ export const SHARE_HINT =
 export interface ShareManagerProps {
   /** The project the links belong to. */
   projectId: string
+  /** The task a task page's manager is scoped to: it lists that task's links only. */
+  taskId?: string
   /** How many links there are, counted on the server; `undefined` when the caller was not told. */
   count: number | undefined
   /** Which controls to draw, from `capabilities()` — never from role. */
@@ -52,7 +54,7 @@ export interface ShareManagerProps {
 export function ShareManager(props: ShareManagerProps) {
   const { controls, count } = props
   const [open, setOpen] = useState(false)
-  const links = useShareLinks(props.projectId, props.actions, controls.read)
+  const links = useShareLinks(props.projectId, props.taskId ?? null, props.actions, controls.read)
   const change = (next: boolean) => {
     setOpen(next)
     if (next) void links.load()
@@ -68,7 +70,7 @@ export function ShareManager(props: ShareManagerProps) {
       <Dialog onOpenChange={change} open={open}>
         <DialogContent className="sm:max-w-[560px]" showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>Share this project</DialogTitle>
+            <DialogTitle>{props.taskId === undefined ? 'Share this project' : 'Share this task'}</DialogTitle>
             <DialogDescription>{SHARE_HINT}</DialogDescription>
           </DialogHeader>
           <ShareBody choices={props.choices} controls={controls} exposure={props.exposure} links={links} />

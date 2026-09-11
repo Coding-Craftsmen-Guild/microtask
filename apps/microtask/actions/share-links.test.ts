@@ -35,19 +35,31 @@ beforeEach(() => {
 describe('listShareLinks', () => {
   it('answers the links of the project, and refreshes nothing', async () => {
     fake.shareLinks.list.mockResolvedValue({ shareLinks: [link()] })
-    expect(await listShareLinks(P)).toEqual({ ok: true, value: [link()] })
+    expect(await listShareLinks(P, null)).toEqual({ ok: true, value: [link()] })
     expect(fake.shareLinks.list).toHaveBeenCalledWith(P)
     expect(refresh).not.toHaveBeenCalled()
   })
 
   it('reports a refusal rather than an empty list', async () => {
     fake.shareLinks.list.mockRejectedValue(problem(403, 'Not allowed'))
-    expect(await listShareLinks(P)).toEqual({ ok: false, status: 403, detail: 'Not allowed' })
+    expect(await listShareLinks(P, null)).toEqual({ ok: false, status: 403, detail: 'Not allowed' })
   })
 
   it('sends an expired session to sign in, back to this project', async () => {
     fake.shareLinks.list.mockRejectedValue(problem(401))
-    expect(await redirectOf(listShareLinks(P))).toBe(`/login?next=%2Fp%2F${P}`)
+    expect(await redirectOf(listShareLinks(P, null))).toBe(`/login?next=%2Fp%2F${P}`)
+  })
+
+  it('answers only the links scoped to the task asked about, so no other token leaves the server', async () => {
+    const other = link({ token: 'tok_OTHEROTHEROTHEROTHEROTH', scope: { kind: 'task', projectId: P, taskId: ulid(3) } })
+    const whole = link({ token: 'tok_WHOLEWHOLEWHOLEWHOLEWHO', scope: { kind: 'project', projectId: P } })
+    fake.shareLinks.list.mockResolvedValue({ shareLinks: [other, link(), whole] })
+    expect(await listShareLinks(P, T)).toEqual({ ok: true, value: [link()] })
+  })
+
+  it('sends an expired session to sign in, back to the task it was listing for', async () => {
+    fake.shareLinks.list.mockRejectedValue(problem(401))
+    expect(await redirectOf(listShareLinks(P, T))).toBe(`/login?next=%2Fp%2F${P}%2Ft%2F${T}`)
   })
 })
 

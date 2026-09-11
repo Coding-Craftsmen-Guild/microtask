@@ -68,6 +68,8 @@ export interface ShareSetup {
   readonly controls?: ShareControls
   /** The server-rendered count, 2 by default. */
   readonly count?: number | undefined
+  /** The task a task page's manager is scoped to; absent for the project page's. */
+  readonly taskId?: string
 }
 
 /** Renders the manager, answering the doubles and a user to drive it. */
@@ -81,6 +83,7 @@ export const renderManager = (setup: ShareSetup = {}) => {
       count={'count' in setup ? setup.count : 2}
       exposure="Folders: ACME. Tasks: Go-live, Kickoff."
       projectId={P}
+      {...(setup.taskId === undefined ? {} : { taskId: setup.taskId })}
     />,
   )
   return { actions, view, user: userEvent.setup() }

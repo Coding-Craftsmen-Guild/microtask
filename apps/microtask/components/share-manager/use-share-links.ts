@@ -40,8 +40,9 @@ export interface ShareLinks {
  *
  * A holder who may not list (`listable` false) is never asked about: its list is the links it
  * minted in this session, each shown once, which is the only time its token is handed back.
+ * `taskId` narrows the list to one task's links, for the manager on that task's page.
  */
-export function useShareLinks(projectId: string, actions: ShareActions, listable: boolean): ShareLinks {
+export function useShareLinks(projectId: string, taskId: string | null, actions: ShareActions, listable: boolean): ShareLinks {
   const [links, setLinks] = useState<readonly Link[]>([])
   const [state, setState] = useState<LoadState>('idle')
   const [problem, setProblem] = useState('')
@@ -60,12 +61,12 @@ export function useShareLinks(projectId: string, actions: ShareActions, listable
     const asked = generation.current
     setState(listable ? 'loading' : 'ready')
     if (!listable) return
-    const result = await actions.list(projectId)
+    const result = await actions.list(projectId, taskId)
     if (asked !== generation.current) return
     setLinks(result.ok ? result.value : [])
     setProblem(result.ok ? '' : result.detail)
     setState(result.ok ? 'ready' : 'failed')
-  }, [actions, listable, projectId])
+  }, [actions, listable, projectId, taskId])
   const forget = useCallback(() => {
     generation.current += 1
     setLinks([])

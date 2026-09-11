@@ -27,7 +27,7 @@ describe('ShareManager', () => {
   it('loads the links for this project when opened', async () => {
     const { actions, user } = renderManager()
     const dialog = await openManager(user)
-    expect(actions.list).toHaveBeenCalledWith(P)
+    expect(actions.list).toHaveBeenCalledWith(P, null)
     expect(within(dialog).getByText('Jane at ACME')).toBeTruthy()
   })
 
@@ -110,6 +110,16 @@ describe('ShareManager', () => {
     const { user } = renderManager()
     const dialog = await openManager(user)
     expect(dialog.textContent).not.toContain('Nobody can add, rename or delete tabs')
+  })
+})
+
+describe('ShareManager, for one task', () => {
+  it('is titled for the task, and asks only for the links scoped to it', async () => {
+    const { actions, user } = renderManager({ taskId: T1 })
+    await user.click(screen.getByRole('button', { name: 'Share' }))
+    expect(screen.getByRole('dialog', { name: 'Share this task' })).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: 'Share this project' })).toBeNull()
+    expect(actions.list).toHaveBeenCalledWith(P, T1)
   })
 })
 
