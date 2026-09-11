@@ -191,6 +191,9 @@ importers:
         specifier: 4.6.1
         version: 4.6.1
     devDependencies:
+      '@repo/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
