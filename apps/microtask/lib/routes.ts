@@ -4,16 +4,17 @@ export const LOGIN_PATH = '/login'
 /**
  * Where a `/s/*` route sends a holder whose link no longer resolves.
  *
- * A path rather than a rendered component, because the page that learns the link is gone cannot
- * clear the cookie itself: Next allows a cookie write only while the request store's phase is
- * `'action'`, so a Server Component render is refused outright (`ReadonlyRequestCookiesError`,
- * read in `next/dist/server/web/spec-extension/adapters/request-cookies.js`). `proxy.ts` is the
- * only thing that both sees a plain navigation and may write a cookie on it, so the clear happens
- * on arrival here and the terminal page itself is an ordinary static route.
+ * A path to redirect to rather than a state rendered in place, so the address bar stops carrying
+ * the dead token: a reload of the terminal page is a static render that calls nothing, and never
+ * re-attempts the token. Nothing clears `mt_link` on the way here, and nothing needs to. A render
+ * cannot write a cookie (`ReadonlyRequestCookiesError`: Next allows the write only in the
+ * `'action'` phase), `proxy.ts` writes none on a `GET`, and a stale `mt_link` decides nothing:
+ * the token in the URL always beats the one in the cookie (ADR 0032).
  *
  * It sits *inside* `/s/` on purpose. A static segment beats a dynamic one in the App Router, so
  * the route this names takes precedence over `/s/[token]`; putting it outside would need a second
- * `noindex` subtree, and ADR 0037 makes `noindex` a property of the `/s/*` tree.
+ * `noindex` subtree, and ADR 0037 makes `noindex` a property of the `/s/*` tree. It cannot shadow
+ * a real link either: `unavailable` is eleven characters, and a share token is sixteen or more.
  */
 export const LINK_UNAVAILABLE_PATH = '/s/unavailable'
 

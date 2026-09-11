@@ -23,14 +23,14 @@ afterEach(() => {
 interface Visit {
   readonly method?: string
   readonly cookies?: Readonly<Record<string, string>>
-  readonly proto?: string
+  readonly headers?: Readonly<Record<string, string>>
 }
 
 const visit = (path: string, options: Visit = {}): Response => {
   const cookie = Object.entries(options.cookies ?? {})
     .map(([name, value]) => `${name}=${value}`)
     .join('; ')
-  const headers: Record<string, string> = { 'x-forwarded-proto': options.proto ?? 'https' }
+  const headers: Record<string, string> = { 'x-forwarded-proto': 'https', ...options.headers }
   if (cookie !== '') headers['cookie'] = cookie
   return proxy(new NextRequest(`${ORIGIN}${path}`, { method: options.method ?? 'GET', headers }))
 }
@@ -39,13 +39,15 @@ const locationOf = (response: Response): string | null => response.headers.get('
 
 const setCookies = (response: Response): string[] => response.headers.getSetCookie()
 
-const clears = (response: Response, name: string): boolean =>
-  setCookies(response).some((line) => line.startsWith(`${name}=;`) && /Max-Age=0/i.test(line))
-
-const touches = (response: Response, name: string): boolean =>
-  setCookies(response).some((line) => line.startsWith(`${name}=`))
-
 const isRedirect = (response: Response): boolean => response.status >= 300 && response.status < 400
+
+const BOTH = { [ADMIN_COOKIE]: ADMIN, [LINK_COOKIE]: 'a-sealed-link' }
+
+const ARRIVALS = [
+  ['a plain navigation', {}],
+  ['a Next prefetch of a rendered <Link>', { 'next-router-prefetch': '1', purpose: 'prefetch' }],
+  ['a top-level link from another site', { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }],
+] as const
 
 describe('the admin surface with no mt_admin', () => {
   it.each(['/', '/p/01HXYZ', '/p/01HXYZ/t/01HABC'])('sends %s to /login', (path) => {
@@ -68,9 +70,7 @@ describe('the admin surface with no mt_admin', () => {
     expect(visit('/p/01HXYZ').status).toBe(307)
   })
 
-  it.each(['/login-help', '/loginx'])('gates %s rather than treating it as /login', (path) => {
-    const response = visit(path, { cookies: { [ADMIN_COOKIE]: ADMIN } })
-    expect(touches(response, ADMIN_COOKIE)).toBe(false)
+  it.each(['/login-help', '/loginx', '/login/anything'])('gates %s rather than treating it as /login', (path) => {
     expect(new URL(locationOf(visit(path)) ?? '').pathname).toBe('/login')
   })
 
@@ -129,33 +129,38 @@ describe('the admin surface with mt_admin', () => {
 })
 
 describe('/login', () => {
-  it('clears mt_admin on arrival, which is where every admin 401 and every sign-out lands', () => {
-    expect(clears(visit('/login', { cookies: { [ADMIN_COOKIE]: 'sealed' } }), ADMIN_COOKIE)).toBe(true)
+  it.each(ARRIVALS)('touches neither cookie on %s, so a signed-in admin stays signed in', (_label, headers) => {
+    const response = visit('/login', { cookies: BOTH, headers })
+    expect(isRedirect(response)).toBe(false)
+    expect(setCookies(response)).toEqual([])
   })
 
-  it('leaves mt_link alone, so signing out as admin keeps a client link open in another tab', () => {
-    expect(touches(visit('/login', { cookies: { [LINK_COOKIE]: 'sealed' } }), LINK_COOKIE)).toBe(false)
+  it('touches neither cookie on a HEAD, or on the sign-in POST that seals mt_admin itself', () => {
+    for (const method of ['HEAD', 'POST']) {
+      expect(setCookies(visit('/login', { method, cookies: BOTH }))).toEqual([])
+    }
   })
 
-  it('does not clear mt_admin on the sign-in POST, which seals it in the same response', () => {
-    expect(touches(visit('/login', { method: 'POST' }), ADMIN_COOKIE)).toBe(false)
+  it.each([
+    ['no cookie', {}],
+    ['an mt_admin that will not open', { [ADMIN_COOKIE]: 'garbage' }],
+    ['an mt_admin that opens', { [ADMIN_COOKIE]: ADMIN }],
+  ])('is not itself gated when it holds %s', (_label, cookies) => {
+    expect(isRedirect(visit('/login', { cookies }))).toBe(false)
+    expect(isRedirect(visit('/login?next=%2Fp%2F01HXYZ', { cookies }))).toBe(false)
   })
 
-  it('is not itself redirected to /login', () => {
-    expect(isRedirect(visit('/login'))).toBe(false)
-  })
-
-  it('leaves Secure off the clear over plain http, which is local dev', () => {
-    const line = setCookies(visit('/login', { proto: 'http' })).find((one) => one.startsWith(`${ADMIN_COOKIE}=`))
-    expect(line).toBeDefined()
-    expect(line).not.toMatch(/Secure/i)
-  })
-
-  it('marks the clear Secure behind TLS, so it can displace the Secure cookie it removes', () => {
-    const line = setCookies(visit('/login')).find((one) => one.startsWith(`${ADMIN_COOKIE}=`))
-    expect(line).toMatch(/Secure/i)
-    expect(line).toMatch(/Path=\//i)
-    expect(line).toMatch(/HttpOnly/i)
+  it('ends the redirect chain from a gated page after one hop, at /login, rather than looping', () => {
+    const hops: string[] = []
+    let path = '/p/01HXYZ/t/01HABC?tab=01HDEF'
+    for (let hop = 0; hop < 5; hop += 1) {
+      const response = visit(path, { cookies: { [ADMIN_COOKIE]: 'garbage' } })
+      if (!isRedirect(response)) break
+      const next = new URL(locationOf(response) ?? '', ORIGIN)
+      path = `${next.pathname}${next.search}`
+      hops.push(path)
+    }
+    expect(hops).toEqual(['/login?next=%2Fp%2F01HXYZ%2Ft%2F01HABC%3Ftab%3D01HDEF'])
   })
 })
 
@@ -174,28 +179,31 @@ describe('the client surface', () => {
     }
   })
 
-  it('clears mt_link on arrival at the terminal page, so a reload does not retry a dead token', () => {
-    expect(clears(visit(LINK_UNAVAILABLE_PATH, { cookies: { [LINK_COOKIE]: 'sealed' } }), LINK_COOKIE)).toBe(true)
-  })
-
-  it('leaves mt_admin alone at the terminal page', () => {
-    expect(touches(visit(LINK_UNAVAILABLE_PATH, { cookies: { [ADMIN_COOKIE]: 'sealed' } }), ADMIN_COOKIE)).toBe(false)
+  it.each(ARRIVALS)('touches neither cookie at the terminal page on %s', (_label, headers) => {
+    expect(setCookies(visit(LINK_UNAVAILABLE_PATH, { cookies: BOTH, headers }))).toEqual([])
   })
 
   it.each(['/s', '/share'])('never sends the bare %s to /login', (path) => {
     expect(isRedirect(visit(path))).toBe(false)
   })
 
-  it('does not clear mt_link on a token that merely begins with the terminal page name', () => {
-    expect(touches(visit(`${LINK_UNAVAILABLE_PATH}x`, { cookies: { [LINK_COOKIE]: 'sealed' } }), LINK_COOKIE)).toBe(false)
-  })
-
-  it('does not clear mt_link on an ordinary client route', () => {
-    expect(touches(visit('/s/sometoken', { cookies: { [LINK_COOKIE]: 'sealed' } }), LINK_COOKIE)).toBe(false)
-  })
-
   it.each(['/sales', '/shared-notes', '/s-and-p'])('treats %s as an admin route, by whole segment', (path) => {
     expect(isRedirect(visit(path))).toBe(true)
+  })
+})
+
+describe('a request of any kind', () => {
+  const PATHS = ['/', '/login', '/p/01HXYZ', LINK_UNAVAILABLE_PATH, '/s/sometoken', '/share/sometoken', '/api/x']
+  const HELD = [{}, BOTH, { [ADMIN_COOKIE]: 'garbage', [LINK_COOKIE]: 'garbage' }]
+
+  it.each(PATHS)('writes no cookie at %s, whatever it holds and however it arrives', (path) => {
+    for (const cookies of HELD) {
+      for (const [, headers] of ARRIVALS) {
+        for (const method of ['GET', 'HEAD', 'POST']) {
+          expect(setCookies(visit(path, { method, cookies, headers }))).toEqual([])
+        }
+      }
+    }
   })
 })
 
