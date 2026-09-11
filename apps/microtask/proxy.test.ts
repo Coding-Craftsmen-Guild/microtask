@@ -66,6 +66,14 @@ describe('the admin surface with no mt_admin', () => {
     expect(isRedirect(visit('/p/01HXYZ', { method: 'POST' }))).toBe(false)
   })
 
+  it('gates a HEAD like a GET, since both are navigations', () => {
+    expect(isRedirect(visit('/p/01HXYZ', { method: 'HEAD' }))).toBe(true)
+  })
+
+  it('lets the bare /api path through as well as everything under it', () => {
+    expect(isRedirect(visit('/api'))).toBe(false)
+  })
+
   it('lets an API route through, so it answers its own 401 instead of an HTML login page', () => {
     expect(isRedirect(visit('/api/projects/01H/tasks/01H/tabs/01H/document'))).toBe(false)
   })
@@ -94,6 +102,12 @@ describe('/login', () => {
 
   it('is not itself redirected to /login', () => {
     expect(isRedirect(visit('/login'))).toBe(false)
+  })
+
+  it('leaves Secure off the clear over plain http, which is local dev', () => {
+    const line = setCookies(visit('/login', { proto: 'http' })).find((one) => one.startsWith(`${ADMIN_COOKIE}=`))
+    expect(line).toBeDefined()
+    expect(line).not.toMatch(/Secure/i)
   })
 
   it('marks the clear Secure behind TLS, so it can displace the Secure cookie it removes', () => {

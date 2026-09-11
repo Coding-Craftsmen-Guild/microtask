@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MIN_COOKIE_SECRET_BYTES, readEnv } from './env'
+import type * as EnvModule from './env'
 
 const secret = 'a'.repeat(MIN_COOKIE_SECRET_BYTES)
 
@@ -48,5 +49,41 @@ describe('readEnv', () => {
 
   it.each(['API_BASE_URL', 'API_KEY', 'COOKIE_SECRET'])('refuses a blank %s', (key) => {
     expect(() => readEnv({ ...complete, [key]: '   ' })).toThrow(new RegExp(key))
+  })
+})
+
+describe('appEnv', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  const fresh = async (): Promise<typeof EnvModule> => {
+    vi.resetModules()
+    return import('./env')
+  }
+
+  it('reads the three values from process.env', async () => {
+    vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
+    vi.stubEnv('API_KEY', 'service-key')
+    vi.stubEnv('COOKIE_SECRET', secret)
+    const { appEnv } = await fresh()
+    expect(appEnv()).toEqual({ apiBaseUrl: 'http://api.internal:4321', apiKey: 'service-key', cookieSecret: secret })
+  })
+
+  it('validates what it reads, so a short secret in the environment throws', async () => {
+    vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
+    vi.stubEnv('API_KEY', 'service-key')
+    vi.stubEnv('COOKIE_SECRET', 'a'.repeat(31))
+    const { appEnv } = await fresh()
+    expect(() => appEnv()).toThrow(/COOKIE_SECRET/)
+  })
+
+  it('refuses an environment with no API key', async () => {
+    vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
+    vi.stubEnv('API_KEY', '')
+    vi.stubEnv('COOKIE_SECRET', secret)
+    const { appEnv } = await fresh()
+    expect(() => appEnv()).toThrow(/API_KEY/)
   })
 })

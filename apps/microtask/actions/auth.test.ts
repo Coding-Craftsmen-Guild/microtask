@@ -77,10 +77,10 @@ afterEach(() => {
 
 describe('signIn', () => {
   it('seals mt_admin for exactly the bearer lifetime and redirects to next=', async () => {
-    loginWith.mockResolvedValue({ token: 'admin.1.sig', expiresAt: 'x', expiresInSeconds: 3600 })
+    loginWith.mockResolvedValue({ token: 'admin.1.sig', expiresAt: 'x', expiresInSeconds: 1234 })
     const location = await redirectOf(signIn({ message: null }, form({ password: 'pw', next: '/p/01H' })))
     expect(location).toBe('/p/01H')
-    expect(jar.get(ADMIN_COOKIE)?.maxAge).toBe(3600)
+    expect(jar.get(ADMIN_COOKIE)?.maxAge).toBe(1234)
   })
 
   it('seals a cookie that opens back to the bearer the API minted', async () => {

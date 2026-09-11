@@ -107,6 +107,7 @@ describe('signInDestination', () => {
   it('never sends a freshly signed-in admin back to /login, which would clear the cookie again', () => {
     expect(signInDestination('/login')).toBe('/')
     expect(signInDestination('/login?next=%2F')).toBe('/')
+    expect(signInDestination('/login/anything')).toBe('/')
   })
 
   it('still allows a path that merely begins with the same letters', () => {
