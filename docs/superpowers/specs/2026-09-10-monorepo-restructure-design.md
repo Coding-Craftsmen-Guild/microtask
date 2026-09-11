@@ -508,8 +508,8 @@ scope — the default — and `P` is project scope.
 
 | | view | write | manage T | manage P |
 | --- | --- | --- | --- | --- |
-| Badge | "View only" | "You can edit" | "You manage this" | "You manage this" |
-| Editor | not editable; checkbox snaps back | editable | editable | editable |
+| Badge | "View only" | "You can edit" | "You can edit" | "You can edit" |
+| Editor | not editable; checkbox `disabled` | editable | editable | editable |
 | Toolbar | hidden | shown | shown | shown |
 | Tab `+` | — | ✓ | ✓ | ✓ |
 | Tab menu | — | Rename | Rename · Move · Delete | Rename · Move · Delete |
@@ -517,6 +517,16 @@ scope — the default — and `P` is project scope.
 | Delete / reorder | — | — | tabs only | ✓ |
 | Share manager | — | — | **mint only, no list** | ✓ (own scope) |
 | Export | — | — | — | ✓ |
+
+**Corrected after the fact (2026-09-12).** Two cells above described a build that never happened,
+and the code is right in both. The **Badge** row promised a third string, "You manage this", for a
+`manage` link; `components/link/access-badge.tsx` draws two, chosen by
+`capabilities(role, scope)['tab:write']`. Legacy had two permissions and two badges, so the third
+string was a spec invention, and at task scope it would name an authority the page does not hand
+over — a task-scoped `manage` holder is shown no share list (below). The **Editor** row said a
+read-only checkbox "snaps back"; it is `disabled`, so neither a pointer nor a key reaches it.
+[ADR 0043](../../adr/0043-client-head-names-no-visitor.md) decides the badge,
+[ADR 0042](../../adr/0042-three-parity-departures-on-the-surfaces.md) the checkbox.
 
 A task-scoped link shows only its task — never sibling task names, never the folder tree, and
 therefore no breadcrumb (ADR 0011). A task-scoped `manage` holder is shown no share list, because
@@ -561,8 +571,16 @@ this tab`; overall `Overall progress: 72%` or `No tasks yet`; bar animates on
 a token can never reach another task's tab. Written with `replaceState`, so tab switching adds no
 history entries.
 
-**Title editing** — `contenteditable="plaintext-only"`; Enter blurs, Escape reverts, blur saves when
-changed, whitespace collapses, empty reverts. A re-render never overwrites the field while focused.
+**Title editing** — an uncontrolled `<input type="text">`; Enter blurs, Escape reverts, blur saves
+when changed, whitespace collapses, empty reverts. A re-render never overwrites the field while
+focused. **Corrected after the fact (2026-09-12):** this said `contenteditable="plaintext-only"`.
+It is an `<input>` — `components/task-tree/inline-name.tsx` — and the code is right: the field
+holds a name of at most 80 characters, so it takes `maxLength={LIMITS.nameLength}` straight from the
+contract, an accessible name from `aria-label`, and `spellCheck={false}`, none of which a
+`contenteditable` span has without re-implementing them. Every behavioural clause in the sentence
+survived the change of element: `inline-name.test` pins Enter, the Escape that sends nothing, the
+empty value that restores with no request, and both "never overwrites while the user is typing"
+cases.
 
 **Share manager** — name + role per link; row shows name (or "Unnamed link"), role badge, readonly
 URL, Copy (clipboard API with `execCommand` fallback), and a menu with Rename · role changes
@@ -573,11 +591,15 @@ client's bookmark. Rendered only where `capabilities(role, scope)` allows it, wh
 task-scoped holder.
 
 **Editor** — StarterKit with headings 1–3, `codeBlock` spellcheck off, TaskList, nested TaskItem
-with no `onReadOnlyChecked` (so read-only checkboxes snap back), Link with `openOnClick: !editable`,
-autolink, `linkOnPaste`, `rel="noopener noreferrer nofollow" target="_blank"`, and a placeholder
-only when editable. Toolbar `B I S </> | H1 H2 H3 | ☑ • 1. ❝ ― | 🔗`, `mousedown` prevented so the
+with no `onReadOnlyChecked`, Link with `openOnClick: !editable`, autolink, `linkOnPaste`,
+`rel="noopener noreferrer nofollow" target="_blank"`, and a placeholder only when editable. Toolbar `B I S </> | H1 H2 H3 | ☑ • 1. ❝ ― | 🔗`, `mousedown` prevented so the
 selection survives. The link dialog removes the mark on empty input and prefixes a schemeless value
-with `https://`.
+with `https://`. **Corrected after the fact (2026-09-12):** `no onReadOnlyChecked` is exactly what
+is configured, but this sentence carried "(so read-only checkboxes snap back)" and no viewer reaches
+that. A read-only editor also gets a node view that sets `disabled` on the checkbox, so the pointer
+and the key are both stopped before the snap-back has anything to undo; the omission is the floor
+under it rather than the mechanism
+([ADR 0042](../../adr/0042-three-parity-departures-on-the-surfaces.md)).
 
 **Tiptap 3.31.3, and it lives in `apps/microtask`.** The editor is app code, not a `packages/ui`
 component, and the `@tiptap/*` set is catalogued in `pnpm-workspace.yaml` at one exact version and
@@ -634,9 +656,30 @@ than smoothed over.
 
 **Small things that were bugs once** — a conditional child must not render as the literal string
 `"null"` (the fix in `HEAD`); popup menus reposition inside the viewport, flip when they overflow,
-and mount inside `dialog[open]` so the top layer does not hide them; toasts auto-hide at 2600 ms;
-`relativeTime` renders `just now / Nm / Nh / Nd / locale date`; code assets are `no-cache` and
-images `max-age=86400`.
+and mount inside `dialog[open]` so the top layer does not hide them; `relativeTime` renders
+`just now / Nm / Nh / Nd / locale date`.
+
+**Corrected after the fact (2026-09-12).** Two clauses stood in that list and neither describes what
+was built.
+
+- **"toasts auto-hide at 2600 ms".** There are no toasts. Every outcome is said beside the control
+  that caused it, as a `status` or an `alert`, or shown by the change itself: a refused sign-out
+  beside the button, a rename's refusal under the field, a save's state in the indicator, a list
+  that could not load said in place of the list. `sonner` is vendored in `packages/ui` and mounted
+  nowhere, and `2600` appears in no source file of `apps/` or `packages/`. The code is right: a
+  toast is a message that leaves, which is the wrong shape for a refusal the reader has to act on,
+  and legacy demonstrated both failure modes — it toasted "Link copied" even when the copy failed,
+  and toasted a 403 every four seconds forever (ADR 0016, last amendment). This correction is the
+  record parity feature 60 and U22 were waiting for; they are changes, not gaps.
+- **"code assets are `no-cache` and images `max-age=86400`".** Nothing in the app sets either. The
+  only `Cache-Control` it sets anywhere is `private, no-store`, on `/s/*` and `/share/*`
+  (`next.config.ts`, ADR 0040); everything else is whatever Next serves, and `proxy.ts`'s matcher
+  deliberately excludes `_next/static`, `_next/image`, `favicon.ico` and `img/`. The code is right
+  not to hand-roll the first half: `_next/static` URLs are content-hashed, so `no-cache` on them
+  would re-fetch an immutable file on every load. The second half is a real difference rather than
+  an equivalence, and it is **unmeasured**: `public/img/logo.webp` is not content-hashed and legacy
+  cached it for a day, while what Next serves it with here has not been checked — that needs a
+  running production build, not a test.
 
 ## 12. Errors
 

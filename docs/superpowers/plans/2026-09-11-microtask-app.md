@@ -376,8 +376,14 @@ amendment).
 - [ ] 20 concurrent writes with the same `If-Match` yield `{200: 1, 409: 19}` — **and the test must
       advance the clock**, because under a frozen clock the same scenario yields `{200: 20}` and the
       headline assertion proves nothing.
-- [ ] A read-only viewer's checkbox click snaps back, links open on click in the read-only view and
-      do **not** in an editable one (`openOnClick: !editable`).
+- [ ] A read-only viewer's checkbox is `disabled`, links open on click in the read-only view and
+      do **not** in an editable one (`openOnClick: !editable`). **Corrected after the fact
+      (2026-09-12):** this asked for a click that snaps back, which is what legacy did. The build
+      sets `disabled` on the checkbox instead, so neither a click nor a key reaches it and
+      assistive technology is told as much; the omitted `onReadOnlyChecked` is now the floor under
+      that rather than the mechanism. The implementer built the better behaviour and said so in
+      TSDoc; the plan was wrong, not the code. ADR 0042 records it, and `document-editor.test`
+      "marks every checkbox disabled" pins it.
 - [ ] A `javascript:` href is refused. Pre-validate against `SAFE_HREF_SCHEMES` from contracts and
       assert the hostile forms the guard was hardened against — a leading space, an embedded tab, an
       embedded newline, a NUL — because browsers strip exactly those and `java<TAB>script:` executes.
