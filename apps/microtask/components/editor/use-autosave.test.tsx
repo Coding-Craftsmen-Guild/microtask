@@ -18,13 +18,17 @@ let handle: AutosaveHandle | null = null
 
 let failing = false
 
+let refusing = false
+
 let gate: Promise<void> | null = null
 
 const save = (request: SaveRequest): Promise<SaveOutcome> => {
   requests.push(request)
-  const answer: SaveOutcome = failing
-    ? { kind: 'failed', message: 'down' }
-    : { kind: 'saved', updatedAt: 'v2' }
+  const answer: SaveOutcome = refusing
+    ? { kind: 'conflict' }
+    : failing
+      ? { kind: 'failed', message: 'down' }
+      : { kind: 'saved', updatedAt: 'v2' }
   return (gate ?? Promise.resolve()).then(() => answer)
 }
 
@@ -68,6 +72,7 @@ beforeEach(() => {
   versions.length = 0
   handle = null
   failing = false
+  refusing = false
   gate = null
 })
 
@@ -337,6 +342,53 @@ describe('the flush a caller awaits before switching tab', () => {
       await mounted().flush()
     })
     expect(requests.length).toBe(1)
+    expect(mounted().state).toBe('saved')
+  })
+})
+
+describe('what the flush a caller awaits answers: whether the tab may be left', () => {
+  const flushed = async (): Promise<boolean> => {
+    let answer: boolean | undefined
+    await act(async () => {
+      answer = await mounted().flush()
+    })
+    if (answer === undefined) throw new Error('flush never answered')
+    return answer
+  }
+
+  it('answers true once its write lands, and true with nothing to write', async () => {
+    render(<Plain />)
+    expect(await flushed()).toBe(true)
+    act(() => mounted().change(text('a')))
+    expect(await flushed()).toBe(true)
+    expect(requests.length).toBe(1)
+  })
+
+  it('answers false when the write failed, since the edit now waits on a retry', async () => {
+    failing = true
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    expect(await flushed()).toBe(false)
+    expect(mounted().state).toBe('retrying')
+  })
+
+  it('answers false in a conflict, whose edits are kept and never written', async () => {
+    refusing = true
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    expect(await flushed()).toBe(false)
+    act(() => mounted().change(text('ab')))
+    expect(await flushed()).toBe(false)
+    expect(requests.length).toBe(1)
+  })
+
+  it('answers true when the write it forces while retrying lands', async () => {
+    failing = true
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    expect(await flushed()).toBe(false)
+    failing = false
+    expect(await flushed()).toBe(true)
     expect(mounted().state).toBe('saved')
   })
 })

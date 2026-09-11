@@ -88,3 +88,16 @@ every time. What is built: the loop stops writing and does not retry, the edits 
 and are still recorded if the user keeps typing, and the indicator says *"Someone else saved this
 tab. Reloading discards your unsaved edits."* beside a **Reload this tab** button, and a reload
 happens only when that button is chosen.
+
+**Nor may anything else on the page reload it by the back door** (found running the app against a
+real API, 2026-09-11). The editor island is keyed on its tab and remounts on that tab's stored
+document whenever the task page switches tab, creates one, deletes another (the page then lands on a
+neighbour) or renames the open one (the rename moves its stamp). Each of those awaited the island's
+flush first, but a flush settles whether or not its write landed. Measured: in the conflict state a
+rename of the open tab reloaded it with nobody asking — the edits vanished, the editor showed the
+other writer's document, and no alert remained — and a save waiting to retry was dropped the same
+way on a switch. The island's `flush()` now answers whether edits are still held (a conflict, or a
+failure waiting on its retry), and those four operations stay on the tab and say so when they are.
+A move and a rename of another tab remount nothing and go ahead. Leaving the page by a link still
+unmounts the island after one write attempt: a Next navigation cannot be refused from inside the
+island, and that path is the gap that remains.

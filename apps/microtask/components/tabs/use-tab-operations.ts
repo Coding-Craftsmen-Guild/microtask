@@ -62,6 +62,9 @@ export interface TabOperations {
 /** The text legacy toasted after a delete. */
 export const TAB_DELETED = 'Tab deleted'
 
+/** Why the open tab stayed open: leaving would remount the island and drop what it holds. */
+export const TAB_HELD = 'This tab has edits that are not saved, so it stays open.'
+
 /**
  * The structural writes, each ordered against the island so no edit is lost and none resurrects.
  *
@@ -69,6 +72,13 @@ export const TAB_DELETED = 'Tab deleted'
  * creating, renaming and moving. Renaming the open tab needs it most, because the rename moves
  * the stamp the island's next save presents; flushing first means the island is remounted on the
  * renamed tab with nothing left unsaved.
+ *
+ * **Nothing remounts the island over edits it is holding.** A flush settles whether or not its
+ * write landed, and a remount reads the server's document, so switching, creating, deleting
+ * another tab or renaming the open one while a save is in conflict or waiting to retry would
+ * drop the edits with nothing on screen to say so — in a conflict, a reload nobody chose
+ * (ADR 0016). Each of those stays put and says why instead. A move and a rename of another tab
+ * remount nothing, and go ahead.
  *
  * Deleting the **open** tab calls `markClean` **before** the delete, never `flush`, which is what
  * the app being replaced did for the reason it did: a queued autosave must not write into the
@@ -78,7 +88,12 @@ export const TAB_DELETED = 'Tab deleted'
 export function useTabOperations(workspace: Workspace, actions: TabActions, task: TaskRef): TabOperations {
   const { state, dispatch, editor } = workspace
   const [notice, setNotice] = useState<Notice | null>(null)
-  const flush = (): Promise<void> => editor.current?.flush() ?? Promise.resolve()
+  const flush = (): Promise<boolean> => editor.current?.flush() ?? Promise.resolve(true)
+  const leave = async (): Promise<boolean> => {
+    const left = await flush()
+    if (!left) setNotice({ tone: 'error', text: TAB_HELD })
+    return left
+  }
   const settle = <Value>(result: ActionResult<Value>, apply: (value: Value) => void, done?: string): void => {
     if (!result.ok) {
       setNotice({ tone: 'error', text: result.detail })
@@ -92,22 +107,22 @@ export function useTabOperations(workspace: Workspace, actions: TabActions, task
   return {
     notice,
     select: async (tabId) => {
-      if (tabId === state.active) return
-      await flush()
+      if (tabId === state.active || !(await leave())) return
+      setNotice(null)
       dispatch({ type: 'open', tabId })
     },
     create: async (name) => {
-      await flush()
+      if (!(await leave())) return
       settle(await actions.create(task, name), (tab) => dispatch({ type: 'created', tab }))
     },
     rename: async (tab, name) => {
       if (name === tab.name) return
-      if (tab.id === state.active) await flush()
+      if (tab.id === state.active && !(await leave())) return
       settle(await actions.rename(refOf(tab), name), (next) => dispatch({ type: 'renamed', tab: next }))
     },
     remove: async (tab) => {
       if (tab.id === state.active) editor.current?.markClean()
-      else await flush()
+      else if (!(await leave())) return
       settle(await actions.remove(refOf(tab)), () => dispatch({ type: 'removed', tabId: tab.id }), TAB_DELETED)
     },
     move: async (tab, direction) => {

@@ -19,6 +19,7 @@ const log: string[] = []
 const mounts: Mounted[] = []
 let island: DocumentEditorProps | null = null
 let flushGate: Promise<void> = Promise.resolve()
+let flushLands = true
 
 vi.mock('../editor/document-editor', () => ({
   DocumentEditor: (props: DocumentEditorProps) => {
@@ -26,7 +27,7 @@ vi.mock('../editor/document-editor', () => ({
     useImperativeHandle(props.ref, () => ({
       flush: () => {
         log.push('flush')
-        return flushGate
+        return flushGate.then(() => flushLands)
       },
       markClean: () => {
         log.push('markClean')
@@ -118,6 +119,7 @@ beforeEach(() => {
   mounts.length = 0
   island = null
   flushGate = Promise.resolve()
+  flushLands = true
   router.refresh.mockReset()
   actions = {
     create: vi.fn(),
@@ -523,6 +525,93 @@ describe('renaming a tab', () => {
     mount()
     await rename('a', 'Tab a')
     expect(actions.rename).not.toHaveBeenCalled()
+  })
+})
+
+describe('an open tab whose edits the server has not taken', () => {
+  const HELD = 'This tab has edits that are not saved, so it stays open.'
+
+  const contextMenu = (name: string) => {
+    act(() => {
+      tabNamed(name).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    })
+  }
+
+  beforeEach(() => {
+    flushLands = false
+  })
+
+  it('stays open, and says why, rather than switching away from edits a remount would drop', async () => {
+    mount()
+    await userEvent.click(tabNamed('b'))
+    await settle()
+    expect(log).toEqual(['mount:a-S1', 'flush'])
+    expect(tabNamed('a').getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('alert').textContent).toBe(HELD)
+  })
+
+  it('is not renamed, since the rename would remount the island on the server’s document', async () => {
+    mount()
+    await userEvent.click(tabNamed('a'))
+    await userEvent.click(menuItem('Rename'))
+    const field = within(screen.getByRole('dialog')).getByRole('textbox')
+    await userEvent.clear(field)
+    await userEvent.type(field, 'Go-live{Enter}')
+    await settle()
+    expect(actions.rename).not.toHaveBeenCalled()
+    expect(mounts).toHaveLength(1)
+    expect(screen.getByRole('alert').textContent).toBe(HELD)
+  })
+
+  it('is not left for a new tab, which would open in its place', async () => {
+    mount()
+    await userEvent.click(screen.getByRole('button', { name: 'New tab' }))
+    await userEvent.type(within(screen.getByRole('dialog')).getByRole('textbox'), 'Notes{Enter}')
+    await settle()
+    expect(actions.create).not.toHaveBeenCalled()
+    expect(mounts).toHaveLength(1)
+    expect(screen.getByRole('alert').textContent).toBe(HELD)
+  })
+
+  it('is not left by deleting another tab, which lands on a neighbour', async () => {
+    mount({ active: 'b' })
+    contextMenu('c')
+    await userEvent.click(menuItem('Delete tab'))
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete tab' }))
+    await settle()
+    expect(actions.remove).not.toHaveBeenCalled()
+    expect(tabNamed('b').getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('alert').textContent).toBe(HELD)
+  })
+
+  it('still lets another tab be renamed, or a tab be moved, neither of which remounts it', async () => {
+    actions.rename.mockReturnValue(ok({ ...TABS[2], name: 'Done', updatedAt: 'c-S2' } as WorkspaceTab))
+    actions.reorder.mockReturnValue(ok([TABS[1], TABS[0], TABS[2]] as WorkspaceTab[]))
+    mount()
+    contextMenu('c')
+    await userEvent.click(menuItem('Rename'))
+    const field = within(screen.getByRole('dialog')).getByRole('textbox')
+    await userEvent.clear(field)
+    await userEvent.type(field, 'Done{Enter}')
+    await settle()
+    await userEvent.click(tabNamed('a'))
+    await userEvent.click(menuItem('Move right'))
+    await settle()
+    expect(actions.rename).toHaveBeenCalledOnce()
+    expect(actions.reorder).toHaveBeenCalledWith({ projectId: P, taskId: T }, ['b', 'a', 'c'])
+    expect(mounts).toHaveLength(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('clears the notice once a later switch finds nothing held', async () => {
+    mount()
+    await userEvent.click(tabNamed('b'))
+    await settle()
+    flushLands = true
+    await userEvent.click(tabNamed('b'))
+    await settle()
+    expect(tabNamed('b').getAttribute('aria-selected')).toBe('true')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
 

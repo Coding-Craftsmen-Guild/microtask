@@ -31,12 +31,17 @@ export interface AutosaveHandle {
   /** Records an edit and arms the 700 ms debounce. */
   readonly change: (document: DocumentValue) => void
 
-  /** Writes now, overtaking the debounce, and settles once the write has. */
-  readonly flush: () => Promise<void>
+  /**
+   * Writes now, overtaking the debounce, and settles once the write has: `false` when the loop
+   * is left holding edits, in a conflict or waiting to retry a failure, and `true` otherwise.
+   */
+  readonly flush: () => Promise<boolean>
 
   /** Drops the pending write, for a tab being left or deleted. */
   readonly markClean: () => void
 }
+
+const HELD: ReadonlySet<SaveState> = new Set(['conflict', 'retrying'])
 
 const listen = (autosave: Autosave, editable: boolean): (() => void) => {
   const hidden = (): void => {
@@ -114,7 +119,7 @@ export function useAutosave({ updatedAt, save, editable }: UseAutosaveOptions): 
       state: status.state,
       message: status.message,
       change: (document_: DocumentValue) => autosave.change(document_),
-      flush: () => autosave.flush(false),
+      flush: () => autosave.flush(false).then(() => !HELD.has(autosave.state)),
       markClean: () => autosave.markClean(),
     }),
     [autosave, status],

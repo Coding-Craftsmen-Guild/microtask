@@ -14,13 +14,16 @@ import { useAutosave } from './use-autosave'
 /**
  * What a parent may ask of the island, which is exactly the two things legacy's tab code did.
  *
- * Switching tab awaits `flush`, so no edit is lost by navigating. Deleting a tab calls
- * `markClean` **before** the DELETE, so a queued autosave cannot land afterwards and resurrect
- * the content that was just removed.
+ * Switching tab awaits `flush`, and leaves only if it answers `true`, so no edit is lost by
+ * navigating. Deleting a tab calls `markClean` **before** the DELETE, so a queued autosave cannot
+ * land afterwards and resurrect the content that was just removed.
  */
 export interface DocumentEditorHandle {
-  /** Writes a pending edit now, and settles once the write has. */
-  flush: () => Promise<void>
+  /**
+   * Writes a pending edit now, and settles once the write has: `true` when nothing is left
+   * unsaved, `false` when edits are held — refused as a conflict, or failed and waiting to retry.
+   */
+  flush: () => Promise<boolean>
   /** Drops a pending edit without writing it. */
   markClean: () => void
 }
