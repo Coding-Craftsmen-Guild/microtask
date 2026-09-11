@@ -6,7 +6,8 @@
 
 Microtask is a single-package vanilla-JS app: `server.js`, two files in `lib/`, and browser scripts
 in `public/js/`. A second product (Macroplan) is coming, and the parts worth sharing — roles, ids,
-storage, the app shell, the editor — are entangled with Microtask's routes and markup. Copying them
+storage, the app shell (**not** the editor — see the amendment below) — are entangled with
+Microtask's routes and markup. Copying them
 into a second repository would fork them permanently on day one.
 
 ## Decision
@@ -34,3 +35,19 @@ diverge. Rejected: reuse across products was an explicit goal.
 
 **npm workspaces.** Keeps the current toolchain and lockfile. Rejected in favour of pnpm's stricter
 resolution, which is worth more here than familiarity.
+
+## Amended · 2026-09-11 — the editor is not one of the shared parts
+
+The context above lists "the editor" among the parts worth sharing. It is not, and the sentence is
+corrected there rather than only here, because it is the kind of line someone acts on.
+
+Tiptap is the Microtask checklist document editor, over a ProseMirror schema of task lists that
+Macroplan has no use for. This ADR's own rule therefore puts it in `apps/microtask`. It is also the
+one candidate for `packages/*` where sharing carries a standing hazard rather than a cost: `@tiptap/pm`
+re-exports ProseMirror, `prosemirror-model` compares schemas and node types by `instanceof`, and two
+apps consuming a shared editor package at different `@tiptap/*` versions fail at schema construction.
+
+ADR 0039 records the decision and the measurements behind the Tiptap 3 configuration. The prediction
+in the consequences above — that `packages/ui` growing into a full app shell is the test of whether
+the "apps hold nothing shareable" rule is real — stands unchanged; this is the first thing the rule
+kept out.
