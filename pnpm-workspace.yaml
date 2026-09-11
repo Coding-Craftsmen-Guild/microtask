@@ -17,6 +17,21 @@ catalog:
   vitest: 5.0.0
   '@types/node': 22.20.2
 
+  # react and react-dom move as one pin: react-dom@19.3.0 declares peer
+  # react@^19.3.0, so bumping either alone fails strict-peer-dependencies.
+  react: 19.3.0
+  react-dom: 19.3.0
+  '@types/react': 19.3.0
+  '@types/react-dom': 19.3.0
+
+  next: 16.3.4
+
+  # tailwindcss must equal @tailwindcss/postcss: the plugin takes the former as
+  # an exact (not ranged) dependency, so a mismatch installs two Tailwinds and
+  # the copy that scans @source is not the copy the plugin runs.
+  tailwindcss: 4.3.3
+  '@tailwindcss/postcss': 4.3.3
+
 minimumReleaseAgeExclude:
   - eslint-plugin-jsdoc@64.3.9
   - zod@4.6.1

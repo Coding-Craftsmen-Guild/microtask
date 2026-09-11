@@ -6,6 +6,7 @@
   "engines": { "node": ">=22.12" },
   "scripts": {
     "build": "turbo run build",
+    "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
