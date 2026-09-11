@@ -182,6 +182,60 @@ describe('the active state, which is what shouldRerenderOnTransaction would sile
   })
 })
 
+describe('every button, by what it does to the document rather than by what the table says', () => {
+  const APPLIES: readonly (readonly [string, string, Record<string, unknown>])[] = [
+    ['Bold (Ctrl+B)', 'bold', {}],
+    ['Italic (Ctrl+I)', 'italic', {}],
+    ['Strikethrough', 'strike', {}],
+    ['Inline code', 'code', {}],
+    ['Heading 1', 'heading', { level: 1 }],
+    ['Heading 2', 'heading', { level: 2 }],
+    ['Heading 3', 'heading', { level: 3 }],
+    ['Checklist', 'taskList', {}],
+    ['Bullet list', 'bulletList', {}],
+    ['Numbered list', 'orderedList', {}],
+    ['Quote', 'blockquote', {}],
+  ]
+
+  const pressed = (): string[] =>
+    items.filter((item) => button(item.title).getAttribute('aria-pressed') === 'true').map((item) => item.title)
+
+  it.each(APPLIES)('%s applies %s to the selection', async (title, name, attrs) => {
+    await host()
+    act(() => {
+      live().commands.selectAll()
+    })
+    act(() => {
+      button(title).click()
+    })
+    expect(live().isActive(name, attrs)).toBe(true)
+  })
+
+  it.each(APPLIES)('%s is the one button lit once it has been applied', async (title) => {
+    await host()
+    act(() => {
+      live().commands.selectAll()
+    })
+    await act(async () => {
+      button(title).click()
+    })
+    expect(pressed()).toEqual([title])
+  })
+
+  it('lights the link button, and only it, with the caret inside a link', async () => {
+    await host()
+    await act(async () => {
+      live().chain().selectAll().setLink({ href: 'https://example.com' }).run()
+    })
+    expect(pressed()).toEqual(['Link'])
+  })
+
+  it('covers every button with a state, so a new one cannot go unchecked', () => {
+    const covered = [...APPLIES.map(([title]) => title), 'Link']
+    expect(items.filter((item) => item.active !== undefined).map((item) => item.title)).toEqual(covered)
+  })
+})
+
 describe('before the editor exists', () => {
   it('renders every button inert rather than crashing on a null editor', () => {
     render(<Toolbar editor={null} onLink={() => undefined} />)
