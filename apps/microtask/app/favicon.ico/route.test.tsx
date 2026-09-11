@@ -22,4 +22,8 @@ describe('/favicon.ico, which a browser asks for whether or not a page declares 
   it('is cacheable, so the probe is answered once rather than on every navigation', () => {
     expect(GET().headers.get('cache-control')).toMatch(/max-age=\d+/)
   })
+
+  it('holds that cache for an hour, so the mark can be repathed the same day', () => {
+    expect(GET().headers.get('cache-control')).toBe('public, max-age=3600')
+  })
 })

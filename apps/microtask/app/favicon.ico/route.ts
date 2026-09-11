@@ -1,6 +1,5 @@
 import { LOGO_PATH } from '../../components/shared/logo'
 
-/** How long a browser may keep the redirect: an hour, so the mark can be repathed the same day. */
 const MAX_AGE_SECONDS = 3600
 
 /**
