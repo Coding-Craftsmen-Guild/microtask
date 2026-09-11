@@ -47,8 +47,10 @@ holds it to the policy's answers.
 
 ## Consequences
 
-- A task-scoped `manage` holder is shown no share manager, because `capabilities('manage', {kind:
-  'task', ...})` says so. Nothing in the UI needs to know why.
+- ~~A task-scoped `manage` holder is shown no share manager, because `capabilities('manage', {kind:
+  'task', ...})` says so.~~ Corrected by the second amendment below: the record grants that holder
+  `share:create` and refuses it `share:read`, `share:update` and `share:revoke`, so it is shown no
+  **list** and a manager that can only mint. Nothing in the UI needs to know why.
 - The spec's role table gains a scope axis, and every row of it is now derivable from
   `capabilities()` rather than transcribed.
 - Adding an action means adding it to the policy matrix and to `capabilities()`, and forgetting the
@@ -115,3 +117,28 @@ Two further measurements worth recording, both from the same scan:
   `workspace:search` is gated through a variable (ADR 0009 derives its target from the principal).
   Their rows are the policy's answer with nothing confirming them against a call site, and the test
   names all three so the list cannot quietly grow.
+
+## Amended · 2026-09-11 — "no share manager" meant no link list
+
+The first consequence above said a task-scoped `manage` holder "is shown no share manager, because
+`capabilities('manage', {kind:'task', ...})` says so". The record does not say that. It answers
+`share:create` **true** for that holder, because minting is decided against the new link's own
+scope, and `share:read`, `share:update` and `share:revoke` false, because those are decided against
+the project. Hiding the manager would render from `share:read` alone and strand a capability the
+policy grants — the same one-answer-for-several-actions mistake the first amendment corrected for
+`project:read`.
+
+So the share manager (`apps/microtask/components/share-manager`) draws each of its four controls
+from its own answer:
+
+- **Share** is drawn when the holder may list **or** mint, and nothing at all when it may do
+  neither.
+- A holder that may mint but not list gets a create-only dialog. It makes **no** list request, draws
+  no rename, role or revoke control, and says in the dialog that it can create links here but not
+  list, rename or revoke them, rather than showing a refusal as an error.
+- A link that holder mints is shown once, with its URL, and dropped with its token when the dialog
+  closes (ADR 0033). Nothing it can call will show it again, and the dialog says so before it is
+  minted.
+
+The plan behind this unit asked for the manager to be "absent" for that holder and for the
+create-but-not-list case to be "stated in the UI". The create-only dialog is how both are met at once.
