@@ -4,7 +4,7 @@ import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import { folder, manifest, taskEntry, STAMP } from '../testing/fixtures.js'
 import { clearance, visibleTo } from './view-mapper.js'
-import { projectView } from './project-view.js'
+import { projectListItem, projectView } from './project-view.js'
 
 const PROJECT = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const ELSEWHERE = '01M240ERCRWWCN16Q5AHP1FZAC'
@@ -267,5 +267,70 @@ describe('projectView is a pure function of its inputs', () => {
     const first = projectView(seed(), projectHolder('manage'))
     const second = projectView(seed(), projectHolder('manage'))
     expect(second).toEqual(first)
+  })
+})
+
+describe('projectListItem carries a count and never a link (ADR 0033)', () => {
+  it('carries everything a row renders, and no shareLinks key at all', () => {
+    const row = projectListItem(seed(), admin)
+    expect(row).not.toHaveProperty('shareLinks')
+    expect(row).toMatchObject({ id: PROJECT, name: PROJECT_NAME, updatedAt: CHANGED })
+    expect(namesOf(row.tasks)).toEqual([MY_TASK_NAME, SIBLING_TASK_NAME])
+  })
+
+  it('counts every link an admin would have been shown', () => {
+    expect(projectListItem(seed(), admin).shareLinkCount).toBe(6)
+  })
+
+  it('counts only the links the caller would have been shown, not the manifest total', () => {
+    expect(projectListItem(seed(), projectHolder('manage')).shareLinkCount).toBe(5)
+  })
+
+  it('omits the count where the links themselves would have been omitted', () => {
+    expect(projectListItem(seed(), projectHolder('view', READ_ONLY_SEAT)).shareLinkCount).toBeUndefined()
+    expect(projectListItem(seed(), projectHolder('write')).shareLinkCount).toBeUndefined()
+    expect(projectListItem(seed(), taskHolder('manage')).shareLinkCount).toBeUndefined()
+  })
+
+  it('gates the count on the same decision projectView gates the links on, for every caller', () => {
+    const callers: readonly Principal[] = [
+      admin,
+      projectHolder('view', READ_ONLY_SEAT),
+      projectHolder('write'),
+      projectHolder('manage'),
+      taskHolder('view', TASK_SEAT),
+      taskHolder('manage'),
+    ]
+    for (const caller of callers) {
+      const links = projectView(seed(), caller).shareLinks
+      const count = projectListItem(seed(), caller).shareLinkCount
+      expect({ hasLinks: links !== undefined, hasCount: count !== undefined }).toEqual({
+        hasLinks: links !== undefined,
+        hasCount: links !== undefined,
+      })
+      expect(count).toBe(links?.length)
+    }
+  })
+
+  it('reports zero rather than nothing for a caller cleared on a project with no links', () => {
+    const bare = manifest(PROJECT, { name: PROJECT_NAME })
+    expect(projectListItem(bare, admin).shareLinkCount).toBe(0)
+  })
+
+  it('shapes folders and tasks exactly as projectView does, so a row and a read agree', () => {
+    for (const caller of [admin, projectHolder('manage'), taskHolder('manage')]) {
+      const row = projectListItem(seed(), caller)
+      const read = projectView(seed(), caller)
+      expect(row.folders).toEqual(read.folders)
+      expect(row.tasks).toEqual(read.tasks)
+    }
+  })
+
+  it('carries no token in its serialised form for any caller, its own included', () => {
+    const every = [WHOLE_PROJECT, READ_ONLY_SEAT, OWN_TASK, TASK_SEAT, SIBLING_TASK, OTHER_PROJECT]
+    for (const caller of [admin, projectHolder('manage'), taskHolder('manage')]) {
+      const serialised = JSON.stringify(projectListItem(seed(), caller))
+      for (const token of every) expect(serialised, token).not.toContain(token)
+    }
   })
 })

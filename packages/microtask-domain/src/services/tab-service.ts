@@ -8,7 +8,7 @@ import type { ServiceContext } from './context.js'
 import { inOrder, reordered } from './positions.js'
 import type { TaskRef } from './refs.js'
 import { pickTask } from './task-mapper.js'
-import { newTab, pickTab, tabsWithout, withProgress, withTab, withTabs } from './tab-mapper.js'
+import { newTab, pickTab, tabsWithout, withCache, withTab, withTabs } from './tab-mapper.js'
 
 interface Loaded {
   readonly manifest: ProjectManifest
@@ -119,7 +119,7 @@ export class TabService {
    * project. Every caller has edited the task file, so every one of them stamps.
    */
   async #write(at: TaskRef, manifest: ProjectManifest, task: TaskDocument): Promise<void> {
-    const next = { ...withProgress(manifest, task), updatedAt: this.#ctx.clock.now() }
+    const next = { ...withCache(manifest, task), updatedAt: this.#ctx.clock.now() }
     await this.#ctx.store.saveTask(at.product, next, task)
   }
 }

@@ -21,8 +21,10 @@ credential dump with no dialog at all.
 
 ## Decision
 
-**A project in a list carries `shareLinkCount: number` and no `shareLinks`.** Tokens appear only on
-`projects.read()`, which is the request that renders the share manager.
+**A project in a list carries `shareLinkCount?: number` and no `shareLinks`.** Tokens appear only
+on `projects.read()`, which is the request that renders the share manager. The count is present
+exactly when `shareLinks` would have been — see the amendment below, which supersedes the
+unconditional reading this ADR first gave it.
 
 The count is not a consolation prize for dropping the array: it is exactly what the list row needs.
 The app being replaced rendered "· N share links" in each project's metadata line and computed it
@@ -38,9 +40,8 @@ predicate to drift (ADR 0009).
 - The list response shrinks to something bounded by project count rather than by project count
   times links, and the Flight stream stops carrying credentials no matter what a page does with the
   list.
-- A caller that is refused `share:read` sees `shareLinkCount` rather than an absent field, so a
-  link principal learns how many links exist on a project it can already read in full. That is
-  accepted: the count reveals nothing a project-scoped holder cannot infer, and no token.
+- A caller that is refused `share:read` sees **no** `shareLinkCount` at all, the same way it sees
+  no `shareLinks` — the amendment below replaces the unconditional count this ADR first accepted.
 - The share manager needs `projects.read()`, which it already calls to render the project page.
 - Two shapes now exist for a project — one with links, one with a count — and the OpenAPI document
   says which endpoint returns which. That is a real cost in schema surface, paid once.
@@ -58,3 +59,32 @@ page source. ADR 0027's position on unenforced conventions applies exactly.
 **Add a separate `GET /share-links` for the share manager and drop links from every project
 response.** Cleaner in isolation, and it splits one screen's data across two requests for no gain,
 since the share manager is always rendered from a project the caller has just read.
+
+## Amended · 2026-09-11 — the count is gated on the same decision the links were
+
+This ADR first made `shareLinkCount` unconditional, and accepted the disclosure in its
+consequences: "the count reveals nothing a project-scoped holder cannot infer". Reviewing it before
+implementation, that is the wrong trade. An unconditional count tells a **link** principal how many
+share links exist on a project it can read — a fact the app being replaced never put on the wire —
+and `projectView()` already owns the decision that would withhold it.
+
+**`shareLinkCount` is present exactly when `shareLinks` would have been**, and counts the same
+links: `projectListItem()` calls the same `visibleLinks()` predicate `projectView()` calls, and
+reports `undefined` where that returns `undefined` and its length otherwise. So there is one
+`share:read` decision rather than two, which is this ADR's own reason for leaving `projectView()`
+unchanged (ADR 0009).
+
+Three consequences of the stricter rule, all of them wanted:
+
+- A caller refused the block is told **nothing**, not a zero. The same asymmetry `visibleLinks()`
+  already draws so "none exist" cannot be read out of "you may not ask" (ADR 0017).
+- The count is of the links **that caller** would have been shown, not of the manifest's total. A
+  project-scoped `manage` holder is not told about a seat scoped into another project, which an
+  import bundle can plant (ADR 0019).
+- `shareLinkCount` is optional in the schema, so `ProjectListItem` has the same
+  present-or-absent discriminator `ProjectView` has, and a row can tell "no sharing here" from
+  "not your business" without a second field.
+
+The cost is that reusing the predicate means the list still walks each project's links to count
+them. That walk is per project and bounded by 50; what this ADR removes is shipping them, not
+reading them.

@@ -151,7 +151,7 @@
           "projects": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ProjectView"
+              "$ref": "#/components/schemas/ProjectListItem"
             }
           }
         },
@@ -160,7 +160,7 @@
         ],
         "description": "The projects of one product"
       },
-      "ProjectView": {
+      "ProjectListItem": {
         "type": "object",
         "properties": {
           "id": {
@@ -183,18 +183,16 @@
             },
             "maxItems": 500
           },
-          "shareLinks": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ShareLink"
-            },
-            "maxItems": 50
-          },
           "createdAt": {
             "type": "string"
           },
           "updatedAt": {
             "type": "string"
+          },
+          "shareLinkCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 50
           }
         },
         "required": [
@@ -205,7 +203,7 @@
           "createdAt",
           "updatedAt"
         ],
-        "description": "A project, shaped for whoever asked about it"
+        "description": "A project as a list row describes it: a count, no links"
       },
       "EntityId": {
         "type": "string",
@@ -275,6 +273,21 @@
           },
           "progress": {
             "$ref": "#/components/schemas/Progress"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "tabCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 40
+          },
+          "tabNames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EntityName"
+            },
+            "maxItems": 8
           }
         },
         "required": [
@@ -282,7 +295,10 @@
           "name",
           "position",
           "folderId",
-          "progress"
+          "progress",
+          "updatedAt",
+          "tabCount",
+          "tabNames"
         ],
         "description": "A task as its project manifest records it"
       },
@@ -303,6 +319,53 @@
           "total"
         ],
         "description": "Counted checklist state, derived from a document"
+      },
+      "ProjectView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Folder"
+            },
+            "maxItems": 100
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskEntry"
+            },
+            "maxItems": 500
+          },
+          "shareLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareLink"
+            },
+            "maxItems": 50
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "folders",
+          "tasks",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A project, shaped for whoever asked about it"
       },
       "ShareLink": {
         "type": "object",

@@ -6,6 +6,7 @@ export type { Folder } from './entities/folder.js'
 export type { ShareLink } from './entities/share-link.js'
 export type { ProjectManifest, TaskEntry } from './entities/manifest.js'
 export { agreesWith, countTabs, countTasks } from './progress.js'
+export { cacheAgrees, taskCache, type TaskCache } from './services/task-cache.js'
 export { assertSafeDocument, SAFE_HREF_SCHEMES } from './document-guard.js'
 export {
   assertWithin,
@@ -27,7 +28,12 @@ export { requestedScope, type ScopeRequest } from './services/share-link-mapper.
 export { ShareLinkService, type ShareLinkRequest } from './services/share-link-service.js'
 export { TabService } from './services/tab-service.js'
 export { TaskService, type TaskDetail } from './services/task-service.js'
-export { projectView, type ProjectView } from './views/project-view.js'
+export {
+  projectListItem,
+  projectView,
+  type ProjectListItem,
+  type ProjectView,
+} from './views/project-view.js'
 export { shareView, type ShareView } from './views/share-view.js'
 export { taskView, type TaskView } from './views/task-view.js'
 export { FsProjectStore, type FsProjectStoreOptions } from './storage/fs-project-store.js'

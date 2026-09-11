@@ -1,6 +1,6 @@
 import type { RouteHandler } from '@hono/zod-openapi'
 import type { ProjectService } from '@repo/microtask-domain'
-import { projectView } from '@repo/microtask-domain'
+import { projectListItem, projectView } from '@repo/microtask-domain'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
 import { PRODUCT } from '../product.js'
@@ -18,13 +18,19 @@ import type {
  * The gate asks about the workspace rather than about any one project, which is the whole of
  * ADR 0009: a collection route has no per-resource target, and `workspace:list-projects` is
  * admin-only, so a link holder is refused here rather than handed a filtered list.
+ *
+ * Shaped by `projectListItem` and not `projectView`: a list of 500 projects carrying up to 50
+ * live tokens each is a credential dump on the one screen with no use for a single one of them,
+ * and anything a Server Component passes a client component lands in the page source
+ * (ADR 0033). The count it carries instead is gated on the same `share:read` decision the block
+ * was, so a caller refused the links is refused the number too.
  */
 export const listProjects =
   (projects: ProjectService): RouteHandler<typeof listProjectsRoute, ApiEnv> =>
   async (c) => {
     const principal = authorize(c, 'workspace:list-projects', { kind: 'workspace' })
     const manifests = await projects.list(PRODUCT)
-    return c.json({ projects: manifests.map((one) => projectView(one, principal)) }, 200)
+    return c.json({ projects: manifests.map((one) => projectListItem(one, principal)) }, 200)
   }
 
 /**

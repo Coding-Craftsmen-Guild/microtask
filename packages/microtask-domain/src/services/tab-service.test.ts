@@ -458,3 +458,61 @@ describe('TabService.writeDocument', () => {
     expect((await readTask()).tabs[0]?.document).toEqual(checklist(0, 2))
   })
 })
+
+describe('TabService keeps the whole manifest cache honest, not only progress (ADR 0034)', () => {
+  const entry = async (readManifest: () => Promise<ProjectManifest>) => {
+    const found = (await readManifest()).tasks[0]
+    if (found === undefined) throw new Error('entry missing')
+    return found
+  }
+
+  it('records the new tab in the count and the names when one is created', async () => {
+    const { service, seed, readManifest } = build()
+    await seed([tab(TAB, 'General')])
+    await service.create(AT, 'Notes')
+    expect(await entry(readManifest)).toMatchObject({
+      tabCount: 2,
+      tabNames: ['General', 'Notes'],
+      updatedAt: NOW,
+    })
+  })
+
+  it('records the new name when a tab is renamed, so a stale chip cannot survive', async () => {
+    const { service, seed, readManifest } = build()
+    await seed([tab(TAB, 'General'), tab(OTHER, 'Notes', { position: 1 })])
+    await service.rename(AT, OTHER, 'Punch list')
+    expect((await entry(readManifest)).tabNames).toEqual(['General', 'Punch list'])
+  })
+
+  it('drops the removed tab from the count and the names', async () => {
+    const { service, seed, readManifest } = build()
+    await seed([tab(TAB, 'General'), tab(OTHER, 'Notes', { position: 1 })])
+    await service.remove(AT, OTHER)
+    expect(await entry(readManifest)).toMatchObject({ tabCount: 1, tabNames: ['General'] })
+  })
+
+  it('reorders the names with the tabs, since a chip strip renders in position order', async () => {
+    const { service, seed, readManifest } = build()
+    await seed([tab(TAB, 'General'), tab(OTHER, 'Notes', { position: 1 })])
+    await service.reorder(AT, [OTHER, TAB])
+    expect((await entry(readManifest)).tabNames).toEqual(['Notes', 'General'])
+  })
+
+  it('stamps the entry with the task file own updatedAt after a document write', async () => {
+    const { service, seed, readManifest, readTask } = build(tickingClock())
+    await seed([tab(TAB, 'General')])
+    await service.writeDocument(AT, TAB, checklist(1, 2), STAMP)
+    const written = await readTask()
+    expect((await entry(readManifest)).updatedAt).toBe(written.updatedAt)
+    expect((await entry(readManifest)).progress).toEqual({ done: 1, total: 2 })
+  })
+
+  it('names only the first eight tabs while counting all twelve, so a row can say "+4 more"', async () => {
+    const { service, seed, readManifest } = build()
+    await seed(Array.from({ length: 11 }, (_, i) => tab(`tab-${String(i)}`, `T${String(i)}`, { position: i })))
+    await service.create(AT, 'Twelfth')
+    const cached = await entry(readManifest)
+    expect(cached.tabCount).toBe(12)
+    expect(cached.tabNames).toEqual(['T0', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'])
+  })
+})

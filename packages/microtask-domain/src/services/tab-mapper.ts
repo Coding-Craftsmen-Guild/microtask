@@ -3,8 +3,8 @@ import { emptyDocument } from '../entities/document.js'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { Tab } from '../entities/tab.js'
 import type { TaskDocument } from '../entities/task.js'
-import { countTabs } from '../progress.js'
 import { densified, inOrder, numbered } from './positions.js'
+import { taskCache } from './task-cache.js'
 import { pickTask, withTask } from './task-mapper.js'
 
 /** Finds one tab of a task, or throws NotFound. */
@@ -49,12 +49,13 @@ export function tabsWithout(task: TaskDocument, tabId: string): readonly Tab[] {
 }
 
 /**
- * Caches the task's progress on its manifest entry, counted over all of its tabs (ADR 0007).
+ * Refreshes the whole cache on the task's manifest entry from the task file (ADR 0007).
  *
- * The count spans the whole task rather than the tab that changed, because that is the grain
- * the manifest caches at.
+ * All four fields at once, and the count spans the whole task rather than the tab that changed,
+ * because that is the grain the manifest caches at. One operation writes them so that forgetting
+ * one is forgetting all four (ADR 0034).
  */
-export function withProgress(manifest: ProjectManifest, task: TaskDocument): ProjectManifest {
+export function withCache(manifest: ProjectManifest, task: TaskDocument): ProjectManifest {
   const entry = pickTask(manifest, task.id)
-  return withTask(manifest, { ...entry, progress: countTabs(task.tabs) })
+  return withTask(manifest, { ...entry, ...taskCache(task) })
 }

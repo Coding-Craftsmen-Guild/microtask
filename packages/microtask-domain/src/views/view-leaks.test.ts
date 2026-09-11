@@ -5,7 +5,7 @@ import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import type { TaskDocument } from '../entities/task.js'
 import { folder, manifest, taskEntry, STAMP } from '../testing/fixtures.js'
-import { projectView } from './project-view.js'
+import { projectListItem, projectView } from './project-view.js'
 import { shareView } from './share-view.js'
 import { taskView } from './task-view.js'
 
@@ -219,5 +219,27 @@ describe('the positive control: a token does appear where the policy allows it',
   it('shows a project-scoped manage holder its own token, not merely an empty block', () => {
     const serialised = JSON.stringify(projectView(seed(), holder(LINKS.wholeProject)))
     expect(serialised).toContain(WHOLE_PROJECT)
+  })
+})
+
+describe('the serialised list row holds no share token for anybody at all (ADR 0033)', () => {
+  for (const caller of CALLERS) {
+    it(`carries not one of the six tokens for ${caller.label}`, () => {
+      assertTokens(JSON.stringify(projectListItem(seed(), caller.principal)), [])
+    })
+
+    it(`carries only the names the policy clears for ${caller.label}`, () => {
+      assertNames(JSON.stringify(projectListItem(seed(), caller.principal)), caller.names)
+    })
+  }
+
+  it('is not simply empty: a caller cleared for links is told how many there are', () => {
+    expect(projectListItem(seed(), { kind: 'admin' }).shareLinkCount).toBe(6)
+    expect(projectListItem(seed(), holder(LINKS.wholeProject)).shareLinkCount).toBe(5)
+  })
+
+  it('tells a caller refused the block nothing, not even a zero', () => {
+    expect(projectListItem(seed(), holder(LINKS.readOnlySeat)).shareLinkCount).toBeUndefined()
+    expect(projectListItem(seed(), holder(LINKS.ownTask)).shareLinkCount).toBeUndefined()
   })
 })

@@ -161,3 +161,57 @@ describe('DELETE /v1/microtask/projects/{projectId}', () => {
     expect((await app.request(mine, { method: 'DELETE', headers: asLink(TOKENS.p2Manage) })).status).toBe(204)
   })
 })
+
+describe('the project list ships no share token, asserted on the bytes (ADR 0033)', () => {
+  const listed = async (): Promise<string> => {
+    const response = await (await buildApp()).request(COLLECTION, { headers: admin() })
+    expect(response.status).toBe(200)
+    return response.text()
+  }
+
+  it('seeds a fixture whose project really does hold live links, or this proves nothing', async () => {
+    const response = await (await buildApp()).request(ONE, { headers: admin() })
+    const read = await response.text()
+    for (const token of Object.values(TOKENS)) {
+      if (token === TOKENS.p2Manage) continue
+      expect(read, token).toContain(token)
+    }
+  })
+
+  it('contains none of those token strings anywhere in the serialised list', async () => {
+    const payload = await listed()
+    for (const token of Object.values(TOKENS)) {
+      expect(payload, token).not.toContain(token)
+    }
+  })
+
+  it('carries no shareLinks key either, so nothing can be read out of an empty one', async () => {
+    expect(await listed()).not.toContain('shareLinks')
+  })
+
+  it('carries the count instead, which is what the row renders', async () => {
+    const rows = (await body(
+      await (await buildApp()).request(COLLECTION, { headers: admin() }),
+    ))['projects'] as { id: string; shareLinkCount?: number }[]
+    const counts = Object.fromEntries(rows.map((row) => [row.id, row.shareLinkCount]))
+    expect(counts).toEqual({ [IDS.p1]: 4, [IDS.p2]: 1 })
+  })
+
+  it('omits the count for a caller refused the links, matching what read does with the block', async () => {
+    const asOne = async (path: string): Promise<Record<string, unknown>> =>
+      body(await (await buildApp()).request(path, { headers: asLink(TOKENS.p1View) }))
+    const read = await asOne(ONE)
+    expect(read).not.toHaveProperty('shareLinks')
+    const link = await (await buildApp()).request(COLLECTION, { headers: asLink(TOKENS.p1View) })
+    expect(link.status).toBe(403)
+  })
+
+  it('carries each task entry cache a row renders, rather than making the row read the task', async () => {
+    const rows = (await body(
+      await (await buildApp()).request(COLLECTION, { headers: admin() }),
+    ))['projects'] as { id: string; tasks: Record<string, unknown>[] }[]
+    const one = rows.find((row) => row.id === IDS.p1)?.tasks[0]
+    expect(one).toMatchObject({ tabCount: 1, tabNames: ['General'] })
+    expect(typeof one?.['updatedAt']).toBe('string')
+  })
+})

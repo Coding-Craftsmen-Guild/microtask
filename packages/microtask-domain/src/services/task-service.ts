@@ -1,11 +1,10 @@
 import { NotFound, type Product } from '@repo/kernel'
 import type { ProjectManifest, TaskEntry } from '../entities/manifest.js'
-import type { Progress } from '../entities/progress.js'
 import type { TaskDocument } from '../entities/task.js'
 import { assertWithin, cleanName } from '../limits.js'
-import { agreesWith, countTabs } from '../progress.js'
 import type { ServiceContext } from './context.js'
 import { reordered } from './positions.js'
+import { cacheAgrees, taskCache, type TaskCache } from './task-cache.js'
 import type { ProjectRef, TaskRef } from './refs.js'
 import {
   assertFolder,
@@ -48,7 +47,7 @@ export class TaskService {
         name: cleaned,
         folderId,
         position: groupOf(current.tasks, folderId).length,
-        progress: countTabs(document.tabs),
+        ...taskCache(document),
       }
       const next = { ...current, tasks: [...current.tasks, entry], updatedAt: stamp }
       await this.#ctx.store.saveTask(at.product, next, document)
@@ -67,8 +66,8 @@ export class TaskService {
     const entry = pickTask(current, at.taskId)
     const document = await this.#ctx.store.readTask(at.product, at.projectId, at.taskId)
     if (document === null) throw new NotFound('Task not found')
-    const counted = countTabs(document.tabs)
-    if (agreesWith(entry.progress, counted)) return { entry, document }
+    const counted = taskCache(document)
+    if (cacheAgrees(entry, counted)) return { entry, document }
     return { entry: await this.#correct(at, counted), document }
   }
 
@@ -132,11 +131,17 @@ export class TaskService {
     await this.#ctx.store.saveManifest(product, { ...next, updatedAt: this.#ctx.clock.now() })
   }
 
-  /** Persists a recomputed cache without stamping the project — nobody edited it. */
-  async #correct(at: TaskRef, progress: Progress): Promise<TaskEntry> {
+  /**
+   * Persists a recomputed cache without stamping the project — nobody edited it.
+   *
+   * All four fields together, because they are recomputed together: correcting progress alone
+   * would leave an entry that disagrees with its file on three counts and agrees on one, which
+   * is a cache that never settles (ADR 0034).
+   */
+  async #correct(at: TaskRef, cached: TaskCache): Promise<TaskEntry> {
     return this.#ctx.lock.run(async () => {
       const current = await this.#manifest(at)
-      const next: TaskEntry = { ...pickTask(current, at.taskId), progress }
+      const next: TaskEntry = { ...pickTask(current, at.taskId), ...cached }
       await this.#ctx.store.saveManifest(at.product, withTask(current, next))
       return next
     })

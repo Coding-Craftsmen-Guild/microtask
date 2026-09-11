@@ -375,6 +375,9 @@ describe('TaskService.move', () => {
       folderId: 'f-a',
       position: 0,
       progress: { done: 1, total: 2 },
+      updatedAt: STAMP,
+      tabCount: 1,
+      tabNames: ['General'],
     })
   })
 
@@ -528,5 +531,63 @@ describe('TaskService caps', () => {
     ])
     expect(settled.map((result) => result.status)).toEqual(['fulfilled', 'rejected'])
     expect((await read()).tasks).toHaveLength(LIMITS.tasksPerProject)
+  })
+})
+
+describe('TaskService caches the whole list row, not only progress (ADR 0034)', () => {
+  const entryOf = async (read: () => Promise<ProjectManifest>, taskId = TASK) => {
+    const found = (await read()).tasks.find((task) => task.id === taskId)
+    if (found === undefined) throw new Error('entry missing')
+    return found
+  }
+
+  it('gives a created task a cache describing the document it just wrote', async () => {
+    const { service, seed, store } = build()
+    await seed()
+    const created = await service.create(AT, 'Ship it')
+    const document = await store.readTask('microtask', PROJECT, created.id)
+    expect(created).toMatchObject({ tabCount: 1, tabNames: ['General'], updatedAt: NOW })
+    expect(document?.updatedAt).toBe(created.updatedAt)
+    expect(created.progress).toEqual({ done: 0, total: 0 })
+  })
+
+  it('corrects a stale tab count and stale names on read, not only stale progress', async () => {
+    const { service, store, read } = build()
+    const seeded = manifest(PROJECT, {
+      tasks: [taskEntry(TASK, 'Ship it', { tabCount: 1, tabNames: ['Stale'] })],
+    })
+    await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(0, 0), checklist(0, 0)]))
+    const detail = await service.read(on(TASK))
+    expect(detail.entry).toMatchObject({ tabCount: 2, tabNames: ['General', 'Tab 1'] })
+    expect(await entryOf(read)).toMatchObject({ tabCount: 2, tabNames: ['General', 'Tab 1'] })
+  })
+
+  it('corrects a stale updatedAt on read, which is what a list row shows as "updated Nh ago"', async () => {
+    const { service, store, read } = build()
+    const edited = '2026-09-11T08:00:00.000Z'
+    const seeded = manifest(PROJECT, { tasks: [taskEntry(TASK, 'Ship it')] })
+    const document = { ...taskWith(TASK, [checklist(0, 0)]), updatedAt: edited }
+    await store.saveTask('microtask', seeded, document)
+    expect((await service.read(on(TASK))).entry.updatedAt).toBe(edited)
+    expect((await entryOf(read)).updatedAt).toBe(edited)
+  })
+
+  it('writes nothing when all four cached fields already agree', async () => {
+    const { service, store, calls } = build()
+    const seeded = manifest(PROJECT, {
+      tasks: [taskEntry(TASK, 'Ship it', { progress: { done: 1, total: 3 } })],
+    })
+    await store.saveTask('microtask', seeded, taskWith(TASK, [checklist(1, 3)]))
+    calls.length = 0
+    await service.read(on(TASK))
+    expect(calls).not.toContain('saveManifest')
+  })
+
+  it('leaves the cache alone on a rename, which touches no document', async () => {
+    const { service, seed, read } = build()
+    await seed({ tasks: [taskEntry(TASK, 'Ship it', { tabCount: 3, tabNames: ['A', 'B', 'C'] })] })
+    const renamed = await service.rename(on(TASK), 'Ship it twice')
+    expect(renamed).toMatchObject({ tabCount: 3, tabNames: ['A', 'B', 'C'] })
+    expect(await entryOf(read)).toMatchObject({ tabCount: 3, tabNames: ['A', 'B', 'C'] })
   })
 })

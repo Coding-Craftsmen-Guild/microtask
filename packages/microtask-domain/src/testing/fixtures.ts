@@ -12,9 +12,25 @@ export function folder(id: string, name: string, overrides: Partial<Folder> = {}
   return { id, name, position: 0, createdAt: STAMP, updatedAt: STAMP, ...overrides }
 }
 
-/** Builds a manifest entry at position 0, in no folder, with no progress, before overrides. */
+/**
+ * Builds a manifest entry at position 0, in no folder, before overrides.
+ *
+ * Its cache describes exactly what {@link taskDocument} produces — one empty tab named General,
+ * stamped {@link STAMP} — so an entry and a document built by these two fixtures agree and a
+ * read of them writes nothing.
+ */
 export function taskEntry(id: string, name: string, overrides: Partial<TaskEntry> = {}): TaskEntry {
-  return { id, name, position: 0, folderId: null, progress: NO_PROGRESS, ...overrides }
+  return {
+    id,
+    name,
+    position: 0,
+    folderId: null,
+    progress: NO_PROGRESS,
+    updatedAt: STAMP,
+    tabCount: 1,
+    tabNames: ['General'],
+    ...overrides,
+  }
 }
 
 /** Builds a task holding one empty tab, which is what a newly created task looks like. */

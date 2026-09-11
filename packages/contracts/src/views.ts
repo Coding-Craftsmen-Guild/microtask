@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { EntityId, EntityName } from './document.js'
+import { LIMITS } from './limits.js'
 import { Folder } from './folder.js'
 import { Progress } from './progress.js'
 import { ProjectManifest } from './project.js'
@@ -52,9 +53,28 @@ export const TaskView = z
   })
   .meta({ id: 'TaskView', description: 'One task and its tabs, shaped for whoever asked' })
 
+/**
+ * One project as a **list** may describe it: the same shape with a count where the links were.
+ *
+ * `projects.list()` returns one of these per project, and at this product's own bounds that is
+ * 500 projects carrying up to 50 live credentials each. The list screen renders none of them,
+ * and anything a Server Component hands a client component lands in the page source — so a list
+ * that carried links would be a credential dump with no dialog in front of it (ADR 0033).
+ *
+ * `shareLinkCount` is **optional**, and present exactly when `shareLinks` would have been on
+ * {@link ProjectView}: the same `share:read` decision, reused rather than re-made. An
+ * unconditional count would tell a link principal how many seats exist on a project it can read,
+ * which nothing in the app being replaced ever disclosed.
+ */
+export const ProjectListItem = ProjectView.omit({ shareLinks: true })
+  .extend({
+    shareLinkCount: z.number().int().min(0).max(LIMITS.shareLinksPerProject).optional(),
+  })
+  .meta({ id: 'ProjectListItem', description: 'A project as a list row describes it: a count, no links' })
+
 /** Every project a caller may be told about, most recently updated first. */
 export const ProjectList = z
-  .object({ projects: z.array(ProjectView).readonly() })
+  .object({ projects: z.array(ProjectListItem).readonly() })
   .meta({ id: 'ProjectList', description: 'The projects of one product' })
 
 /** The folders of one project, in the order they are shown. */
