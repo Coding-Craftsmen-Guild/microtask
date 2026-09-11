@@ -1,84 +1,29 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import type { Role, Scope } from '@repo/kernel'
-import { ShareIndex, type ProjectManifest, type ShareLink } from '@repo/microtask-domain'
-import { MemoryProjectStore, fixedClock, manifest, sequentialIds, STAMP } from '@repo/microtask-domain/testing'
-import { NodeFileSystem, QueueLock } from '@repo/store'
 import { describe, expect, it } from 'vitest'
-import { DOCS_PATH, DOC_PATH, createApp, docConfig } from './app.js'
-import { AdminVerifier } from './auth/admin-verifier.js'
+import { DOCS_PATH, DOC_PATH, docConfig } from './app.js'
 import type { ApiEnv } from './auth/env.js'
-import { readConfig } from './config.js'
-import type { ApiDeps } from './deps.js'
 import { GLOBAL_BODY_LIMIT_BYTES } from './http/body-limits.js'
 import { PROBLEM_MEDIA_TYPE } from './http/problem.js'
 import { GUARDED_SECURITY, PRINCIPAL_TOKEN_SCHEME, SERVICE_KEY_SCHEME } from './http/security.js'
 import { validationHook } from './http/validation-hook.js'
 import { createProjectScoped } from './routes/microtask/project-scoped.js'
+import {
+  GUARDED_PREFIX,
+  IDS,
+  TOKENS,
+  admin,
+  asLink,
+  body,
+  buildApp,
+  buildDeps,
+} from './testing/harness.js'
 
-const P1 = '01M240ERCRWWCN16Q5AHP1FZAQ'
-const P2 = '01M240ERCRWWCN16Q5AHP1FZAR'
-const SAMPLE_ID = '01M240ERCRWWCN16Q5AHP1FZB1'
+const P1 = IDS.p1
+const P2 = IDS.p2
+const SAMPLE_ID = IDS.tab1
 const SAMPLE_TOKEN = 'shr_sample_share_token'
-const P1_VIEW = 'shr_p1_view_seat_token'
-const KEY = 'k-microtask'
-const GUARDED_PREFIX = '/v1/microtask'
+const P1_VIEW = TOKENS.p1View
 const META_PATHS = [DOC_PATH, DOCS_PATH]
-
-const config = readConfig({
-  DATA_DIR: '/srv/data',
-  ADMIN_PASSWORD: 'correct horse battery staple',
-  SESSION_SECRET: 's'.repeat(32),
-  SERVICE_KEYS: `microtask=${KEY}`,
-})
-
-const clock = fixedClock(STAMP)
-const verifier = new AdminVerifier({ config, clock })
-
-const link = (token: string, role: Role, scope: Scope): ShareLink => ({
-  token,
-  name: 'A seat',
-  role,
-  scope,
-  createdBy: null,
-  createdAt: STAMP,
-})
-
-const buildDeps = async (): Promise<ApiDeps> => {
-  const store = new MemoryProjectStore()
-  const tokens = new ShareIndex()
-  const first: ProjectManifest = manifest(P1, {
-    shareLinks: [link(P1_VIEW, 'view', { kind: 'project', projectId: P1 })],
-  })
-  const second: ProjectManifest = manifest(P2, { name: 'Other', shareLinks: [] })
-  for (const project of [first, second]) {
-    await store.saveManifest('microtask', project)
-    tokens.add('microtask', project)
-  }
-  return {
-    config,
-    fileSystem: new NodeFileSystem(),
-    store,
-    lock: new QueueLock(),
-    clock,
-    ids: sequentialIds(),
-    tokens,
-  }
-}
-
-const buildApp = async (): Promise<OpenAPIHono<ApiEnv>> => createApp(await buildDeps())
-
-const admin = (): Record<string, string> => ({
-  'x-api-key': KEY,
-  authorization: `Bearer ${verifier.issue().token}`,
-})
-
-const asLink = (token: string): Record<string, string> => ({
-  'x-api-key': KEY,
-  authorization: `Bearer ${token}`,
-})
-
-const body = async (response: Response): Promise<Record<string, unknown>> =>
-  (await response.json()) as Record<string, unknown>
 
 const toBraces = (path: string): string => path.replaceAll(/:([^/]+)/g, '{$1}')
 
@@ -113,7 +58,10 @@ const guardedCalls = (app: OpenAPIHono<ApiEnv>): Call[] => {
   return Object.entries(paths)
     .filter(([path]) => path.startsWith(GUARDED_PREFIX))
     .flatMap(([path, item]) =>
-      Object.keys(item as Record<string, unknown>).map((method) => ({ method, path: concrete(path) })),
+      Object.keys(item as Record<string, unknown>).map((method) => ({
+        method: method.toUpperCase(),
+        path: concrete(path),
+      })),
     )
 }
 

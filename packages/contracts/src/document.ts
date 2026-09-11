@@ -20,7 +20,14 @@ export const EntityName = z
   .max(80)
   .meta({ id: 'EntityName', description: 'A display name, at most 80 characters' })
 
-/** A Tiptap/ProseMirror document. */
+/**
+ * A Tiptap/ProseMirror document.
+ *
+ * `content` is declared `readonly` to match the entity the domain hands back. The distinction is
+ * TypeScript-only and generates the same JSON Schema, but without it every route returning a tab
+ * has to copy or cast the document it was given — and a cast at that seam would be hiding the one
+ * thing worth checking, that the API's declared shape and the domain's are the same shape.
+ */
 export const DocumentJson = z
-  .object({ type: z.literal('doc'), content: z.array(z.unknown()).optional() })
+  .object({ type: z.literal('doc'), content: z.array(z.unknown()).readonly().optional() })
   .meta({ id: 'DocumentJson', description: 'A Tiptap document, stored as JSON and never as HTML' })
