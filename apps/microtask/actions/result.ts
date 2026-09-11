@@ -19,7 +19,7 @@ export interface ActionFailure {
  * What every Server Action in this directory answers: the value the API returned, or why not.
  *
  * A value rather than a thrown error, because an action's rejection reaches the browser as an
- * opaque digest in production — the one thing the user needed, the API's sentence, would be
+ * opaque digest in production — the one thing the user needed, the sentence saying why, would be
  * the one thing lost. A 409 in particular is a real conflict the user must see (ADR 0016), and
  * a result they can render is how it reaches them rather than a retry nobody asked for.
  */
