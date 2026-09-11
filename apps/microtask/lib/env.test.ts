@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { builtinModules } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { MIN_COOKIE_SECRET_BYTES, readEnv } from './env'
 import type * as EnvModule from './env'
@@ -93,11 +94,17 @@ describe('appEnv', () => {
 describe('what the Edge instrumentation bundle pulls in', () => {
   const source = (file: string): string => readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8')
 
+  const NODE_BUILTINS = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)])
+
+  const specifiers = (text: string): string[] =>
+    [...text.matchAll(/\b(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)].map((match) => match[1] ?? '')
+
   it.each(['./env.ts', '../instrumentation.ts'])(
-    'imports no Node built-in from %s, since next build compiles register into the Edge runtime too',
+    'imports no Node built-in from %s under either spelling, since next build compiles register into the Edge runtime too',
     (file) => {
-      expect(source(file)).not.toMatch(/from\s+['"]node:/)
-      expect(source(file)).not.toMatch(/\bBuffer\s*\./)
+      const text = source(file)
+      expect(specifiers(text).filter((specifier) => NODE_BUILTINS.has(specifier))).toEqual([])
+      expect(text).not.toMatch(/\bBuffer\s*\./)
     },
   )
 })
