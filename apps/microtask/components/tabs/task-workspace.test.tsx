@@ -185,6 +185,17 @@ describe('?tab= in the address bar', () => {
     expect(replaced).toEqual([])
   })
 
+  it('replaces the ?tab= the address carries on a switch, rather than adding a second one', async () => {
+    vi.mocked(window.history.replaceState).mockRestore()
+    window.history.replaceState(null, '', `/p/${P}/t/${T}?tab=a#notes`)
+    vi.spyOn(window.history, 'replaceState').mockImplementation((_data, _unused, url) => {
+      replaced.push(String(url))
+    })
+    mount({ active: 'a' })
+    await userEvent.click(tabNamed('c'))
+    expect(replaced).toEqual([`/p/${P}/t/${T}?tab=c#notes`])
+  })
+
   it('is rewritten with replaceState on every switch, and pushState is never used', async () => {
     mount()
     await userEvent.click(tabNamed('c'))
@@ -234,6 +245,18 @@ describe('switching tabs', () => {
     expect(mounts.at(-1)).toEqual({ document: typed, updatedAt: 'a-S2', editable: true })
   })
 
+  it('writes to the tab it is open on after a switch, not to the tab the page opened on', async () => {
+    const fetch = vi.fn(() => Promise.resolve(Response.json({ updatedAt: 'b-S2' })))
+    vi.stubGlobal('fetch', fetch)
+    mount()
+    await userEvent.click(tabNamed('b'))
+    await act(async () => {
+      await island?.save({ document: doc([true]), ifMatch: 'b-S1', keepalive: false })
+    })
+    expect(fetch).toHaveBeenCalledWith(`/api/projects/${P}/tasks/${T}/tabs/b/document`, expect.anything())
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('does not switch when the open tab is clicked, and opens its menu instead', async () => {
     mount()
     await userEvent.click(tabNamed('a'))
@@ -257,6 +280,16 @@ describe('the tab strip keeps its DOM and its scroll while the user types', () =
     after.forEach((node, index) => expect(node).toBe(before[index]))
     expect(tabNamed('a').textContent).toContain('2/2')
     expect(scroller.scrollLeft).toBe(120)
+  })
+
+  it('patches only the open tab’s pill, leaving every other tab its own count', async () => {
+    mount()
+    await act(async () => {
+      island?.onProgress?.({ done: 0, total: 5 })
+    })
+    expect(tabNamed('a').textContent).toContain('0/5')
+    expect(tabNamed('c').textContent).toContain('3/3')
+    expect(tabNamed('b').querySelector('[data-slot="tab-count"]')).toBeNull()
   })
 
   it('scrolls the open tab into view when it changes, nearest on both axes', async () => {
@@ -333,6 +366,21 @@ describe('moving a tab', () => {
     expect(actions.reorder).toHaveBeenCalledWith({ projectId: P, taskId: T }, ['a', 'c', 'b'])
   })
 
+  it('clears a refusal once a later write succeeds', async () => {
+    actions.reorder
+      .mockReturnValueOnce(Promise.resolve({ ok: false, status: 409, detail: 'This list changed.' }))
+      .mockReturnValueOnce(ok([TABS[1], TABS[0], TABS[2]] as WorkspaceTab[]))
+    mount()
+    await userEvent.click(tabNamed('a'))
+    await userEvent.click(menuItem('Move right'))
+    await settle()
+    expect(screen.getByRole('alert').textContent).toBe('This list changed.')
+    await userEvent.click(tabNamed('a'))
+    await userEvent.click(menuItem('Move right'))
+    await settle()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('shows the sentence a refused reorder came back with', async () => {
     actions.reorder.mockReturnValue(Promise.resolve({ ok: false, status: 409, detail: 'This list changed.' }))
     mount()
@@ -401,6 +449,17 @@ describe('deleting a tab', () => {
     expect(screen.getByRole('alert').textContent).toBe('A task must keep at least one tab')
   })
 
+  it('focuses nothing a keypress could confirm, so Enter cannot delete a tab', async () => {
+    mount({ active: 'b' })
+    await userEvent.click(tabNamed('b'))
+    await userEvent.click(menuItem('Delete tab'))
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete tab' })
+    expect(document.activeElement).not.toBe(confirm)
+    await userEvent.keyboard('{Enter}')
+    await settle()
+    expect(actions.remove).not.toHaveBeenCalled()
+  })
+
   it('sends nothing when the confirmation is cancelled', async () => {
     mount({ active: 'b' })
     await userEvent.click(tabNamed('b'))
@@ -435,6 +494,22 @@ describe('renaming a tab', () => {
     expect(actions.rename).toHaveBeenCalledWith({ projectId: P, taskId: T, tabId: 'a' }, 'Go-live')
     expect(log).toEqual(['mount:a-S1', 'flush', 'rename', 'mount:a-S2'])
     expect(screen.getByRole('tab', { name: /^Go-live/ })).toBeTruthy()
+  })
+
+  it('hands focus to the rename field rather than back to the tab behind it', async () => {
+    mount()
+    await userEvent.click(tabNamed('a'))
+    await userEvent.click(menuItem('Rename'))
+    await settle()
+    expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('textbox'))
+  })
+
+  it('returns focus to the tab when its menu is dismissed', async () => {
+    mount()
+    await userEvent.click(tabNamed('a'))
+    await userEvent.keyboard('{Escape}')
+    await settle()
+    expect(document.activeElement).toBe(tabNamed('a'))
   })
 
   it('renames a tab that is not open without touching the island', async () => {
@@ -478,6 +553,7 @@ describe('creating a tab', () => {
     expect(log).toEqual(['mount:a-S1', 'flush', 'create', 'mount:d-S1'])
     expect(tabNamed('d').getAttribute('aria-selected')).toBe('true')
     expect(replaced.at(-1)).toBe(`/p/${P}/t/${T}?tab=d`)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('disables + at the tab limit from LIMITS, and not before it', () => {

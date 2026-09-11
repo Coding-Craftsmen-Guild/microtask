@@ -29,7 +29,7 @@ const problem = (status: number, detail?: string): Response =>
 
 describe('the admin document route’s address', () => {
   it('is the task’s tabs collection under /api, with every id encoded', () => {
-    expect(adminDocumentRoot({ projectId: 'P1', taskId: 'T/1' })).toBe('/api/projects/P1/tasks/T%2F1/tabs')
+    expect(adminDocumentRoot({ projectId: 'P/1', taskId: 'T/1' })).toBe('/api/projects/P%2F1/tasks/T%2F1/tabs')
   })
 
   it('names one tab’s document under that root', () => {

@@ -116,6 +116,16 @@ describe('authority', () => {
     expect(await redirectOf(createTab(TASK, 'x'))).toBe(`/login?next=${encodeURIComponent(`/p/${P}/t/${T}`)}`)
   })
 
+  it.each([
+    ['createTab', () => createTab(TASK, 'x'), () => fake.tabs.create],
+    ['renameTab', () => renameTab({ ...TASK, tabId: A }, 'x'), () => fake.tabs.rename],
+    ['deleteTab', () => deleteTab({ ...TASK, tabId: A }), () => fake.tabs.remove],
+    ['reorderTabs', () => reorderTabs(TASK, [A, B, C]), () => fake.tabs.reorder],
+  ] as const)('%s sends an admin the API refuses back to this task after signing in', async (_name, run, call) => {
+    call().mockRejectedValue(problem(401, 'expired'))
+    expect(await redirectOf(run())).toBe(`/login?next=${encodeURIComponent(`/p/${P}/t/${T}`)}`)
+  })
+
   it('sends a browser with no admin session to sign in without calling the API', async () => {
     signedIn = false
     expect(await redirectOf(deleteTab({ ...TASK, tabId: A }))).toBe(
