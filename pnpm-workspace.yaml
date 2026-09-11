@@ -36,6 +36,7 @@ minimumReleaseAgeExclude:
   - eslint-plugin-jsdoc@64.3.9
   - zod@4.6.1
   - '@types/node@22.20.2'
+  - lucide-react@1.44.0
 
 overrides:
   zod: 'catalog:'
