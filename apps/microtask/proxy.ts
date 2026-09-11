@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { open } from './lib/crypto'
+import { appEnv } from './lib/env'
 import { loginPathFor } from './lib/next-path'
-import { ADMIN_COOKIE, LINK_COOKIE } from './lib/principal'
+import { ADMIN_COOKIE, LINK_COOKIE, adminFrom } from './lib/principal'
 import { LINK_UNAVAILABLE_PATH, LOGIN_PATH, isLinkSurface } from './lib/routes'
 import { clearedCookie, secureFrom } from './lib/session-store'
 
@@ -12,8 +14,11 @@ const cleared = (name: string, secure: boolean): NextResponse => {
   return response
 }
 
-const holdsAdminCookie = (request: NextRequest): boolean =>
-  (request.cookies.get(ADMIN_COOKIE)?.value ?? '') !== ''
+const holdsAdminCookie = (request: NextRequest): boolean => {
+  const raw = request.cookies.get(ADMIN_COOKIE)?.value ?? ''
+  const opened = raw === '' ? null : open(appEnv().cookieSecret, raw)
+  return opened !== null && adminFrom(opened) !== null
+}
 
 const isApiRoute = (pathname: string): boolean => pathname === '/api' || pathname.startsWith('/api/')
 
@@ -24,10 +29,13 @@ const isApiRoute = (pathname: string): boolean => pathname === '/api' || pathnam
  * convention in favour of `proxy` (the build warns and names the codemod), and runs a proxy on
  * the Node runtime. The behaviour is the same file under its current name.
  *
- * **It checks presence, never authority.** An `mt_admin` that is present but will not open, or
- * that wraps a bearer the API no longer accepts, passes here and meets its 401 in the page, which
- * redirects back to `/login` through `lib/problem.ts`. Opening the cookie here would put
- * `COOKIE_SECRET` in front of every request for a check the API makes anyway.
+ * **It checks that `mt_admin` opens, never that the bearer inside it is still accepted.** A
+ * cookie that is tampered, sealed under a rotated secret, or holds a link principal is treated
+ * exactly as no cookie — the same 307 to `/login?next=` — because ADR 0032 says a cookie that will
+ * not open is *absent*, and a presence check made it a pass to render the admin surface. A cookie
+ * that opens but wraps a bearer the API no longer accepts still passes, and meets its 401 in the
+ * page, which redirects back to `/login` through `lib/problem.ts`: only the API can judge a
+ * bearer, and nothing here tries to.
  *
  * Four rules, in order, and only for `GET`/`HEAD`. A `POST` is a Server Action posting to the
  * page it was rendered on: it answers with its own remedy, and on `/login` it is the sign-in
@@ -40,7 +48,7 @@ const isApiRoute = (pathname: string): boolean => pathname === '/api' || pathnam
  *    reload does not re-attempt a dead token. Neither rule touches the other cookie.
  * 3. The client surface (`/s/*`, `/share/*`) passes untouched and is **never** sent to `/login`.
  *    A client has no password, and a password form is the worst answer a revoked link can get.
- * 4. Everything else is the admin surface, and a navigation with no `mt_admin` goes to
+ * 4. Everything else is the admin surface, and a navigation with no `mt_admin` that opens goes to
  *    `/login?next=<path>` — the deep link the app being replaced lost on every expiry.
  */
 export function proxy(request: NextRequest): NextResponse {

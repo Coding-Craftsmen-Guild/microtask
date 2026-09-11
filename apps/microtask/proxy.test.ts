@@ -1,10 +1,24 @@
 import { NextRequest } from 'next/server'
-import { describe, expect, it } from 'vitest'
-import { ADMIN_COOKIE, LINK_COOKIE } from './lib/principal'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { vi } from 'vitest'
+import { seal } from './lib/crypto'
+import { ADMIN_COOKIE, LINK_COOKIE, payloadOf } from './lib/principal'
 import { LINK_UNAVAILABLE_PATH } from './lib/routes'
 import { config, proxy } from './proxy'
 
 const ORIGIN = 'https://microtask.example'
+const SECRET = 'a-cookie-secret-of-at-least-32-by'
+const ADMIN = seal(SECRET, payloadOf({ kind: 'admin', token: 'admin.1.sig' }))
+
+beforeEach(() => {
+  vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
+  vi.stubEnv('API_KEY', 'the-service-key')
+  vi.stubEnv('COOKIE_SECRET', SECRET)
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 interface Visit {
   readonly method?: string
@@ -50,6 +64,20 @@ describe('the admin surface with no mt_admin', () => {
     expect(new URL(locationOf(visit('/')) ?? '').search).toBe('')
   })
 
+  it('redirects with a 307, which a browser does not cache the way it caches a 308', () => {
+    expect(visit('/p/01HXYZ').status).toBe(307)
+  })
+
+  it.each(['/login-help', '/loginx'])('gates %s rather than treating it as /login', (path) => {
+    const response = visit(path, { cookies: { [ADMIN_COOKIE]: ADMIN } })
+    expect(touches(response, ADMIN_COOKIE)).toBe(false)
+    expect(new URL(locationOf(visit(path)) ?? '').pathname).toBe('/login')
+  })
+
+  it('gates /apiary, since only /api and /api/* are API routes', () => {
+    expect(isRedirect(visit('/apiary'))).toBe(true)
+  })
+
   it('stays on this origin', () => {
     expect(new URL(locationOf(visit('/p/01HXYZ')) ?? '').origin).toBe(ORIGIN)
   })
@@ -81,9 +109,22 @@ describe('the admin surface with no mt_admin', () => {
 
 describe('the admin surface with mt_admin', () => {
   it('lets the request through without touching either cookie', () => {
-    const response = visit('/p/01HXYZ', { cookies: { [ADMIN_COOKIE]: 'sealed', [LINK_COOKIE]: 'x' } })
+    const response = visit('/p/01HXYZ', { cookies: { [ADMIN_COOKIE]: ADMIN, [LINK_COOKIE]: 'x' } })
     expect(isRedirect(response)).toBe(false)
     expect(setCookies(response)).toEqual([])
+  })
+
+  it.each([
+    ['a value that is not a sealed blob', 'garbage'],
+    ['a blob with one bit flipped', ADMIN.slice(0, -2) + (ADMIN.endsWith('A') ? 'B' : 'A') + ADMIN.slice(-1)],
+    ['a blob sealed under another secret', seal('another-secret-of-at-least-32-byt', payloadOf({ kind: 'admin', token: 't' }))],
+    ['a link principal moved into mt_admin', seal(SECRET, payloadOf({ kind: 'link', token: 'share' }))],
+  ])('treats %s exactly as it treats no cookie', (_label, value) => {
+    const tampered = visit('/p/01HXYZ?tab=01H', { cookies: { [ADMIN_COOKIE]: value } })
+    const absent = visit('/p/01HXYZ?tab=01H')
+    expect(tampered.status).toBe(absent.status)
+    expect(locationOf(tampered)).toBe(locationOf(absent))
+    expect(setCookies(tampered)).toEqual(setCookies(absent))
   })
 })
 
@@ -139,6 +180,14 @@ describe('the client surface', () => {
 
   it('leaves mt_admin alone at the terminal page', () => {
     expect(touches(visit(LINK_UNAVAILABLE_PATH, { cookies: { [ADMIN_COOKIE]: 'sealed' } }), ADMIN_COOKIE)).toBe(false)
+  })
+
+  it.each(['/s', '/share'])('never sends the bare %s to /login', (path) => {
+    expect(isRedirect(visit(path))).toBe(false)
+  })
+
+  it('does not clear mt_link on a token that merely begins with the terminal page name', () => {
+    expect(touches(visit(`${LINK_UNAVAILABLE_PATH}x`, { cookies: { [LINK_COOKIE]: 'sealed' } }), LINK_COOKIE)).toBe(false)
   })
 
   it('does not clear mt_link on an ordinary client route', () => {
