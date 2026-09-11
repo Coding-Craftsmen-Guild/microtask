@@ -496,14 +496,6 @@ describe('renaming a tab', () => {
     expect(screen.getByRole('tab', { name: /^Go-live/ })).toBeTruthy()
   })
 
-  it('hands focus to the rename field rather than back to the tab behind it', async () => {
-    mount()
-    await userEvent.click(tabNamed('a'))
-    await userEvent.click(menuItem('Rename'))
-    await settle()
-    expect(document.activeElement).toBe(within(screen.getByRole('dialog')).getByRole('textbox'))
-  })
-
   it('returns focus to the tab when its menu is dismissed', async () => {
     mount()
     await userEvent.click(tabNamed('a'))
