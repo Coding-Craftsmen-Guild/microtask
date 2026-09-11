@@ -2,6 +2,16 @@ packages:
   - 'apps/*'
   - 'packages/*'
 
+# pnpm 10+ reads its own settings from this file, not from .npmrc. The
+# hyphenated .npmrc spellings these two replace were read by nothing, so
+# `pnpm config get strict-peer-dependencies` answered undefined and no peer
+# range in the workspace was ever checked. autoInstallPeers stays false: with
+# it on pnpm invents a peer version instead of failing, which is the same
+# blind spot with extra steps. .npmrc is deleted because it held only these
+# two keys and no npm-registry settings.
+strictPeerDependencies: true
+autoInstallPeers: false
+
 # Workspace-wide, not per-package. esbuild's postinstall only fetches its
 # native binary, which already arrives as an optional @esbuild/<platform>
 # dependency, so skipping the script is safe. This entry outlives the legacy
@@ -16,6 +26,12 @@ catalog:
   eslint: 9.39.5
   vitest: 5.0.0
   '@types/node': 22.20.2
+
+  # vitest@5.0.0 takes vite as a non-optional peer (^6.4.0 || ^7.0.0 || ^8.0.0)
+  # and no package declared it, so the first install that actually read
+  # strictPeerDependencies failed on it. 8.2.2 is the version the tree was
+  # already resolving transitively; 8.3.0 is one day old.
+  vite: 8.2.2
 
   # react and react-dom move as one pin: react-dom@19.3.0 declares peer
   # react@^19.3.0, so bumping either alone fails strict-peer-dependencies.

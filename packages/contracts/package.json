@@ -17,6 +17,8 @@
     "@repo/eslint-config": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "eslint": "catalog:"
+    "eslint": "catalog:",
+    "@types/node": "catalog:",
+    "vite": "catalog:"
   }
 }

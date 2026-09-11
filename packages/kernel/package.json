@@ -19,6 +19,7 @@
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:",
-    "eslint": "catalog:"
+    "eslint": "catalog:",
+    "vite": "catalog:"
   }
 }
