@@ -552,8 +552,8 @@ badges are patched in place on keystroke, not re-rendered.
 this tab`; overall `Overall progress: 72%` or `No tasks yet`; bar animates on
 `requestAnimationFrame` and takes a `done` state at 100 %.
 
-**URLs** — `?tab=` is validated against the project's own tabs and falls back to the first tab, so a
-token can never reach another project's tab. Written with `replaceState`, so tab switching adds no
+**URLs** — `?tab=` is validated against the **task's** own tabs and falls back to the first tab, so
+a token can never reach another task's tab. Written with `replaceState`, so tab switching adds no
 history entries.
 
 **Title editing** — `contenteditable="plaintext-only"`; Enter blurs, Escape reverts, blur saves when
@@ -562,6 +562,10 @@ changed, whitespace collapses, empty reverts. A re-render never overwrites the f
 **Share manager** — name + role per link; row shows name (or "Unnamed link"), role badge, readonly
 URL, Copy (clipboard API with `execCommand` fallback), and a menu with Rename · role changes
 (current one disabled) · Revoke (danger, confirm). Empty state: "No links yet — add one above."
+Rename and the role changes are the two controls that need `PATCH …/share-links/:token` (ADR 0035);
+without it the UI can only revoke and recreate, which mints a new token and silently breaks the
+client's bookmark. Rendered only where `capabilities(role, scope)` allows it, which is never for a
+task-scoped holder.
 
 **Editor** — StarterKit with headings 1–3, `codeBlock` spellcheck off, TaskList, nested TaskItem
 with no `onReadOnlyChecked` (so read-only checkboxes snap back), Link with `openOnClick: !editable`,
