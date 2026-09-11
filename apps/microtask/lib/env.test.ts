@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { MIN_COOKIE_SECRET_BYTES, readEnv } from './env'
 import type * as EnvModule from './env'
 
@@ -86,4 +88,16 @@ describe('appEnv', () => {
     const { appEnv } = await fresh()
     expect(() => appEnv()).toThrow(/API_KEY/)
   })
+})
+
+describe('what the Edge instrumentation bundle pulls in', () => {
+  const source = (file: string): string => readFileSync(fileURLToPath(new URL(file, import.meta.url)), 'utf8')
+
+  it.each(['./env.ts', '../instrumentation.ts'])(
+    'imports no Node built-in from %s, since next build compiles register into the Edge runtime too',
+    (file) => {
+      expect(source(file)).not.toMatch(/from\s+['"]node:/)
+      expect(source(file)).not.toMatch(/\bBuffer\s*\./)
+    },
+  )
 })

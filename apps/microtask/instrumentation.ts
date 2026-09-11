@@ -6,7 +6,7 @@ import { appEnv } from './lib/env'
  *
  * This is the one hook Next runs at server start and **not** during `next build`
  * (`registerInstrumentation` returns early in `phase-production-build`), which is why it can do
- * what a module-level `readEnv(process.env)` cannot: the build still needs no production secrets.
+ * what reading the environment at module level cannot: the build still needs no production secrets.
  *
  * Measured against the standalone server with `COOKIE_SECRET` unset. Without this hook it logs
  * `Ready`, serves `/login` with a 200, and fails only when someone signs in. With it, boot logs

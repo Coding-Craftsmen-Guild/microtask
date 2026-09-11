@@ -1,5 +1,3 @@
-import process from 'node:process'
-
 /** The environment a config is read from: `process.env`, or a literal object in a test. */
 export type Env = Readonly<Record<string, string | undefined>>
 
@@ -35,7 +33,7 @@ function required(source: Env, key: string): string {
 
 function readCookieSecret(source: Env): string {
   const secret = required(source, 'COOKIE_SECRET')
-  const bytes = Buffer.byteLength(secret, 'utf8')
+  const bytes = new TextEncoder().encode(secret).length
   if (bytes < MIN_COOKIE_SECRET_BYTES) {
     throw new Error(
       `COOKIE_SECRET must be at least ${String(MIN_COOKIE_SECRET_BYTES)} bytes, got ${String(bytes)}`,
@@ -75,6 +73,13 @@ let resolved: AppEnv | null = null
  * not avoid it. The boot check the plan asked for is `register` in `instrumentation.ts`, which
  * calls this once at server start and never during the build; no caller can obtain an
  * {@link AppEnv} that skipped {@link readEnv} either way.
+ *
+ * It reads the **global** `process` rather than importing `node:process`, and this module
+ * measures bytes with `TextEncoder` rather than `Buffer`, because `instrumentation.ts` imports it
+ * and `next build` compiles `register` for the Edge runtime as well as for Node. There a Node
+ * built-in is a build warning, and `process.env` is still defined. Branching `register` on
+ * `NEXT_RUNTIME` instead, as Next's own example does, would put a second `process.env` read in
+ * `instrumentation.ts` (ADR 0012, ADR 0027).
  */
 export function appEnv(): AppEnv {
   resolved ??= readEnv(process.env)
