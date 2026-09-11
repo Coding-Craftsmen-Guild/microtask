@@ -36,6 +36,25 @@ describe('the three texts legacy showed', () => {
     expect(screen.getByRole('status').textContent).toBe('')
   })
 
+  it('shows a failure message only beside the retry text, never beside Saving or Saved', () => {
+    for (const state of ['saving', 'saved'] as const) {
+      cleanup()
+      show(state, 'Network down')
+      expect(screen.getByRole('status').textContent).toBe(SAVE_TEXT[state])
+    }
+  })
+
+  it('colours the retry text as a failure, and Saving and Saved not', () => {
+    const tone = (state: SaveState): boolean => {
+      cleanup()
+      show(state)
+      return screen.getByRole('status').classList.contains('text-destructive')
+    }
+    expect(tone('retrying')).toBe(true)
+    expect(tone('saving')).toBe(false)
+    expect(tone('saved')).toBe(false)
+  })
+
   it('is a live region, so the state is not visual only', () => {
     show('saving')
     expect(screen.getByRole('status').getAttribute('aria-live')).toBe('polite')

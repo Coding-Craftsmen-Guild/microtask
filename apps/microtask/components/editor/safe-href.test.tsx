@@ -30,6 +30,12 @@ describe('normalizeHref against the schemes a document may carry', () => {
     }
   })
 
+  it('reads +, . and - as scheme characters, so such a scheme is refused rather than made a host', () => {
+    expect(normalizeHref('web+app:open')).toBe(null)
+    expect(normalizeHref('svn+ssh://example.com/repo')).toBe(null)
+    expect(normalizeHref('x-custom.scheme:thing')).toBe(null)
+  })
+
   it('prepends https to a bare host, which is what the app being replaced did', () => {
     expect(normalizeHref('example.com')).toBe('https://example.com')
     expect(normalizeHref('www.example.com/path?q=1')).toBe('https://www.example.com/path?q=1')

@@ -137,6 +137,16 @@ describe('the page going away', () => {
     expect(events[0]?.defaultPrevented).toBe(true)
   })
 
+  it('sets returnValue as well, the older way a page asks for the prompt', () => {
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    const events: Event[] = []
+    act(() => {
+      events.push(unload())
+    })
+    expect(Reflect.get(events[0] ?? {}, 'returnValue')).toBe('')
+  })
+
   it('leaves beforeunload alone when there is nothing unsaved, so a clean page just closes', () => {
     render(<Plain />)
     const events: Event[] = []

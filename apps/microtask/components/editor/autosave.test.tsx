@@ -159,6 +159,20 @@ describe('a failed write', () => {
     }
   })
 
+  it('keeps one retry chain when the user edits while a retry is waiting', async () => {
+    const { autosave, requests, answer } = harness()
+    answer(FAILED)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS + 1000)
+    autosave.change(text('ab'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(requests.length).toBe(2)
+    for (let attempt = 3; attempt <= 6; attempt += 1) {
+      await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS)
+      expect(requests.length).toBe(attempt)
+    }
+  })
+
   it('recovers to Saved once a retry lands', async () => {
     const { autosave, states, answer } = harness()
     answer(FAILED)
@@ -373,6 +387,33 @@ describe('one write at a time, so the loop can never conflict with itself', () =
     expect(requests.length).toBe(1)
     expect(states.at(-1)).toBe('idle')
     expect(autosave.dirty).toBe(false)
+  })
+
+  it('keeps holding writes once the first answers while a queued one is still out', async () => {
+    const { autosave, requests, releases } = gated()
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.change(text('ab'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.change(text('abc'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    releases[0]?.({ kind: 'saved', updatedAt: 'v2' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(requests.length).toBe(2)
+    autosave.change(text('abcd'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(requests.length).toBe(2)
+  })
+
+  it('keeps keepalive on a flush that waited behind the write in flight', async () => {
+    const { autosave, requests, releases } = gated()
+    autosave.change(text('a'))
+    void autosave.flush()
+    autosave.change(text('ab'))
+    void autosave.flush(true)
+    releases[0]?.({ kind: 'saved', updatedAt: 'v2' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(requests.map((request) => request.keepalive)).toEqual([false, true])
   })
 
   it('still takes the stamp from a write markClean overtook, since the server did store it', async () => {
