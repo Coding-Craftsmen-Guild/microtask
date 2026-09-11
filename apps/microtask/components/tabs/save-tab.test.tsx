@@ -68,19 +68,33 @@ describe('saveTabDocument sends one conditional write and reads the answer into 
     expect(await saveTabDocument('/api/doc', fetch)(REQUEST)).toEqual({ kind: 'conflict' })
   })
 
-  it('reads a 413 into a failure carrying the problem’s own sentence', async () => {
-    const { fetch } = answering(() => problem(413, 'This request body is larger than 2500000 bytes.'))
-    expect(await saveTabDocument('/api/doc', fetch)(REQUEST)).toEqual({
-      kind: 'failed',
-      message: 'This request body is larger than 2500000 bytes.',
-    })
-  })
+  it.each([400, 401, 403, 404, 413, 422])(
+    'reads a %i into refused, carrying the route’s sentence, since sending the same write again cannot succeed',
+    async (status) => {
+      const { fetch } = answering(() => problem(status, 'This share link is no longer available.'))
+      expect(await saveTabDocument('/api/doc', fetch)(REQUEST)).toEqual({
+        kind: 'refused',
+        message: 'This share link is no longer available.',
+      })
+    },
+  )
 
-  it('reads a 401 into a failure rather than a conflict, so the island keeps the edit and retries', async () => {
-    const { fetch } = answering(() => problem(401, 'Sign in again in another tab.'))
+  it.each([408, 429, 500, 502, 503, 504])(
+    'reads a %i into failed, which the island retries, since the same write can land once the server recovers',
+    async (status) => {
+      const { fetch } = answering(() => problem(status, 'Microtask could not reach its API.'))
+      expect(await saveTabDocument('/api/doc', fetch)(REQUEST)).toEqual({
+        kind: 'failed',
+        message: 'Microtask could not reach its API.',
+      })
+    },
+  )
+
+  it('falls back to the status on a refusal that carries no readable sentence', async () => {
+    const { fetch } = answering(() => new Response('<html>Forbidden</html>', { status: 403 }))
     expect(await saveTabDocument('/api/doc', fetch)(REQUEST)).toEqual({
-      kind: 'failed',
-      message: 'Sign in again in another tab.',
+      kind: 'refused',
+      message: 'The save failed (HTTP 403).',
     })
   })
 

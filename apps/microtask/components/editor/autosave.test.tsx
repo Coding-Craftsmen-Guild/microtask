@@ -19,6 +19,7 @@ interface Harness {
 const SAVED: SaveOutcome = { kind: 'saved', updatedAt: 'v2' }
 const FAILED: SaveOutcome = { kind: 'failed', message: 'Network down' }
 const CONFLICT: SaveOutcome = { kind: 'conflict' }
+const REFUSED: SaveOutcome = { kind: 'refused', message: 'This share link is no longer available.' }
 
 const harness = (): Harness => {
   const requests: SaveRequest[] = []
@@ -214,6 +215,90 @@ describe('a 409 is surfaced and never retried', () => {
     expect(requests.length).toBe(1)
     expect(autosave.state).toBe('conflict')
     expect(autosave.dirty).toBe(true)
+  })
+})
+
+describe('a refusal no retry can change is terminal, and retried only when asked', () => {
+  it('stops on a refusal and sends nothing more however long the page stays open', async () => {
+    const { autosave, requests, states, answer } = harness()
+    answer(REFUSED)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect(states).toEqual(['saving', 'refused'])
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+    expect(requests.length).toBe(1)
+    expect(autosave.message).toBe('This share link is no longer available.')
+  })
+
+  it('keeps the edits, and records new ones without arming a write, so the user can copy them out', async () => {
+    const { autosave, requests, answer } = harness()
+    answer(REFUSED)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.change(text('ab'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS * 10)
+    expect(requests.length).toBe(1)
+    expect(autosave.state).toBe('refused')
+    expect(autosave.dirty).toBe(true)
+    expect(autosave.pending).toBe(true)
+  })
+
+  it('writes nothing on a flush, since a hidden page, Ctrl+S or unload would only earn the same refusal', async () => {
+    const { autosave, requests, answer } = harness()
+    answer(REFUSED)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    await autosave.flush()
+    await autosave.flush(true)
+    expect(requests.length).toBe(1)
+  })
+
+  it('sends the newest document once when retry is chosen, and lands it', async () => {
+    const { autosave, requests, states, answer } = harness()
+    answer(REFUSED)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    autosave.change(text('ab'))
+    answer(SAVED)
+    await autosave.retry()
+    expect(requests.map((request) => request.document)).toEqual([text('a'), text('ab')])
+    expect(requests[1]?.ifMatch).toBe('v1')
+    expect(states).toEqual(['saving', 'refused', 'saving', 'saved'])
+    expect(autosave.dirty).toBe(false)
+  })
+
+  it('stops again, with no loop, when the retry is refused too', async () => {
+    const { autosave, requests, states, answer } = harness()
+    answer(REFUSED)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    await autosave.retry()
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS * 10)
+    expect(requests.length).toBe(2)
+    expect(states).toEqual(['saving', 'refused', 'saving', 'refused'])
+  })
+
+  it('does nothing on retry in a conflict, which only a reload resolves', async () => {
+    const { autosave, requests, answer } = harness()
+    answer(CONFLICT)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    await autosave.retry()
+    expect(requests.length).toBe(1)
+    expect(autosave.state).toBe('conflict')
+  })
+
+  it('writes at once on retry while a transient failure waits, and keeps one chain', async () => {
+    const { autosave, requests, answer } = harness()
+    answer(FAILED)
+    autosave.change(text('a'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    answer(SAVED)
+    await autosave.retry()
+    expect(requests.length).toBe(2)
+    await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS * 3)
+    expect(requests.length).toBe(2)
+    expect(autosave.state).toBe('saved')
   })
 })
 

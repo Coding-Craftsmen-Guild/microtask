@@ -26,16 +26,21 @@ export interface SaveRequest {
 }
 
 /**
- * What one write answered, as three outcomes rather than a thrown error.
+ * What one write answered, as four outcomes rather than a thrown error.
  *
- * A conflict is a different fact from a failure, not a worse one: a failure is retried
- * indefinitely and a conflict must never be, or the retry loop turns one 409 into a permanent
- * one (ADR 0016). Making them separate variants is what stops the caller collapsing them.
+ * Only a `failed` write is retried on a timer, because only it can land unchanged later: the
+ * request never arrived, or the server was busy or broken (a transport failure, 408, 429, 5xx).
+ * A `conflict` must never be, or the loop turns one 409 into a permanent one (ADR 0016). A
+ * `refused` write — a 401 or 403 for a credential that is gone or downgraded, a 404 for a tab
+ * that is gone, a 413 or 422 for a body the server will not take — is refused again every time
+ * it is sent, so it waits for the user to ask (ADR 0016, ADR 0028). Separate variants are what
+ * stop a caller collapsing them.
  */
 export type SaveOutcome =
   | { readonly kind: 'saved'; readonly updatedAt: string }
   | { readonly kind: 'conflict' }
   | { readonly kind: 'failed'; readonly message: string }
+  | { readonly kind: 'refused'; readonly message: string }
 
 /**
  * Writes one tab's document.
@@ -50,6 +55,7 @@ export type SaveDocument = (request: SaveRequest) => Promise<SaveOutcome>
  * What the save indicator is showing.
  *
  * `idle` is the blank the app being replaced set on every tab switch, and it is a state rather
- * than the absence of one because it has to be reachable from `saved`.
+ * than the absence of one because it has to be reachable from `saved`. `conflict` and
+ * `refused` are the two in which the loop holds edits it will not write on its own.
  */
-export type SaveState = 'idle' | 'saving' | 'saved' | 'retrying' | 'conflict'
+export type SaveState = 'idle' | 'saving' | 'saved' | 'retrying' | 'conflict' | 'refused'

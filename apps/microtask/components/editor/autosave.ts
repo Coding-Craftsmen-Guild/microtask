@@ -4,7 +4,10 @@ import type { SaveDocument, SaveOutcome, SaveRequest, SaveState } from './save-d
 /** How long after the last change a write is sent, in milliseconds. */
 export const SAVE_DEBOUNCE_MS = 700
 
-/** How long after a failed write the next attempt is sent, in milliseconds. Forever. */
+/**
+ * How long after a failed write the next attempt is sent, in milliseconds, for as long as the
+ * failure is one a retry can outlast. A refusal is not retried on a timer at all.
+ */
 export const SAVE_RETRY_MS = 4000
 
 /**
@@ -59,6 +62,11 @@ const attempt = (save: SaveDocument, request: SaveRequest): Promise<SaveOutcome>
  * an edit that is not stored yet. A save that rejects and a save that throws before returning
  * a promise are both a failure; the call stays synchronous, because a `beforeunload` flush has
  * to start its request before the page goes.
+ *
+ * Two outcomes stop the loop with the edits held: a `conflict`, which only a reload resolves,
+ * and a `refused` write, which only {@link retry} sends again. Legacy retried every failure every
+ * four seconds for as long as the page stayed open, so a revoked link's page sent a refused save
+ * fifteen times a minute and told its user it was retrying (ADR 0016).
  */
 export class Autosave {
   readonly #save: SaveDocument
@@ -111,14 +119,15 @@ export class Autosave {
   /**
    * Records a new document and arms the debounce.
    *
-   * In `conflict` the document is still recorded and no write is armed: the edits are kept so
-   * the user can be told before anything is discarded, and the tab stays quiet rather than
-   * answering one 409 with an endless stream of them (ADR 0016).
+   * In `conflict` or `refused` the document is still recorded and no write is armed: the edits
+   * are kept so the user can be told before anything is discarded, or copy them out, and the tab
+   * stays quiet rather than answering one 409 or one revoked link with an endless stream of the
+   * same answer (ADR 0016).
    */
   change(document_: DocumentValue): void {
     this.#document = document_
     this.#dirty = true
-    if (this.#state === 'conflict') return
+    if (this.#held()) return
     this.#setState('saving')
     this.#arm(SAVE_DEBOUNCE_MS)
   }
@@ -129,13 +138,24 @@ export class Autosave {
    * Called before deleting a tab. Without it a queued autosave lands after the DELETE and
    * resurrects the content that was just removed. A write already in flight is let finish, and
    * its stamp is kept, but its outcome is not reported: a failure against a tab that no longer
-   * exists would otherwise be retried every four seconds, forever.
+   * exists would otherwise be retried every four seconds, or left on screen as a refusal.
    */
   markClean(): void {
     this.#cancel()
     this.#epoch += 1
     this.#dirty = false
     this.#setState('idle')
+  }
+
+  /**
+   * Writes now because the user asked, which is the only way out of `refused`: a credential
+   * restored elsewhere — the admin signed in again in another tab — or a body shortened below
+   * the cap is something only the user knows about. In `retrying` it overtakes the timer; in
+   * `conflict` it writes nothing, since only a reload resolves a 409 (ADR 0016).
+   */
+  retry(): Promise<void> {
+    if (this.#state === 'refused') this.#setState('saving')
+    return this.flush()
   }
 
   /** Cancels a pending write or retry. Called on unmount, once the last flush has settled. */
@@ -168,7 +188,7 @@ export class Autosave {
 
   async #write(keepalive: boolean): Promise<void> {
     const document_ = this.#document
-    if (!this.#dirty || document_ === null || this.#state === 'conflict') return
+    if (!this.#dirty || document_ === null || this.#held()) return
     if (keepalive && utf8Bytes(document_) >= KEEPALIVE_MAX_BYTES) return
     this.#cancel()
     this.#dirty = false
@@ -189,8 +209,16 @@ export class Autosave {
       return
     }
     this.#message = outcome.message
+    if (outcome.kind === 'refused') {
+      this.#setState('refused')
+      return
+    }
     this.#setState('retrying')
     this.#arm(SAVE_RETRY_MS)
+  }
+
+  #held(): boolean {
+    return this.#state === 'conflict' || this.#state === 'refused'
   }
 
   #arm(delay: number): void {

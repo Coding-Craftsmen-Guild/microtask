@@ -95,7 +95,7 @@ export function DocumentEditor(props: DocumentEditorProps) {
         <div className="sticky top-0 z-[5] flex flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
           <Toolbar editor={editor} onLink={() => setLinking(true)} />
           <span className="flex-1" />
-          <SaveIndicator message={autosave.message} onReload={props.onReload} state={autosave.state} />
+          <SaveIndicator message={autosave.message} onReload={props.onReload} onRetry={() => void autosave.retry()} state={autosave.state} />
         </div>
       ) : null}
       <EditorContent className="px-[26px] py-5 max-sm:px-4" editor={editor} />

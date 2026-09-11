@@ -20,11 +20,15 @@ let failing = false
 
 let refusing = false
 
+let revoked = false
+
 let gate: Promise<void> | null = null
 
 const save = (request: SaveRequest): Promise<SaveOutcome> => {
   requests.push(request)
-  const answer: SaveOutcome = refusing
+  const answer: SaveOutcome = revoked
+    ? { kind: 'refused', message: 'gone' }
+    : refusing
     ? { kind: 'conflict' }
     : failing
       ? { kind: 'failed', message: 'down' }
@@ -73,6 +77,7 @@ beforeEach(() => {
   handle = null
   failing = false
   refusing = false
+  revoked = false
   gate = null
 })
 
@@ -380,6 +385,44 @@ describe('what the flush a caller awaits answers: whether the tab may be left', 
     act(() => mounted().change(text('ab')))
     expect(await flushed()).toBe(false)
     expect(requests.length).toBe(1)
+  })
+
+  it('answers false once a refusal has stopped the loop, whose edits are kept and not written again', async () => {
+    revoked = true
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    expect(await flushed()).toBe(false)
+    expect(mounted().state).toBe('refused')
+    expect(mounted().message).toBe('gone')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_RETRY_MS * 10)
+    })
+    expect(requests.length).toBe(1)
+  })
+
+  it('still asks before the page unloads while refused, and sends nothing on the way out', async () => {
+    revoked = true
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    await flushed()
+    expect(unload().defaultPrevented).toBe(true)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(requests.length).toBe(1)
+  })
+
+  it('writes again only when retry is called, and reports what that write answered', async () => {
+    revoked = true
+    render(<Plain />)
+    act(() => mounted().change(text('a')))
+    await flushed()
+    revoked = false
+    await act(async () => {
+      await mounted().retry()
+    })
+    expect(requests.length).toBe(2)
+    expect(mounted().state).toBe('saved')
   })
 
   it('answers true when the write it forces while retrying lands', async () => {

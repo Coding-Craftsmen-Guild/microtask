@@ -34,15 +34,19 @@ export interface AutosaveHandle {
 
   /**
    * Writes now, overtaking the debounce, and settles once the write has: `false` when the loop
-   * is left holding edits, in a conflict or waiting to retry a failure, and `true` otherwise.
+   * is left holding edits — in a conflict, refused, or waiting to retry a failure — and `true`
+   * otherwise.
    */
   readonly flush: () => Promise<boolean>
+
+  /** Writes the held edits because the user asked: the one way out of `refused`. */
+  readonly retry: () => Promise<void>
 
   /** Drops the pending write, for a tab being left or deleted. */
   readonly markClean: () => void
 }
 
-const HELD: ReadonlySet<SaveState> = new Set(['conflict', 'retrying'])
+const HELD: ReadonlySet<SaveState> = new Set(['conflict', 'refused', 'retrying'])
 
 const listen = (autosave: Autosave, editable: boolean): (() => void) => {
   let released = false
@@ -142,6 +146,7 @@ export function useAutosave({ updatedAt, save, editable }: UseAutosaveOptions): 
       message: status.message,
       change: (document_: DocumentValue) => autosave.change(document_),
       flush: () => autosave.flush(false).then(() => !HELD.has(autosave.state)),
+      retry: () => autosave.retry(),
       markClean: () => autosave.markClean(),
     }),
     [autosave, status],
