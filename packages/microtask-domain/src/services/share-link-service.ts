@@ -6,24 +6,27 @@ import type { ServiceContext } from './context.js'
 import type { ProjectRef } from './refs.js'
 import {
   assertContained,
+  changed,
   newLink,
   partition,
   pickLink,
   requestedScope,
   revokedBy,
+  withLink,
+  type ShareLinkChange,
   type ShareLinkRequest,
 } from './share-link-mapper.js'
 
-export type { ScopeRequest, ShareLinkRequest } from './share-link-mapper.js'
+export type { ScopeRequest, ShareLinkChange, ShareLinkRequest } from './share-link-mapper.js'
 
 /**
  * The share links of one project: minting them, listing them, and revoking them along with
  * everything minted through them.
  *
- * There is no method that changes a link's scope, and that is the design rather than an
- * omission: a mutable scope would let a `manage` holder widen its own authority in place, so
- * changing one is revoke-and-reissue (ADR 0011). Delegation is recorded instead — every link
- * remembers the token that minted it, which is what makes cutting a leaked manager cut
+ * A link's name and role can be changed in place; its **scope** cannot, and that is the design
+ * rather than an omission: a mutable scope would let a `manage` holder widen its own authority
+ * in place, so changing one is revoke-and-reissue (ADR 0011). Delegation is recorded instead —
+ * every link remembers the token that minted it, which is what makes cutting a leaked manager cut
  * everything downstream of it (ADR 0010).
  */
 export class ShareLinkService {
@@ -57,6 +60,27 @@ export class ShareLinkService {
       const created = newLink(this.#ctx.ids.token(), { ...request, name }, scope, stamp)
       await this.#save(at, { ...current, shareLinks: [...current.shareLinks, created] })
       return created
+    })
+  }
+
+  /**
+   * Renames a link or changes its role, keeping the token the client has bookmarked (ADR 0035).
+   *
+   * The name is cleaned with an empty **fallback** rather than a throw, which is the one place
+   * this product's name rule differs between creating and changing: production data already holds
+   * a link with no name, and a rename that refused it could not save a link it had just loaded.
+   *
+   * Nothing here re-reads the link after writing. A holder downgraded mid-session keeps the page
+   * it already has, and its next request 403s — the resolver reads role and scope from the
+   * manifest every time, so the change takes effect on that next request and not on this one.
+   */
+  async update(at: ProjectRef, token: string, change: ShareLinkChange): Promise<ShareLink> {
+    const name = change.name === undefined ? undefined : cleanName(change.name, '')
+    return this.#ctx.lock.run(async () => {
+      const current = await this.#manifest(at)
+      const next = changed(pickLink(current, token), change, name)
+      await this.#save(at, { ...current, shareLinks: withLink(current.shareLinks, next) })
+      return next
     })
   }
 

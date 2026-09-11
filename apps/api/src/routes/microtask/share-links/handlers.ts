@@ -5,7 +5,12 @@ import { requestedScope } from '@repo/microtask-domain'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
 import { PRODUCT } from '../product.js'
-import type { createShareLinkRoute, listShareLinksRoute, revokeShareLinkRoute } from './routes.js'
+import type {
+  createShareLinkRoute,
+  listShareLinksRoute,
+  revokeShareLinkRoute,
+  updateShareLinkRoute,
+} from './routes.js'
 
 const mintedBy = (principal: Principal): string | null =>
   principal.kind === 'link' ? principal.token : null
@@ -57,4 +62,22 @@ export const revokeShareLink =
     authorize(c, 'share:revoke', { kind: 'project', projectId })
     const revoked = await links.revoke({ product: PRODUCT, projectId }, token)
     return c.json({ revoked }, 200)
+  }
+
+/**
+ * Renames a link or changes its role, keeping its token (ADR 0035).
+ *
+ * Gated on the project rather than on the link's own scope, which is what puts it with
+ * `share:read` and `share:revoke` and away from `share:create`: the question is "may this caller
+ * administer this project's seats", not "may it reach what this seat reaches". The gate runs
+ * before the store is read, so a refused caller learns nothing about whether the token exists.
+ */
+export const updateShareLink =
+  (links: ShareLinkService): RouteHandler<typeof updateShareLinkRoute, ApiEnv> =>
+  async (c) => {
+    const { projectId, token } = c.req.valid('param')
+    const change = c.req.valid('json')
+    authorize(c, 'share:update', { kind: 'project', projectId })
+    const updated = await links.update({ product: PRODUCT, projectId }, token, change)
+    return c.json(updated, 200)
   }

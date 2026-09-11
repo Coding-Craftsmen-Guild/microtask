@@ -122,6 +122,11 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     headers: adminJson(),
     body: json({ name: 'Acme', role: 'view', scope: { kind: 'project', projectId: IDS.p1 } }),
   },
+  [`PATCH ${PROJECT}/share-links/{token}`]: {
+    path: `${P1}/share-links/${TOKENS.p1View}`,
+    headers: adminJson(),
+    body: json({ name: 'Jane at ACME', role: 'view' }),
+  },
   [`DELETE ${PROJECT}/share-links/{token}`]: {
     path: `${P1}/share-links/${TOKENS.p1View}`,
     headers: admin(),

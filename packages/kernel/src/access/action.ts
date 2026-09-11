@@ -21,6 +21,7 @@ export const ACTIONS = [
   'share:read',
   'share:create',
   'share:revoke',
+  'share:update',
   'export:run',
   'workspace:list-projects',
   'workspace:create-project',

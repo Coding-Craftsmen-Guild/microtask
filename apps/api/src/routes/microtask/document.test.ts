@@ -44,6 +44,7 @@ const cases: readonly (readonly [string, string, readonly string[]])[] = [
   [`${PROJECT}/tasks/{taskId}/tabs/{tabId}/document`, 'put', ['projectId', 'taskId', 'tabId']],
   [`${PROJECT}/share-links`, 'get', ['projectId']],
   [`${PROJECT}/share-links`, 'post', ['projectId']],
+  [`${PROJECT}/share-links/{token}`, 'patch', ['projectId', 'token']],
   [`${PROJECT}/share-links/{token}`, 'delete', ['projectId', 'token']],
 ]
 

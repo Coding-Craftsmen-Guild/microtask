@@ -69,6 +69,57 @@ export function assertContained(manifest: ProjectManifest, scope: Scope): void {
   if (scope.kind === 'task') pickTask(manifest, scope.taskId)
 }
 
+/**
+ * What a caller may change about a link that already exists (ADR 0035).
+ *
+ * Closed to `name` and `role`, and that is the decision rather than a partial of the link.
+ * `scope` decides *what* a link reaches and a project scope can expose one client's work to
+ * another, so it stays immutable and changing it is revoke-and-reissue (ADR 0011). `createdBy`
+ * stays too, so the revocation cascade keeps describing the lineage a link was minted through
+ * rather than the role it now holds (ADR 0010).
+ *
+ * Both members spell `| undefined` rather than relying on the `?` alone, because under
+ * `exactOptionalPropertyTypes` a validated body infers `role?: Role | undefined` and would
+ * otherwise not be assignable here.
+ */
+export interface ShareLinkChange {
+  /**
+   * The new display name, or absent to leave it.
+   *
+   * An **empty** name is a change and not an omission: production data already holds one, and the
+   * app being replaced rendered it as "Unnamed link". A new link still requires a name, so the
+   * two requests genuinely differ.
+   */
+  readonly name?: string | undefined
+
+  /** The new authority, or absent to leave it. */
+  readonly role?: Role | undefined
+}
+
+/**
+ * Applies a change to a link, leaving its token, scope, lineage and minting time alone.
+ *
+ * Spelled field by field rather than as a spread of the change, so a member the payload schema
+ * fails to strip cannot reach the stored link — the immutability in ADR 0011 is what stops a
+ * `manage` holder widening its own authority in place, and a blind spread would put that one
+ * careless schema edit away.
+ */
+export function changed(link: ShareLink, change: ShareLinkChange, name?: string): ShareLink {
+  return {
+    ...link,
+    name: name ?? link.name,
+    role: change.role ?? link.role,
+  }
+}
+
+/** Puts one changed link back, leaving every other link in minting order. */
+export function withLink(
+  links: readonly ShareLink[],
+  next: ShareLink,
+): readonly ShareLink[] {
+  return links.map((link) => (link.token === next.token ? next : link))
+}
+
 /** Builds a link over a token the id generator minted. */
 export function newLink(
   token: string,

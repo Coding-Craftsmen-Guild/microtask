@@ -27,7 +27,13 @@ export { Progress } from './progress.js'
 export { Tab, TabDocumentSaved } from './tab.js'
 export { Folder } from './folder.js'
 export { MAX_LISTED_TAB_NAMES, TaskEntry, TaskDocument } from './task.js'
-export { CreateShareLinkPayload, Role, Scope, ShareLink } from './share-link.js'
+export {
+  CreateShareLinkPayload,
+  Role,
+  Scope,
+  ShareLink,
+  UpdateShareLinkPayload,
+} from './share-link.js'
 export { ProjectManifest } from './project.js'
 export { SearchResult, SearchResults } from './search.js'
 export {

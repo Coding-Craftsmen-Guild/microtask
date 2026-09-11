@@ -1,5 +1,11 @@
 import { createRoute } from '@hono/zod-openapi'
-import { CreateShareLinkPayload, RevokedShareLinks, ShareLink, ShareLinkList } from '@repo/contracts'
+import {
+  CreateShareLinkPayload,
+  RevokedShareLinks,
+  ShareLink,
+  ShareLinkList,
+  UpdateShareLinkPayload,
+} from '@repo/contracts'
 import { problemResponses } from '../../../http/error-responses.js'
 import { GUARDED_SECURITY } from '../../../http/security.js'
 import { projectParams, shareLinkParams } from '../../params.js'
@@ -81,6 +87,46 @@ export const revokeShareLinkRoute = createRoute({
     200: {
       description: 'Every link this revocation removed',
       content: { 'application/json': { schema: RevokedShareLinks } },
+    },
+    ...problemResponses(),
+  },
+})
+
+/**
+ * Rename a share link or change its role. The token does **not** change (ADR 0035).
+ *
+ * That continuity is the whole reason this route exists rather than revoke-and-recreate: a new
+ * token breaks the URL the client has bookmarked, and for a role change the effect would be "this
+ * client is locked out until I email them a new link" rather than "this client now reads only".
+ *
+ * Gated `share:update` on the **project**, alongside `share:read` and `share:revoke` — the three
+ * things that operate on a project's set of links rather than on a link being minted. So a
+ * task-scoped `manage` holder is refused, exactly as it is refused the list and the revoke, and
+ * its own minted links are rename-able only by a project-scoped holder or the admin. That
+ * asymmetry is inherited from scope containment rather than introduced here (ADR 0038).
+ *
+ * Gated before the store is asked whether the token exists, like the revoke beside it: deriving
+ * the target from the link would mean reading it first, and this would become a route that
+ * answers 404 ahead of 403 — telling a caller the policy refuses that a token, or a project, is
+ * real.
+ *
+ * The body cannot carry a scope. A `manage` holder that could widen a link in place would have an
+ * escalation path the policy never agreed to, which is the immutability ADR 0011 is about.
+ */
+export const updateShareLinkRoute = createRoute({
+  method: 'patch',
+  path: '/{token}',
+  tags: ['share-links'],
+  summary: 'Rename a share link or change its role',
+  security: GUARDED_SECURITY,
+  request: {
+    params: shareLinkParams,
+    body: { required: true, content: { 'application/json': { schema: UpdateShareLinkPayload } } },
+  },
+  responses: {
+    200: {
+      description: 'The link as it now is, carrying the token it already had',
+      content: { 'application/json': { schema: ShareLink } },
     },
     ...problemResponses(),
   },

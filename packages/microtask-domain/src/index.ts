@@ -25,7 +25,11 @@ export { FolderService } from './services/folder-service.js'
 export { ProjectService } from './services/project-service.js'
 export { SearchService, type SearchResult } from './services/search-service.js'
 export { requestedScope, type ScopeRequest } from './services/share-link-mapper.js'
-export { ShareLinkService, type ShareLinkRequest } from './services/share-link-service.js'
+export {
+  ShareLinkService,
+  type ShareLinkChange,
+  type ShareLinkRequest,
+} from './services/share-link-service.js'
 export { TabService } from './services/tab-service.js'
 export { TaskService, type TaskDetail } from './services/task-service.js'
 export {

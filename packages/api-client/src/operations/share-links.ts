@@ -3,6 +3,7 @@ import {
   ShareLink,
   ShareLinkList,
   type CreateShareLinkPayload,
+  type UpdateShareLinkPayload,
 } from '@repo/contracts'
 import { projectPath } from '../paths.js'
 import type { Transport } from '../transport.js'
@@ -12,6 +13,14 @@ const linksPath = (projectId: string): string => `${projectPath(projectId)}/shar
 
 /** The seat to mint: who it is for, what authority it carries, and over what. */
 export type NewShareLink = Decoded<typeof CreateShareLinkPayload>
+
+/**
+ * What may be changed about a seat that already exists: its name, its role, or both.
+ *
+ * Not its scope. A link's scope decides what it reaches and a project scope can expose one
+ * client's work to another, so changing it is revoke-and-reissue (ADR 0011, ADR 0035).
+ */
+export type ShareLinkChange = Decoded<typeof UpdateShareLinkPayload>
 
 /** Everything a caller may ask of a project's share links. */
 export interface ShareLinksApi {
@@ -28,6 +37,16 @@ export interface ShareLinksApi {
   create(projectId: string, seat: NewShareLink): Promise<Decoded<typeof ShareLink>>
 
   /**
+   * Renames a seat or changes its role, **keeping its token**.
+   *
+   * That is the whole reason this exists rather than revoke-and-recreate: a new token breaks the
+   * URL already in the client's hands, and for a role change the effect would be a lockout rather
+   * than a narrowing (ADR 0035). A downgrade takes effect on the holder's next request, because
+   * the API re-reads role and scope from the manifest every time.
+   */
+  update(projectId: string, token: string, change: ShareLinkChange): Promise<Decoded<typeof ShareLink>>
+
+  /**
    * Revokes one link and every link descended from it.
    *
    * The response names the whole set rather than counting it, because somebody cutting a leaked
@@ -42,6 +61,15 @@ export function shareLinksApi(transport: Transport): ShareLinksApi {
     list: (projectId) => transport.json({ method: 'GET', path: linksPath(projectId) }, ShareLinkList),
     create: (projectId, seat) =>
       transport.json({ method: 'POST', path: linksPath(projectId), body: seat }, ShareLink),
+    update: (projectId, token, change) =>
+      transport.json(
+        {
+          method: 'PATCH',
+          path: `${linksPath(projectId)}/${encodeURIComponent(token)}`,
+          body: change,
+        },
+        ShareLink,
+      ),
     revoke: (projectId, token) =>
       transport.json(
         { method: 'DELETE', path: `${linksPath(projectId)}/${encodeURIComponent(token)}` },

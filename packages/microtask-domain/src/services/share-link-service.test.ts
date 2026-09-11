@@ -121,13 +121,25 @@ describe('ShareLinkService.create', () => {
     await expect(service.create(AT, asAdmin)).rejects.toThrow(Invalid)
   })
 
-  it('exposes no method that changes a link scope, so widening is revoke and reissue', () => {
+  it('exposes exactly four methods, so a fifth is a decision and not an accident', () => {
     expect(Object.getOwnPropertyNames(ShareLinkService.prototype).sort()).toEqual([
       'constructor',
       'create',
       'list',
       'revoke',
+      'update',
     ])
+  })
+
+  it('ignores a scope handed to update, so widening is still revoke and reissue (ADR 0011)', async () => {
+    const { service, seed, read } = build()
+    const held = 'shr_scoped_to_one_task_only'
+    const task = { kind: 'task', projectId: PROJECT, taskId: TASK } as const
+    await seed({ shareLinks: [link(held, { role: 'write', scope: task })] })
+    const widened = { scope: { kind: 'project', projectId: PROJECT }, role: 'manage' } as const
+    const updated = await service.update(AT, held, widened)
+    expect(updated.scope).toEqual(task)
+    expect((await read()).shareLinks[0]?.scope).toEqual(task)
   })
 
   it('records createdBy as null when the admin mints the link', async () => {
@@ -439,5 +451,114 @@ describe('ShareLinkService.revoke', () => {
     const { service, seed } = build()
     await seed()
     await expect(service.revoke(MISSING, 'tok_a')).rejects.toThrow(NotFound)
+  })
+})
+
+describe('ShareLinkService.update (ADR 0035)', () => {
+  const TOKEN = 'shr_a_bookmarked_seat_token'
+  const SIBLING = 'shr_another_seat_entirely'
+
+  const seeded = async () => {
+    const built = build()
+    await built.seed({
+      shareLinks: [
+        link(TOKEN, { name: 'Jane at ACME', role: 'write' }),
+        link(SIBLING, { name: 'Bob at Beta', role: 'view' }),
+      ],
+    })
+    return built
+  }
+
+  it('keeps the token, which is the whole reason this is not revoke-and-recreate', async () => {
+    const { service } = await seeded()
+    const updated = await service.update(AT, TOKEN, { name: 'Jane (ACME)' })
+    expect(updated.token).toBe(TOKEN)
+  })
+
+  it('renames the link and changes nothing else about it', async () => {
+    const { service } = await seeded()
+    const before = link(TOKEN, { name: 'Jane at ACME', role: 'write' })
+    const updated = await service.update(AT, TOKEN, { name: 'Jane (ACME)' })
+    expect(updated).toEqual({ ...before, name: 'Jane (ACME)' })
+  })
+
+  it('changes the role and changes nothing else about it', async () => {
+    const { service } = await seeded()
+    const before = link(TOKEN, { name: 'Jane at ACME', role: 'write' })
+    const updated = await service.update(AT, TOKEN, { role: 'view' })
+    expect(updated).toEqual({ ...before, role: 'view' })
+  })
+
+  it('leaves the scope alone, because a PATCH may not change what a link reaches (ADR 0011)', async () => {
+    const { service, read } = await seeded()
+    const updated = await service.update(AT, TOKEN, { name: '', role: 'manage' })
+    expect(updated.scope).toEqual({ kind: 'project', projectId: PROJECT })
+    expect((await read()).shareLinks[0]?.scope).toEqual({ kind: 'project', projectId: PROJECT })
+  })
+
+  it('leaves createdBy alone, so the revocation cascade still walks the real lineage', async () => {
+    const built = build()
+    await built.seed({ shareLinks: [link(TOKEN, { createdBy: SIBLING })] })
+    expect((await built.service.update(AT, TOKEN, { role: 'view' })).createdBy).toBe(SIBLING)
+  })
+
+  it('accepts an empty name, which production data already contains', async () => {
+    const { service, read } = await seeded()
+    expect((await service.update(AT, TOKEN, { name: '' })).name).toBe('')
+    expect((await read()).shareLinks[0]?.name).toBe('')
+  })
+
+  it('accepts a name of nothing but whitespace as the same empty name', async () => {
+    const { service } = await seeded()
+    expect((await service.update(AT, TOKEN, { name: '   ' })).name).toBe('')
+  })
+
+  it('still refuses a new link with no name, so the two requests are not the same rule', async () => {
+    const { service, seed } = build()
+    await seed()
+    await expect(service.create(AT, { ...asAdmin, name: '', taskId: TASK })).rejects.toThrow(Invalid)
+  })
+
+  it('cleans the name the way every other name is cleaned', async () => {
+    const { service } = await seeded()
+    expect((await service.update(AT, TOKEN, { name: '  Jane   at   ACME  ' })).name).toBe('Jane at ACME')
+  })
+
+  it('changes nothing when asked for nothing, rather than clearing what it was not sent', async () => {
+    const { service } = await seeded()
+    const updated = await service.update(AT, TOKEN, {})
+    expect(updated).toEqual(link(TOKEN, { name: 'Jane at ACME', role: 'write' }))
+  })
+
+  it('leaves every other link exactly where it was, in minting order', async () => {
+    const { service, read } = await seeded()
+    await service.update(AT, TOKEN, { role: 'manage' })
+    const after = (await read()).shareLinks
+    expect(tokensOf(after)).toEqual([TOKEN, SIBLING])
+    expect(after[1]).toEqual(link(SIBLING, { name: 'Bob at Beta', role: 'view' }))
+  })
+
+  it('stamps the project as changed, because somebody edited it', async () => {
+    const { service, read } = await seeded()
+    await service.update(AT, TOKEN, { role: 'view' })
+    expect((await read()).updatedAt).toBe(NOW)
+  })
+
+  it('keeps the token index pointing at this project, so the link still resolves', async () => {
+    const { service, tokens } = await seeded()
+    await service.update(AT, TOKEN, { role: 'view' })
+    expect(tokens.find(TOKEN)).toEqual({ product: 'microtask', projectId: PROJECT })
+  })
+
+  it('rejects a token this project does not hold, before writing anything', async () => {
+    const { service, calls } = await seeded()
+    calls.length = 0
+    await expect(service.update(AT, 'shr_never_minted_anywhere', { role: 'view' })).rejects.toThrow(NotFound)
+    expect(calls).not.toContain('saveManifest')
+  })
+
+  it('rejects a project that does not exist', async () => {
+    const { service } = await seeded()
+    await expect(service.update(MISSING, TOKEN, { role: 'view' })).rejects.toThrow(NotFound)
   })
 })

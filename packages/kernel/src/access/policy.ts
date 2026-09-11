@@ -31,6 +31,7 @@ const MANAGE = [
   'share:read',
   'share:create',
   'share:revoke',
+  'share:update',
   'export:run',
 ] as const
 

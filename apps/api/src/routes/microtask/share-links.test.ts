@@ -272,3 +272,154 @@ describe('DELETE /v1/microtask/projects/{projectId}/share-links/{token}', () => 
     expect(response.status).toBe(422)
   })
 })
+
+describe('PATCH /v1/microtask/projects/{projectId}/share-links/{token}', () => {
+  const at = (token: string): string => `${LINKS}/${token}`
+
+  const patching = (payload: Record<string, unknown>, headers = adminJson()): RequestInit => ({
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  it('renames a link and answers 200 with the link as it now is', async () => {
+    const app = await buildApp()
+    const response = await app.request(at(TOKENS.p1View), patching({ name: 'Jane (ACME)' }))
+    expect(response.status).toBe(200)
+    expect(await body(response)).toMatchObject({ token: TOKENS.p1View, name: 'Jane (ACME)' })
+  })
+
+  it('hands back the token it was asked about, which is why this route exists at all', async () => {
+    const app = await buildApp()
+    const response = await app.request(at(TOKENS.p1Write), patching({ role: 'view' }))
+    expect((await body(response))['token']).toBe(TOKENS.p1Write)
+  })
+
+  it('leaves the scope alone even when the body asks to widen it (ADR 0011)', async () => {
+    const app = await buildApp()
+    const widening = patching({ role: 'manage', scope: projectScope })
+    const response = await app.request(at(TOKENS.t1Manage), widening)
+    expect(response.status).toBe(200)
+    expect(await body(response)).toMatchObject({ scope: taskScope, role: 'manage' })
+  })
+
+  it('takes an empty name, which production data already contains', async () => {
+    const app = await buildApp()
+    const response = await app.request(at(TOKENS.p1View), patching({ name: '' }))
+    expect(response.status).toBe(200)
+    expect((await body(response))['name']).toBe('')
+  })
+
+  it('still refuses to mint a link with no name, so the two rules are not one rule', async () => {
+    const app = await buildApp()
+    const response = await app.request(LINKS, minting({ name: '', role: 'view', taskId: IDS.t1 }))
+    expect(response.status).toBe(422)
+  })
+
+  it('takes effect on the NEXT request: a downgraded write link loses the write it had', async () => {
+    const app = await buildApp()
+    const document = `${GUARDED_PREFIX}/projects/${IDS.p1}/tasks/${IDS.t1}/tabs/${IDS.tab1}`
+    const rename = (headers: Record<string, string>): RequestInit => ({
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: 'Renamed by the client' }),
+    })
+    const before = await app.request(document, rename(linkJson(TOKENS.p1Write)))
+    expect(before.status).toBe(200)
+    const downgraded = await app.request(at(TOKENS.p1Write), patching({ role: 'view' }))
+    expect(downgraded.status).toBe(200)
+    const after = await app.request(document, rename(linkJson(TOKENS.p1Write)))
+    expect(after.status).toBe(403)
+    expect(await body(after)).toMatchObject({ code: 'forbidden' })
+  })
+
+  it('lets the same token still read after the downgrade, so it is narrowed and not cut', async () => {
+    const app = await buildApp()
+    await app.request(at(TOKENS.p1Write), patching({ role: 'view' }))
+    const task = `${GUARDED_PREFIX}/projects/${IDS.p1}/tasks/${IDS.t1}`
+    const read = await app.request(task, { headers: asLink(TOKENS.p1Write) })
+    expect(read.status).toBe(200)
+  })
+
+  it('lets a project-scoped manage holder rename a link in its own project', async () => {
+    const app = await buildApp()
+    const response = await app.request(
+      at(TOKENS.p1View),
+      patching({ name: 'Renamed by a manager' }, linkJson(TOKENS.p1Manage)),
+    )
+    expect(response.status).toBe(200)
+  })
+
+  it('refuses a task-scoped manage holder, matching share:read and share:revoke (ADR 0038)', async () => {
+    const app = await buildApp()
+    const response = await app.request(
+      at(TOKENS.p1View),
+      patching({ name: 'Renamed by a task seat' }, linkJson(TOKENS.t1Manage)),
+    )
+    expect(response.status).toBe(403)
+    expect(await body(response)).toMatchObject({ code: 'forbidden' })
+  })
+
+  it('refuses a write holder, since changing a link is a manage grant', async () => {
+    const app = await buildApp()
+    const response = await app.request(
+      at(TOKENS.p1View),
+      patching({ role: 'manage' }, linkJson(TOKENS.p1Write)),
+    )
+    expect(response.status).toBe(403)
+  })
+
+  it('refuses a manage holder scoped to another project, which is the gate and not the guard', async () => {
+    const app = await buildApp()
+    const response = await app.request(
+      at(TOKENS.p1View),
+      patching({ name: 'Reaching across' }, linkJson(TOKENS.p2Manage)),
+    )
+    expect(response.status).toBe(403)
+  })
+
+  it('answers 403 before 404 for a token that does not exist, disclosing nothing', async () => {
+    const app = await buildApp()
+    const response = await app.request(
+      `${LINKS}/${UNKNOWN_TOKEN}`,
+      patching({ name: 'x' }, linkJson(TOKENS.t1Manage)),
+    )
+    expect(response.status).toBe(403)
+  })
+
+  it('answers 404 for a token the project does not hold, once the caller is cleared', async () => {
+    const app = await buildApp()
+    const response = await app.request(`${LINKS}/${UNKNOWN_TOKEN}`, patching({ name: 'x' }))
+    expect(response.status).toBe(404)
+  })
+
+  it('answers 404 for a link that belongs to another project', async () => {
+    const app = await buildApp()
+    const response = await app.request(`${LINKS}/${TOKENS.p2Manage}`, patching({ name: 'x' }))
+    expect(response.status).toBe(404)
+  })
+
+  it('refuses a role the policy does not name with 422, before anything is written', async () => {
+    const app = await buildApp()
+    const response = await app.request(at(TOKENS.p1View), patching({ role: 'owner' }))
+    expect(response.status).toBe(422)
+    const listed = await tokensOf(await app.request(LINKS, { headers: admin() }))
+    expect(listed).toContain(TOKENS.p1View)
+  })
+
+  it('refuses a malformed token in the path with 422 rather than 404', async () => {
+    const app = await buildApp()
+    const response = await app.request(`${LINKS}/no`, patching({ name: 'x' }))
+    expect(response.status).toBe(422)
+  })
+
+  it('answers 401 with no credentials at all', async () => {
+    const app = await buildApp()
+    const response = await app.request(at(TOKENS.p1View), {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'x' }),
+    })
+    expect(response.status).toBe(401)
+  })
+})

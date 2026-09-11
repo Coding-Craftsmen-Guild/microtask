@@ -71,6 +71,7 @@ const MANAGE: readonly Action[] = [
   'share:read',
   'share:create',
   'share:revoke',
+  'share:update',
   'export:run',
 ]
 
@@ -165,5 +166,31 @@ describe('can — scope containment', () => {
 
   it('refuses a task-scoped link the power to create sibling tasks', () => {
     expect(can(taskLink('write'), 'task:create', PROJECT)).toBe(false)
+  })
+
+  it('lets a task-scoped manage link mint a link over its own task', () => {
+    const own: Target = { kind: 'task', projectId: P, taskId: T }
+    expect(can(taskLink('manage'), 'share:create', own)).toBe(true)
+  })
+
+  it('refuses a task-scoped manage link the three project-level share actions', () => {
+    for (const action of ['share:read', 'share:revoke', 'share:update'] as const) {
+      expect(can(taskLink('manage'), action, PROJECT), action).toBe(false)
+    }
+  })
+
+  it('grants a project-scoped manage link share:update, so the refusal above is scope not role', () => {
+    expect(can(projectLink('manage'), 'share:update', PROJECT)).toBe(true)
+    expect(can(projectLink('write'), 'share:update', PROJECT)).toBe(false)
+    expect(can(projectLink('view'), 'share:update', PROJECT)).toBe(false)
+  })
+
+  it('names share:update beside the two actions it sits with, all three on the project', () => {
+    expect(ACTIONS.filter((action) => action.startsWith('share:'))).toEqual([
+      'share:read',
+      'share:create',
+      'share:revoke',
+      'share:update',
+    ])
   })
 })

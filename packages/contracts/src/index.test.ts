@@ -217,3 +217,45 @@ describe('the shapes search and sharing answer with', () => {
     expect(contracts.TabDocumentSaved.safeParse({}).success).toBe(false)
   })
 })
+
+describe('the body that renames a share link or changes its role (ADR 0035)', () => {
+  const ID = '01M240ERCRWWCN16Q5AHP1FZF1'
+
+  it('takes a name, a role, both, or neither', () => {
+    expect(contracts.UpdateShareLinkPayload.safeParse({ name: 'Jane' }).success).toBe(true)
+    expect(contracts.UpdateShareLinkPayload.safeParse({ role: 'view' }).success).toBe(true)
+    expect(contracts.UpdateShareLinkPayload.safeParse({ name: 'Jane', role: 'view' }).success).toBe(true)
+    expect(contracts.UpdateShareLinkPayload.safeParse({}).success).toBe(true)
+  })
+
+  it('accepts an empty name, which production data already contains', () => {
+    expect(contracts.UpdateShareLinkPayload.safeParse({ name: '' }).success).toBe(true)
+  })
+
+  it('still refuses an empty name when a link is being minted, the two rules differing', () => {
+    expect(contracts.CreateShareLinkPayload.safeParse({ name: '', role: 'view', taskId: ID }).success).toBe(false)
+  })
+
+  it('refuses a role the policy does not name', () => {
+    expect(contracts.UpdateShareLinkPayload.safeParse({ role: 'owner' }).success).toBe(false)
+  })
+
+  it('bounds the name the way every other name is bounded', () => {
+    expect(contracts.UpdateShareLinkPayload.safeParse({ name: 'x'.repeat(81) }).success).toBe(false)
+  })
+
+  it('strips a scope a client tried to widen itself with, which ADR 0011 freezes', () => {
+    const parsed = contracts.UpdateShareLinkPayload.parse({
+      role: 'manage',
+      scope: { kind: 'project', projectId: ID },
+      taskId: ID,
+    })
+    expect(parsed).not.toHaveProperty('scope')
+    expect(parsed).not.toHaveProperty('taskId')
+  })
+
+  it('strips a token, so a PATCH cannot rewrite the credential it addresses', () => {
+    const parsed = contracts.UpdateShareLinkPayload.parse({ name: 'Jane', token: 'shr_new_token' })
+    expect(parsed).not.toHaveProperty('token')
+  })
+})

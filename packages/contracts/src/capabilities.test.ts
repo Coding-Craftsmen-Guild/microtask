@@ -142,18 +142,27 @@ describe('the trap this function exists to remove (ADR 0038)', () => {
     expect(can(holder('manage', taskScope), 'share:create', taskScope)).toBe(true)
   })
 
-  it('refuses it the list and the revoke, which gate on a project target', () => {
+  it('refuses it the list, the revoke and the rename, which all gate on a project target', () => {
     expect(taskManage['share:read']).toBe(false)
     expect(taskManage['share:revoke']).toBe(false)
+    expect(taskManage['share:update']).toBe(false)
     const project: Target = { kind: 'project', projectId: P }
-    expect(can(holder('manage', taskScope), 'share:read', project)).toBe(false)
-    expect(can(holder('manage', taskScope), 'share:revoke', project)).toBe(false)
+    for (const action of ['share:read', 'share:revoke', 'share:update'] as const) {
+      expect(can(holder('manage', taskScope), action, project), action).toBe(false)
+    }
   })
 
   it('renders no share manager from role alone: a project-scoped manage holder differs', () => {
     const projectManage = capabilities('manage', projectScope)
     expect(projectManage['share:read']).toBe(true)
     expect(projectManage['share:revoke']).toBe(true)
+    expect(projectManage['share:update']).toBe(true)
+  })
+
+  it('leaves a task-scoped holder own minted link rename-able by nobody but a wider holder', () => {
+    expect(taskManage['share:create']).toBe(true)
+    expect(taskManage['share:update']).toBe(false)
+    expect(capabilities('manage', projectScope)['share:update']).toBe(true)
   })
 
   it('refuses a task-scoped holder the folder tree and a sibling task, whatever its role', () => {

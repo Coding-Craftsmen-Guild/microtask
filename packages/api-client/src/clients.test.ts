@@ -134,6 +134,30 @@ describe('every operation addresses the path the API actually serves', () => {
     ])
   })
 
+  it('renames a share link without changing its token, which is why the route exists', async () => {
+    const call = await sent(() => client.shareLinks.update('p1', 'tok', { name: 'Jane' }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/microtask/projects/p1/share-links/tok',
+      '{"name":"Jane"}',
+    ])
+  })
+
+  it('changes a role through the same call, sending only what it was given', async () => {
+    const call = await sent(() => client.shareLinks.update('p1', 'tok', { role: 'view' }))
+    expect(call.init.body).toBe('{"role":"view"}')
+  })
+
+  it('percent-encodes the token it addresses, like every other path segment', async () => {
+    const call = await sent(() => client.shareLinks.update('p 1', 'to k', { name: 'x' }))
+    expect(call.url).toBe('https://api.example.test/v1/microtask/projects/p%201/share-links/to%20k')
+  })
+
+  it('sends PATCH upper-cased, since the Fetch spec does not normalise that one', async () => {
+    const call = await sent(() => client.shareLinks.update('p1', 'tok', { name: 'x' }))
+    expect(call.init.method).toBe('PATCH')
+  })
+
   it('revokes a share link by token', async () => {
     const call = await sent(() => client.shareLinks.revoke('p1', 'tok'))
     expect([call.init.method, call.url]).toEqual([
