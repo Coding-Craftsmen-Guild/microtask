@@ -118,7 +118,7 @@ describe('PUT …/document refuses a request that is not same-origin, before any
     const response = await PUT(request({ origin: 'https://evil.example', 'if-match': 'S1' }), params)
     expect(response.status).toBe(403)
     expect(response.headers.get('content-type')).toBe('application/problem+json')
-    expect((await bodyOf(response))['code']).toBe('forbidden')
+    expect(await bodyOf(response)).toMatchObject({ code: 'forbidden', instance: PATH })
     expect(sent).toHaveLength(0)
   })
 
@@ -210,7 +210,7 @@ describe('PUT …/document establishes authority itself, since proxy.ts passes /
       params,
     )
     expect(response.status).toBe(422)
-    expect(await bodyOf(response)).toMatchObject({ code: 'invalid', in: 'json' })
+    expect(await bodyOf(response)).toMatchObject({ code: 'invalid', in: 'json', errors: [expect.objectContaining({ path: 'type' })] })
     expect(sent).toHaveLength(0)
   })
 })
@@ -271,6 +271,13 @@ describe('PUT …/document passes the API answer through unchanged in kind', () 
     const response = await PUT(request({ origin: `https://${HOST}` }), params)
     expect(headersOf(sent[0])['If-Match']).toBe('')
     expect(response.status).toBe(422)
+  })
+
+  it('answers 503 when the API answers a success the contract refuses, never a 200', async () => {
+    answer = () => Response.json({ saved: true })
+    const response = await PUT(sameOrigin(), params)
+    expect(response.status).toBe(503)
+    expect(await bodyOf(response)).toMatchObject({ status: 503, code: 'service_unavailable' })
   })
 
   it('answers 503 when the API cannot be reached, never a 200 and never a 500', async () => {

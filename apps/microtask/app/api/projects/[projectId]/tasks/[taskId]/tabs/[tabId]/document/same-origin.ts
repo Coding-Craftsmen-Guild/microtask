@@ -23,8 +23,9 @@ const originHost = (origin: string | null): string | null => {
  *
  * The host is read the way Next reads it for an action — the **first** `X-Forwarded-Host` entry
  * when a proxy supplied one, `Host` otherwise — because the app runs behind Coolify and the hop it
- * sees itself is an internal one. A cross-site page cannot forge that header: setting it makes a
- * `fetch` preflighted, and nothing here answers a preflight.
+ * sees itself is an internal one. A cross-site page cannot forge that header: a cross-origin `PUT`
+ * is preflighted whatever it carries, and the `OPTIONS` answer Next generates for this route has
+ * no `Access-Control-Allow-Origin`, so the browser never sends the write.
  *
  * Stricter than Next in one respect, on purpose: a **missing** `Origin` is refused, where Next
  * lets an action through with a warning. Every browser sends `Origin` on a `PUT`, the keepalive
