@@ -24,7 +24,10 @@ export interface AutosaveOptions {
   /** Where a write goes. */
   readonly save: SaveDocument
 
-  /** Called every time the state changes, never with the state it already had. */
+  /**
+   * Called on every transition the loop makes, a repeat included: an edit landing while a
+   * write is in flight reports `saving` again, which is what keeps `Saved` off the screen.
+   */
   readonly onState: (state: SaveState, message: string) => void
 }
 
