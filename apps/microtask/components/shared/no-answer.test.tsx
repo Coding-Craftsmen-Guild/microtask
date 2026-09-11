@@ -26,14 +26,14 @@ describe('orNoAnswer', () => {
   })
 
   it('turns a dropped connection into the failed outcome a refusal has, with status 0', async () => {
-    expect(await orNoAnswer(dropped)()).toEqual({ ok: false, status: 0, detail: NO_ANSWER.detail })
+    await expect(orNoAnswer(dropped)()).resolves.toEqual({ ok: false, status: 0, detail: NO_ANSWER.detail })
   })
 
   it('turns an action that throws before it returns a promise into the same failure', async () => {
     const throwing = (): Promise<ActionResult<null>> => {
       throw new Error('Server Action "abc" was not found on the server.')
     }
-    expect(await orNoAnswer(throwing)()).toEqual(NO_ANSWER)
+    await expect(orNoAnswer(throwing)()).resolves.toEqual(NO_ANSWER)
   })
 
   it('hands the action its arguments unchanged', async () => {
@@ -60,7 +60,7 @@ describe('eachOrNoAnswer', () => {
     }
     const guarded = eachOrNoAnswer(actions)
     expect(Object.keys(guarded)).toEqual(['list', 'create'])
-    expect(await guarded.list()).toEqual(NO_ANSWER)
+    await expect(guarded.list()).resolves.toEqual(NO_ANSWER)
     expect(await guarded.create()).toEqual({ ok: true, value: 1 })
   })
 })

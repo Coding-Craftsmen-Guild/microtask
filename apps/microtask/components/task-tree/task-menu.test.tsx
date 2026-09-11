@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ADMIN_TREE } from './controls'
 import { F1, F2, folders, P, R1, renderTree, T1, T2, T3, task } from './testing/tree-fixture'
 
@@ -149,9 +149,12 @@ describe('moving a task when two folders share a name', () => {
       .filter((label) => label.startsWith('Move to'))
 
   it('names each same-named folder by its place in the tree, so no two entries read the same', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { user } = renderTree({ folders: twins })
     await openMenu(user, 'Kickoff')
     expect(moveLabels()).toEqual(['Move to ACME (folder 1)', 'Move to ACME (folder 3)', 'Move to No folder'])
+    expect(errors.mock.calls.filter((call) => call.some((part) => String(part).includes('same key')))).toEqual([])
+    errors.mockRestore()
   })
 
   it('names the twin by its place even from inside the other one, where only one of them is offered', async () => {
@@ -168,8 +171,10 @@ describe('moving a task when two folders share a name', () => {
   })
 
   it('counts places in position order, not in the order the folders arrived in', async () => {
-    const { user } = renderTree({ folders: [...twins].reverse() })
+    const { actions, user } = renderTree({ folders: [...twins].reverse() })
     await openMenu(user, 'Kickoff')
     expect(moveLabels()).toEqual(['Move to ACME (folder 1)', 'Move to ACME (folder 3)', 'Move to No folder'])
+    await user.click(screen.getByRole('menuitem', { name: 'Move to ACME (folder 3)' }))
+    expect(actions.moveTask).toHaveBeenCalledWith(P, T3, F3)
   })
 })
