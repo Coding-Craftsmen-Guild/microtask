@@ -181,9 +181,12 @@ packages/microtask-domain/src/import/    [built — Group B, as it actually land
   replace.ts             replaceProject -> { project, removedTaskIds }
   plan.ts                [Task 9] groups + conflict choices -> the preview
 packages/microtask-domain/src/export/
-  bundle.ts              manifest + tasks -> ExportBundle, with and without tokens
+  bundle.ts              [built — Task 6] manifest + tasks -> ExportBundle, with and without tokens
 packages/microtask-domain/src/storage/
   paths.ts               (modify) stagingDir / stagingFile / buildDir beside projectDir
+packages/kernel/src/
+  ports/file-system.ts   (modify) [Task 6a] readBytes, appendBytes, listFiles, move
+  testing/               [Task 6a] the in-memory FileSystem + describeFileSystem contract
 apps/api/src/routes/microtask/import/
   routes.ts  handlers.ts  staging.ts  zip.ts  apply.ts
 apps/api/src/routes/microtask/export/
@@ -841,13 +844,90 @@ ADR 0019 lists what reminting rewrites. Each gets a test that fails when that on
       Sorting `projects[]` by id before comparing is the **wrong** repair: it silently drops order
       from an assertion whose whole job is to be exhaustive.
 
+### Task 6a: the `FileSystem` port grows once, with a contract both sides pass
+
+**Added 2026-09-12.** Numbered `6a` rather than inserted as `7`, because four "What Task N settled"
+blocks and a dozen criteria elsewhere reference Tasks 7–14 by number, and renumbering would
+invalidate every one of them.
+
+**Files:** modify `packages/kernel/src/ports/file-system.ts`,
+`packages/store/src/node-file-system.ts`, `packages/kernel/package.json`; create
+`packages/kernel/src/testing/{memory-file-system,file-system-contract,index}.ts` + tests; modify
+`packages/microtask-domain/src/storage/fs-project-store.ordering.test.ts`.
+**Depends on:** ADR 0044 and ADR 0045, both committed.
+
+**Why this exists.** ADR 0044 and ADR 0045 each name the port growth they need and neither assigns
+it — "four port methods across Tasks 7, 8 and 9, each also needing the in-memory fake updated"
+(ADR 0045). Only one of the four is actually owned: **Task 9 owns `move`** and states its contract
+correctly, down to ADR 0006's `MoveFileEx(REPLACE_EXISTING)` measuring 4/20 successes under
+concurrency on win32. The other three are owned by nobody. Task 7 stages a chunked upload and Task 8
+reads a zip's bytes, and neither task's file list touches the port at all — so each would grow it
+mid-route-task, from one caller's point of view, three times.
+
+This task grows it once. It **re-decides nothing**: `move`'s semantics come from Task 9's criterion
+as already written, and Task 9's own bullet becomes "use the `move` the port now has, inside the
+lock" rather than a second statement of the addition.
+
+- [ ] **Four methods, named in the style the port already uses** — `readText`/`writeTextAtomic`/
+      `remove`/`removeDir`/`listDirs` — and no fifth:
+      `readBytes(file): Promise<Uint8Array | null>`, null for absent exactly as `readText` is;
+      `appendBytes(file, bytes): Promise<void>`, creating parent directories as `writeTextAtomic`
+      does; `listFiles(dir): Promise<readonly string[]>`, immediate files only and `[]` when the
+      directory is absent, mirroring `listDirs`; and `move(from, to): Promise<void>` **with the
+      contract Task 9 already settled** — the destination is absent when it is called, a directory
+      rename onto a non-empty destination failing on both platforms (measured again here on win32,
+      node: `EPERM`).
+      **No `writeBytesAtomic`.** Zip expansion writes JSON, the only vocabulary import reads, so
+      `writeTextAtomic` already serves it. Adding a binary write "for symmetry" adds a second
+      atomic-write implementation to keep in step with the first.
+- [ ] **Bytes rather than text on the upload path is load-bearing, so pin it.** A chunk boundary can
+      fall in the middle of a multi-byte UTF-8 character; `readText`/`writeTextAtomic` would decode
+      each chunk independently and substitute U+FFFD at every split, silently corrupting any
+      non-ASCII project name in a file large enough to chunk. A test appends a two-chunk upload split
+      **mid-character** and asserts the reassembled bytes decode to the original string. Without it
+      the whole reason these two methods are binary is invisible, and a later simplification back to
+      text passes every other test in the repo.
+- [ ] **A reusable in-memory `FileSystem`, exported from a testing entry point.** There is no such
+      thing today. ADR 0044 leans on "the in-memory fake the store's tests use", and Task 9 on "the
+      `MemoryFileSystem` fake used by the store's ordering tests", as though one general fake
+      existed. It does not: the only implementation is a 30-line write-ordering spy **private to**
+      `fs-project-store.ordering.test.ts`, whose `removeDir()` returns `true` and whose `listDirs()`
+      returns `[]` **unconditionally, ignoring their arguments**. Tasks 7–9 testing import routes
+      against that would be asserting against stubs that answer the same thing for every input.
+- [ ] **A `describeFileSystem` contract harness that both implementations run**, modelled on
+      `describeProjectStore` — this exact pattern is already in the repo, defined once in
+      `testing/project-store-contract.ts` and run by `fs-project-store.test.ts` against the real
+      store and `memory-project-store.test.ts` against the fake. This is the criterion the others
+      depend on: two implementations and no shared contract is how a fake comes to disagree with
+      `NodeFileSystem` in precisely the ways that decide Tasks 7–9 — a `move` that is copy-then-delete
+      and so is not atomic, an `appendBytes` that creates parents where the real one throws, a
+      `listFiles` that includes directory names, a `readBytes` returning an empty array rather than
+      `null` for a file that is not there. Every one of those passes a test written against the fake
+      alone, and every one changes what an import route does.
+- [ ] **The ordering spy keeps its job.** `fs-project-store.ordering.test.ts` exists to pin ADR
+      0006's write ordering and must keep doing so. Rebuild it as a recording **wrapper** over the
+      shared in-memory implementation, so the two stop being separate guesses at what a filesystem
+      does — and so its `listDirs` stops answering `[]` for a directory it has just written into.
+- [ ] `packages/kernel`'s `exports` map gains `./testing`, mirroring the entry
+      `packages/microtask-domain` already has, and a committed test asserts the in-memory
+      implementation is **not** reachable from the package's main entry. `@repo/kernel` is a
+      production dependency of `apps/api`, so unlike `MemoryProjectStore` in a domain package this
+      fake sits inside something the container installs.
+
+**Where the fake lives, and why not `@repo/store`.** `FileSystem` is a **kernel** port, and the
+precedent is `MemoryProjectStore`, which sits in the testing entry of the package owning
+`ports/project-store.ts`. Kernel also has no dependencies, so both `@repo/store`'s tests and
+`@repo/microtask-domain`'s can import the harness with no cycle — which `@repo/store` as the home
+could not offer, `microtask-domain` not depending on it.
 ### Task 7: staging and upload
 
 **Files:** create `apps/api/src/routes/microtask/import/{routes,handlers,staging}.ts` + tests;
 modify `packages/microtask-domain/src/storage/paths.ts`,
 `packages/microtask-domain/src/index.ts`, `apps/api/src/routes/authorize-targets.test.ts`,
 `apps/api/src/surface.test.ts`, `packages/contracts/src/capabilities.ts`.
-**Depends on:** ADR 0044 and ADR 0045 being committed.
+**Depends on:** ADR 0044 and ADR 0045 being committed, **and on Task 6a** — this task stages a
+chunked upload, so it needs `appendBytes` and `readBytes`, which the port does not have. Neither is
+in this task's file list on purpose: the port grows once, in 6a.
 
 - [ ] **[audited] Staging paths get builders in `storage/paths.ts`**, beside `projectDir` and
       `taskFile` — that file already wraps `contained()` at every builder and already rejects
@@ -875,6 +955,8 @@ modify `packages/microtask-domain/src/storage/paths.ts`,
 
 **Files:** create `apps/api/src/routes/microtask/import/zip.ts` + test, with fixture archives;
 modify `apps/api/package.json`.
+**Depends on:** **Task 6a** — reading a staged archive's bytes needs `readBytes`, and enumerating
+what a session staged needs `listFiles`. Both arrive in 6a, not here.
 
 ADR 0020 names four hardening rules and the design names five. All are enforced **before anything is
 written**, and each has a fixture.
@@ -921,12 +1003,18 @@ used by the store's ordering tests.
       task 7 of 20 leaves entries pointing at files that are not there. A crash-ordering test kills
       between the last task file and the move and asserts `listManifests` shows the project wholly
       absent or wholly present.
-- [ ] **[audited] The primitive that move needs does not exist and is part of this task.**
-      `FileSystem` has `readText`, `writeTextAtomic`, `remove`, `removeDir`, `listDirs` — no rename
-      and no move. Add it to the port, to `NodeFileSystem`, and to the in-memory fake. Its contract
-      must state that the destination is absent when it is called: a directory rename onto a
-      non-empty destination fails on both platforms, and ADR 0006 records `MoveFileEx(REPLACE_EXISTING)`
-      measuring 4/20 successes under concurrency on win32. Every call stays inside the lock.
+- [ ] **[audited] The primitive that move needs does not exist — and as of 2026-09-12 it is
+      Task 6a's, not this task's.** `FileSystem` had `readText`, `writeTextAtomic`, `remove`,
+      `removeDir`, `listDirs` — no rename and no move. **The contract this criterion states is still
+      the authority for it**, and 6a implements exactly that rather than re-deciding it: the
+      destination is absent when `move` is called, a directory rename onto a non-empty destination
+      failing on both platforms (ADR 0006 records `MoveFileEx(REPLACE_EXISTING)` measuring 4/20
+      successes under concurrency on win32; re-measured on win32 node, a plain rename onto a
+      non-empty directory gives `EPERM`). What remains this task's is the **use**: clear or move the
+      destination aside first, name the window in which neither copy exists, and keep every call
+      inside the lock. The reason the addition moved is that Tasks 7 and 8 need three further
+      methods and owned none of them, so the port was being designed three times from three callers'
+      points of view.
 - [ ] **[audited] `QueueLock` is not reentrant, and this is the criterion most likely to be violated.**
       Confirm takes `lock.run` **exactly once** for the whole apply and inside it calls **only the
       `store` and `tokens` ports — never a `*Service`**. Every mutating service method takes the same
