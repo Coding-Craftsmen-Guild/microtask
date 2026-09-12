@@ -245,8 +245,20 @@ structural fact — four tabs and their positions, every node type and count, ev
 the 12-of-12 `checked` distribution, no `marks`, depth five — and replaces every text node and name
 with filler. The real-file assertions stay, guarded by `existsSync`, and are reported as skipped
 where `data/` is absent; one of them asserts that the fixture's structure equals the real file's, so
-the fixture cannot drift on the machine that can tell. Proven portable by running the suite in a
-fresh `git worktree`, where `data/` cannot exist: 116 passed, 2 skipped.
+the fixture cannot drift on the machine that can tell. Proven by running the suite in a fresh `git
+worktree`, where `data/` cannot exist: `@repo/contracts` is 116 passed, 2 skipped, and `api` is 653
+passed.
+
+**It is not enough on its own, and the CI check above is still blocked.** The same worktree run
+shows two more test files reading `data/projects` directly —
+`apps/microtask/components/editor/extensions.test.tsx` (6 failed) and
+`document-editor.test.tsx` (fails to collect) — so `turbo run test` is 13 of 14 tasks off this
+machine. They are the ADR 0039 round-trip tests, and both production files feed them, not just the
+one. They need the same treatment: `packages/contracts/scripts/derive-legacy-fixture.mjs` derives
+whichever file it is pointed at, and either it emits a second fixture for that suite or
+`@repo/contracts` grows a `./testing` export to share this one — a `.json` that `tsc` does not copy
+into `dist`, so that export would need a copy step. Until then the image build still runs a suite
+that cannot pass without the volume.
 
 **`restart: unless-stopped` did nothing for a bad environment.** Docker restarts a container on
 exit, never on unhealthy. A refused environment left Next up and serving 500s, so the compose
