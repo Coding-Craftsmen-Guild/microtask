@@ -10,7 +10,16 @@ import { ShareLinkService } from '../services/share-link-service.js'
 import { taskFile } from '../storage/paths.js'
 import { ShareIndex } from '../storage/share-index.js'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
-import { folder, manifest, STAMP, taskDocument, taskEntry } from '../testing/fixtures.js'
+import {
+  folder,
+  manifest,
+  marked,
+  shareLink,
+  STAMP,
+  taskDocument,
+  taskEntry,
+  token,
+} from '../testing/fixtures.js'
 import { MemoryProjectStore } from '../testing/memory-project-store.js'
 import { checkImport, type CheckedProject, type ImportTarget } from './checks.js'
 import type { ConvertedProject } from './legacy.js'
@@ -19,9 +28,6 @@ import { remintProject } from './remint.js'
 const ROOT = path.resolve('/data')
 
 const NOW = '2026-09-12T12:00:00.000Z'
-
-const marked = (mark: string, index: number): string =>
-  `${mark}${String(index).padStart(26 - mark.length, '0')}`
 
 const P1 = marked('01P', 1)
 const T1 = marked('01T', 1)
@@ -32,23 +38,14 @@ const B2 = marked('01B', 2)
 const B3 = marked('01B', 3)
 const F1 = marked('01F', 1)
 
-const token = (index: number): string => `tok_${String(index).padStart(16, '0')}`
-
 const PARENT = token(101)
 const CHILD = token(102)
 const GRANDCHILD = token(103)
 const STRANGER = token(104)
 const ABSENT = token(999)
 
-const linkAt = (value: string, overrides: Partial<ShareLink> = {}): ShareLink => ({
-  token: value,
-  name: 'Sam at ACME',
-  role: 'view',
-  scope: { kind: 'project', projectId: P1 },
-  createdBy: null,
-  createdAt: STAMP,
-  ...overrides,
-})
+const linkAt = (value: string, overrides: Partial<ShareLink> = {}): ShareLink =>
+  shareLink(value, P1, overrides)
 
 const source = (): ConvertedProject => ({
   manifest: manifest(P1, {
@@ -213,6 +210,27 @@ describe('the share tokens, which import as new may not preserve', () => {
       STAMP,
       STAMP,
     ])
+  })
+})
+
+describe('exhaustiveness, which ADR 0019 requires and a spread cannot give', () => {
+  it('leaves no id or token the bundle carried anywhere in the reminted project', () => {
+    const json = JSON.stringify(remintProject(source(), sequentialIds()))
+    for (const gone of [P1, T1, T2, T3, PARENT, CHILD, GRANDCHILD, STRANGER]) {
+      expect(json).not.toContain(gone)
+    }
+  })
+
+  it('carries a document the manifest names no entry for through on its old id, for the checks', () => {
+    const before = source()
+    const stray = taskDocument(marked('01T', 9), marked('01B', 9))
+    const out = remintProject({ ...before, documents: [...before.documents, stray] }, sequentialIds())
+    expect(out.documents.map((one) => one.id)).toContain(marked('01T', 9))
+    const result = checked(out, targeting(before.manifest))
+    expect(result.outcome).toBe('blocked')
+    expect(result.reasons).toContain(
+      `The drop carries documents the manifest names no task for: "${marked('01T', 9)}"`,
+    )
   })
 })
 

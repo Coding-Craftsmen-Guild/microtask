@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
-import { sequentialIds } from '../testing/doubles.js'
-import { folder, manifest, STAMP, taskDocument, taskEntry } from '../testing/fixtures.js'
+import {
+  folder,
+  manifest,
+  marked,
+  shareLink,
+  taskDocument,
+  taskEntry,
+  token,
+} from '../testing/fixtures.js'
 import type { ConvertedProject } from './legacy.js'
-import { remintProject } from './remint.js'
 import { replaceProject } from './replace.js'
-
-const marked = (mark: string, index: number): string =>
-  `${mark}${String(index).padStart(26 - mark.length, '0')}`
 
 const P1 = marked('01P', 1)
 const CA = marked('01T', 1)
@@ -24,21 +27,12 @@ const F2 = marked('01F', 2)
 const OLDER = '2026-01-01T00:00:00.000Z'
 const BUNDLED = '2026-05-05T05:05:05.000Z'
 
-const token = (index: number): string => `tok_${String(index).padStart(16, '0')}`
-
 const SHARED = token(101)
 const UNMENTIONED = token(102)
 const FRESH = token(103)
 
-const linkAt = (value: string, overrides: Partial<ShareLink> = {}): ShareLink => ({
-  token: value,
-  name: 'Sam at ACME',
-  role: 'view',
-  scope: { kind: 'project', projectId: P1 },
-  createdBy: null,
-  createdAt: STAMP,
-  ...overrides,
-})
+const linkAt = (value: string, overrides: Partial<ShareLink> = {}): ShareLink =>
+  shareLink(value, P1, overrides)
 
 const KEPT = linkAt(UNMENTIONED, { name: 'Long-standing client', role: 'write' })
 
@@ -87,9 +81,6 @@ describe('replace preserves the tokens import as new remints', () => {
     const out = replaceProject(incoming(), current())
     expect(tokensOf(out.project.manifest)).toContain(SHARED)
     expect(tokensOf(out.project.manifest)).toContain(FRESH)
-    expect(tokensOf(out.project.manifest)).not.toEqual(
-      tokensOf(remintProject(incoming(), sequentialIds()).manifest),
-    )
   })
 
   it('leaves every token the project already held resolvable, including a delegated lineage', () => {
@@ -171,5 +162,72 @@ describe('replace keeps the share links the bundle does not mention', () => {
     expect(tokensOf(out.project.manifest)).toEqual([SHARED, FRESH, UNMENTIONED])
     const fresh = replaceProject(incoming(), { ...current(), shareLinks: [] })
     expect(tokensOf(fresh.project.manifest)).toEqual([SHARED, FRESH])
+    expect(fresh.project.manifest).toEqual(incoming().manifest)
+    expect(fresh.project.documents).toEqual(incoming().documents)
+  })
+
+  it('is the identity on the bundle when the project holds nothing to keep', () => {
+    const out = replaceProject(incoming(), manifest(P1))
+    expect(out.project.manifest).toEqual(incoming().manifest)
+    expect(out.project.documents).toEqual(incoming().documents)
+    expect(out.removedTaskIds).toEqual([])
+  })
+})
+
+describe('a kept link scoped to a task the replace removes', () => {
+  const onDropped = (): ShareLink =>
+    linkAt(UNMENTIONED, {
+      name: 'Client on the dropped task',
+      scope: { kind: 'task', projectId: P1, taskId: CC },
+    })
+
+  it('is reported by index, so the admin is told how many links will stop resolving', () => {
+    const before = { ...current(), shareLinks: [onDropped()] }
+    const out = replaceProject(incoming(), before)
+    expect(out.removedTaskIds).toEqual([CC])
+    expect(out.strandedTaskScopes).toEqual([2])
+    expect(out.project.manifest.shareLinks[2]?.name).toBe('Client on the dropped task')
+  })
+
+  it('is neither dropped nor widened, the first withdrawing access and the second granting it', () => {
+    const before = { ...current(), shareLinks: [onDropped()] }
+    const out = replaceProject(incoming(), before)
+    expect(tokensOf(out.project.manifest)).toContain(UNMENTIONED)
+    expect(out.project.manifest.shareLinks[2]?.scope).toEqual({
+      kind: 'task',
+      projectId: P1,
+      taskId: CC,
+    })
+  })
+
+  it('is not reported when the bundle still carries its task, nor when the link spans the project', () => {
+    const onKept = linkAt(token(200), {
+      name: 'Client on a task the bundle carries',
+      scope: { kind: 'task', projectId: P1, taskId: CA },
+    })
+    const wide = linkAt(token(201), { name: 'Whole project' })
+    const before = { ...current(), shareLinks: [onKept, wide] }
+    const out = replaceProject(incoming(), before)
+    expect(out.strandedTaskScopes).toEqual([])
+    expect(tokensOf(out.project.manifest)).toEqual([SHARED, FRESH, token(200), token(201)])
+  })
+
+  it('reports nothing for the bundle own links, which the preview has already checked', () => {
+    const out = replaceProject(incoming(), current())
+    expect(out.strandedTaskScopes).toEqual([])
+    expect(out.removedTaskIds).toEqual([CC])
+  })
+
+  it('counts the kept tail only, a bundle link out of step with itself being the preview to refuse', () => {
+    const strayed: ConvertedProject = {
+      ...incoming(),
+      manifest: {
+        ...incoming().manifest,
+        shareLinks: [linkAt(SHARED, { scope: { kind: 'task', projectId: P1, taskId: CC } })],
+      },
+    }
+    const out = replaceProject(strayed, { ...current(), shareLinks: [onDropped()] })
+    expect(out.project.manifest.shareLinks.map((one) => one.scope.kind)).toEqual(['task', 'task'])
+    expect(out.strandedTaskScopes).toEqual([1])
   })
 })

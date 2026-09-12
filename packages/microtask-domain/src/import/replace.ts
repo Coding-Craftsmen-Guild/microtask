@@ -1,5 +1,15 @@
 import type { ProjectManifest } from '../entities/manifest.js'
+import type { ShareLink } from '../entities/share-link.js'
 import type { ConvertedProject } from './legacy.js'
+
+const stranded = (
+  links: readonly ShareLink[],
+  from: number,
+  named: ReadonlySet<string>,
+): readonly number[] =>
+  links.flatMap((link, at) =>
+    at >= from && link.scope.kind === 'task' && !named.has(link.scope.taskId) ? [at] : [],
+  )
 
 /**
  * What a `replace` resolves to: the project to write, and the tasks it drops.
@@ -13,10 +23,28 @@ import type { ConvertedProject } from './legacy.js'
  * service method taking the same non-reentrant `QueueLock` a confirm already holds (ADR 0030).
  * Either way this is the statement of what a replace removes, which a per-project outcome has to
  * be able to report.
+ *
+ * `strandedTaskScopes` indexes into `project.manifest.shareLinks` and names the **kept** links this
+ * replace invalidates: one scoped to a task that was on disk and that the bundle does not carry.
+ * It is reported and not acted on, because each alternative is worse. Widening the scope to the
+ * project grants authority nothing agreed to. Dropping the link silently withdraws access nobody
+ * revoked, which is what the keep rule exists to prevent. Blocking the replace refuses an
+ * operation the admin asked for over a state the **ordinary API already produces**:
+ * `TaskService.remove` rebuilds the manifest as `{...current, tasks, updatedAt}` and leaves
+ * `shareLinks` untouched, so any `manage` holder deleting a task strands a scope exactly this way.
+ * So it is a link that 404s, which this product already tolerates — and the admin is told how many
+ * before confirming, that being a consequence of their own choice rather than something to
+ * discover later.
+ *
+ * An index and not a token: a token is a credential, and the scope it names reads off the link at
+ * that index. It is also the handle the rest of the import already speaks in — a preview reason
+ * marks a link `Share link <index>`, and `ImportPreviewShareLink` carries a stable per-preview
+ * index for this kind of reference.
  */
 export interface Replacement {
   readonly project: ConvertedProject
   readonly removedTaskIds: readonly string[]
+  readonly strandedTaskScopes: readonly number[]
 }
 
 /**
@@ -44,6 +72,14 @@ export interface Replacement {
  * first and the kept ones follow, so a replace into a store holding nothing produces exactly the
  * bundle's manifest — which is what lets an export/import/export round trip compare equal.
  *
+ * Nothing re-checks the result, and a replace does not need it: the preview checked the incoming
+ * project, and the merge adds nothing the preview did not see. **Scope containment in particular
+ * is an import guard and not a store invariant** — it exists to refuse a *bundle* asserting a
+ * scope it has no business asserting — so applying it to a link kept from disk would refuse a link
+ * this store validated when it was minted, over a task the admin has just chosen to drop. What
+ * that costs is reported instead; see {@link Replacement}. Reminting is the opposite case and must
+ * be re-checked, rewriting the incoming project and taking a new project id.
+ *
  * `current` is assumed to be the manifest of the project `incoming` collides with; the id written
  * is `incoming`'s. Nothing here reads a clock or a generator, a replace minting nothing.
  */
@@ -54,14 +90,13 @@ export function replaceProject(
   const carried = new Set(incoming.manifest.shareLinks.map((one) => one.token))
   const named = new Set(incoming.manifest.tasks.map((entry) => entry.id))
   const kept = current.shareLinks.filter((one) => !carried.has(one.token))
+  const shareLinks = [...incoming.manifest.shareLinks, ...kept]
   return {
     project: {
-      manifest: {
-        ...incoming.manifest,
-        shareLinks: [...incoming.manifest.shareLinks, ...kept],
-      },
+      manifest: { ...incoming.manifest, shareLinks },
       documents: incoming.documents,
     },
     removedTaskIds: current.tasks.map((entry) => entry.id).filter((id) => !named.has(id)),
+    strandedTaskScopes: stranded(shareLinks, incoming.manifest.shareLinks.length, named),
   }
 }

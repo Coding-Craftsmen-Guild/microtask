@@ -20,7 +20,16 @@ import { cleanName } from '../limits.js'
 import { ShareIndex } from '../storage/share-index.js'
 import { projectListItem, projectView } from '../views/project-view.js'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
-import { folder, manifest, STAMP, taskDocument, taskEntry } from '../testing/fixtures.js'
+import {
+  folder,
+  manifest,
+  marked,
+  shareLink,
+  STAMP,
+  taskDocument,
+  taskEntry,
+  token,
+} from '../testing/fixtures.js'
 import { convertLegacyProject, type ConvertedProject } from './legacy.js'
 import {
   checkImport,
@@ -30,9 +39,6 @@ import {
 } from './checks.js'
 
 const NOW = '2026-09-12T12:00:00.000Z'
-
-const marked = (mark: string, index: number): string =>
-  `${mark}${String(index).padStart(26 - mark.length, '0')}`
 
 const P1 = marked('01P', 1)
 const P2 = marked('01P', 2)
@@ -45,23 +51,14 @@ const F3 = marked('01F', 3)
 const B1 = marked('01B', 1)
 const B2 = marked('01B', 2)
 
-const token = (index: number): string => `tok_${String(index).padStart(16, '0')}`
-
 const TOKEN = token(1)
 const OTHER = token(2)
 
 const taskIds = (count: number, from = 1): readonly string[] =>
   Array.from({ length: count }, (_unused, index) => marked('01T', from + index))
 
-const link = (value: string, overrides: Partial<ShareLink> = {}): ShareLink => ({
-  token: value,
-  name: 'Sam at ACME',
-  role: 'view',
-  scope: { kind: 'project', projectId: P1 },
-  createdBy: null,
-  createdAt: STAMP,
-  ...overrides,
-})
+const link = (value: string, overrides: Partial<ShareLink> = {}): ShareLink =>
+  shareLink(value, P1, overrides)
 
 const tabAt = (id: string, position: number, document: DocumentJson = emptyDocument()): Tab => ({
   id,

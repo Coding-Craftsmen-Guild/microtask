@@ -481,6 +481,30 @@ Same reason again, and the first three are things Task 9 cannot get right by rea
   with the kept tail after. That ordering is load-bearing for Task 6: a replace into a store
   holding nothing then produces *exactly* the bundle's manifest, which is what lets the
   export/import/export round trip compare equal.
+- **Task 9 re-checks after a remint and *not* after a replace.** A remint rewrites the incoming
+  project and takes a new project id, so `checkImport` has to see it again — that is what
+  `DroppedProject`'s `'converted'` shape is for. A replace adds nothing the preview did not
+  already check: the incoming project went through it, and the merge only appends links that were
+  on disk. Re-checking a replace is not merely redundant, it is **wrong**, for the reason in the
+  next entry.
+- **Scope containment is an import guard, not a store invariant**, so it must not be applied to a
+  link kept from disk. It exists to refuse a *bundle* asserting a scope it has no business
+  asserting; a kept link was validated by this store when it was minted. The case that forces the
+  distinction: a kept link scoped to a task the bundle does not carry is left scoped to a task
+  that is about to be removed, and `checkImport` would block the whole project for it with
+  "Share link N is scoped to task …, which this project has not". That is a false refusal. The
+  state is not corruption and is not even new — `TaskService.remove` rebuilds the manifest as
+  `{...current, tasks, updatedAt}` and leaves `shareLinks` untouched, so **any `manage` holder
+  deleting a task already strands a scope the same way**. It is a link that 404s, which this
+  product tolerates.
+- **The stranding is reported rather than repaired**, through `Replacement.strandedTaskScopes` —
+  indices into `project.manifest.shareLinks`, naming the kept links a replace invalidates. Task 9
+  tells the admin how many client links will stop resolving, which is a consequence of their own
+  conflict choice and should not be silent. It is the same argument `removedTaskIds` rests on: a
+  caller needs a statement the resulting manifest cannot express. Neither of the two repairs is
+  available — widening such a scope to the project grants authority nothing agreed to, and dropping
+  the link silently withdraws access nobody revoked. An index and not a token, a token being a
+  credential and the scope being readable off the link at that index.
 - **A share link the bundle never mentions is kept**, and that is also why a replace needs no
   lineage pass at all: preserved tokens plus kept links means every token either manifest held
   still exists, so no `createdBy` that resolved before resolves nowhere afterwards.
