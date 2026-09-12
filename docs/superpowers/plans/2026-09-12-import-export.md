@@ -493,6 +493,13 @@ so these return outcomes and the tests assert on the returned plan.
       `projectsPerProduct` has a different and permanent consequence — `ProjectService.create`
       compares against it, so an over-cap import silently disables project creation for the product.
       This check runs on the **converted v2 shape**, so the legacy path is covered too.
+      **[amended 2026-09-12, after Task 3] The collection *counts* run there; the name bound does
+      not.** Task 3's converters put every project, task, folder and tab name through `cleanName`,
+      which caps at `LIMITS.nameLength`, so on the converted shape that half of the check cannot
+      fire for four of the five name kinds — a check that looks alive and is dead. Run the name
+      bound on the **drop set** instead, the raw manifest and raw task documents, where a malformed
+      v2 name still exists; the legacy path then needs no name bound at all, conversion guaranteeing
+      it. See "What Task 3 settled" above.
 - [ ] **Scope containment**: every share link's scope resolves inside the project it arrived with. A
       test pins a link whose `scope.taskId` names a task in a **different project of the same
       bundle** — plausible, and the case a naive "does this task id exist anywhere" check passes.
