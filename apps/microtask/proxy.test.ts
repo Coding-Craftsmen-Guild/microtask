@@ -11,6 +11,18 @@ const SECRET = 'a-cookie-secret-of-at-least-32-by'
 const ADMIN = seal(SECRET, payloadOf({ kind: 'admin', token: 'admin.1.sig' }))
 const STRAY_LINK_COOKIE = 'mt_link'
 
+/**
+ * {@link ADMIN} with its second-to-last character replaced, so the seal cannot open.
+ *
+ * The replacement is chosen by inspecting the character it replaces. Choosing it from the *last*
+ * character instead — which this test did until 2026-09-12 — silently produced the unmodified blob
+ * whenever those two characters already matched: the value opened, the request was let through, and
+ * the case failed claiming the proxy trusts a tampered cookie. `seal()` draws a fresh 12-byte IV per
+ * call, so the flake was random per run at a measured 1.58%, and it reddened gates for changes
+ * nowhere near this file.
+ */
+const FLIPPED = `${ADMIN.slice(0, -2)}${ADMIN.at(-2) === 'A' ? 'B' : 'A'}${ADMIN.slice(-1)}`
+
 beforeEach(() => {
   vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
   vi.stubEnv('API_KEY', 'the-service-key')
@@ -129,10 +141,11 @@ describe('the admin surface with mt_admin', () => {
 
   it.each([
     ['a value that is not a sealed blob', 'garbage'],
-    ['a blob with one bit flipped', ADMIN.slice(0, -2) + (ADMIN.endsWith('A') ? 'B' : 'A') + ADMIN.slice(-1)],
+    ['a blob with one bit flipped', FLIPPED],
     ['a blob sealed under another secret', seal('another-secret-of-at-least-32-byt', payloadOf({ kind: 'admin', token: 't' }))],
     ['a link principal moved into mt_admin', seal(SECRET, payloadOf({ kind: 'link', token: 'share' }))],
   ])('treats %s exactly as it treats no cookie', (_label, value) => {
+    expect(value).not.toBe(ADMIN)
     const tampered = visit('/p/01HXYZ?tab=01H', { cookies: { [ADMIN_COOKIE]: value } })
     const absent = visit('/p/01HXYZ?tab=01H')
     expect(tampered.status).toBe(absent.status)
