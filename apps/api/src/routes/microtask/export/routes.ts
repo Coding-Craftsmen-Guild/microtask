@@ -48,13 +48,16 @@ const BUNDLE_RESPONSE = {
  * `drop-checks.ts` parses both of those today.
  *
  * Bridging that variance is **all** the conversion does, and it is not what holds the two shapes
- * together. Two things do, **both only at the envelope**: `ExportedBundle`'s type-level agreement
- * with this schema, asserted where the bundler lives, and the response-shape walk, which parses a
- * real body against this component and compares its **top-level** keys. Below that level nothing
- * catches drift — zod strips an unknown nested key in silence and the walk never looks at one — so
- * a field added to `BundledProject`, the shape import shares, and not to `ExportedProject` passes
- * every check in this repo. Measured, not assumed; it is the one place an export and an import can
- * disagree with the suite green.
+ * together. Three things do. Two are at the envelope: `ExportedBundle`'s type-level agreement with
+ * this schema, and the response-shape walk, which parses a real body against this component and
+ * compares its **top-level** keys. Neither reaches inside a project — zod strips an unknown nested
+ * key in silence and the walk never looks at one — so the third is a per-project key comparison
+ * beside the bundler, which parses each project with `ExportedProject` and asserts the parse gave
+ * back every key it was handed. That one is not redundant: `BundledProject` is the single shape
+ * export and import both speak, so a field added there and not to `ExportedProject` has the export
+ * writing what an import silently drops, and the operator learning of it when a project comes back
+ * short after the old volume is gone. Measured: that drift fails only that test, with the dropped
+ * key named.
  */
 export type ExportBundleBody = z.infer<typeof ExportBundle>
 

@@ -217,6 +217,14 @@ describe('an exported bundle is the shape @repo/contracts declares', () => {
     expect(parsed.error?.issues ?? []).toEqual([])
   })
 
+  it('has every key of every project described by ExportedProject, which is what import reads', async () => {
+    for (const project of (await exported('preserve')).projects) {
+      const parsed = contracts.ExportedProject.safeParse(project)
+      expect(parsed.error?.issues ?? []).toEqual([])
+      expect(Object.keys(parsed.data ?? {}).sort()).toEqual(Object.keys(project).sort())
+    }
+  })
+
   it('carries the discriminator this repo reads, so classification recognises its own export', async () => {
     const bundle = await exported('strip')
     expect([bundle.format, bundle.version]).toEqual([contracts.BUNDLE_FORMAT, contracts.BUNDLE_VERSION])
