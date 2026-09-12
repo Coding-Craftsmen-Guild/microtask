@@ -173,9 +173,23 @@ final commit of the app they belonged to (`legacy-prod`, 2026-09-10 07:56), and 
 `ACME Website` and `Other Co` with a share link named `Sam (agency)`. The product owner's
 instruction was explicit that the local copy is disposable and the real dataset is on the Coolify
 volume: *"discard current local, but we need to migrate the ones that are live on coolify before
-deploy."* **Nothing in this repository has ever inspected the live dataset.** Who wrote the local
-files is not established and does not matter; what matters is that no measurement of them is a
-measurement of production.
+deploy."* **Nothing in this repository has ever inspected the live dataset.**
+
+The origin is established, not merely inferred: the agent session that built the app being replaced
+created both projects through that app's own HTTP API on 2026-09-09, and its first-hand account
+matches the files on three independent details — `createdAt` to the millisecond
+(`21:16:20.246Z`), both surviving share-link tokens by prefix (`976q3MP9…`, `gjgZyUrk…`), and the
+id of the default tab the create seeded (`01M240ERCR2CEBJM17CZF7A644`, named `General`, at
+position 1 today because it was reordered afterwards). A third share link, named and then revoked
+while exercising the revoke path, is why `ACME Website` carries two links rather than three. Worth
+pinning rather than leaving open, because a record that says *unknown* about something knowable
+invites the question to be re-derived later — which is how the mis-scoping below survived two days.
+
+One trap in doing that dating, for whoever does it next: a session's reported age is not the age of
+its work. The session in question has run since 2026-09-09 and the date has rolled twice, so an
+age of "a day" sat alongside data it had written three days earlier, and reasoning from the age
+signal pointed at the wrong session. The file stamps and the ids are the evidence; the session
+metadata is not.
 
 The designs do not change — every guard, cap and parse was built to hold for arbitrary input, which
 is why this is a scoping correction and not a defect. Three claims get weaker, and two of them are
