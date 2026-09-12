@@ -237,7 +237,10 @@ Three things this ADR asks for could not happen as the code stood.
 read `data/projects/01M240ERCRWWCN16Q5AHP1FZAQ.json` through a relative URL. `data/` is gitignored
 and holds production customer data, so a fresh clone, a CI runner and every container build had no
 such file and that test errored — which makes the "does it build in Docker" check above
-unreachable, since the image build runs the same suite. The property the test exists to prove is
+unreachable for any runner that runs `turbo run test` first. Not because the image build runs the
+suite: neither Dockerfile does, both stopping at `turbo run build --filter=…`, and
+`.dockerignore` excludes `**/*.test.ts` and `**/*.test.tsx` from the build context altogether.
+The block was on the gate, not on the build. The property the test exists to prove is
 real and is kept: documents written by the app being replaced are valid input to Tiptap 3, and
 `countTasks` agrees with the live numbers (ADR 0039). It now reads a committed fixture derived from
 the real file by `packages/contracts/scripts/derive-legacy-fixture.mjs`, which preserves every
@@ -249,16 +252,29 @@ the fixture cannot drift on the machine that can tell. Proven by running the sui
 worktree`, where `data/` cannot exist: `@repo/contracts` is 116 passed, 2 skipped, and `api` is 653
 passed.
 
-**It is not enough on its own, and the CI check above is still blocked.** The same worktree run
-shows two more test files reading `data/projects` directly —
-`apps/microtask/components/editor/extensions.test.tsx` (6 failed) and
-`document-editor.test.tsx` (fails to collect) — so `turbo run test` is 13 of 14 tasks off this
-machine. They are the ADR 0039 round-trip tests, and both production files feed them, not just the
-one. They need the same treatment: `packages/contracts/scripts/derive-legacy-fixture.mjs` derives
-whichever file it is pointed at, and either it emits a second fixture for that suite or
-`@repo/contracts` grows a `./testing` export to share this one — a `.json` that `tsc` does not copy
-into `dist`, so that export would need a copy step. Until then the image build still runs a suite
-that cannot pass without the volume.
+**That first fix was not enough on its own, and two more files had the same defect.** The same
+worktree run showed `apps/microtask/components/editor/extensions.test.tsx` (6 failed) and
+`document-editor.test.tsx` (failed to collect, 0 tests run) reading `data/projects` directly, so
+`turbo run build typecheck lint test --force` was **35 of 36 tasks** off this machine. They are the
+ADR 0039 round-trip tests, and both production files feed them, not just the one. Both now read
+committed fixtures: `derive-legacy-fixture.mjs` derives one fixture per production project, and the
+tabs those tests want are selected by structure — the tab whose document ends in a `taskList` —
+rather than by the customer's tab name, which the derivation replaces with filler. Their real-file
+assertions stay, guarded by existence, and are reported as skipped where `data/` is absent.
+
+**The gate is portable, measured.** In a fresh `git worktree add --detach` where `data/` cannot
+exist, `npx turbo run build typecheck lint test --force` is `Tasks: 36 successful, 36 total`,
+`Cached: 0 cached, 36 total`, exit 0, in 2m40s: `@repo/contracts` 118 passed and 3 skipped,
+`api` 655 passed, `microtask` 1372 passed and 1 skipped. The four skips are exactly the
+real-file assertions. The CI check the consequences above ask for is no longer blocked.
+
+**What keeps the derivation honest.** The fixture guard originally held on tab names and text nodes
+only, so a derivation that stopped neutralising `id` or `token` would have carried a live
+production share token into a committed fixture with the whole suite green — mutating that branch
+out of the script killed no test. `document-facts.test.ts` now asserts a stand-in under every key
+the script touches, `id`, `token` and both timestamps included, which needs no `data/` and so
+holds on CI; and where `data/` is present it also asserts that no stored string of three characters
+or more reaches either committed fixture at all.
 
 **`restart: unless-stopped` did nothing for a bad environment.** Docker restarts a container on
 exit, never on unhealthy. A refused environment left Next up and serving 500s, so the compose
