@@ -40,6 +40,8 @@ export {
   type DroppedProject,
   type ImportTarget,
 } from './import/checks.js'
+export { remintProject } from './import/remint.js'
+export { replaceProject, type Replacement } from './import/replace.js'
 export type { ProjectStore } from './ports/project-store.js'
 export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
