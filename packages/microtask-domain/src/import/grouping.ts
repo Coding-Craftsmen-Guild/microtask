@@ -153,6 +153,15 @@ function refuse(rules: readonly PathRule[], value: string): void {
  *   silently when it opens a name, so `a ` and `a` are two paths to this module and one file to
  *   that platform: they pass the collision check below and then overwrite each other. Win32 is
  *   supported, on the measurements ADR 0006 rests on, so this cannot be left to the platform.
+ *   The rule is `trim()`, so it is wider than the ASCII space win32 strips: a trailing U+00A0 or
+ *   U+3000, or a leading BOM, is refused too, and each of those is a legal name on ext4 and APFS.
+ *   That breadth is deliberate. Refusing costs an operator one rename against a message naming the
+ *   rule; admitting costs a silent overwrite on one platform, and this is the migration path for
+ *   data that exists once. What it does **not** reach is the win32 **device** names — `CON`,
+ *   `NUL`, `PRN`, `AUX`, `COM1`-`COM9`, `LPT1`-`LPT9` — which stay accepted, because their failure
+ *   is a loud `open()` error on a developer's machine rather than a collision, and refusing
+ *   `aux.json` outright would turn a file that imports cleanly in the container into one that
+ *   cannot be imported at all.
  * - A **length** over a bound: 255 **bytes** per segment, 1024 characters for the whole path.
  *   255 is the component limit on both filesystems this repo writes to — bytes on ext4, UTF-16
  *   units on NTFS — so a longer segment is an `ENAMETOOLONG` waiting for the write path, and it is

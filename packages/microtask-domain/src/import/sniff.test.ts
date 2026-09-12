@@ -9,7 +9,13 @@ import {
 import { Invalid } from '@repo/kernel'
 import type { TaskEntry } from '../entities/manifest.js'
 import { manifest, STAMP, taskDocument, taskEntry } from '../testing/fixtures.js'
-import { sniffGroup, sniffImportFiles, type ImportFile, type SniffedGroup } from './sniff.js'
+import {
+  elideMiddle,
+  sniffGroup,
+  sniffImportFiles,
+  type ImportFile,
+  type SniffedGroup,
+} from './sniff.js'
 
 const P1 = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const T1 = '01M25000000000000000000001'
@@ -246,6 +252,25 @@ describe('sniffGroup', () => {
     expect(sniffed.error).toContain(`volume/${P1}`)
     expect(sniffed.error).toContain('enclosing/')
     expect((sniffed.error ?? '').length).toBeLessThanOrEqual(MAX_PREVIEW_TEXT_LENGTH)
+  })
+
+  it('keeps both ends when it elides, so the caller that shortens a row keeps what identifies it', () => {
+    const long = `${'deep/'.repeat(40)}volume/${P1}/tasks/${T1}.json`
+    const short = elideMiddle(long, 80)
+    expect([...short]).toHaveLength(80)
+    expect(short.startsWith('deep/deep/')).toBe(true)
+    expect(short.endsWith(`${T1}.json`)).toBe(true)
+  })
+
+  it('leaves a value already inside the budget alone, rather than marking it elided', () => {
+    expect(elideMiddle('volume/a/project.json', 60)).toBe('volume/a/project.json')
+  })
+
+  it('quotes a long value from its head, which is the end that says what the file claims to be', () => {
+    const claimed = `ccg.microtask.${'x'.repeat(4000)}`
+    const reason = one('export.json', { ...bundle([]), format: claimed }).error ?? ''
+    expect(reason).toContain('ccg.microtask.xxx')
+    expect(reason).not.toContain(`${'x'.repeat(20)}"`)
   })
 
   it('keeps every reason inside the preview text bound, however long the drop made it', () => {

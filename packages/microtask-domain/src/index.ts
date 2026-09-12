@@ -25,7 +25,7 @@ export {
   type ImportFile,
   type ImportGroup,
 } from './import/grouping.js'
-export { sniffGroup, sniffImportFiles, type SniffedGroup } from './import/sniff.js'
+export { elideMiddle, sniffGroup, sniffImportFiles, type SniffedGroup } from './import/sniff.js'
 export {
   convertBundledProject,
   convertLegacyProject,

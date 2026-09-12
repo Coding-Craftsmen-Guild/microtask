@@ -91,11 +91,23 @@ function quoted(value: unknown): string {
   return `${points.slice(0, LONGEST_QUOTED_VALUE).join('')}…`
 }
 
-function elided(path: string): string {
-  const points = [...path]
-  if (points.length <= LONGEST_QUOTED_PATH) return path
-  const head = Math.ceil((LONGEST_QUOTED_PATH - 1) / 2)
-  const tail = LONGEST_QUOTED_PATH - 1 - head
+/**
+ * Shortens a path to `longest` code points by dropping its **middle**, keeping both ends.
+ *
+ * A path's tail is the half that identifies it — the project ULID, the task file name — so the
+ * head-truncation {@link ImportShape} reasons use for a hostile *value* is wrong here: it drops
+ * exactly the segment ADR 0018 requires an orphan message to name. Exported because
+ * `normaliseImportPath` admits a path far longer than `ImportPreviewGroup.path`'s 200-character
+ * cap, deliberately, so the preview builder has to shorten one too — and a second implementation
+ * of "keep the two ends that identify it" would be free to disagree with this one.
+ *
+ * Code points rather than UTF-16 units, so a surrogate pair is never split into a lone half.
+ */
+export function elideMiddle(value: string, longest: number): string {
+  const points = [...value]
+  if (points.length <= longest) return value
+  const head = Math.ceil((longest - 1) / 2)
+  const tail = longest - 1 - head
   return `${points.slice(0, head).join('')}…${points.slice(points.length - tail).join('')}`
 }
 
@@ -139,7 +151,7 @@ const reported = (group: ImportGroup, error: string): SniffedGroup => ({
 })
 
 const orphaned = (path: string): string =>
-  `"${elided(path)}" has task files but no ${MANIFEST_FILE_NAME} beside them`
+  `"${elideMiddle(path, LONGEST_QUOTED_PATH)}" has task files but no ${MANIFEST_FILE_NAME} beside them`
 
 function loneFile(group: ImportGroup, file: ImportFile): SniffedGroup {
   const detected = detectedFile(file.json)
