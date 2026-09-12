@@ -245,6 +245,32 @@ arrives as an argument, so every test in this group is exact rather than approxi
 `packages/microtask-domain/src/index.ts`, and a task that forgets it fails at Group C with an
 unresolvable import.
 
+### What Task 2 settled, which later tasks are written against
+
+Recorded here after execution, because each is a reading the criteria left open and a later task
+would otherwise have to guess:
+
+- **"Grouped by directory" exempts a loose file.** A file that is neither a `project.json` nor a
+  `<dir>/tasks/*.json` becomes a group of **one, keyed by its own path**, rather than joining its
+  directory's bucket. Folding `mydir/notes.json` into `mydir`'s project-directory group would leave
+  it no row it could be refused in, which is the silent skip ADR 0018 exists to close.
+- **`ImportGroup.manifest !== null` is the v2-project-directory discriminator**, and nothing about
+  the manifest's *content* has been validated at that point. That is deliberate, so Task 4's
+  schema-conformance check runs first on data of no assumed shape.
+- **`taskFiles` carries full harvested paths**, so the id Task 4 cross-checks against is the basename
+  minus `.json`.
+- **Sniffing classifies on `format` + `version` + `projects[]` only**, never a full
+  `ExportBundle.safeParse` — Task 1's cross-collection refinements mean a bundle with an overcounting
+  cache would otherwise land as `unrecognised` instead of classified-then-blocked with a reason.
+- **A duplicate harvested path throws** rather than producing a refused row — the one content
+  problem in the module answered with a throw. A drop cannot produce it; **a zip can**, so Task 8
+  decides whether expansion filters duplicate entry names or turns the throw into a 422. Left as-is
+  it means one duplicated zip entry destroys the whole preview.
+- **Classifier reasons arrive pre-elided** (value at 40 characters, path at 120). Task 9 must not
+  elide them a second time.
+- **Names are matched case-sensitively throughout**, including the `.json` suffix, so one spelling
+  cannot be read two ways. Pinned by a test, mutation-verified.
+
 ### Task 2: grouping and the four shapes
 
 **Files:** create `packages/microtask-domain/src/import/grouping.ts`, `sniff.ts` + tests; modify
@@ -262,11 +288,17 @@ unresolvable import.
 - [ ] A legacy project is detected by `{ id, name, tabs[], shareLinks[] }` **with no `format` key**.
       A file carrying `format` but an unknown `version` is an error naming the version found and the
       version supported — not "unrecognised", which would read as "this isn't ours".
-- [ ] Path normalisation is one helper shared by both browser sources, and it rejects rather than
-      repairs: an absolute path, a `..` segment, a drive letter, and a backslash-separated path are
-      each pinned by a test. The server re-runs this on what it receives (ADR 0018) — a test proves
-      the server does not trust the client's normalisation by feeding a hostile path straight to the
-      server-side entry point.
+- [ ] Path normalisation is one helper, and it rejects rather than repairs: an absolute path, a `..`
+      segment, a drive letter, and a backslash-separated path are each pinned by a test. A test
+      proves the server does not trust the client by feeding a hostile path straight to the
+      server-side entry point. **[amended 2026-09-12] It lives server-side only.** The draft said
+      "shared by both browser sources", which cannot be built: `packages/ui` may not import a
+      `*-domain` package (ADR 0014, and the lint rule enforces it), and `@repo/contracts` cannot host
+      it either — it throws `Invalid` from `@repo/kernel`, which contracts holds as a devDependency
+      with a committed test asserting it stays one (ADR 0038), and giving a package shared by two
+      products a dependency on one product's contracts is the coupling ADR 0014 prevents. See the
+      amendment appended to ADR 0018. Task 11 owns the *decoding* of the two browser path shapes and
+      must not re-implement the rejection rules.
 - [ ] Grouping is stable and order-independent: shuffling the input array yields the same groups. A
       test shuffles with a fixed seed, because `readdir` order and drop order are both arbitrary.
 
@@ -655,8 +687,15 @@ under test and an unspecified double makes the test vacuous.
       `webkitGetAsEntry()` returns `null` and `.files` is empty, so **no `await` may happen before the
       items are read**. The test awaits a microtask before harvesting and asserts the harvest is
       empty — proving the test can see the bug — then asserts the real handler harvests everything.
-- [ ] A directory **pick** uses `webkitRelativePath`; a **drop** uses `fullPath`; both go through one
-      normaliser. A test feeds both shapes and asserts identical groups.
+- [ ] **[amended 2026-09-12]** A directory **pick** uses `webkitRelativePath`; a **drop** uses
+      `fullPath`. Both go through one helper here whose whole job is **decoding** them into the one
+      encoding the server expects — `fullPath` is drag-root-relative and carries a single leading `/`
+      by spec, so passing it through unchanged makes the server refuse **every drop**, since
+      `normaliseImportPath` rejects an absolute path. A test feeds both shapes and asserts identical
+      output. **Do not re-implement the rejection rules** (`..`, drive letter, backslash, trailing
+      separator): they are the server's authority and a second copy that disagrees is
+      indistinguishable from either copy working. See the amendment on ADR 0018 for why the function
+      itself cannot be shared.
 - [ ] Loose files with no path classify individually, as before.
 - [ ] `harvest.ts` is framework-free and separately testable. It is not a hook.
 

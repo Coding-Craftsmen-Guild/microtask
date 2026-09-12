@@ -111,6 +111,20 @@ describe('groupImportFiles', () => {
     expect(groups[1]?.file?.path).toBe(`volume/${P1}/notes.json`)
   })
 
+  it('matches every recognised name case-sensitively, so one spelling cannot be read two ways', () => {
+    const groups = groupImportFiles([
+      at(`volume/${P1}/Project.json`),
+      at(`volume/${P2}/project.json`),
+      at(`volume/${P2}/tasks/${T1}.JSON`),
+    ])
+    expect(groups.map((group) => group.path)).toEqual([
+      `volume/${P2}`,
+      `volume/${P1}/Project.json`,
+      `volume/${P2}/tasks/${T1}.JSON`,
+    ])
+    expect(groups[0]?.taskFiles).toEqual([])
+  })
+
   it('reports an orphaned tasks directory against the directory missing the manifest', () => {
     const groups = groupImportFiles([at(`volume/${P1}/tasks/${T1}.json`)])
     expect(groups).toHaveLength(1)

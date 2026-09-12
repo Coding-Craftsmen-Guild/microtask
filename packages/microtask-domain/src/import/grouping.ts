@@ -112,7 +112,7 @@ function placementOf(path: string): Placement {
   const parents = segments.slice(0, -1)
   if (name === MANIFEST_FILE_NAME) return { role: 'manifest', path: directoryOf(parents) }
   const inTasks = parents[parents.length - 1] === TASKS_DIR_NAME
-  if (inTasks && name.toLowerCase().endsWith(JSON_SUFFIX)) {
+  if (inTasks && name.endsWith(JSON_SUFFIX)) {
     return { role: 'task', path: directoryOf(parents.slice(0, -1)) }
   }
   return { role: 'file', path }

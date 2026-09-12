@@ -65,3 +65,52 @@ duplicates the name that ADR 0005 deliberately keeps in exactly one place, reint
 
 **Only accept single-file bundles, drop directory import.** Simpler classification, but the natural
 thing to drop is a copy of the volume, and refusing it would be hostile.
+
+---
+
+## Amended · 2026-09-12 — the client-side half of the normaliser cannot be the same function
+
+The consequences above say both browser shapes "go through one normalising helper client-side, then
+get re-validated server-side with a resolved-prefix check against the data root". Building the
+grouper found that the first clause cannot be satisfied literally, and the reason is worth recording
+because the obvious workaround is to duplicate the function.
+
+`normaliseImportPath` lives in `@repo/microtask-domain`. The browser module that would call it is
+`packages/ui/src/transfer/harvest.ts`, and **`packages/ui` cannot import it**:
+`packages/eslint-config/index.js` bans `@repo/*-domain` and `@repo/*-domain/*` outright for that
+package (ADR 0014), and the package does not depend on it.
+
+Relocating the function to `@repo/contracts`, which `packages/ui` could be allowed to import, does
+not work either, for two measured reasons. It throws `Invalid` from `@repo/kernel`, and contracts
+holds `@repo/kernel` as a **devDependency** with a committed test asserting exactly that
+(`capabilities.test.ts`, ADR 0038) — so contracts may not reach it at runtime. And `packages/ui` is
+shared by two products, so giving it a dependency on one product's contracts is the coupling ADR 0014
+exists to prevent.
+
+**So the split is:** `harvest.ts` is the one helper both browser sources go through, and its whole
+job is *decoding* — reconciling a directory pick's `File.webkitRelativePath` with a drop's
+`FileSystemEntry.fullPath`, which is drag-root-relative and carries a single leading `/` by spec.
+`normaliseImportPath` is the **server's** authority and the only place a path is refused. It is not
+duplicated in the browser.
+
+Nothing is lost that this ADR was protecting. The security property was always the server-side
+check — "a path that reached the API was last touched by the client" — and that is unchanged and
+tested by feeding hostile paths straight to the server-side entry point. What the client-side copy
+would have added is earlier feedback on a drop that cannot import: an upload that is refused after
+posting rather than before. That is a smaller cost than a second implementation of a rejection rule,
+which is the one kind of duplication that fails silently — the two copies disagreeing is
+indistinguishable from either one working.
+
+## Amended · 2026-09-12 — recognised names are matched case-sensitively
+
+The shapes in the table above are recognised by name, and the grouper first matched `project.json`
+case-sensitively while accepting a task file's `.json` suffix case-insensitively. That is two answers
+to one question, and the generous half is the dangerous one: it admits a file as a **task document**
+on the strength of a suffix, where the strict half merely declines to recognise a directory and
+reports it as a row the operator can see.
+
+So every recognised name is matched case-sensitively, suffix included. The only shape this product
+writes is lowercase throughout, so another spelling can reach the grouper only from a
+case-insensitive filesystem handing back a name nothing here ever wrote — which is a file to report,
+not one to guess at. `volume/<id>/Project.json` is therefore a loose file with its own preview row,
+and `volume/<id>/tasks/<id>.JSON` is not folded in as a member.
