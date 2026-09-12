@@ -271,6 +271,65 @@ would otherwise have to guess:
 - **Names are matched case-sensitively throughout**, including the `.json` suffix, so one spelling
   cannot be read two ways. Pinned by a test, mutation-verified.
 
+### What Task 3 settled, which later tasks are written against
+
+Same reason, one task later — each is a reading the criteria left open:
+
+- **A non-ULID legacy id is carried through, neither repaired nor refused here.** An old tab id that
+  is not a ULID becomes the task id verbatim, so **Task 4's id check is what refuses it**. That was
+  chosen over minting a replacement, which imports a file nobody could be warned about, and over
+  throwing, which ends an upload with nine other directories left to describe. It makes Task 4's id
+  check load-bearing for the legacy path: without it `taskFile()` throws `Invalid` at write time,
+  with half a bundle already on disk. Pinned by a test feeding `../etc/passwd` as a tab id.
+- **`convertLegacyProject` is total over `unknown`; `convertBundledProject` requires pre-validated
+  input.** The legacy half returns for `null`, a string, a number, an array and `{}`. The bundle
+  half reads `manifest.folders`, `manifest.tasks` and `document.tabs` directly and throws a bare
+  `TypeError` when any is absent, because a v2 manifest needs no conversion before a schema can be
+  applied to it, whereas a legacy file only reaches a schema at all once converted. **So Task 4 runs
+  its schema-conformance check on the raw manifest and raw task documents, and calls
+  `convertBundledProject` only after that check has passed.** `ImportGroup.manifest !== null` is the
+  whole v2-project-directory discriminator and validates nothing inside the file, so converting
+  before checking turns one hand-edited `project.json` into a failed upload rather than a refused
+  row — which is a failed Task 4 criterion. Pinned at both ends, by a test named "requires a
+  manifest that has already been schema-checked, unlike the legacy path".
+- **A v2 name is repaired, not blocked.** Both converters put every project, task, folder and tab
+  name through `cleanName`, which collapses whitespace, trims, caps at `LIMITS.nameLength` and
+  substitutes a stated literal fallback for a blank. **Consequence for Task 4's collection-bounds
+  criterion:** on the converted shape the "every name against `nameLength`" half can never fire for
+  those four name kinds, so written there it is a check that looks alive and is dead. **The name
+  bound belongs on the drop set** — the raw manifest and raw documents, where a malformed v2 name
+  still exists — **while the collection counts stay on the converted shape** as the criterion says.
+  The legacy path needs no name bound at all, conversion guaranteeing it. The one name that can
+  still violate the bound on a converted v2 shape is a **share link's**, which
+  `convertBundledProject` deliberately leaves alone because it is the only name the contracts allow
+  to be empty. Do not answer this by dropping `cleanName` from the converters: the audited Task 3
+  criterion requires it, and `tabNames` is derived from tab names.
+- **An entry no document was carried for keeps the cache it arrived with.** There is nothing to
+  count from, so the **manifest/file cross-check is the only thing that can refuse such a project**.
+  Inventing an empty cache would answer a project about to be blocked with a row claiming the task
+  is empty.
+- **Inner tab ids are minted fresh on every import**, from the injected `IdGenerator`: a legacy tab's
+  id becomes the *task* id, so the inner tab has no id to inherit. Converting the same file twice
+  therefore yields different tab ids, so no later task may treat conversion as reproducible across
+  runs or a re-import as idempotent. Pinned by asserting the **exact sequence** a seeded
+  `sequentialIds()` yields — asserting only that the ids are ULID-shaped passes just as well when the
+  generator is reached implicitly, which is the one thing this group's purity rule forbids.
+- **A stamp is the one field the legacy reader repairs, and broadly**: a project or tab
+  `createdAt`/`updatedAt` that is missing, blank **or not a string** takes the import's clock. A
+  stamp is the one field `z.string()` cannot tell a fabricated value from a real one, so the
+  alternative is not a reported problem but `"12345"` on disk.
+- **`convertBundledProject` copies the manifest by rest-spread**, so a field added to
+  `ProjectManifest` cannot be left out — the property `bundle.ts` buys with `.extend()`. The cost is
+  that unknown keys a hostile `project.json` carried survive conversion, and `ProjectManifest` is a
+  stripping `z.object`, so `safeParse` reports nothing about them. **Task 9 therefore writes what
+  `ProjectManifest.parse` / `TaskDocument.parse` returned — zod strips unknown keys — not the
+  converted object.**
+- **`isRecord` is redefined per file on purpose**, that being the repo-wide idiom (`api-error.ts`,
+  `principal.ts`, `document-facts.test.ts` each hold their own). `src/import/` now has two
+  byte-identical copies; when Task 4's `checks.ts` wants a third, lift one into a private
+  `import/json.ts` beside `grouping.ts` — not exported from `src/index.ts` — and have all three
+  import it.
+
 ### Task 2: grouping and the four shapes
 
 **Files:** create `packages/microtask-domain/src/import/grouping.ts`, `sniff.ts` + tests; modify

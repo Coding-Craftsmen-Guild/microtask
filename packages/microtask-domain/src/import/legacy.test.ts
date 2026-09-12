@@ -174,6 +174,15 @@ describe('convertLegacyProject maps a legacy project onto design §7.6', () => {
     expect(converted.manifest.createdAt).toBe(NOW)
     expect(converted.manifest.updatedAt).toBe(NOW)
   })
+
+  it('takes the import clock for a stamp that is not a string, rather than stringifying it', () => {
+    const tabs = [legacyTab(T1, { createdAt: 12345, updatedAt: null })]
+    const converted = convert(legacyProject({ updatedAt: 12345, tabs }))
+    expect(converted.manifest.updatedAt).toBe(NOW)
+    expect(converted.documents[0]?.createdAt).toBe(NOW)
+    expect(converted.documents[0]?.tabs[0]?.updatedAt).toBe(NOW)
+    expect(contracts.ProjectManifest.safeParse(converted.manifest).error?.issues ?? []).toEqual([])
+  })
 })
 
 describe('convertLegacyProject preserves ids', () => {
@@ -204,16 +213,18 @@ describe('convertLegacyProject preserves ids', () => {
     expect(contracts.ProjectManifest.safeParse(converted.manifest).success).toBe(false)
   })
 
-  it('gives the inner tab an id from the injected generator, so nothing is minted implicitly', () => {
+  it('gives the inner tab the exact next id of the injected generator, minting nothing itself', () => {
+    const twin = sequentialIds()
+    const want = [twin.entityId(), twin.entityId()]
     const converted = convert(legacyProject({ tabs: [legacyTab(T1), legacyTab(T2)] }))
     const ids = converted.documents.flatMap((document) => document.tabs.map((tab) => tab.id))
-    expect(new Set(ids).size).toBe(2)
+    expect(ids).toEqual(want)
     for (const id of ids) expect(isUlid(id)).toBe(true)
   })
 })
 
 describe('convertLegacyProject describes a broken file rather than refusing to read it', () => {
-  it.each([null, 'nope', 42, [1, 2]])('reads %s into a manifest the preview refuses', (json) => {
+  it.each([[null], ['nope'], [42], [[1, 2]]])('reads %o into a manifest the preview refuses', (json) => {
     const converted = convertLegacyProject(json, fixedClock(NOW), sequentialIds())
     expect(converted.documents).toEqual([])
     expect(contracts.ProjectManifest.safeParse(converted.manifest).success).toBe(false)
@@ -393,9 +404,8 @@ describe('convertBundledProject recomputes what a bundle only asserts', () => {
     }
   })
 
-  it('carries a bundled project id, stamps, folders and share links through untouched', () => {
+  it('carries a bundled project id, stamps and share links through untouched', () => {
     const source = bundled({
-      folders: [folder(TAB1, 'Phase one')],
       taskDocuments: [taskDocument(T1, TAB1)],
       tasks: [taskEntry(T1, 'Go-live')],
     })
@@ -403,8 +413,28 @@ describe('convertBundledProject recomputes what a bundle only asserts', () => {
     expect(converted.manifest.id).toBe(source.id)
     expect(converted.manifest.createdAt).toBe(source.createdAt)
     expect(converted.manifest.updatedAt).toBe(source.updatedAt)
-    expect(converted.manifest.folders).toEqual(source.folders)
     expect(converted.manifest.shareLinks).toEqual(source.shareLinks)
+  })
+
+  it("carries a bundled folder's id, position and stamps through, cleaning only its name", () => {
+    const source = bundled({ folders: [folder(TAB1, '  Phase   one  ', { position: 7 })] })
+    const kept = convertBundledProject(source).manifest.folders[0]
+    expect(kept?.id).toBe(TAB1)
+    expect(kept?.position).toBe(7)
+    expect(kept?.createdAt).toBe(STAMP)
+    expect(kept?.updatedAt).toBe(STAMP)
+    expect(kept?.name).toBe('Phase one')
+  })
+
+  it('requires a manifest that has already been schema-checked, unlike the legacy path', () => {
+    const unchecked = { id: P1, name: 'ACME Website', taskDocuments: [] }
+    expect(() => convertBundledProject(unchecked as unknown as BundledProject)).toThrow(TypeError)
+    expect(() => convert(unchecked)).not.toThrow()
+  })
+
+  it('requires every carried document to have been schema-checked too', () => {
+    const source = { ...bundled({ tasks: [] }), taskDocuments: [{ id: T1 }] }
+    expect(() => convertBundledProject(source as unknown as BundledProject)).toThrow(TypeError)
   })
 })
 

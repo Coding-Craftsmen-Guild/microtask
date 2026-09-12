@@ -7,9 +7,6 @@ import type { TaskDocument } from '../entities/task.js'
 import { cleanName } from '../limits.js'
 import { taskCache, type TaskCache } from '../services/task-cache.js'
 
-export type { ProjectManifest } from '../entities/manifest.js'
-export type { TaskDocument } from '../entities/task.js'
-
 const PROJECT_FALLBACK = 'Untitled project'
 
 const TASK_FALLBACK = 'Untitled task'
@@ -141,6 +138,13 @@ function legacyTask(tab: Record<string, unknown>, tabId: string, now: string): P
  * threw would end an upload that has nine other directories left to describe. Nothing is dropped
  * either: a member of `tabs` that is not an object still becomes a row, because a silent skip is
  * the failure ADR 0018 exists to close.
+ *
+ * A **stamp** is the one stated exception to that, and the fallback is broader than "left out": a
+ * project or tab `createdAt`/`updatedAt` that is missing, blank **or not a string** takes the
+ * import's clock, the same substitution the share links get. Reporting it is not the alternative —
+ * a stamp is the one field the preview's `z.string()` cannot tell a fabricated value from a real
+ * one, so carrying `updatedAt: 12345` through would put the text `"12345"` on disk, dated by
+ * whatever a hand-edited file happened to hold and questioned by nothing downstream.
  */
 export function convertLegacyProject(
   json: unknown,
@@ -168,6 +172,16 @@ export function convertLegacyProject(
 /**
  * Takes one project out of a bundle, recomputing every cached field from the documents carried.
  *
+ * Its input has **already been schema-checked**: a manifest that has parsed as `ProjectManifest`
+ * and documents that have each parsed as `TaskDocument`. That is why this reads `folders`, `tasks`
+ * and `tabs` directly where {@link convertLegacyProject} takes `unknown` — a v2 manifest needs no
+ * conversion before a schema can be applied to it, so the preview's schema-conformance check runs
+ * on it first and this runs second, whereas a legacy file only reaches a schema at all once
+ * converted. The asymmetry is therefore an ordering requirement on the caller, not an oversight:
+ * ADR 0018 classifies a project directory on the *presence* of `project.json`, having validated
+ * nothing inside it, so handed a manifest nobody has checked this throws and one hand-edited file
+ * ends an upload instead of earning the refused row it should get.
+ *
  * All four of `progress`, `updatedAt`, `tabCount` and `tabNames` come from `taskCache` of the
  * document, because a cache is a cache: what a file asserts about a value that is derivable is
  * evidence about nothing. An entry left with `{done: 0, total: 0}` renders 0% everywhere, and one
@@ -179,10 +193,15 @@ export function convertLegacyProject(
  * inventing an empty cache for such an entry would answer a project that is about to be blocked
  * with a row claiming the task is empty.
  *
- * Names are cleaned here as well, tab names included, because `tabNames` is derived from them: a
- * bundle carrying one blank tab name would otherwise produce a manifest no client can parse.
- * Nothing else is touched — ids, stamps, positions, folders and share links are the bundle's, since
- * import writes the timestamps a bundle carries (design §7.4).
+ * Names are cleaned here as well — the project's, every entry's, every **folder's** and every tab
+ * name — because `tabNames` is derived from the tab names and a bundle carrying one blank name
+ * would otherwise produce a manifest no client can parse. A v2 name is thus repaired rather than
+ * reported, which is the one place this path departs from the legacy path's refuse-don't-repair
+ * rule. Nothing else is touched: ids, stamps, positions and share links are the bundle's, and a
+ * folder keeps everything but its name, since import writes the timestamps a bundle carries
+ * (design §7.4). A share link's name is left exactly as it arrived, that being the one name the
+ * contracts allow to be empty, so it is also the only name the preview's bounds check can still
+ * catch on this shape.
  */
 export function convertBundledProject(project: BundledProject): ConvertedProject {
   const { taskDocuments, ...manifest } = project
