@@ -167,13 +167,19 @@ share tokens into the index **as live credentials**.
 packages/contracts/src/
   bundle.ts              ExportBundle, ExportedProject, format + version constants
   import-plan.ts         the wire shape of a preview and of a confirm request
-packages/microtask-domain/src/import/
+packages/microtask-domain/src/import/    [built — Group B, as it actually landed]
   grouping.ts            paths -> directory groups (ADR 0018)
   sniff.ts               one group -> one of four shapes, or a named error
-  legacy.ts              legacy project -> v2 project (design §7.6)
-  checks.ts              the blocking preview checks
+  legacy.ts              convertLegacyProject (total) + convertBundledProject (needs schema-checked input)
+  json.ts                the isRecord lift the three modules above share
+  checks.ts              checkImport + the session-wide checks; the entry point
+  drop-checks.ts         schema conformance and the drop vocabulary
+  project-checks.ts      cross-check, ids, folders, bounds, document safety
+  link-checks.ts         token/role shape, scope containment, token uniqueness
+  refusal.ts             the vocabulary every reason is written in
   remint.ts              import-as-new identity rewriting (ADR 0019)
-  plan.ts                groups + conflict choices -> ImportPlan
+  replace.ts             replaceProject -> { project, removedTaskIds }
+  plan.ts                [Task 9] groups + conflict choices -> the preview
 packages/microtask-domain/src/export/
   bundle.ts              manifest + tasks -> ExportBundle, with and without tokens
 packages/microtask-domain/src/storage/
