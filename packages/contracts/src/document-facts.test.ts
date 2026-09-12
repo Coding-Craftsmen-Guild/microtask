@@ -8,10 +8,14 @@ import { MAX_DOCUMENT_DEPTH } from './limits.js'
  * The two projects the cutover runbook checks, and the fixtures derived from them by
  * `scripts/derive-legacy-fixture.mjs`.
  *
- * `data/` is gitignored and holds production customer data, so a fresh clone, a CI runner and
- * every container build have no such file — and a suite that needs one cannot prove the image
- * builds (ADR 0026). The fixtures carry, mechanically derived and asserted below against the
- * real files wherever those exist: the four tabs and their `position`; every node type and its
+ * `data/` is gitignored, so a fresh clone, a CI runner and every container build have no such
+ * file — and a suite that needs one cannot prove the image builds (ADR 0026). What it holds
+ * depends on the machine: locally a demo dataset in the legacy layout, on a deployment machine
+ * the live volume. The guards below are written for the second case whichever it is, because
+ * the fixtures are committed to a **public** repository.
+ *
+ * The fixtures carry, mechanically derived and asserted below against the real files wherever
+ * those exist: the four tabs and their `position`; every node type and its
  * count (`doc`, `paragraph`, `text`, `taskList`, `taskItem`, `heading`); every `attrs`, so all
  * twelve `taskItem`s and the 12-of-12 `checked` distribution behind the measured per-tab numbers
  * survive; the absence of any `marks` array; the length of every text node, so no stored line
@@ -20,11 +24,22 @@ import { MAX_DOCUMENT_DEPTH } from './limits.js'
  * and `countTasks` never reads text.
  *
  * Two guards keep a re-derivation honest, because the derivation is the thing that could leak.
- * {@link standsIn} holds on every key the script neutralises — `text`, `name`, `id`, `token` and
- * both timestamps — rather than only on the tab names and text nodes, so a script that stopped
- * neutralising share tokens could not commit a live one past a green suite; that guard needs no
- * `data/` and so runs on CI too. Where `data/` is present, the stronger form runs as well: not
- * one stored string of three characters or more appears anywhere in either committed fixture.
+ *
+ * {@link standsIn} runs over **every string in the fixture**, not over a list of keys thought
+ * worth scrubbing, and that inversion is the point. Both this guard and the script it guards
+ * once enumerated what to neutralise — `text`, `name`, `id`, `token`, the timestamps — and
+ * returned everything else untouched, so the two agreed with each other while agreeing about
+ * the wrong rule. Nothing leaked, because the projects it has run against hold no links, but
+ * `marks[].attrs.href` is a client's URL under none of those keys and would have been copied
+ * out verbatim. Now a string is a failure unless it is filler, a stamp, an id- or token-shaped
+ * stand-in, a URL under the reserved `example.invalid` host, or one of the two structural enums
+ * — and the enums are themselves checked rather than trusted, `permission` against its two
+ * values and `type` against the shape of a node name. A schema that gains a free-text field
+ * fails this guard instead of publishing it, and the guard needs no `data/`, so CI runs it too.
+ *
+ * Where `data/` is present the stronger form runs as well, and it is the one that would catch a
+ * leak the rule above did not anticipate: not one stored string of three characters or more,
+ * under any key at all, appears anywhere in either committed fixture.
  */
 const FIXTURE = new URL('./testing/legacy-project.fixture.json', import.meta.url)
 const FIXTURES = [FIXTURE, new URL('./testing/legacy-project-2.fixture.json', import.meta.url)] as const
@@ -39,8 +54,12 @@ const FILLER = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do ei
 const DASHED = FILLER.replaceAll(' ', '-')
 const STAMP = '2026-01-01T00:00:00.000Z'
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
-const NEUTRALISED = new Set(['text', 'name', 'id', 'token'])
+const RESERVED_HOST = 'https://example.invalid/'
+const PRESERVED = new Set(['type', 'permission'])
 const STAMPED = new Set(['createdAt', 'updatedAt'])
+const URL_KEYED = new Set(['href', 'src'])
+const PERMISSIONS = new Set(['read', 'write'])
+const NODE_NAME = /^[A-Za-z]+$/
 const SHORTEST_LEAK = 3
 const LEAKABLE_STRINGS = 20
 
@@ -117,17 +136,19 @@ function keyedStrings(node: unknown, key: string, into: Keyed[]): readonly Keyed
   return into
 }
 
-const neutralisable = (source: URL): readonly Keyed[] =>
-  keyedStrings(JSON.parse(readFileSync(source, 'utf8')), '', []).filter(
-    ([key]) => NEUTRALISED.has(key) || STAMPED.has(key),
-  )
+const everyKeyedString = (source: URL): readonly Keyed[] =>
+  keyedStrings(JSON.parse(readFileSync(source, 'utf8')), '', [])
 
 function standsIn([key, value]: Keyed): boolean {
+  if (PRESERVED.has(key)) {
+    return key === 'permission' ? PERMISSIONS.has(value) : NODE_NAME.test(value)
+  }
   if (STAMPED.has(key)) return value === STAMP
   if (value === '') return true
   const mark = CROCKFORD.includes(value.slice(-1))
   if (key === 'id') return mark && /^0+.$/.test(value)
   if (key === 'token') return mark && DASHED.startsWith(value.slice(0, -1))
+  if (URL_KEYED.has(key)) return value.startsWith(RESERVED_HOST)
   return FILLER.startsWith(value)
 }
 
@@ -226,20 +247,41 @@ describe('countTasks against the documents production actually holds', () => {
   })
 
   it.each([0, 1])(
-    'fixture %i carries a stand-in under every key a derivation neutralises, not just under text and name',
+    'fixture %i stands in for EVERY string it carries, so a new free-text key fails closed',
     (which) => {
-      const found = neutralisable(FIXTURES[which] as URL)
+      const found = everyKeyedString(FIXTURES[which] as URL)
       expect(found.length).toBeGreaterThan(0)
       expect(found.filter((pair) => !standsIn(pair))).toEqual([])
     },
   )
 
+  it.each([
+    ['href', 'https://acme.example.com/brief?client=jane', 'a link mark carrying a client URL'],
+    ['src', 'https://acme.example.com/logo.png', 'an image source'],
+    ['caption', 'Jane at ACME signed this off', 'a free-text key no schema has yet'],
+    ['title', 'ACME Q3 rollout', 'the link title Tiptap 3 added'],
+  ])(
+    'rejects %s copied verbatim — %s — which the old key-list rule would have published',
+    (key, value) => {
+      expect(standsIn([key, value])).toBe(false)
+    },
+  )
+
+  it('accepts the stand-ins the script does produce for those same keys', () => {
+    expect(standsIn(['href', `${RESERVED_HOST}lorem-ipsum-A`])).toBe(true)
+    expect(standsIn(['caption', FILLER.slice(0, 12)])).toBe(true)
+    expect(standsIn(['type', 'taskItem'])).toBe(true)
+    expect(standsIn(['permission', 'write'])).toBe(true)
+    expect(standsIn(['permission', 'ACME internal'])).toBe(false)
+    expect(standsIn(['type', 'Jane at ACME'])).toBe(false)
+  })
+
   it.skipIf(!hasProduction)(
-    'leaks not one stored id, token, name or text of three characters into either fixture',
+    'leaks not one stored string of three characters into either fixture, whatever its key',
     () => {
       const committed = FIXTURES.map((source) => readFileSync(source, 'utf8')).join('\n')
-      const stored = SOURCES.flatMap((source) => [...neutralisable(source)]).filter(
-        ([, value]) => value.length >= SHORTEST_LEAK,
+      const stored = SOURCES.flatMap((source) => [...everyKeyedString(source)]).filter(
+        ([key, value]) => !PRESERVED.has(key) && value.length >= SHORTEST_LEAK,
       )
       expect(stored.length).toBeGreaterThan(LEAKABLE_STRINGS)
       expect(stored.filter(([, value]) => committed.includes(value))).toEqual([])
