@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Editor } from '@tiptap/core'
@@ -6,6 +6,7 @@ import { TrailingNode } from '@tiptap/extensions'
 import { countTasks, type DocumentValue } from '@repo/contracts'
 import { buildExtensions, editorProps, PLACEHOLDER } from './extensions'
 
+const FIXTURES = join(import.meta.dirname, '../../../../packages/contracts/src/testing')
 const DATA = join(import.meta.dirname, '../../../../data/projects')
 
 interface StoredTab {
@@ -13,12 +14,31 @@ interface StoredTab {
   readonly document: DocumentValue
 }
 
-const stored = (file: string): readonly StoredTab[] =>
-  (JSON.parse(readFileSync(join(DATA, file), 'utf8')) as { tabs: readonly StoredTab[] }).tabs
+const stored = (directory: string, file: string): readonly StoredTab[] =>
+  (JSON.parse(readFileSync(join(directory, file), 'utf8')) as { tabs: readonly StoredTab[] }).tabs
+
+const DERIVED = ['legacy-project.fixture.json', 'legacy-project-2.fixture.json'] as const
 
 const PRODUCTION = ['01M240ERCRWWCN16Q5AHP1FZAQ.json', '01M240FB4GD6PF6V0PKZVF6FD9.json'] as const
 
-const every = (): readonly StoredTab[] => PRODUCTION.flatMap((file) => [...stored(file)])
+const hasProduction = PRODUCTION.every((file) => existsSync(join(DATA, file)))
+
+const every = (): readonly StoredTab[] => DERIVED.flatMap((file) => [...stored(FIXTURES, file)])
+
+const production = (): readonly StoredTab[] => PRODUCTION.flatMap((file) => [...stored(DATA, file)])
+
+const skeleton = (node: unknown): unknown => {
+  if (Array.isArray(node)) return node.map((child) => skeleton(child))
+  if (node === null || typeof node !== 'object') return node
+  const record = node as Record<string, unknown>
+  return { type: record['type'], attrs: record['attrs'], content: skeleton(record['content']) }
+}
+
+const shape = (tabs: readonly StoredTab[]): readonly unknown[] =>
+  tabs.map((tab) => [countTasks(tab.document), skeleton(tab.document)])
+
+const endsInTaskList = (document_: DocumentValue): boolean =>
+  ((document_.content ?? []).at(-1) as { type?: string } | undefined)?.type === 'taskList'
 
 const live: Editor[] = []
 
@@ -62,11 +82,15 @@ describe('a stored production document survives Tiptap 3', () => {
     }
   })
 
-  it('reads the real files rather than a fixture that happens to agree', () => {
+  it('reads the five stored tabs, checked task items and all, off files a fresh clone has', () => {
     expect(every().length).toBe(5)
-    const raw = PRODUCTION.map((file) => readFileSync(join(DATA, file), 'utf8')).join('')
+    const raw = DERIVED.map((file) => readFileSync(join(FIXTURES, file), 'utf8')).join('')
     expect(raw).toContain('"taskItem"')
     expect(raw).toContain('"checked": true')
+  })
+
+  it.skipIf(!hasProduction)('mounts what production holds, the fixtures agreeing tab for tab', () => {
+    expect(shape(every())).toEqual(shape(production()))
   })
 
   it('counts the same twelve checked items before and after mounting', () => {
@@ -99,8 +123,8 @@ describe('a stored production document survives Tiptap 3', () => {
 
 describe('trailingNode is off, so the first transaction is the users own', () => {
   const checklist = (): DocumentValue => {
-    const tab = stored(PRODUCTION[0]).find((candidate) => candidate.name === 'Go-live')
-    if (tab === undefined) throw new Error('the Go-live tab is gone')
+    const tab = every().find((candidate) => endsInTaskList(candidate.document))
+    if (tab === undefined) throw new Error('no stored tab ends in a taskList any more')
     return tab.document
   }
 

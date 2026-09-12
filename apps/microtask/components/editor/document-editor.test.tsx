@@ -12,7 +12,7 @@ import { DocumentEditor, type DocumentEditorHandle } from './document-editor'
 import { buildExtensions } from './extensions'
 import type { SaveOutcome, SaveRequest } from './save-document'
 
-const DATA = join(import.meta.dirname, '../../../../data/projects')
+const FIXTURES = join(import.meta.dirname, '../../../../packages/contracts/src/testing')
 
 interface StoredTab {
   readonly name: string
@@ -21,17 +21,31 @@ interface StoredTab {
 }
 
 const stored = (file: string): readonly StoredTab[] =>
-  (JSON.parse(readFileSync(join(DATA, file), 'utf8')) as { tabs: readonly StoredTab[] }).tabs
+  (JSON.parse(readFileSync(join(FIXTURES, file), 'utf8')) as { tabs: readonly StoredTab[] }).tabs
 
 const EVERY = [
-  ...stored('01M240ERCRWWCN16Q5AHP1FZAQ.json'),
-  ...stored('01M240FB4GD6PF6V0PKZVF6FD9.json'),
+  ...stored('legacy-project.fixture.json'),
+  ...stored('legacy-project-2.fixture.json'),
 ]
 
-const tab = (name: string): StoredTab => {
-  const found = EVERY.find((candidate) => candidate.name === name)
-  if (found === undefined) throw new Error(`no stored tab named ${name}`)
+const checklist = (): StoredTab => {
+  const found = EVERY.find(
+    (candidate) =>
+      ((candidate.document.content ?? []).at(-1) as { type?: string } | undefined)?.type === 'taskList',
+  )
+  if (found === undefined) throw new Error('no stored tab ends in a taskList any more')
   return found
+}
+
+const headText = (source: StoredTab): string =>
+  String(
+    ((source.document.content?.[0] as { content?: readonly { text?: string }[] } | undefined)?.content ??
+      [])[0]?.text,
+  )
+
+const typedAtThree = (source: StoredTab): string => {
+  const head = headText(source)
+  return JSON.stringify(source.document).replace(head, `${head.slice(0, 2)}Z${head.slice(2)}`)
 }
 
 let outcome: SaveOutcome = { kind: 'saved', updatedAt: 'next' }
@@ -89,9 +103,9 @@ const clickInto = (editor: Editor): void => {
 }
 
 describe('THE test: a stored production document survives mount and unmount untouched', () => {
-  it.each(EVERY.map((each) => [each.name, each] as const))(
-    'holds %s byte-identically, editable, through a click that types nothing, and writes nothing',
-    async (_name, source) => {
+  it.each(EVERY.map((each, index) => [index, each] as const))(
+    'holds stored tab %i byte-identically, editable, through a click that types nothing, and writes nothing',
+    async (_index, source) => {
       const { editor, view } = await mount(source, true)
       expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(source.document))
       clickInto(editor)
@@ -104,9 +118,9 @@ describe('THE test: a stored production document survives mount and unmount unto
     },
   )
 
-  it.each(EVERY.map((each) => [each.name, each] as const))(
-    'holds %s byte-identically when read-only, through a click, too',
-    async (_name, source) => {
+  it.each(EVERY.map((each, index) => [index, each] as const))(
+    'holds stored tab %i byte-identically when read-only, through a click, too',
+    async (_index, source) => {
       const { editor } = await mount(source, false)
       expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(source.document))
       clickInto(editor)
@@ -115,7 +129,7 @@ describe('THE test: a stored production document survives mount and unmount unto
   )
 
   it('clicks through the transaction pipeline, which is where TrailingNode acts on a document', async () => {
-    const { editor } = await mount(tab('Go-live'), true)
+    const { editor } = await mount(checklist(), true)
     const seen: boolean[] = []
     editor.on('transaction', ({ transaction }) => seen.push(transaction.selectionSet))
     clickInto(editor)
@@ -125,7 +139,7 @@ describe('THE test: a stored production document survives mount and unmount unto
 
 describe('the first keystroke is the users own', () => {
   it('writes exactly what was typed into a tab ending in a taskList, and nothing it did not', async () => {
-    const { editor } = await mount(tab('Go-live'))
+    const { editor } = await mount(checklist())
     act(() => {
       editor.chain().setTextSelection(3).insertContent('Z').run()
     })
@@ -134,23 +148,23 @@ describe('the first keystroke is the users own', () => {
     const written = requests[0]?.document
     expect(written?.content?.length).toBe(2)
     expect(JSON.stringify(written)).toBe(
-      JSON.stringify(tab('Go-live').document).replace('GO-LIVE', 'GOZ-LIVE'),
+      typedAtThree(checklist()),
     )
   })
 
   it('makes that write conditional on the stamp the tab was loaded with', async () => {
-    const { editor } = await mount(tab('Go-live'))
+    const { editor } = await mount(checklist())
     act(() => {
       editor.commands.insertContent('Z')
     })
     await settle(SAVE_DEBOUNCE_MS)
-    expect(requests[0]?.ifMatch).toBe(tab('Go-live').updatedAt)
+    expect(requests[0]?.ifMatch).toBe(checklist().updatedAt)
   })
 })
 
 describe('progress', () => {
   it('reports the live count after an edit, through the same countTasks the server uses', async () => {
-    const { editor } = await mount(tab('Go-live'))
+    const { editor } = await mount(checklist())
     act(() => {
       editor.commands.command(({ tr }) => {
         let first = -1
@@ -168,7 +182,7 @@ describe('progress', () => {
 
 describe('a read-only view', () => {
   it('snaps a clicked checkbox straight back, and neither edits nor saves', async () => {
-    const { surface, editor } = await mount(tab('Go-live'), false)
+    const { surface, editor } = await mount(checklist(), false)
     const box = surface.querySelector<HTMLInputElement>('input[type="checkbox"]')
     if (box === null) throw new Error('no checkbox rendered')
     expect(box.checked).toBe(true)
@@ -177,26 +191,26 @@ describe('a read-only view', () => {
       box.dispatchEvent(new Event('change', { bubbles: true }))
     })
     expect(box.checked).toBe(true)
-    expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(tab('Go-live').document))
+    expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(checklist().document))
     await settle(SAVE_DEBOUNCE_MS * 5)
     expect(requests).toEqual([])
   })
 
   it('marks every checkbox disabled, so assistive technology says it cannot be ticked, and a click sends nothing', async () => {
-    const { surface, editor } = await mount(tab('Go-live'), false)
+    const { surface, editor } = await mount(checklist(), false)
     const boxes = [...surface.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')]
     expect(boxes.length).toBe(6)
     expect(boxes.every((box) => box.disabled)).toBe(true)
     expect(screen.getAllByRole('checkbox').every((box) => box.matches(':disabled'))).toBe(true)
     await userEvent.click(boxes[0] as HTMLInputElement)
     expect(boxes[0]?.checked).toBe(true)
-    expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(tab('Go-live').document))
+    expect(JSON.stringify(editor.getJSON())).toBe(JSON.stringify(checklist().document))
     await settle(SAVE_DEBOUNCE_MS * 5)
     expect(requests).toEqual([])
   })
 
   it('leaves every checkbox of an editable view enabled, including one added after mount', async () => {
-    const { surface, editor } = await mount(tab('Go-live'), true)
+    const { surface, editor } = await mount(checklist(), true)
     act(() => {
       editor.chain().setTextSelection(3).toggleTaskList().run()
     })
@@ -206,17 +220,17 @@ describe('a read-only view', () => {
   })
 
   it('carries the read-only surface props, spellcheck off and checkboxes dimmed, which an editable one does not', async () => {
-    const readOnly = (await mount(tab('Go-live'), false)).surface
+    const readOnly = (await mount(checklist(), false)).surface
     expect(readOnly.getAttribute('spellcheck')).toBe('false')
     expect(readOnly.classList.contains('caret-transparent')).toBe(true)
     cleanup()
-    const editable = (await mount(tab('Go-live'), true)).surface
+    const editable = (await mount(checklist(), true)).surface
     expect(editable.getAttribute('spellcheck')).toBe('true')
     expect(editable.classList.contains('caret-transparent')).toBe(false)
   })
 
   it('leaves Ctrl+S and Cmd+S to the browser, having nothing of its own to save', async () => {
-    await mount(tab('Go-live'), false)
+    await mount(checklist(), false)
     const keys = [
       new KeyboardEvent('keydown', { key: 's', ctrlKey: true, cancelable: true }),
       new KeyboardEvent('keydown', { key: 's', metaKey: true, cancelable: true }),
@@ -228,7 +242,7 @@ describe('a read-only view', () => {
   })
 
   it('draws no toolbar and no save state, and is not contenteditable', async () => {
-    const { surface } = await mount(tab('Go-live'), false)
+    const { surface } = await mount(checklist(), false)
     expect(screen.queryByRole('toolbar')).toBe(null)
     expect(screen.queryByRole('status')).toBe(null)
     expect(surface.getAttribute('contenteditable')).toBe('false')
@@ -237,13 +251,13 @@ describe('a read-only view', () => {
 
 describe('an editable view', () => {
   it('does not take focus on mount, which would scroll the page to it', async () => {
-    const { editor } = await mount(tab('Go-live'))
+    const { editor } = await mount(checklist())
     await settle(100)
     expect(editor.view.hasFocus()).toBe(false)
   })
 
   it('takes Ctrl+S from the browser, so it saves the tab rather than the page', async () => {
-    const { editor } = await mount(tab('Go-live'))
+    const { editor } = await mount(checklist())
     act(() => {
       editor.commands.insertContent('Z')
     })
@@ -256,7 +270,7 @@ describe('an editable view', () => {
   })
 
   it('pads the document 26px, stepping to 16px on a phone as legacy’s 640px query did, with a sticky toolbar', async () => {
-    const { surface } = await mount(tab('Go-live'))
+    const { surface } = await mount(checklist())
     const content = surface.parentElement
     expect(content?.className.split(' ')).toEqual(expect.arrayContaining(['px-[26px]', 'max-sm:px-4']))
     expect(screen.getByRole('toolbar').parentElement?.className.split(' ')).toEqual(
@@ -265,14 +279,14 @@ describe('an editable view', () => {
   })
 
   it('draws the toolbar and the save state, and is contenteditable', async () => {
-    const { surface } = await mount(tab('Go-live'))
+    const { surface } = await mount(checklist())
     expect(screen.getByRole('toolbar')).toBeTruthy()
     expect(screen.getByRole('status')).toBeTruthy()
     expect(surface.getAttribute('contenteditable')).toBe('true')
   })
 
   it('ticks a checkbox as a normal transaction, which autosaves', async () => {
-    const { surface } = await mount(tab('Go-live'))
+    const { surface } = await mount(checklist())
     const box = surface.querySelector<HTMLInputElement>('input[type="checkbox"]')
     act(() => {
       if (box === null) return
@@ -285,7 +299,7 @@ describe('an editable view', () => {
   })
 
   it('opens the link dialog from the toolbar', async () => {
-    await mount(tab('Go-live'))
+    await mount(checklist())
     act(() => {
       screen.getByTitle('Link').click()
     })
@@ -295,7 +309,7 @@ describe('an editable view', () => {
 
 describe('leaving a tab, and deleting one', () => {
   it('writes now when a caller awaits flush before switching, so no edit is lost by navigating', async () => {
-    const { editor, handle } = await mount(tab('Go-live'))
+    const { editor, handle } = await mount(checklist())
     act(() => {
       editor.commands.insertContent('Z')
     })
@@ -306,7 +320,7 @@ describe('leaving a tab, and deleting one', () => {
   })
 
   it('writes a pending edit once when unmounted mid-debounce, which a switch by key does', async () => {
-    const { editor, view } = await mount(tab('Go-live'))
+    const { editor, view } = await mount(checklist())
     act(() => {
       editor.commands.insertContent('Z')
     })
@@ -316,7 +330,7 @@ describe('leaving a tab, and deleting one', () => {
   })
 
   it('writes nothing after markClean, so a queued save cannot resurrect a deleted tab', async () => {
-    const { editor, view, handle } = await mount(tab('Go-live'))
+    const { editor, view, handle } = await mount(checklist())
     act(() => {
       editor.commands.insertContent('Z')
     })
@@ -332,7 +346,7 @@ describe('leaving a tab, and deleting one', () => {
 describe('a conflict is surfaced, end to end', () => {
   it('shows someone else saved this tab, with a reload that is the users to choose', async () => {
     outcome = { kind: 'conflict' }
-    const { editor } = await mount(tab('Go-live'))
+    const { editor } = await mount(checklist())
     act(() => {
       editor.commands.insertContent('Z')
     })
@@ -347,7 +361,7 @@ describe('a conflict is surfaced, end to end', () => {
 
   it('shows the retry text on a failure instead', async () => {
     outcome = { kind: 'failed', message: 'Network down' }
-    const { editor } = await mount(tab('Go-live'))
+    const { editor } = await mount(checklist())
     act(() => {
       editor.commands.insertContent('Z')
     })
