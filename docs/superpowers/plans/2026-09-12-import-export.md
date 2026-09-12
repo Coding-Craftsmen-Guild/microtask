@@ -262,12 +262,42 @@ would otherwise have to guess:
 - **Sniffing classifies on `format` + `version` + `projects[]` only**, never a full
   `ExportBundle.safeParse` — Task 1's cross-collection refinements mean a bundle with an overcounting
   cache would otherwise land as `unrecognised` instead of classified-then-blocked with a reason.
-- **A duplicate harvested path throws** rather than producing a refused row — the one content
-  problem in the module answered with a throw. A drop cannot produce it; **a zip can**, so Task 8
-  decides whether expansion filters duplicate entry names or turns the throw into a 422. Left as-is
-  it means one duplicated zip entry destroys the whole preview.
-- **Classifier reasons arrive pre-elided** (value at 40 characters, path at 120). Task 9 must not
-  elide them a second time.
+- **A duplicate harvested path throws `Conflict`**, not the `Invalid` a refused path throws, and
+  it is the one content problem in the module answered with a throw at all. The remedies differ —
+  dedupe the archive or 422 the upload, against reject that one entry and keep the session — so the
+  type carries the distinction rather than the message text, the way `ShareIndex.add` answers a
+  token that already belongs elsewhere. `duplicatePaths(files)` is exported beside
+  `groupImportFiles` for the same reason: a drop cannot produce a duplicate, **a zip can**, so Task
+  8 asks the question before grouping and reports a duplicate entry name per row instead of losing
+  the whole preview to a throw. It still decides whether expansion filters duplicates or answers
+  409.
+- **Classifier reasons arrive pre-elided** (value at 40 characters, path at 120), and the two
+  elisions are different operations: a quoted **value** keeps its head, a **path** keeps both ends
+  around an elided middle, because a path's tail is the part that identifies it — the ULID of the
+  directory missing its manifest is the whole content of that message. Task 9 must not elide either
+  a second time.
+- **`SniffedGroup` is a discriminated union on `shape`**, so the narrowing sniffing performed is
+  not thrown away at its own boundary: a `v2-project-directory` carries a non-null `manifest`, the
+  three single-file shapes a non-null `file`, and `unrecognised` a non-null `error`. Task 4 and
+  Task 9 therefore read those fields off the **sniffed** record with no null branch to test, and
+  `group` stays on every member for the `path` a preview row renders. `ImportGroup` itself is
+  unchanged.
+- **A legacy project is detected by the *presence* of `id`, `name`, `tabs` and `shareLinks`**,
+  never by their types. A truncated or hand-edited legacy file — `tabs` a string, `shareLinks`
+  null — is what this migration will actually meet, and it is classified here and **blocked by Task
+  4 with a reason naming the key**, rather than told it is "neither a Microtask export nor a legacy
+  Microtask project". Same classify-then-block principle as the wrong-version case; Task 4 is the
+  only layer that can say what is wrong with such a file.
+- **`normaliseImportPath` refuses four more forms than the criteria list**, each because the thing
+  that would otherwise answer it is a filesystem answering 500 where this answers 422: a control
+  character (NUL included), a segment with leading or trailing whitespace, a segment with a trailing
+  `.` (win32 strips both, so `a ` and `a` would pass the collision check and then collide on the
+  volume), and a length over a bound — 255 **bytes** per segment (ext4's component limit, counted
+  in bytes so a 255-character CJK name cannot pass it), 1024 characters for the whole path. A path
+  that reduces to nothing, `.` included, is told it names the **harvest root** rather than blank. The
+  whole-path bound sits far above `ImportPreviewGroup.path`'s 200 deliberately: a longer path is
+  expected, and eliding its middle for the row stays Task 9's job. Task 11 decodes the two browser
+  path shapes and must still not re-implement any of this.
 - **Names are matched case-sensitively throughout**, including the `.json` suffix, so one spelling
   cannot be read two ways. Pinned by a test, mutation-verified.
 

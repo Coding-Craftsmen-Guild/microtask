@@ -1,7 +1,16 @@
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Invalid } from '@repo/kernel'
-import { groupImportFiles, normaliseImportPath, type ImportFile } from './grouping.js'
+import { Conflict, Invalid } from '@repo/kernel'
+import { manifestFile } from '../storage/paths.js'
+import {
+  duplicatePaths,
+  groupImportFiles,
+  MANIFEST_FILE_NAME,
+  normaliseImportPath,
+  type ImportFile,
+} from './grouping.js'
 
+const ROOT = path.resolve('/data')
 const P1 = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const P2 = '01M240FB4GD6PF6V0PKZVF6FD9'
 const T1 = '01M25000000000000000000001'
@@ -57,8 +66,45 @@ describe('normaliseImportPath', () => {
     ['an empty path', ''],
     ['a blank path', '   '],
     ['a path naming a directory', 'volume/a/'],
+    ['a path that is only "."', '.'],
+    ['a path that is only "." segments', './././.'],
+    ['a NUL byte, which every node:fs call turns into a 500', 'volume/a\u0000b/project.json'],
+    ['a newline in a segment', 'volume/a\nb/project.json'],
+    ['a segment with a trailing space, which win32 strips', 'volume/a /project.json'],
+    ['a segment with a leading space', 'volume/ a/project.json'],
+    ['a segment with a trailing dot, which win32 strips', 'volume/a./project.json'],
+    ['a segment longer than any filesystem holds', `volume/${'x'.repeat(256)}/project.json`],
+    ['a segment of 200 two-byte characters, which is 400 bytes', `volume/${'é'.repeat(200)}/a.json`],
+    ['a path longer than the bound', `${'deep/'.repeat(300)}project.json`],
   ])('rejects %s rather than repairing it', (_label, hostile) => {
     expect(() => normaliseImportPath(hostile)).toThrow(Invalid)
+  })
+
+  it.each([
+    ['a control character', 'volume/a\u0000b/project.json', 'control character'],
+    ['whitespace around a segment', 'volume/a /project.json', 'whitespace'],
+    ['a segment ending in a dot', 'volume/a./project.json', 'end with "."'],
+    ['a segment longer than a filesystem holds', `volume/${'x'.repeat(256)}/a.json`, 'segment'],
+    ['more characters than the whole bound allows', `${'deep/'.repeat(300)}a.json`, 'characters'],
+    ['nothing but "." segments', './.', 'harvest root'],
+  ])(
+    'says which rule %s broke, one rule per refusal being what a 422 can act on',
+    (_label, hostile, named) => {
+      expect(() => normaliseImportPath(hostile)).toThrow(named)
+    },
+  )
+
+  it('keeps a space inside a segment, which a real directory name is allowed to carry', () => {
+    expect(normaliseImportPath('my drop/a b/project.json')).toBe('my drop/a b/project.json')
+  })
+
+  it('keeps a dot inside a segment, so only a trailing one is refused', () => {
+    expect(normaliseImportPath('volume/a.b/project.json')).toBe('volume/a.b/project.json')
+  })
+
+  it('accepts a path far deeper than a real drop, so the bound refuses only the absurd', () => {
+    const deep = `${'enclosing/'.repeat(20)}volume/a/project.json`
+    expect(normaliseImportPath(deep)).toBe(deep)
   })
 
   it('rejects a path that is not a string at all', () => {
@@ -143,18 +189,31 @@ describe('groupImportFiles', () => {
   it('refuses two files harvested for one path, since neither can be known to be meant', () => {
     expect(() =>
       groupImportFiles([at(`volume/${P1}/project.json`), at(`volume/${P1}/project.json`)]),
-    ).toThrow(Invalid)
+    ).toThrow(Conflict)
+  })
+
+  it('answers a collision with a different error from a hostile path, the remedies differing', () => {
+    const twice = [at(`volume/${P1}/project.json`), at(`volume/${P1}/project.json`)]
+    expect(() => groupImportFiles(twice)).not.toThrow(Invalid)
+    expect(() => groupImportFiles([at('/etc/passwd')])).not.toThrow(Conflict)
   })
 
   it('refuses two paths that normalise to one', () => {
     expect(() =>
       groupImportFiles([at(`volume/${P1}/project.json`), at(`volume/./${P1}/project.json`)]),
-    ).toThrow(Invalid)
+    ).toThrow(Conflict)
   })
 
   it('re-runs normalisation on what it receives, so a hostile path never reaches a group', () => {
     expect(() => groupImportFiles([at('../../etc/passwd')])).toThrow(Invalid)
     expect(() => groupImportFiles([at(`volume/${P1}/project.json`), at('/etc/passwd')])).toThrow(Invalid)
+  })
+
+  it('orders by code unit, and every directory group before every loose file', () => {
+    const cased = groupImportFiles([at('a.json'), at('B.json')])
+    expect(cased.map((group) => group.path)).toEqual(['B.json', 'a.json'])
+    const mixed = groupImportFiles([at('A.json'), at('z/project.json')])
+    expect(mixed.map((group) => group.path)).toEqual(['z', 'A.json'])
   })
 
   it('groups the same way whatever order readdir or a drop handed the files over in', () => {
@@ -177,5 +236,38 @@ describe('groupImportFiles', () => {
     for (const seed of [1, 7, 42, 1234, 99999]) {
       expect(groupImportFiles(shuffled(harvested, seed))).toEqual(expected)
     }
+  })
+})
+
+describe('duplicatePaths', () => {
+  it('names every path more than one file claimed, so a zip can report its own entries', () => {
+    const collided = duplicatePaths([
+      at(`volume/${P1}/project.json`),
+      at(`volume/./${P1}/project.json`),
+      at('export.json'),
+      at('export.json'),
+      at('legacy.json'),
+    ])
+    expect(collided).toEqual([`volume/${P1}/project.json`, 'export.json'])
+  })
+
+  it('names a collided path once, however many files claimed it', () => {
+    expect(duplicatePaths([at('a.json'), at('a.json'), at('a.json')])).toEqual(['a.json'])
+  })
+
+  it('finds none in a drop that has none, which is the case grouping proceeds on', () => {
+    expect(duplicatePaths([at('a.json'), at(`volume/${P1}/project.json`)])).toEqual([])
+  })
+
+  it('refuses a hostile path rather than answering a question about it', () => {
+    expect(() => duplicatePaths([at('../../etc/passwd')])).toThrow(Invalid)
+  })
+})
+
+describe('MANIFEST_FILE_NAME', () => {
+  it('names the file the path builder writes, so the two copies cannot drift apart', () => {
+    expect(manifestFile(ROOT, 'microtask', P1)).toBe(
+      path.join(ROOT, 'microtask', 'projects', P1, MANIFEST_FILE_NAME),
+    )
   })
 })

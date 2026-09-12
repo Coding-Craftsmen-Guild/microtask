@@ -18,6 +18,7 @@ export {
   type LimitKey,
 } from './limits.js'
 export {
+  duplicatePaths,
   groupImportFiles,
   MANIFEST_FILE_NAME,
   normaliseImportPath,
