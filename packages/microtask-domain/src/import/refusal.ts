@@ -4,15 +4,15 @@ import {
   MAX_PREVIEW_TEXT_LENGTH,
   type CountLimitKey,
 } from '@repo/contracts'
-import { elideMiddle } from './sniff.js'
-
-const LONGEST_PATH = 80
+import { elideMiddle, LONGEST_QUOTED_PATH } from './sniff.js'
 
 const LONGEST_ID = 40
 
 const LISTED_IDS = 3
 
 const LOCATED_ISSUES = 3
+
+const THE_FILE = 'the file itself'
 
 const BOUNDS: Readonly<Record<CountLimitKey, string>> = {
   tasksPerProject: 'tasks',
@@ -28,10 +28,12 @@ const BOUNDS: Readonly<Record<CountLimitKey, string>> = {
  * `normaliseImportPath` admits a path far longer than `ImportPreviewGroup.path`'s 200 characters,
  * deliberately, so a reason quoting one has to shorten it — and the **middle** goes because a
  * path's tail is the half that identifies it: the ULID of the project directory, the task file's
- * own name. That is the same split Task 2 settled between eliding a path and eliding a value, and
- * reusing `elideMiddle` rather than restating it is what keeps the two from disagreeing.
+ * own name. That is the split Task 2 settled between eliding a path and eliding a value, and both
+ * the operation and its **width** come from `sniff.ts` rather than being chosen again here: a
+ * classifier's reason and a check's reason land in the same preview table, beside each other, and
+ * one path quoted at two widths in one table would be arbitrary to every reader of it.
  */
-export const quotedPath = (value: string): string => `"${elideMiddle(value, LONGEST_PATH)}"`
+export const quotedPath = (value: string): string => `"${elideMiddle(value, LONGEST_QUOTED_PATH)}"`
 
 /**
  * Quotes an id for a reason, with its middle elided if it is long.
@@ -48,13 +50,22 @@ export const quotedId = (value: string): string => `"${elideMiddle(value, LONGES
  *
  * A cross-check over a 500-task project can have hundreds of ids on either side of the difference,
  * and `ImportPreviewGroup.reasons` bounds each reason at 200 characters. Naming three and counting
- * the remainder keeps the reason actionable — an admin greps the archive for one of them — while
- * `MAX_PREVIEW_TEXT_LENGTH` stays reachable without the truncation falling inside an id.
+ * the remainder keeps the reason actionable — an admin greps the archive for one of them — and
+ * keeps the reason inside that bound for every id this product writes, a ULID being 26 characters.
+ * It is not a guarantee: three ids at {@link quotedId}'s own 40-character ceiling, a cross-check
+ * prefix and " and N more" reach just past 200, so {@link fitted} still elides such a reason and
+ * the cut can fall inside an id. That is the right order of preference — a hostile id is already
+ * unusable, and the alternative is dropping the sentence around it.
  */
 export function listed(ids: readonly string[]): string {
   const shown = ids.slice(0, LISTED_IDS).map(quotedId)
   const rest = ids.length - shown.length
   return rest > 0 ? `${shown.join(', ')} and ${String(rest)} more` : shown.join(', ')
+}
+
+function whereIn(issue: { readonly path: readonly PropertyKey[] }): string {
+  const where = issue.path.map((step) => String(step)).join('.')
+  return where === '' ? THE_FILE : where
 }
 
 /**
@@ -69,12 +80,13 @@ export function listed(ids: readonly string[]): string {
  * A step is stringified rather than joined directly: a `symbol` key is impossible in parsed JSON,
  * but `Array.prototype.join` throws on one rather than skipping it, and this runs over input the
  * whole point of which is that nobody has checked it.
+ *
+ * An issue against the **whole file** carries an empty path, which is what a `project.json` holding
+ * `null`, `[]` or a scalar produces, and it is named rather than left blank: a reason ending in a
+ * bare colon reads as a bug in the importer to the one person who most needs to trust it.
  */
 export const located = (issues: readonly { readonly path: readonly PropertyKey[] }[]): string =>
-  issues
-    .slice(0, LOCATED_ISSUES)
-    .map((issue) => issue.path.map((step) => String(step)).join('.'))
-    .join(', ')
+  issues.slice(0, LOCATED_ISSUES).map(whereIn).join(', ')
 
 /** One reason when a check failed, and none when it did not, for spreading into a reason list. */
 export const when = (broken: boolean, reason: string): readonly string[] => (broken ? [reason] : [])

@@ -3,7 +3,6 @@ import { assertSafeDocument } from '../document-guard.js'
 import type { ProjectManifest as Manifest } from '../entities/manifest.js'
 import type { Tab } from '../entities/tab.js'
 import type { TaskDocument as Document } from '../entities/task.js'
-import { crossCheckReasons } from './drop-checks.js'
 import type { ConvertedProject } from './legacy.js'
 import { linkReasons, type TargetTokens, type TokenCarriers } from './link-checks.js'
 import { listed, overBound, quotedId, when } from './refusal.js'
@@ -13,6 +12,33 @@ export type { TargetTokens, TokenCarriers } from './link-checks.js'
 interface IdKind {
   readonly label: string
   readonly of: (project: ConvertedProject) => readonly string[]
+}
+
+const missingFrom = (wanted: readonly string[], held: ReadonlySet<string>): readonly string[] => [
+  ...new Set(wanted.filter((id) => !held.has(id))),
+]
+
+function crossCheckReasons(
+  manifest: Manifest,
+  documents: readonly Document[],
+  named: readonly (string | null)[],
+): readonly string[] {
+  const carried = documents.map((one, index) => named[index] ?? one.id)
+  const wanted = manifest.tasks.map((entry) => entry.id)
+  const orphaned = missingFrom(wanted, new Set(carried))
+  const spare = missingFrom(carried, new Set(wanted))
+  const misfiled = documents.filter((one, index) => (named[index] ?? one.id) !== one.id)
+  return [
+    ...when(
+      orphaned.length > 0,
+      `The manifest names tasks the drop carries no document for: ${listed(orphaned)}`,
+    ),
+    ...when(
+      spare.length > 0,
+      `The drop carries documents the manifest names no task for: ${listed(spare)}`,
+    ),
+    ...misfiled.map((one) => `A task file holds the document of task ${quotedId(one.id)}`),
+  ]
 }
 
 const tabIds = (document: Document): readonly string[] => document.tabs.map((tab) => tab.id)
@@ -42,18 +68,19 @@ function repeated(ids: readonly string[]): readonly string[] {
   return [...twice]
 }
 
+function sharedTabReasons(document: Document): readonly string[] {
+  const shared = repeated(tabIds(document))
+  const reason = `Task ${quotedId(document.id)} holds tabs sharing an id: ${listed(shared)}`
+  return when(shared.length > 0, reason)
+}
+
 function uniqueReasons(manifest: Manifest, documents: readonly Document[]): readonly string[] {
   const tasks = repeated(manifest.tasks.map((entry) => entry.id))
   const folders = repeated(manifest.folders.map((one) => one.id))
-  const tabs = documents.flatMap((one) => {
-    const shared = repeated(tabIds(one))
-    const reason = `Task ${quotedId(one.id)} holds tabs sharing an id: ${listed(shared)}`
-    return when(shared.length > 0, reason)
-  })
   return [
     ...when(tasks.length > 0, `Two tasks share an id: ${listed(tasks)}`),
     ...when(folders.length > 0, `Two folders share an id: ${listed(folders)}`),
-    ...tabs,
+    ...documents.flatMap(sharedTabReasons),
   ]
 }
 
@@ -83,7 +110,7 @@ function unsafeReason(projectId: string, taskId: string, tab: Tab): readonly str
     assertSafeDocument(tab.document)
     return []
   } catch (error) {
-    const why = error instanceof Error ? error.message : 'it cannot be stored'
+    const why = error instanceof Error ? error.message : 'the document guard refused it'
     const where = `project ${quotedId(projectId)} task ${quotedId(taskId)} tab ${quotedId(tab.id)}`
     return [`The document of ${where} cannot be stored: ${why}`]
   }
@@ -93,21 +120,37 @@ const safetyReasons = (manifest: Manifest, documents: readonly Document[]): read
   documents.flatMap((one) => one.tabs.flatMap((tab) => unsafeReason(manifest.id, one.id, tab)))
 
 /**
- * Every blocking check that reads one project in the shape this repo stores.
+ * The blocking checks that read one project in the shape this repo stores.
  *
- * Seven of the plan's eight, the eighth being the schema conformance that had to run before any of
- * these could read a field (`drop-checks.ts`). None of them throws and none of them warns: a
- * project that fails comes back with **every** reason it failed for, because §7.3's preview has to
- * describe every problem at once and a queue of re-uploads is not a migration.
+ * Of the nine the plan lists, these are the manifest/file cross-check, id validity, id uniqueness,
+ * folder reference integrity, the collection bounds and document validation; `link-checks.ts` holds
+ * the three that read a share link — token and role validity, scope containment, token uniqueness —
+ * and `drop-checks.ts` the schema conformance that has to run before any of these can read a field.
+ * The session's own two, a project id claimed twice and `projectsPerProduct`, are in `checks.ts`.
+ * None of them throws and none of them warns: a project that fails comes back with **every** reason
+ * it failed for, because §7.3's preview has to describe every problem at once and a queue of
+ * re-uploads is not a migration.
  *
- * Several are redundant on one path or the other, deliberately rather than by oversight. On a v2
- * drop `ProjectManifest` has already refused a malformed id, token, role and over-cap collection,
- * so those checks can change no outcome there; on a converted legacy project the converters have
- * already guaranteed the names and the roles. What each still contributes is its **own sentence** —
- * a zod issue path names a field where these name the problem — and the reason to keep all of them
- * is that each one's absence is a different live hole: the id check is the only thing refusing a
- * non-ULID legacy task id before `taskFile()` throws at write time with half a bundle on disk, and
- * the collection counts are the only thing bounding a converted legacy project.
+ * The **cross-check compares ids, not counts**. Nine entries beside nine files whose ids do not
+ * correspond is the same observable failure ADR 0018 exists to prevent — nine documents on the floor
+ * behind a preview that truthfully says "9 and 9" — and a count comparison cannot see it. Both
+ * differences are reported, being different problems with different remedies: an entry with no
+ * document restores an empty task, a document no entry names is content nothing will ever open. Its
+ * third reason has no set difference behind it and is the case neither difference can see — a file
+ * named `tasks/<id>.json` for an id the manifest *does* name, holding the document of a different
+ * task. `convertBundledProject` pairs a document to its entry by the id **inside** the document, so
+ * such a file leaves its entry's cache untouched and puts the wrong content where the manifest says
+ * the right content is.
+ *
+ * Several checks are redundant on one path or the other, deliberately rather than by oversight. On
+ * a v2 drop `ProjectManifest` has already refused a malformed id and an over-cap collection, so
+ * those can change no outcome there; on a converted legacy project the converter has already
+ * guaranteed the names, and the schema conformance that runs on that converted manifest bounds its
+ * collections too. What each still contributes is its **own sentence**, a zod issue path naming a
+ * field where these name the problem — `tasksPerProject` and `shareLinksPerProject` are the two
+ * that can still say something `tasks` or `shareLinks` alone does not. The one check that is
+ * load-bearing rather than merely legible is the id: nothing else refuses a non-ULID legacy task id
+ * before `taskFile()` throws at write time with half a bundle already on disk.
  *
  * `assertSafeDocument` is called rather than reimplemented, §7.5 being already built: depth, banned
  * keys, the href and src scheme allowlist and the 2 MB bound, walked iteratively. It throws, so the

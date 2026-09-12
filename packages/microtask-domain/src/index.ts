@@ -34,6 +34,7 @@ export {
 } from './import/legacy.js'
 export {
   checkImport,
+  overBound,
   type CheckedProject,
   type DroppedDocument,
   type DroppedProject,

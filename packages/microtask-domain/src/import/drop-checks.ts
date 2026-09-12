@@ -2,7 +2,7 @@ import { ProjectManifest, TaskDocument } from '@repo/contracts'
 import type { ProjectManifest as Manifest } from '../entities/manifest.js'
 import type { TaskDocument as Document } from '../entities/task.js'
 import { convertBundledProject, type ConvertedProject } from './legacy.js'
-import { listed, located, quotedId, quotedPath, when } from './refusal.js'
+import { located, quotedPath } from './refusal.js'
 
 interface Parsed<T> {
   readonly reasons: readonly string[]
@@ -30,13 +30,19 @@ export interface DroppedDocument {
 }
 
 /**
- * One project a drop carried, in the form the shape it was sniffed as holds it.
+ * One project a drop carried, in whichever of the two states it reaches the checks in.
  *
- * Two members and not `ImportShape`'s four, because the three v2 shapes differ in how a *group* is
- * laid out and not at all in what has to happen to it here: a manifest and its documents are
- * schema-checked and then converted, whichever of the three carried them. A caller therefore
- * explodes a `v2-workspace-bundle` into one of these per project — which is also what
- * `ImportPreview` requires, a project id being claimable by at most one group.
+ * `shape` names **conversion state and not provenance**, which is the distinction that actually
+ * decides what happens below: `raw` is a manifest and documents nobody has validated, `converted`
+ * is a project already in the shape this repo stores. Naming the members after where they came
+ * from — `v2` and `legacy` — would read fine today and mislead the moment a *reminted* v2 project
+ * is re-checked (Task 5, and the confirm's second pass), because such a project is converted and
+ * would have to be labelled `legacy` to be accepted.
+ *
+ * Two members and not `ImportShape`'s four. The three v2 shapes differ in how a *group* is laid out
+ * and not at all in what has to happen to it here, so a caller explodes a `v2-workspace-bundle`
+ * into one of these per project — which is also what `ImportPreview` requires, a project id being
+ * claimable by at most one group.
  *
  * A legacy file arrives **already converted**, and that asymmetry is the ordering rule Task 3
  * settled rather than an oversight. `convertBundledProject` requires input a schema has already
@@ -47,13 +53,13 @@ export interface DroppedDocument {
  */
 export type DroppedProject =
   | {
-      readonly shape: 'v2'
+      readonly shape: 'raw'
       readonly path: string
       readonly manifest: unknown
       readonly documents: readonly DroppedDocument[]
     }
   | {
-      readonly shape: 'legacy'
+      readonly shape: 'converted'
       readonly path: string
       readonly converted: ConvertedProject
     }
@@ -86,49 +92,6 @@ function asDocument(path: string, json: unknown): Parsed<Document> {
   return { reasons: [`${quotedPath(path)} is not a task document: ${where}`], data: null }
 }
 
-const missingFrom = (wanted: readonly string[], held: ReadonlySet<string>): readonly string[] => [
-  ...new Set(wanted.filter((id) => !held.has(id))),
-]
-
-/**
- * Compares the ids a manifest names against the ids the drop carried documents for.
- *
- * By **id and not by count**, which is the whole point: nine entries beside nine files whose ids do
- * not correspond is the same observable failure ADR 0018 exists to prevent — nine documents on the
- * floor behind a preview that truthfully says "9 and 9" — and a count comparison cannot see it.
- * Both differences are reported, because they are different problems with different remedies: an
- * entry with no document restores an empty task, a document no entry names is content nothing will
- * ever open.
- *
- * The third reason has no set difference behind it and is the case neither difference can see: a
- * file named `tasks/<id>.json` for an id the manifest does name, holding the document of a
- * different task. `convertBundledProject` pairs a document to its entry by the id **inside** the
- * document, so such a file leaves its entry's cache untouched and puts the wrong content where the
- * manifest says the right content is.
- */
-export function crossCheckReasons(
-  manifest: Manifest,
-  documents: readonly Document[],
-  named: readonly (string | null)[],
-): readonly string[] {
-  const carried = documents.map((one, index) => named[index] ?? one.id)
-  const wanted = manifest.tasks.map((entry) => entry.id)
-  const orphaned = missingFrom(wanted, new Set(carried))
-  const spare = missingFrom(carried, new Set(wanted))
-  const misfiled = documents.filter((one, index) => (named[index] ?? one.id) !== one.id)
-  return [
-    ...when(
-      orphaned.length > 0,
-      `The manifest names tasks the drop carries no document for: ${listed(orphaned)}`,
-    ),
-    ...when(
-      spare.length > 0,
-      `The drop carries documents the manifest names no task for: ${listed(spare)}`,
-    ),
-    ...misfiled.map((one) => `A task file holds the document of task ${quotedId(one.id)}`),
-  ]
-}
-
 /**
  * Runs the schema conformance the rest of the preview depends on, then converts what passed it.
  *
@@ -154,7 +117,7 @@ export function crossCheckReasons(
  * as a whole.
  */
 export function prepareDrop(drop: DroppedProject): Prepared {
-  if (drop.shape === 'legacy') {
+  if (drop.shape === 'converted') {
     const { manifest, documents } = drop.converted
     const reasons = [
       ...asManifest(drop.path, manifest).reasons,

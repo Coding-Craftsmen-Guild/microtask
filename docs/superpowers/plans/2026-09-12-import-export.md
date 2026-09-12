@@ -374,7 +374,12 @@ things Task 9 would otherwise reintroduce or get wrong.
   task file's basename, or `null` for a bundled document that nothing but its own `id` names. That
   is Task 2's settled reading made into a field. Passing a document's own id for a **file** silently
   disables the third cross-check reason below.
-- **Legacy arrives already converted; v2 arrives raw.** `convertBundledProject` requires
+- **`DroppedProject.shape` names conversion state, not provenance** — `'raw' | 'converted'`, never
+  `'v2' | 'legacy'`. It is the distinction that decides what happens: `raw` is a manifest and
+  documents nobody has validated, `converted` is a project already in the shape this repo stores.
+  Provenance names would read fine until Task 5's **reminted v2** project is re-checked, which is
+  converted and would have to be labelled `legacy` to be accepted.
+- **Legacy arrives already converted; raw arrives raw.** `convertBundledProject` requires
   pre-validated input, so schema-check-then-convert is `checks.ts`'s to own and not a caller's to
   remember. `convertLegacyProject` is total, needs a clock and an id generator, and has no order to
   get wrong — so the caller runs it and hands over the `ConvertedProject`.
@@ -405,12 +410,26 @@ things Task 9 would otherwise reintroduce or get wrong.
 - **The session `projectsPerProduct` bound must be re-run by the confirm**, inside the `QueueLock`
   and **after** any reminting: a concurrent confirm may have landed, and a project imported as `new`
   takes a fresh id, so it adds one where the colliding id it arrived with adds none.
-- **Four halves of the id/token/role check cannot fire on either path** — the `role` enum,
-  `createdBy`, and the tab-id and folder-id ULID halves. The legacy converter always produces
-  `view`/`write`, `createdBy: null`, minted ULID tab ids and no folders, and a v2 drop is blocked
-  earlier by the schema. They are kept as defence in depth, tested directly against hand-built
-  converted projects, and a later task must not read their presence as evidence that some input
-  reaches them.
+- **Six check halves cannot fire on either path**, and a later task must not read their presence as
+  evidence that some input reaches them: the `role` enum, `createdBy`, the tab-id and folder-id ULID
+  halves, and — measured, not assumed — `foldersPerProject` and `tabsPerTask`. The legacy converter
+  always produces `view`/`write`, `createdBy: null`, minted ULID tab ids, no folders and exactly one
+  tab per document; a raw drop over any collection bound fails `ProjectManifest`/`TaskDocument`
+  first and comes back with `converted: null`. The two counts that *do* still add a sentence are
+  `tasksPerProject` and `shareLinksPerProject`, on a converted legacy project. All six are kept as
+  defence in depth and tested directly against hand-built converted projects.
+- **`overBound` is exported from the barrel** so the confirm words the `projectsPerProduct` refusal
+  with the same sentence and reads the bound from the same place. Restating the comparison in
+  `apps/api` is the drift "same numbers, same module" exists to prevent.
+- **`TokenCarriers` answers only the cross-project question, and is a set for that reason.** Keyed by
+  token, holding the **set** of project ids that carry it. It was a list of one entry per link, and
+  that shape produced a live false refusal: two groups can claim one project id — which
+  `ImportPreview` anticipates, and which the plan answers by letting the **first** group keep the id
+  — so both record the same id for the same token, a count of entries reads two for a project
+  holding one link, and the good row is refused with a reason that is not true of it. Every project
+  on the volume has share links, so that was the common case rather than a corner. The
+  within-project twin is read off `manifest.shareLinks`, the only place that answer lives, and the
+  set makes counting entries unexpressible rather than merely discouraged.
 
 ### Task 2: grouping and the four shapes
 

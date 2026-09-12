@@ -3,10 +3,13 @@ import {
   LIMITS,
   MAX_PREVIEW_REASONS,
   MAX_PREVIEW_TEXT_LENGTH,
+  EntityId,
   ProjectList,
   ProjectView,
+  Role,
+  ShareToken,
 } from '@repo/contracts'
-import { isShareToken, type Role } from '@repo/kernel'
+import { isShareToken, isUlid, ROLES, type Role as RoleValue } from '@repo/kernel'
 import { emptyDocument, type DocumentJson } from '../entities/document.js'
 import type { ProjectManifest, TaskEntry } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
@@ -82,15 +85,12 @@ const entriesFor = (ids: readonly string[]): readonly TaskEntry[] =>
 const documentsFor = (ids: readonly string[]): readonly TaskDocument[] =>
   ids.map((id, index) => taskDocument(id, marked('01B', 100 + index)))
 
-const project = (id: string, overrides: Partial<ProjectManifest> = {}): ProjectManifest =>
-  manifest(id, overrides)
-
 const directory = (
   raw: unknown,
   documents: readonly TaskDocument[],
   named?: readonly string[],
 ): DroppedProject => ({
-  shape: 'v2',
+  shape: 'raw',
   path: `volume/${P1}`,
   manifest: raw,
   documents: documents.map((document, index) => {
@@ -100,7 +100,7 @@ const directory = (
 })
 
 const bundled = (raw: unknown, documents: readonly unknown[], at = 0): DroppedProject => ({
-  shape: 'v2',
+  shape: 'raw',
   path: `export.json projects[${String(at)}]`,
   manifest: raw,
   documents: documents.map((json, index) => ({
@@ -134,13 +134,13 @@ const legacyJson = (overrides: Record<string, unknown> = {}): Record<string, unk
 })
 
 const legacy = (overrides: Record<string, unknown> = {}): DroppedProject => ({
-  shape: 'legacy',
+  shape: 'converted',
   path: 'legacy.json',
   converted: convertLegacyProject(legacyJson(overrides), fixedClock(NOW), sequentialIds()),
 })
 
 const built = (value: ConvertedProject): DroppedProject => ({
-  shape: 'legacy',
+  shape: 'converted',
   path: 'hand-built.json',
   converted: value,
 })
@@ -154,7 +154,7 @@ const target = (overrides: Partial<ImportTarget> = {}): ImportTarget => ({
 
 const owning = (projectId: string, tokens: readonly string[]): TokenIndex => {
   const index = new ShareIndex()
-  index.add('microtask', project(projectId, { shareLinks: tokens.map((value) => link(value)) }))
+  index.add('microtask', manifest(projectId, { shareLinks: tokens.map((value) => link(value)) }))
   return index
 }
 
@@ -182,7 +182,7 @@ const HOSTILE: DocumentJson = {
 describe('schema conformance, which runs before anything else', () => {
   it('blocks a manifest entry at a negative position, naming the project and the path', () => {
     const tasks = [taskEntry(T1, 'Fine'), { ...taskEntry(T2, 'Broken'), position: -1 }]
-    const checked = only(directory(project(P1, { tasks }), documentsFor([T1, T2])))
+    const checked = only(directory(manifest(P1, { tasks }), documentsFor([T1, T2])))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain('tasks.1.position')
     expect(said(checked)).toContain(`volume/${P1}`)
@@ -190,14 +190,14 @@ describe('schema conformance, which runs before anything else', () => {
   })
 
   it('blocks a share link whose role is outside the enum, on the drop set and not on disk', () => {
-    const shareLinks = [link(TOKEN), { ...link(OTHER), role: 'owner' as Role }]
-    const checked = only(directory(project(P1, { shareLinks }), []))
+    const shareLinks = [link(TOKEN), { ...link(OTHER), role: 'owner' as RoleValue }]
+    const checked = only(directory(manifest(P1, { shareLinks }), []))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain('shareLinks.1.role')
   })
 
   it('blocks a manifest with no shareLinks block, which ShareIndex.add would dereference', () => {
-    const { shareLinks, ...broken } = project(P1)
+    const { shareLinks, ...broken } = manifest(P1)
     expect(shareLinks).toEqual([])
     const checked = only(directory(broken, []))
     expect(checked.outcome).toBe('blocked')
@@ -212,9 +212,17 @@ describe('schema conformance, which runs before anything else', () => {
     expect(only(directory(unchecked, [])).converted).toBeNull()
   })
 
+  it('names the file itself when a project.json is not an object at all, not a bare colon', () => {
+    for (const json of [null, [], 'nope', 42]) {
+      const checked = only(directory(json, []))
+      expect(checked.outcome).toBe('blocked')
+      expect(checked.reasons).toContain(`"volume/${P1}" is not a project manifest: the file itself`)
+    }
+  })
+
   it('blocks a task document that is not one, naming the file it came from', () => {
     const broken = { id: T2, tabs: 'nope' } as unknown as TaskDocument
-    const drop = directory(project(P1, { tasks: entriesFor([T1, T2]) }), [
+    const drop = directory(manifest(P1, { tasks: entriesFor([T1, T2]) }), [
       taskDocument(T1, B1),
       broken,
     ])
@@ -234,7 +242,7 @@ describe('schema conformance, which runs before anything else', () => {
   it('lets a checked project read back through the two schemas the client parses it with', () => {
     const tasks = entriesFor([T1, T2])
     const shareLinks = [link(TOKEN), link(OTHER, { role: 'manage' })]
-    const drop = directory(project(P1, { tasks, shareLinks }), documentsFor([T1, T2]))
+    const drop = directory(manifest(P1, { tasks, shareLinks }), documentsFor([T1, T2]))
     const checked = only(drop)
     expect(checked.outcome).toBe('importable')
     const stored = (checked.converted as ConvertedProject).manifest
@@ -248,7 +256,7 @@ describe('schema conformance, which runs before anything else', () => {
 describe('the manifest/file cross-check, which compares ids and not counts', () => {
   it('blocks nine manifest entries with eight task files, naming the id with no file', () => {
     const ids = taskIds(9)
-    const drop = directory(project(P1, { tasks: entriesFor(ids) }), documentsFor(ids.slice(0, 8)))
+    const drop = directory(manifest(P1, { tasks: entriesFor(ids) }), documentsFor(ids.slice(0, 8)))
     const checked = only(drop)
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(ids[8] as string)
@@ -256,7 +264,7 @@ describe('the manifest/file cross-check, which compares ids and not counts', () 
 
   it('blocks nine task files with a manifest naming eight, naming the id nothing names', () => {
     const ids = taskIds(9)
-    const drop = directory(project(P1, { tasks: entriesFor(ids.slice(0, 8)) }), documentsFor(ids))
+    const drop = directory(manifest(P1, { tasks: entriesFor(ids.slice(0, 8)) }), documentsFor(ids))
     const checked = only(drop)
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(ids[8] as string)
@@ -265,7 +273,7 @@ describe('the manifest/file cross-check, which compares ids and not counts', () 
   it('blocks nine entries and nine files whose ids do not correspond, which counts cannot see', () => {
     const named = taskIds(9)
     const carried = taskIds(9, 21)
-    const raw = project(P1, { tasks: entriesFor(named) })
+    const raw = manifest(P1, { tasks: entriesFor(named) })
     const checked = only(directory(raw, documentsFor(carried)))
     expect(raw.tasks).toHaveLength(9)
     expect(documentsFor(carried)).toHaveLength(9)
@@ -275,7 +283,7 @@ describe('the manifest/file cross-check, which compares ids and not counts', () 
   })
 
   it('blocks a task file whose document names a different task, which the two sets agree on', () => {
-    const raw = project(P1, { tasks: entriesFor([T1]) })
+    const raw = manifest(P1, { tasks: entriesFor([T1]) })
     const checked = only(directory(raw, [taskDocument(T2, B1)], [T1]))
     expect(checked.outcome).toBe('blocked')
     expect(checked.reasons).toContain(`A task file holds the document of task "${T2}"`)
@@ -285,15 +293,15 @@ describe('the manifest/file cross-check, which compares ids and not counts', () 
 
   it('passes a bundle whose embedded documents pair with every entry it names', () => {
     const ids = taskIds(9)
-    const drop = bundled(project(P1, { tasks: entriesFor(ids) }), documentsFor(ids))
+    const drop = bundled(manifest(P1, { tasks: entriesFor(ids) }), documentsFor(ids))
     expect(only(drop).outcome).toBe('importable')
   })
 })
 
 describe('token uniqueness, in the drop set and against disk', () => {
   it('blocks both projects of one bundle when they share a token, naming the other project', () => {
-    const first = bundled(project(P1, { shareLinks: [link(OTHER), link(TOKEN)] }), [], 0)
-    const second = bundled(project(P2, { shareLinks: [link(token(3)), link(TOKEN)] }), [], 1)
+    const first = bundled(manifest(P1, { shareLinks: [link(OTHER), link(TOKEN)] }), [], 0)
+    const second = bundled(manifest(P2, { shareLinks: [link(token(3)), link(TOKEN)] }), [], 1)
     const checked = checkImport([first, second], target())
     expect(checked.map((one) => one.outcome)).toEqual(['blocked', 'blocked'])
     expect(said(checked[0] as CheckedProject)).toContain(P2)
@@ -301,14 +309,14 @@ describe('token uniqueness, in the drop set and against disk', () => {
   })
 
   it('blocks a link whose token a project already on disk owns, naming that project', () => {
-    const drop = directory(project(P1, { shareLinks: [link(OTHER), link(TOKEN)] }), [])
+    const drop = directory(manifest(P1, { shareLinks: [link(OTHER), link(TOKEN)] }), [])
     const checked = only(drop, target({ tokens: owning(P3, [TOKEN]) }))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(P3)
   })
 
   it('never puts a token in a reason, the preview being rendered into an admin page', () => {
-    const drop = directory(project(P1, { shareLinks: [link(OTHER), link(TOKEN)] }), [])
+    const drop = directory(manifest(P1, { shareLinks: [link(OTHER), link(TOKEN)] }), [])
     const checked = only(drop, target({ tokens: owning(P3, [TOKEN, OTHER]) }))
     expect(JSON.stringify(checked.reasons)).not.toContain(TOKEN)
     expect(JSON.stringify(checked.reasons)).not.toContain(OTHER)
@@ -316,12 +324,14 @@ describe('token uniqueness, in the drop set and against disk', () => {
 
   it('blocks two links of one project that carry the same token', () => {
     const shareLinks = [link(OTHER), link(TOKEN), link(TOKEN, { name: 'Twin' })]
-    const checked = only(directory(project(P1, { shareLinks }), []))
+    const checked = only(directory(manifest(P1, { shareLinks }), []))
     expect(checked.outcome).toBe('blocked')
+    const twins = 'carries a token another link of this project carries'
+    expect(checked.reasons).toEqual([`Share link 1 ${twins}`, `Share link 2 ${twins}`])
   })
 
   it('leaves a token the target already records for this very project alone, for a replace', () => {
-    const drop = directory(project(P1, { shareLinks: [link(TOKEN)] }), [])
+    const drop = directory(manifest(P1, { shareLinks: [link(TOKEN)] }), [])
     const checked = only(drop, target({ tokens: owning(P1, [TOKEN]), projectIds: [P1] }))
     expect(checked.outcome).toBe('importable')
     expect(checked.existsInTarget).toBe(true)
@@ -332,13 +342,13 @@ describe('id, token and role validity, which nothing downstream of import repeat
   it('blocks a legacy tab id that is a path, before taskFile() throws at write time', () => {
     const checked = only(legacy({ tabs: [legacyTab(T1), legacyTab('../etc/passwd')] }))
     expect(checked.outcome).toBe('blocked')
-    expect(said(checked)).toContain('../etc/passwd')
+    expect(checked.reasons).toContain('Task id "../etc/passwd" is not a ULID')
   })
 
   it('blocks a legacy project id that is not a ULID', () => {
     const checked = only(legacy({ id: 'not-a-ulid' }))
     expect(checked.outcome).toBe('blocked')
-    expect(said(checked)).toContain('not-a-ulid')
+    expect(checked.reasons).toContain('Project id "not-a-ulid" is not a ULID')
   })
 
   it.each([
@@ -354,11 +364,11 @@ describe('id, token and role validity, which nothing downstream of import repeat
   })
 
   it.each([
-    [{ role: 'owner' as Role }, 'Share link 1 declares a role this product does not have'],
+    [{ role: 'owner' as RoleValue }, 'Share link 1 declares a role this product does not have'],
     [{ createdBy: 'short' }, 'Share link 1 names a parent token that is not a share token'],
   ])('blocks a share link the contracts would have refused: %o', (overrides, reason) => {
     const shareLinks = [link(TOKEN), link(OTHER, overrides)]
-    const checked = only(built({ manifest: project(P1, { shareLinks }), documents: [] }))
+    const checked = only(built({ manifest: manifest(P1, { shareLinks }), documents: [] }))
     expect(checked.outcome).toBe('blocked')
     expect(checked.reasons).toContain(reason)
   })
@@ -366,7 +376,7 @@ describe('id, token and role validity, which nothing downstream of import repeat
   it('blocks a folder id and a tab id that are not ULIDs, not only the ids that name files', () => {
     const folders = [folder(F1, 'Phase one'), folder('../etc', 'Planted')]
     const documents = [documentOf(T1, [tabAt(B1, 0), tabAt('../etc', 1)])]
-    const drop = built({ manifest: project(P1, { folders, tasks: entriesFor([T1]) }), documents })
+    const drop = built({ manifest: manifest(P1, { folders, tasks: entriesFor([T1]) }), documents })
     const checked = only(drop)
     expect(checked.outcome).toBe('blocked')
     expect(checked.reasons.filter((reason) => reason.includes('../etc'))).toHaveLength(2)
@@ -376,25 +386,26 @@ describe('id, token and role validity, which nothing downstream of import repeat
 describe('id uniqueness, which shape-checking does not give', () => {
   it('blocks a bundle whose nine entries and nine documents share a task id', () => {
     const ids = [...taskIds(8), T1]
-    const raw = project(P1, { tasks: entriesFor(ids) })
+    const raw = manifest(P1, { tasks: entriesFor(ids) })
     const checked = only(bundled(raw, documentsFor(ids)))
     expect(raw.tasks).toHaveLength(9)
     expect(new Set(ids).size).toBe(8)
     expect(checked.outcome).toBe('blocked')
-    expect(said(checked)).toContain(T1)
-    expect(said(checked)).not.toMatch(/no file|does not name/)
+    expect(checked.reasons).toContain(`Two tasks share an id: "${T1}"`)
+    expect(said(checked)).not.toContain('no document for')
+    expect(said(checked)).not.toContain('names no task for')
   })
 
   it('blocks two folders of one project that share an id', () => {
     const folders = [folder(F1, 'Phase one'), folder(F2, 'Phase two'), folder(F1, 'Twin')]
-    const checked = only(directory(project(P1, { folders }), []))
+    const checked = only(directory(manifest(P1, { folders }), []))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(F1)
   })
 
   it('blocks two tabs of one task document that share an id', () => {
     const documents = [documentOf(T1, [tabAt(B1, 0), tabAt(B2, 1), tabAt(B1, 2)])]
-    const raw = project(P1, { tasks: [taskEntry(T1, 'Go-live', { tabCount: 3 })] })
+    const raw = manifest(P1, { tasks: [taskEntry(T1, 'Go-live', { tabCount: 3 })] })
     const checked = only(directory(raw, documents))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(B1)
@@ -402,11 +413,15 @@ describe('id uniqueness, which shape-checking does not give', () => {
   })
 
   it('blocks the second group to claim a project id, leaving the first to import', () => {
-    const first = directory(project(P1, { tasks: entriesFor([T1]) }), documentsFor([T1]))
-    const second = bundled(project(P1), [])
+    const shareLinks = [link(TOKEN), link(OTHER)]
+    const raw = manifest(P1, { tasks: entriesFor([T1]), shareLinks })
+    const first = directory(raw, documentsFor([T1]))
+    const second = bundled(raw, documentsFor([T1]), 1)
     const checked = checkImport([first, second], target())
+    expect(checked[0]?.reasons).toEqual([])
     expect(checked.map((one) => one.outcome)).toEqual(['importable', 'blocked'])
     expect(checked[1]?.projectId).toBeNull()
+    expect(checked[1]?.reasons).toHaveLength(1)
     expect(said(checked[1] as CheckedProject)).toContain(P1)
     expect(said(checked[1] as CheckedProject)).toContain(`volume/${P1}`)
   })
@@ -419,17 +434,17 @@ describe('folder reference integrity, which assertFolder treats as an invariant'
       taskEntry(T2, 'Dangling', { folderId: F3 }),
     ]
     const folders = [folder(F1, 'Phase one'), folder(F2, 'Phase two')]
-    const checked = only(directory(project(P1, { folders, tasks }), documentsFor([T1, T2])))
+    const checked = only(directory(manifest(P1, { folders, tasks }), documentsFor([T1, T2])))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(T2)
     expect(said(checked)).toContain(F3)
   })
 
   it('blocks a task naming a folder that exists in another project of the same session', () => {
-    const owner = bundled(project(P2, { folders: [folder(F3, 'Elsewhere')] }), [], 1)
+    const owner = bundled(manifest(P2, { folders: [folder(F3, 'Elsewhere')] }), [], 1)
     const tasks = [taskEntry(T1, 'Dangling', { folderId: F3 })]
     const folders = [folder(F1, 'Phase one')]
-    const drop = bundled(project(P1, { folders, tasks }), documentsFor([T1]))
+    const drop = bundled(manifest(P1, { folders, tasks }), documentsFor([T1]))
     const checked = checkImport([drop, owner], target())
     expect(checked[0]?.outcome).toBe('blocked')
     expect(said(checked[0] as CheckedProject)).toContain(F3)
@@ -459,7 +474,7 @@ describe('collection bounds, because import never reaches assertWithin', () => {
     const tabs = Array.from({ length: LIMITS.tabsPerTask + 1 }, (_unused, index) =>
       tabAt(marked('01B', 200 + index), index),
     )
-    const raw = project(P1, { tasks: [taskEntry(T1, 'Go-live', { tabCount: 8 })] })
+    const raw = manifest(P1, { tasks: [taskEntry(T1, 'Go-live', { tabCount: 8 })] })
     const checked = only(built({ manifest: raw, documents: [documentOf(T1, tabs)] }))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(String(LIMITS.tabsPerTask))
@@ -469,7 +484,7 @@ describe('collection bounds, because import never reaches assertWithin', () => {
     const folders = Array.from({ length: LIMITS.foldersPerProject + 1 }, (_unused, index) =>
       folder(marked('01F', 100 + index), 'Phase'),
     )
-    const checked = only(built({ manifest: project(P1, { folders }), documents: [] }))
+    const checked = only(built({ manifest: manifest(P1, { folders }), documents: [] }))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(String(LIMITS.foldersPerProject))
   })
@@ -479,7 +494,7 @@ describe('collection bounds, because import never reaches assertWithin', () => {
       marked('01Q', index + 1),
     )
     const drops = taskIds(6).map((_id, index) =>
-      bundled(project(marked('01R', index + 1)), [], index),
+      bundled(manifest(marked('01R', index + 1)), [], index),
     )
     const checked = checkImport(drops, target({ projectIds: onDisk }))
     expect(checked.every((one) => one.outcome === 'blocked')).toBe(true)
@@ -494,7 +509,7 @@ describe('collection bounds, because import never reaches assertWithin', () => {
       P1,
     ]
     expect(onDisk).toHaveLength(LIMITS.projectsPerProduct)
-    const checked = only(directory(project(P1), []), target({ projectIds: onDisk }))
+    const checked = only(directory(manifest(P1), []), target({ projectIds: onDisk }))
     expect(checked.existsInTarget).toBe(true)
     expect(checked.reasons).toEqual([])
     expect(checked.outcome).toBe('importable')
@@ -505,8 +520,8 @@ describe('collection bounds, because import never reaches assertWithin', () => {
       marked('01Q', index + 1),
     )
     const tasks = [taskEntry(T1, 'Dangling', { folderId: F3 })]
-    const already = bundled(project(P2, { tasks }), documentsFor([T1]), 9)
-    const adding = [1, 2].map((at) => bundled(project(marked('01R', at)), [], at))
+    const already = bundled(manifest(P2, { tasks }), documentsFor([T1]), 9)
+    const adding = [1, 2].map((at) => bundled(manifest(marked('01R', at)), [], at))
     const checked = checkImport([already, ...adding], target({ projectIds: onDisk }))
     expect(checked.map((one) => one.outcome)).toEqual(['blocked', 'blocked', 'blocked'])
     expect(checked[0]?.reasons).toHaveLength(1)
@@ -522,7 +537,7 @@ describe('collection bounds, because import never reaches assertWithin', () => {
       marked('01Q', index + 1),
     )
     const drops = taskIds(6).map((_id, index) =>
-      bundled(project(marked('01R', index + 1)), [], index),
+      bundled(manifest(marked('01R', index + 1)), [], index),
     )
     const checked = checkImport(drops, target({ projectIds: onDisk }))
     expect(checked.every((one) => one.outcome === 'importable')).toBe(true)
@@ -530,11 +545,11 @@ describe('collection bounds, because import never reaches assertWithin', () => {
 
   it('bounds no name itself, a padded one the schemas accept being no reason to refuse', () => {
     const padded = ` ${'x'.repeat(LIMITS.nameLength)} `
-    expect(ProjectView.safeParse(project(P1, { name: padded })).success).toBe(true)
+    expect(ProjectView.safeParse(manifest(P1, { name: padded })).success).toBe(true)
     const tabs = [tabAt(B1, 0), { ...tabAt(B2, 1), name: padded }]
     const tasks = [{ ...taskEntry(T1, 'Go-live', { tabCount: 2 }), name: padded }]
     const shareLinks = [link(TOKEN, { name: padded })]
-    const raw = project(P1, { name: padded, folders: [folder(F1, padded)], tasks, shareLinks })
+    const raw = manifest(P1, { name: padded, folders: [folder(F1, padded)], tasks, shareLinks })
     const checked = only(directory(raw, [documentOf(T1, tabs)]))
     expect(checked.reasons).toEqual([])
     expect(checked.outcome).toBe('importable')
@@ -544,7 +559,7 @@ describe('collection bounds, because import never reaches assertWithin', () => {
   it('leaves an over-long name to the schema, which refuses it, and to cleanName, which cuts it', () => {
     const long = 'x'.repeat(200)
     const tasks = [taskEntry(T1, 'Fine'), { ...taskEntry(T2, 'Long'), name: long }]
-    const checked = only(directory(project(P1, { tasks }), documentsFor([T1, T2])))
+    const checked = only(directory(manifest(P1, { tasks }), documentsFor([T1, T2])))
     expect(checked.outcome).toBe('blocked')
     expect(checked.reasons).toHaveLength(1)
     expect(said(checked)).toContain('tasks.1.name')
@@ -554,12 +569,12 @@ describe('collection bounds, because import never reaches assertWithin', () => {
 
 describe('scope containment, which a bundle can break without naming anything unknown', () => {
   it('blocks a link scoped to a task that belongs to another project of the same bundle', () => {
-    const elsewhere = bundled(project(P2, { tasks: entriesFor([T2]) }), documentsFor([T2]), 1)
+    const elsewhere = bundled(manifest(P2, { tasks: entriesFor([T2]) }), documentsFor([T2]), 1)
     const shareLinks = [
       link(TOKEN, { scope: { kind: 'task', projectId: P1, taskId: T1 } }),
       link(OTHER, { scope: { kind: 'task', projectId: P1, taskId: T2 } }),
     ]
-    const raw = project(P1, { tasks: entriesFor([T1]), shareLinks })
+    const raw = manifest(P1, { tasks: entriesFor([T1]), shareLinks })
     const checked = checkImport([bundled(raw, documentsFor([T1])), elsewhere], target())
     expect(checked[0]?.outcome).toBe('blocked')
     expect(said(checked[0] as CheckedProject)).toContain(T2)
@@ -568,14 +583,14 @@ describe('scope containment, which a bundle can break without naming anything un
 
   it('blocks a link whose scope names another project outright', () => {
     const shareLinks = [link(TOKEN), link(OTHER, { scope: { kind: 'project', projectId: P2 } })]
-    const checked = only(directory(project(P1, { shareLinks }), []))
+    const checked = only(directory(manifest(P1, { shareLinks }), []))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(P2)
   })
 
   it('accepts a link scoped to a task of its own project', () => {
     const shareLinks = [link(TOKEN, { scope: { kind: 'task', projectId: P1, taskId: T1 } })]
-    const raw = project(P1, { tasks: entriesFor([T1]), shareLinks })
+    const raw = manifest(P1, { tasks: entriesFor([T1]), shareLinks })
     expect(only(directory(raw, documentsFor([T1]))).outcome).toBe('importable')
   })
 })
@@ -586,7 +601,7 @@ describe('document validation, at preview rather than half way through a write',
       documentOf(T1, [tabAt(B1, 0)]),
       documentOf(T2, [tabAt(B1, 0), tabAt(B2, 1, HOSTILE)]),
     ]
-    const raw = project(P1, { tasks: entriesFor([T1, T2]) })
+    const raw = manifest(P1, { tasks: entriesFor([T1, T2]) })
     const checked = only(directory(raw, documents))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain(P1)
@@ -604,7 +619,7 @@ describe('document validation, at preview rather than half way through a write',
 
 describe('what the checks answer with', () => {
   it('reports importable with the converted project, so a caller need not convert again', () => {
-    const raw = project(P1, { tasks: entriesFor([T1]), shareLinks: [link(TOKEN)] })
+    const raw = manifest(P1, { tasks: entriesFor([T1]), shareLinks: [link(TOKEN)] })
     const checked = only(directory(raw, documentsFor([T1])))
     expect(checked).toMatchObject({
       path: `volume/${P1}`,
@@ -618,9 +633,9 @@ describe('what the checks answer with', () => {
   })
 
   it('says a project id is already in the target, which is what §7.4 renders', () => {
-    const checked = only(directory(project(P1), []), target({ projectIds: [P2, P1] }))
+    const checked = only(directory(manifest(P1), []), target({ projectIds: [P2, P1] }))
     expect(checked.existsInTarget).toBe(true)
-    const missing = only(directory(project(P1), []), target({ projectIds: [P2] }))
+    const missing = only(directory(manifest(P1), []), target({ projectIds: [P2] }))
     expect(missing.existsInTarget).toBe(false)
   })
 
@@ -632,7 +647,7 @@ describe('what the checks answer with', () => {
     const tasks = [taskEntry(T1, 'Dangling', { folderId: F3 })]
     const shareLinks = [link(TOKEN, { scope: { kind: 'project', projectId: P2 } })]
     const documents = [documentOf(T1, [tabAt(B1, 0, HOSTILE)])]
-    const raw = project(P1, { tasks, shareLinks })
+    const raw = manifest(P1, { tasks, shareLinks })
     const checked = only(directory(raw, documents), target({ tokens: owning(P3, [TOKEN]) }))
     expect(checked.reasons.length).toBeGreaterThanOrEqual(4)
     expect(said(checked)).toContain(F3)
@@ -645,7 +660,7 @@ describe('what the checks answer with', () => {
     const drops = [
       directory({ id: P1 }, []),
       legacy({ id: 'not-a-ulid' }),
-      directory(project(P1, { tasks: entriesFor([T1]) }), []),
+      directory(manifest(P1, { tasks: entriesFor([T1]) }), []),
     ]
     for (const drop of drops) {
       const checked = only(drop)
@@ -656,11 +671,11 @@ describe('what the checks answer with', () => {
 
   it('keeps every reason inside the preview text bound, however long the drop made it', () => {
     const hostile = 'z'.repeat(4000)
-    const raw = project(P1, { tasks: entriesFor(taskIds(9)) })
+    const raw = manifest(P1, { tasks: entriesFor(taskIds(9)) })
     const drops = [
       directory(raw, documentsFor(taskIds(9, 21))),
       legacy({ id: hostile, tabs: [legacyTab(hostile, { document: HOSTILE })] }),
-      directory(project(P1, { tasks: [{ ...taskEntry(T1, 'x'), name: hostile }] }), []),
+      directory(manifest(P1, { tasks: [{ ...taskEntry(T1, 'x'), name: hostile }] }), []),
     ]
     for (const drop of drops) {
       const checked = only(drop)
@@ -694,13 +709,43 @@ describe('what the checks answer with', () => {
   })
 
   it('checks every project of a session independently, one bad row not spoiling the rest', () => {
-    const good = directory(project(P1, { tasks: entriesFor([T1]) }), documentsFor([T1]))
-    const bad = bundled(project(P2, { tasks: entriesFor([T2]) }), [], 1)
+    const good = directory(manifest(P1, { tasks: entriesFor([T1]) }), documentsFor([T1]))
+    const bad = bundled(manifest(P2, { tasks: entriesFor([T2]) }), [], 1)
     const checked = checkImport([good, bad], target())
     expect(checked.map((one) => one.outcome)).toEqual(['importable', 'blocked'])
   })
 
   it('answers an empty session with an empty plan rather than a throw', () => {
     expect(checkImport([], target())).toEqual([])
+  })
+})
+
+describe('the guards these checks judge a manifest with', () => {
+  it.each([
+    ['a generated id', marked('01T', 7)],
+    ['lowercase', 'abcdefghjkmnpqrstvwxyz0123'],
+    ['too short', 'ABC'],
+    ['the ambiguous letters I L O U', 'IIIIIIIIIIIIIIIIIIIIIIIIII'],
+    ['a traversal attempt', '../../etc/passwd'],
+    ['a 26-character name', 'x'.repeat(26)],
+    ['an empty string', ''],
+  ])('judges %s the same way EntityId does, the two patterns being written out twice', (_l, value) => {
+    expect(isUlid(value)).toBe(EntityId.safeParse(value).success)
+  })
+
+  it.each([
+    ['a generated token', 'yjKq3Zc1vHt8Lm0Pw5Rb2Nd7'],
+    ['twelve characters', 'aaaaaaaaaaaa'],
+    ['dots', 'aaaa.bbbb.cccc.dddd'],
+    ['a path', '../../secret'],
+    ['sixty-five characters', 'a'.repeat(65)],
+    ['sixteen characters', 'a'.repeat(16)],
+    ['base64 padding', 'YWJjZGVmZ2hpamtsbW5vcA=='],
+  ])('judges %s the same way ShareToken does, for the same reason', (_label, value) => {
+    expect(isShareToken(value)).toBe(ShareToken.safeParse(value).success)
+  })
+
+  it('enumerates the same roles the contract does, in the same order', () => {
+    expect([...ROLES]).toEqual(Role.options)
   })
 })

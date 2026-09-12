@@ -7,6 +7,7 @@ import { projectReasons, type TokenCarriers } from './project-checks.js'
 import { fitted, overBound, quotedId, quotedPath } from './refusal.js'
 
 export type { DroppedDocument, DroppedProject } from './drop-checks.js'
+export { overBound } from './refusal.js'
 
 interface Session {
   readonly owners: TokenCarriers
@@ -68,13 +69,13 @@ export interface CheckedProject {
 }
 
 function carriers(prepared: readonly Prepared[]): TokenCarriers {
-  const owners = new Map<string, string[]>()
+  const owners = new Map<string, Set<string>>()
   for (const one of prepared) {
     const manifest = one.converted?.manifest
     if (manifest === undefined) continue
     for (const link of manifest.shareLinks) {
-      const held = owners.get(link.token) ?? []
-      held.push(manifest.id)
+      const held = owners.get(link.token) ?? new Set<string>()
+      held.add(manifest.id)
       owners.set(link.token, held)
     }
   }
@@ -121,7 +122,7 @@ function capped(
   onDisk: ReadonlySet<string>,
 ): readonly CheckedProject[] {
   const adding = checked.filter(
-    (one) => one.outcome === 'importable' && !onDisk.has(one.projectId ?? ''),
+    (one) => one.projectId !== null && one.outcome === 'importable' && !onDisk.has(one.projectId),
   )
   const whose = 'This import would leave a store that'
   const over = overBound('projectsPerProduct', onDisk.size + adding.length, whose)
@@ -137,17 +138,18 @@ function capped(
 /**
  * Runs every blocking check §7.3 requires over one staged session, and says what will happen.
  *
- * Eight checks, each of which **blocks** the project it fails and none of which throws. A warning
- * is a check an admin clicks past, and a throw would end an upload that has nine other directories
- * left to describe — so a project comes back carrying every reason it failed for at once, and a
- * failure in one project leaves the rest of the session alone.
+ * Each **blocks** the project it fails and none of them throws. A warning is a check an admin
+ * clicks past, and a throw would end an upload that has nine other directories left to describe —
+ * so a project comes back carrying every reason it failed for at once, and a failure in one project
+ * leaves the rest of the session alone.
  *
  * The one thing that is ordered is that **schema conformance runs first**: every check after it
  * reads `tasks`, `folders`, `shareLinks` and `tabs` off a converted project, and
- * `convertBundledProject` requires input a schema has already passed (Task 3), so a v2 project
+ * `convertBundledProject` requires input a schema has already passed (Task 3), so a raw project
  * whose manifest or documents do not parse is refused with `converted: null` and never reaches the
- * converter. `drop-checks.ts` owns that half and `project-checks.ts` the rest; the two checks left
- * here are the ones that can only be answered across the **whole session**.
+ * converter. `drop-checks.ts` owns that one; `project-checks.ts` the six that read a converted
+ * project and `link-checks.ts` the three that read a share link. The two below are the ones that
+ * can only be answered across the **whole session**.
  *
  * A project id is claimed by at most one group, which is what `ImportPreview` requires and what a
  * confirm depends on: `ImportConfirmRequest` addresses a choice by `projectId`, so one id claimed

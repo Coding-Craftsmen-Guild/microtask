@@ -5,13 +5,19 @@ import type { TokenIndex } from '../ports/token-index.js'
 import { listed, quotedId, when } from './refusal.js'
 
 /**
- * Which project in this session carries each share token, one entry per link that carries it.
+ * Which projects of this session carry each share token — the **set** of them, never a count.
  *
- * One entry per **link** rather than a set of project ids, because the two in-set collisions it has
- * to answer are different questions: a token two projects of one drop carry, and a token two links
- * of the same project carry. A set of ids would collapse the second into nothing.
+ * It answers exactly one question: *does a token belong to more than one project in this drop?* A
+ * set and not a list per link, because the within-project twin must not be answered from here and a
+ * list would invite it. Two groups can claim one project id — `ImportPreview` anticipates it, and
+ * the plan answers it by letting the first group keep the id: the same project dropped as a loose
+ * directory and again inside a bundle, or one directory dropped twice. Both groups then record the
+ * same project id for the same token, so a count of entries reads two for a project holding **one**
+ * link and the first, the good row, is refused with a reason that is not true of it. Every project
+ * on the volume has share links, so that is the common case rather than the corner. The manifest is
+ * the only place the within-project answer lives, and {@link linkReasons} reads it from there.
  */
-export type TokenCarriers = ReadonlyMap<string, readonly string[]>
+export type TokenCarriers = ReadonlyMap<string, ReadonlySet<string>>
 
 /** The half of an import target a token collision is measured against. */
 export interface TargetTokens {
@@ -57,9 +63,9 @@ function tokenReasons(
   const claimed = manifest.shareLinks.map((one) => one.token)
   const held = new Set(target.tokens.collisions(target.product, manifest.id, claimed))
   return eachLink(manifest, (link, at) => {
-    const carried = owners.get(link.token) ?? []
-    const elsewhere = [...new Set(carried.filter((id) => id !== manifest.id))]
-    const mine = carried.filter((id) => id === manifest.id).length
+    const carried = owners.get(link.token) ?? new Set<string>()
+    const elsewhere = [...carried].filter((id) => id !== manifest.id)
+    const mine = manifest.shareLinks.filter((one) => one.token === link.token).length
     const owner = target.tokens.find(link.token)?.projectId ?? ''
     return [
       ...when(

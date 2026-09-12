@@ -7,7 +7,15 @@ export type { ImportFile, ImportGroup } from './grouping.js'
 
 const LONGEST_QUOTED_VALUE = 40
 
-const LONGEST_QUOTED_PATH = 120
+/**
+ * How many code points of a path a preview reason quotes before its middle is elided.
+ *
+ * Exported because a classifier's reason and a check's reason land in the same preview table, so
+ * the width a path is quoted at is a property of that table rather than of either module. 120
+ * leaves eighty characters of `MAX_PREVIEW_TEXT_LENGTH` for the sentence around it, which every
+ * reason in this directory fits inside.
+ */
+export const LONGEST_QUOTED_PATH = 120
 
 const NOT_AN_OBJECT = 'This file is not a JSON object, so it is neither a project nor a bundle'
 
