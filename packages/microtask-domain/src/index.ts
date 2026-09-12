@@ -17,6 +17,14 @@ export {
   type CountLimitKey,
   type LimitKey,
 } from './limits.js'
+export {
+  groupImportFiles,
+  MANIFEST_FILE_NAME,
+  normaliseImportPath,
+  type ImportFile,
+  type ImportGroup,
+} from './import/grouping.js'
+export { sniffGroup, sniffImportFiles, type SniffedGroup } from './import/sniff.js'
 export type { ProjectStore } from './ports/project-store.js'
 export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
