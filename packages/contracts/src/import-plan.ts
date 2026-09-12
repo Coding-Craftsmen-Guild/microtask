@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EntityId } from './document.js'
+import { EntityId, EntityName } from './document.js'
 import { LIMITS } from './limits.js'
 import { ShareLink } from './share-link.js'
 
@@ -25,53 +25,95 @@ export const ImportOutcome = z
   .enum(['importable', 'blocked', 'error'])
   .meta({ id: 'ImportOutcome', description: 'Whether a group will import, and whether it was even read' })
 
-const PreviewName = z.string().max(LIMITS.nameLength)
+/**
+ * The longest a preview row's `path`, or one of its `reasons`, may be in characters.
+ *
+ * Both hold text the **drop** chose — a path is an archive entry name, and a reason quotes the id
+ * or the name that failed — so both are bounded the way a manifest entry's `tabNames` is bounded
+ * by `MAX_LISTED_TAB_NAMES`: the builder cuts, and the schema records the cap it cut to. Eliding
+ * is the builder's job and not the schema's, because a schema that truncated a path would answer
+ * with a path that addresses nothing; a longer path arrives with its middle elided, which keeps
+ * the two ends that identify it.
+ */
+export const MAX_PREVIEW_TEXT_LENGTH = 200
+
+/**
+ * How many reasons one group carries before the builder stops adding them.
+ *
+ * §7.3 wants every problem at once rather than a queue of re-uploads, so this is generous rather
+ * than tight. A group failing more ways than this is not one an admin imports on the strength of
+ * the first few, and what still matters is that there were more — which the builder spends the
+ * last reason saying.
+ */
+export const MAX_PREVIEW_REASONS = 20
 
 /**
  * One share link a bundle asserts, as the preview is allowed to describe it.
  *
- * Derived from {@link ShareLink} by removing `token` and `createdBy` rather than by restating the
- * three fields that stay, so the one thing this shape exists to guarantee is a property of the
- * type: **there is nowhere for a token to sit.** The preview is rendered into an admin page, which
- * means serialised into the Flight payload and into the HTML, and a bundle may carry fifty links
- * per project — a preview carrying tokens would be a credential dump with no dialog in front of
- * it, which is the disclosure ADR 0033 exists to close. `createdBy` goes for the same reason: it
- * is a token too, the parent's.
+ * Derived from {@link ShareLink} by removing `token`, `createdBy` and `createdAt` rather than by
+ * restating the three fields that stay, so the one thing this shape exists to guarantee is a
+ * property of the type: **there is nowhere for a token to sit.** The preview is rendered into an
+ * admin page, which means serialised into the Flight payload and into the HTML, and a bundle may
+ * carry fifty links per project — a preview carrying tokens would be a credential dump with no
+ * dialog in front of it, which is the disclosure ADR 0033 exists to close. `createdBy` goes for
+ * the same reason: it is a token too, the parent's.
  *
- * Nothing is lost by their absence. What an admin has to decide is whether to accept the authority
- * a dropped file is asserting, and §7.3 and ADR 0019 both say that is `role` and `scope` — a
- * counts-only preview would hide an attacker-chosen `manage` link, and the token would not make it
- * any more visible. `index` is the link's position in this preview, which is how a later confirm
- * names one link without naming its credential.
+ * `createdAt` is neither, and goes because the decision §7.3 asks the admin to make is whether to
+ * accept the authority a dropped file asserts. The date a link in a file of unknown provenance
+ * claims to have been minted on is not evidence about that, and the stamps the imported link ends
+ * up carrying are Task 8's to write rather than this shape's to quote.
+ *
+ * Nothing is lost by their absence. What an admin has to decide is whether to accept that
+ * authority, and §7.3 and ADR 0019 both say that is `role` and `scope` — a counts-only preview
+ * would hide an attacker-chosen `manage` link, and the token would not make it any more visible.
+ * `index` is the link's position in this preview, which is how a later confirm names one link
+ * without naming its credential.
  *
  * An unknown key is **stripped** rather than refused, matching every other shape here that drops
  * what a caller must not choose. The preview is assembled server-side from a manifest that was
  * just read, so the failure this guards against is a field-by-field copy that forgot to drop the
  * token — and correcting that quietly is strictly better than answering an admin's preview with a
- * 500, which would withhold exactly the information they came for. `name` is relaxed from
- * `EntityName` for the reason {@link ImportPreviewGroup} gives.
+ * 500, which would withhold exactly the information they came for. `name` is relaxed the way
+ * {@link ShareLink}'s own name is, for the reason {@link ImportPreviewGroup} gives.
  */
 export const ImportPreviewShareLink = ShareLink.omit({ token: true, createdBy: true, createdAt: true })
-  .extend({ index: z.number().int().min(0), name: PreviewName })
+  .extend({ index: z.number().int().min(0), name: EntityName.or(z.literal('')) })
   .meta({ id: 'ImportPreviewShareLink', description: 'A share link a bundle asserts, named by index, never by token' })
 
-const explained = (group: { readonly outcome: string; readonly reasons: readonly string[] }): boolean =>
-  group.outcome === 'importable' || group.reasons.length > 0
+const explained = (group: {
+  readonly outcome: z.infer<typeof ImportOutcome>
+  readonly reasons: readonly string[]
+}): boolean => group.outcome === 'importable' || group.reasons.length > 0
+
+const previewGroupFields = z.object({
+  path: z.string().max(MAX_PREVIEW_TEXT_LENGTH),
+  shape: ImportShape,
+  projectId: EntityId.nullable(),
+  name: EntityName.or(z.literal('')),
+  manifestTaskCount: z.number().int().min(0).nullable(),
+  taskFilesFound: z.number().int().min(0),
+  shareLinks: z.array(ImportPreviewShareLink).readonly(),
+  existsInTarget: z.boolean(),
+  outcome: ImportOutcome,
+  reasons: z.array(z.string().max(MAX_PREVIEW_TEXT_LENGTH)).max(MAX_PREVIEW_REASONS).readonly(),
+})
 
 /**
  * One group of dropped files and what will happen to it, which is the row §7.3 renders.
  *
- * `path` is the normalised relative path the group was harvested under. It is here because two
- * groups can otherwise be indistinguishable — an error row has no project to name — and because
- * ADR 0018 requires a missing manifest to be reported against the directory that is missing it.
+ * `path` is the normalised relative path the group was harvested under, bounded by
+ * {@link MAX_PREVIEW_TEXT_LENGTH}. It is here because two groups can otherwise be
+ * indistinguishable — an error row has no project to name — and because ADR 0018 requires a
+ * missing manifest to be reported against the directory that is missing it.
  *
  * `projectId` stays a real {@link EntityId} and is `null` when there is none to report, rather than
  * being relaxed to a string: it becomes a path segment and an id failing the ULID pattern is
  * rejected and never sanitised (ADR 0019), so a hostile id belongs in a reason that quotes it and
- * not in a field a confirm could read back. `name` is the opposite case and is relaxed to a bounded
- * string, accepting `''` and refusing anything over `nameLength`: it is display-only, it is the
- * name `cleanName` will actually write, and a preview that could not encode the name of the
- * project it is refusing would fail to render the refusal.
+ * not in a field a confirm could read back. `name` is the opposite case and is relaxed the same way
+ * {@link ShareLink}'s name is, rather than bounded a second time: it is display-only and it is the
+ * name `cleanName` will actually write — already trimmed, collapsed and cut to `nameLength`, which
+ * is exactly the set `EntityName` or `''` accepts — and a preview that could not encode the name of
+ * the project it is refusing would fail to render the refusal.
  *
  * `manifestTaskCount` is `null` when no manifest was found at all, which is a different fact from a
  * manifest naming no tasks and reads differently in the table. Neither count is bounded by
@@ -85,35 +127,53 @@ const explained = (group: { readonly outcome: string; readonly reasons: readonly
  * lets the panel say the sentence §7.4 requires before an admin chooses `new`: *"N share links will
  * get new URLs; the existing project's links keep working."*
  *
- * `reasons` is plural because §7.3's preview has to describe every problem at once — a group can
- * fail the cross-check and carry a bad href, and reporting one at a time turns a migration into a
- * queue of re-uploads. A group that is not `importable` must carry at least one, checked here so
- * that a blocked row can never render with nothing in it.
+ * `reasons` is plural because the preview has to describe every problem at once — a group can fail
+ * the cross-check and carry a bad href, and reporting one at a time turns a migration into a queue
+ * of re-uploads. A group that is not `importable` must carry at least one, checked here so that a
+ * blocked row can never render with nothing in it, and the list is bounded by
+ * {@link MAX_PREVIEW_REASONS}.
+ *
+ * That check makes this a refined object schema, and in zod 4 that closes most of the ways this
+ * package composes: `.omit()`, `.pick()` and `.partial()` **throw where they are called** (zod
+ * 4.6.1), and `z.object({ ...ImportPreviewGroup.shape })` silently drops the check. `.extend()`
+ * with a new key carries it, and overwriting a key needs `.safeExtend()`. So a shape derived from
+ * this one builds on the unrefined `previewGroupFields` above, as it does for the two refined
+ * shapes below; exporting a base is the change to make when something outside this module needs
+ * one.
  */
-export const ImportPreviewGroup = z
-  .object({
-    path: z.string(),
-    shape: ImportShape,
-    projectId: EntityId.nullable(),
-    name: PreviewName,
-    manifestTaskCount: z.number().int().min(0).nullable(),
-    taskFilesFound: z.number().int().min(0),
-    shareLinks: z.array(ImportPreviewShareLink).readonly(),
-    existsInTarget: z.boolean(),
-    outcome: ImportOutcome,
-    reasons: z.array(z.string()).readonly(),
-  })
+export const ImportPreviewGroup = previewGroupFields
   .refine(explained, { error: 'a group that will not import has to say why', path: ['reasons'] })
   .meta({ id: 'ImportPreviewGroup', description: 'One dropped group, what it is, and what will happen to it' })
+
+const distinctProjects = (preview: {
+  readonly groups: readonly Pick<z.infer<typeof ImportPreviewGroup>, 'projectId'>[]
+}): boolean => {
+  const claimed = preview.groups.map((group) => group.projectId).filter((id) => id !== null)
+  return new Set(claimed).size === claimed.length
+}
+
+const previewFields = z.object({ sessionId: EntityId, groups: z.array(ImportPreviewGroup).readonly() })
 
 /**
  * Everything staged under one import session, group by group. Nothing has touched disk yet.
  *
  * `groups` is unbounded, deliberately: an admin can drop more than this product will hold, and the
  * preview is where they are told so rather than a place that refuses to describe what they dropped.
+ * Every row it holds is bounded in each of its own dimensions, so the count is the one dimension
+ * left open rather than three.
+ *
+ * A `projectId` is claimed by **at most one group**, which is the schema half of Task 4's audited
+ * id-uniqueness check — project ids unique across the whole session. Two groups can otherwise
+ * carry one id: the same project dropped as a loose `v2-project-directory` and again inside a
+ * `v2-workspace-bundle`, or one directory dropped twice. That leaves the confirm no way to say
+ * what the admin meant, because {@link ImportConfirmRequest} addresses a choice by `projectId` —
+ * one choice cannot single out one of two groups, and two choices for one id are refused. So the
+ * second group to claim an id is reported `blocked`, carrying `projectId: null` and a reason
+ * naming both paths and the id it claimed: `path` is the identity a group keeps when its id is not
+ * its own to use. Refined, with the derivation hazard {@link ImportPreviewGroup} names.
  */
-export const ImportPreview = z
-  .object({ sessionId: EntityId, groups: z.array(ImportPreviewGroup).readonly() })
+export const ImportPreview = previewFields
+  .refine(distinctProjects, { error: 'two groups claim one project id', path: ['groups'] })
   .meta({ id: 'ImportPreview', description: 'What one staged import session holds, before anything is written' })
 
 /**
@@ -131,8 +191,14 @@ export const ImportProjectChoice = z
   .object({ projectId: EntityId, choice: ConflictChoice })
   .meta({ id: 'ImportProjectChoice', description: 'One project and what was chosen for it' })
 
-const onePerProject = (request: { readonly choices: readonly { readonly projectId: string }[] }): boolean =>
-  new Set(request.choices.map((one) => one.projectId)).size === request.choices.length
+const onePerProject = (request: {
+  readonly choices: readonly Pick<z.infer<typeof ImportProjectChoice>, 'projectId'>[]
+}): boolean => new Set(request.choices.map((one) => one.projectId)).size === request.choices.length
+
+const confirmRequestFields = z.object({
+  sessionId: EntityId,
+  choices: z.array(ImportProjectChoice).max(LIMITS.projectsPerProduct),
+})
 
 /**
  * Apply one staged session, under at most one choice per project.
@@ -147,15 +213,12 @@ const onePerProject = (request: { readonly choices: readonly { readonly projectI
  * well-formed confirm of a session that has none.
  *
  * Two choices for one project are refused here, because there is no reading of that request a route
- * could honour. A choice naming a project the **session** does not hold cannot be seen from the
- * shape at all, and is a 422 rather than a silent no-op — that enforcement belongs to the route,
- * which is the only thing that can see what was staged.
+ * could honour; that one id addresses one group is {@link ImportPreview}'s to guarantee. A choice
+ * naming a project the **session** does not hold cannot be seen from the shape at all, and is a 422
+ * rather than a silent no-op — that enforcement belongs to the route, which is the only thing that
+ * can see what was staged. Refined, with the derivation hazard {@link ImportPreviewGroup} names.
  */
-export const ImportConfirmRequest = z
-  .object({
-    sessionId: EntityId,
-    choices: z.array(ImportProjectChoice).max(LIMITS.projectsPerProduct),
-  })
+export const ImportConfirmRequest = confirmRequestFields
   .refine(onePerProject, { error: 'a project can be given only one conflict choice', path: ['choices'] })
   .meta({ id: 'ImportConfirmRequest', description: 'Apply one staged session, one choice per project' })
 
@@ -164,21 +227,3 @@ export type ImportShapeValue = z.infer<typeof ImportShape>
 
 /** What will happen to a group, as a value rather than as a schema. */
 export type ImportOutcomeValue = z.infer<typeof ImportOutcome>
-
-/** One previewed share link as a value rather than as a schema. */
-export type ImportPreviewShareLinkValue = z.infer<typeof ImportPreviewShareLink>
-
-/** One previewed group as a value rather than as a schema. */
-export type ImportPreviewGroupValue = z.infer<typeof ImportPreviewGroup>
-
-/** One whole preview as a value rather than as a schema. */
-export type ImportPreviewValue = z.infer<typeof ImportPreview>
-
-/** A conflict choice as a value rather than as a schema. */
-export type ConflictChoiceValue = z.infer<typeof ConflictChoice>
-
-/** One project's conflict choice as a value rather than as a schema. */
-export type ImportProjectChoiceValue = z.infer<typeof ImportProjectChoice>
-
-/** A confirm request as a value rather than as a schema. */
-export type ImportConfirmRequestValue = z.infer<typeof ImportConfirmRequest>

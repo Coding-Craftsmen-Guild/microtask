@@ -57,7 +57,6 @@ export {
   ReorderTasksPayload,
 } from './payloads.js'
 export { BUNDLE_FORMAT, BUNDLE_VERSION, ExportBundle, ExportedProject } from './bundle.js'
-export type { ExportBundleValue, ExportedProjectValue } from './bundle.js'
 export {
   ConflictChoice,
   ImportConfirmRequest,
@@ -67,14 +66,7 @@ export {
   ImportPreviewShareLink,
   ImportProjectChoice,
   ImportShape,
+  MAX_PREVIEW_REASONS,
+  MAX_PREVIEW_TEXT_LENGTH,
 } from './import-plan.js'
-export type {
-  ConflictChoiceValue,
-  ImportConfirmRequestValue,
-  ImportOutcomeValue,
-  ImportPreviewGroupValue,
-  ImportPreviewShareLinkValue,
-  ImportPreviewValue,
-  ImportProjectChoiceValue,
-  ImportShapeValue,
-} from './import-plan.js'
+export type { ImportOutcomeValue, ImportShapeValue } from './import-plan.js'

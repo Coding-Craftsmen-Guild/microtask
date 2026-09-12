@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { EntityId } from './document.js'
 import { LIMITS } from './limits.js'
 import { ProjectManifest } from './project.js'
+import type { TaskEntry } from './task.js'
 import { TaskDocument } from './task.js'
 
 /**
@@ -25,8 +26,8 @@ export const BUNDLE_FORMAT = 'ccg.microtask'
 export const BUNDLE_VERSION = 2
 
 interface TaskPairing {
-  readonly tasks: readonly { readonly id: string; readonly tabCount: number }[]
-  readonly taskDocuments: readonly { readonly id: string; readonly tabs: readonly unknown[] }[]
+  readonly tasks: readonly Pick<z.infer<typeof TaskEntry>, 'id' | 'tabCount'>[]
+  readonly taskDocuments: readonly Pick<z.infer<typeof TaskDocument>, 'id' | 'tabs'>[]
 }
 
 const oneDocumentPerTask = (project: TaskPairing): boolean => {
@@ -46,8 +47,12 @@ const keepsEveryTab = (project: TaskPairing): boolean => {
   })
 }
 
+const exportedProjectFields = ProjectManifest.extend({
+  taskDocuments: z.array(TaskDocument).max(LIMITS.tasksPerProject),
+})
+
 /**
- * One project and every task document it names, which is what makes a bundle self-contained.
+ * One project and a document for every task its manifest names.
  *
  * The manifest's own fields extended rather than restated, for the reason {@link ProjectManifest}
  * is extended by a view: a field added to a project cannot then be left out of an export, and
@@ -56,8 +61,8 @@ const keepsEveryTab = (project: TaskPairing): boolean => {
  * `ShareIndex.add` both dereference that block on the way to serving a socket, and an import is
  * the one write path that can put a manifest on disk without it.
  *
- * Two rules are checked across the two collections, because "self-contained" is otherwise a
- * property of the bundler that nothing can see in the file it wrote:
+ * Two rules are checked across the two collections, because a bundler that kept less than it was
+ * copying otherwise writes a file that reads exactly like a whole one:
  *
  * - **One document per manifest entry, and no document for an entry that is not there.** This is
  *   the schema half of the cross-check the preview runs by id: a bundler that mapped over only its
@@ -71,13 +76,24 @@ const keepsEveryTab = (project: TaskPairing): boolean => {
  *   documents it is given (ADR 0007), so refusing that would refuse a bundle with nothing wrong
  *   with it.
  *
- * Neither rule can catch a bundler that truncated the tabs **and** recomputed the cache from what
- * it kept. What catches that is the test asserting a bundle's tabs against the source documents,
- * over a fixture with more tabs than one list row names.
+ * Those two and deliberately no further one, so the guarantee is a pairing and not referential
+ * integrity: a task's non-null `folderId` may name a folder outside its own `folders`, and a share
+ * link's `scope` may name a foreign `projectId` or a `taskId` no entry carries. Both are the
+ * **preview's** checks to make (Task 4's audited folder-reference integrity and scope containment),
+ * because both run on the converted v2 shape that a legacy file only has after conversion — a rule
+ * here would refuse such a file before conversion had a chance to make it whole. Neither rule above
+ * catches a bundler that truncated the tabs **and** recomputed the cache from what it kept either:
+ * the pairing is structural, the tab bodies are not.
+ *
+ * `.refine()` makes this a refined object schema, which in zod 4 closes most of the ways this
+ * package composes: `.omit()`, `.pick()` and `.partial()` **throw where they are called** (zod
+ * 4.6.1), and `z.object({ ...ExportedProject.shape })` silently drops both rules. `.extend()` with
+ * a new key carries them, and overwriting a key needs `.safeExtend()`. So a shape derived from this
+ * one — the token-stripped export of `?tokens=strip`, a converted-shape check — builds on the
+ * unrefined `exportedProjectFields` above and re-applies what still holds; exporting that base is
+ * the change to make when something outside this module needs it.
  */
-export const ExportedProject = ProjectManifest.extend({
-  taskDocuments: z.array(TaskDocument).max(LIMITS.tasksPerProject),
-})
+export const ExportedProject = exportedProjectFields
   .refine(oneDocumentPerTask, {
     error: 'a bundle carries exactly one task document for each task its manifest names',
     path: ['taskDocuments'],
@@ -112,9 +128,3 @@ export const ExportBundle = z
     projects: z.array(ExportedProject).max(LIMITS.projectsPerProduct),
   })
   .meta({ id: 'ExportBundle', description: 'An export: every project in it, with every task document' })
-
-/** A whole export as a value rather than as a schema. */
-export type ExportBundleValue = z.infer<typeof ExportBundle>
-
-/** One exported project as a value rather than as a schema. */
-export type ExportedProjectValue = z.infer<typeof ExportedProject>

@@ -7,6 +7,8 @@ import {
   ImportPreviewGroup,
   ImportPreviewShareLink,
   ImportShape,
+  MAX_PREVIEW_REASONS,
+  MAX_PREVIEW_TEXT_LENGTH,
 } from './import-plan.js'
 import { LIMITS } from './limits.js'
 
@@ -67,7 +69,7 @@ describe('the preview names one group per dropped directory (ADR 0018)', () => {
   })
 
   it('names exactly what section 7.3 requires of a group and nothing else', () => {
-    expect(Object.keys(ImportPreviewGroup.shape)).toEqual(FIELDS)
+    expect(Object.keys(ImportPreviewGroup.shape).sort()).toEqual([...FIELDS].sort())
   })
 
   it.each(FIELDS)('requires %s rather than leaving it optional', (field) => {
@@ -129,9 +131,43 @@ describe('the preview names one group per dropped directory (ADR 0018)', () => {
     expect(ImportPreviewGroup.safeParse(group({ name: 'x'.repeat(LIMITS.nameLength + 1) })).success).toBe(false)
   })
 
+  it('refuses a name of nothing but spaces, which no cleaned name is and no other shape takes', () => {
+    expect(ImportPreviewGroup.safeParse(group({ name: '   ' })).success).toBe(false)
+    expect(ImportPreviewShareLink.safeParse(link({ name: '   ' })).success).toBe(false)
+  })
+
+  it('bounds the path and every reason, both being text the drop itself chose', () => {
+    const at = 'v'.repeat(MAX_PREVIEW_TEXT_LENGTH)
+    expect(ImportPreviewGroup.safeParse(group({ path: at })).success).toBe(true)
+    expect(ImportPreviewGroup.safeParse(group({ path: `${at}v` })).success).toBe(false)
+    expect(ImportPreviewGroup.safeParse(group({ outcome: 'blocked', reasons: [at] })).success).toBe(true)
+    expect(ImportPreviewGroup.safeParse(group({ outcome: 'blocked', reasons: [`${at}v`] })).success).toBe(false)
+  })
+
+  it('bounds how many reasons one row carries, the eliding being the builder’s job', () => {
+    const reasons = (count: number): string[] =>
+      Array.from({ length: count }, (_, index) => `reason ${String(index)}`)
+    const at = group({ outcome: 'blocked', reasons: reasons(MAX_PREVIEW_REASONS) })
+    const over = group({ outcome: 'blocked', reasons: reasons(MAX_PREVIEW_REASONS + 1) })
+    expect(ImportPreviewGroup.safeParse(at).success).toBe(true)
+    expect(ImportPreviewGroup.safeParse(over).success).toBe(false)
+  })
+
   it('flags a project id the target store already holds, which is what a choice is offered for', () => {
     expect(ImportPreviewGroup.parse(group({ existsInTarget: true })).existsInTarget).toBe(true)
     expect(ImportPreviewGroup.safeParse(group({ existsInTarget: 'maybe' })).success).toBe(false)
+  })
+
+  it('refuses two groups claiming one project id, which one per-project choice cannot address', () => {
+    const twice = preview({ groups: [group(), group({ path: 'volume/inbox/bundle.json' })] })
+    expect(ImportPreview.safeParse(twice).success).toBe(false)
+  })
+
+  it('takes any number of groups with no id to claim, an unread drop having none to collide', () => {
+    const orphan = (path: string): Record<string, unknown> =>
+      group({ path, shape: 'unrecognised', projectId: null, outcome: 'error', reasons: ['no manifest'] })
+    const dropped = preview({ groups: [group(), orphan('volume/loose'), orphan('volume/other')] })
+    expect(ImportPreview.safeParse(dropped).error?.issues ?? []).toEqual([])
   })
 })
 
@@ -244,5 +280,13 @@ describe('a confirm applies one staged session under one choice per project', ()
   it('refuses a project id that is not an id, since a choice names a path segment', () => {
     const hostile = confirm({ choices: [{ projectId: '../../etc', choice: 'skip' }] })
     expect(ImportConfirmRequest.safeParse(hostile).success).toBe(false)
+  })
+})
+
+describe('the three refined shapes are built on a base rather than derived from (zod 4)', () => {
+  it('throws on the omit, pick and partial this package composes with everywhere else', () => {
+    expect(() => ImportPreviewGroup.omit({ path: true })).toThrow(/refinements/)
+    expect(() => ImportPreview.partial()).toThrow(/refinements/)
+    expect(() => ImportConfirmRequest.pick({ sessionId: true })).toThrow(/refinements/)
   })
 })

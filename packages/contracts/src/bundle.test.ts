@@ -112,7 +112,7 @@ describe('the bundle format is a discriminator, not a pair of loose fields (ADR 
   })
 })
 
-describe('an exported project is self-contained by construction', () => {
+describe('an exported project carries a document for every task its manifest names', () => {
   it('is the manifest own fields plus the task documents, with nothing renamed', () => {
     expect(Object.keys(ExportedProject.shape)).toEqual([...Object.keys(ProjectManifest.shape), 'taskDocuments'])
   })
@@ -166,6 +166,11 @@ describe('an exported project is self-contained by construction', () => {
 
   it('accepts an empty share-link block, which is what a token-stripped export carries', () => {
     expect(ExportedProject.safeParse(project({ shareLinks: [] })).error?.issues ?? []).toEqual([])
+  })
+
+  it('is refined, so zod throws on the omit a derived shape reaches for, which its base takes', () => {
+    expect(() => ExportedProject.omit({ shareLinks: true })).toThrow(/refinements/)
+    expect(() => ExportedProject.partial()).toThrow(/refinements/)
   })
 })
 
