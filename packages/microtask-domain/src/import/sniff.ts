@@ -1,5 +1,6 @@
 import { BUNDLE_FORMAT, BUNDLE_VERSION, type ImportShapeValue } from '@repo/contracts'
 import { groupImportFiles, MANIFEST_FILE_NAME } from './grouping.js'
+import { isRecord } from './json.js'
 import type { ImportFile, ImportGroup } from './grouping.js'
 
 export type { ImportFile, ImportGroup } from './grouping.js'
@@ -110,9 +111,6 @@ export function elideMiddle(value: string, longest: number): string {
   const tail = longest - 1 - head
   return `${points.slice(0, head).join('')}…${points.slice(points.length - tail).join('')}`
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const isLegacyProject = (json: Record<string, unknown>): boolean =>
   LEGACY_KEYS.every((key) => Object.hasOwn(json, key))

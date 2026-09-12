@@ -6,6 +6,7 @@ import type { Tab } from '../entities/tab.js'
 import type { TaskDocument } from '../entities/task.js'
 import { cleanName } from '../limits.js'
 import { taskCache, type TaskCache } from '../services/task-cache.js'
+import { isRecord } from './json.js'
 
 const PROJECT_FALLBACK = 'Untitled project'
 
@@ -47,9 +48,6 @@ interface Pairing {
   readonly entry: TaskEntry
   readonly document: TaskDocument
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const records = (value: unknown): readonly Record<string, unknown>[] => {
   const members: readonly unknown[] = Array.isArray(value) ? value : []

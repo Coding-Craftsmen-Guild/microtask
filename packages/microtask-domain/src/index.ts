@@ -32,6 +32,13 @@ export {
   type BundledProject,
   type ConvertedProject,
 } from './import/legacy.js'
+export {
+  checkImport,
+  type CheckedProject,
+  type DroppedDocument,
+  type DroppedProject,
+  type ImportTarget,
+} from './import/checks.js'
 export type { ProjectStore } from './ports/project-store.js'
 export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
