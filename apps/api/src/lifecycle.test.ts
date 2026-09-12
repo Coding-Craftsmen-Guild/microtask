@@ -116,6 +116,22 @@ describe('a stop signal, which docker stop sends before it resorts to SIGKILL', 
     expect(exits).toEqual([0])
   })
 
+  it('exits non-zero when the drain fails, rather than reporting a stop that never happened', async () => {
+    const handle = await listen(new Hono().get('/', (c) => c.text('serving')))
+    await drainServer(handle.server)
+    dispose.push(
+      onStopSignal(handle.server, (code) => {
+        exits.push(code)
+      }),
+    )
+
+    process.emit('SIGTERM')
+
+    await vi.waitFor(() => {
+      expect(exits).toEqual([1])
+    })
+  })
+
   it('closes an idle keep-alive connection, so a pooling client cannot hold the stop open', async () => {
     const agent = new Agent({ keepAlive: true, maxSockets: 1 })
     const { port } = await running(new Hono().get('/', (c) => c.text('serving')))
@@ -163,6 +179,22 @@ describe('a stop signal, which docker stop sends before it resorts to SIGKILL', 
 })
 
 describe('drainServer', () => {
+  it('unrefs its idle sweep, so the sweep itself can never be what holds the process open', async () => {
+    const handle = await listen(new Hono().get('/', (c) => c.text('serving')))
+    const timers: { hasRef: () => boolean }[] = []
+    const real = globalThis.setInterval.bind(globalThis)
+    vi.spyOn(globalThis, 'setInterval').mockImplementation(((work: () => void, ms: number) => {
+      const timer = real(work, ms)
+      timers.push(timer as unknown as { hasRef: () => boolean })
+      return timer
+    }) as typeof globalThis.setInterval)
+
+    await drainServer(handle.server)
+
+    expect(timers).toHaveLength(1)
+    expect(timers[0]?.hasRef()).toBe(false)
+  })
+
   it('resolves once, and rejects a second drain rather than reporting a clean stop twice', async () => {
     const handle = await listen(new Hono().get('/', (c) => c.text('serving')))
     await expect(drainServer(handle.server)).resolves.toBeUndefined()
