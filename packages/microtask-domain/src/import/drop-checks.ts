@@ -1,18 +1,12 @@
-import { LIMITS, ProjectManifest, TaskDocument } from '@repo/contracts'
+import { ProjectManifest, TaskDocument } from '@repo/contracts'
 import type { ProjectManifest as Manifest } from '../entities/manifest.js'
 import type { TaskDocument as Document } from '../entities/task.js'
-import { isRecord, members } from './json.js'
 import { convertBundledProject, type ConvertedProject } from './legacy.js'
 import { listed, located, quotedId, quotedPath, when } from './refusal.js'
 
 interface Parsed<T> {
   readonly reasons: readonly string[]
   readonly data: T | null
-}
-
-interface RawName {
-  readonly at: string
-  readonly value: string
 }
 
 /**
@@ -92,33 +86,6 @@ function asDocument(path: string, json: unknown): Parsed<Document> {
   return { reasons: [`${quotedPath(path)} is not a task document: ${where}`], data: null }
 }
 
-const nameAt = (at: string, value: unknown): readonly RawName[] => {
-  const name = isRecord(value) ? value['name'] : undefined
-  return typeof name === 'string' ? [{ at, value: name }] : []
-}
-
-const namesIn = (at: string, value: unknown): readonly RawName[] =>
-  members(value).flatMap((one, index) => nameAt(`${at}.${String(index)}.name`, one))
-
-function droppedNames(raw: unknown, documents: readonly DroppedDocument[]): readonly RawName[] {
-  const record = isRecord(raw) ? raw : {}
-  const tabs = documents.flatMap((one) =>
-    namesIn(`${one.path} tabs`, isRecord(one.json) ? one.json['tabs'] : undefined),
-  )
-  return [
-    ...nameAt('name', record),
-    ...namesIn('folders', record['folders']),
-    ...namesIn('tasks', record['tasks']),
-    ...namesIn('shareLinks', record['shareLinks']),
-    ...tabs,
-  ]
-}
-
-const nameReasons = (names: readonly RawName[]): readonly string[] =>
-  names
-    .filter((one) => [...one.value].length > LIMITS.nameLength)
-    .map((one) => `The name at ${one.at} is longer than ${String(LIMITS.nameLength)} characters`)
-
 const missingFrom = (wanted: readonly string[], held: ReadonlySet<string>): readonly string[] => [
   ...new Set(wanted.filter((id) => !held.has(id))),
 ]
@@ -163,14 +130,21 @@ export function crossCheckReasons(
 }
 
 /**
- * Runs the checks that read the **raw drop set**, then converts what passed them.
+ * Runs the schema conformance the rest of the preview depends on, then converts what passed it.
  *
- * Schema conformance first, so everything downstream reads a project of known shape, and the name
- * bound beside it on the same raw data — which is where a malformed v2 name still exists, the
- * converters putting every project, task, folder and tab name through `cleanName` (Task 3). The
- * name bound is reported as a sentence rather than left to the schema's field path, and it can
- * change no outcome that criterion alone would not have changed: `EntityName` bounds all five name
- * kinds on the same bytes. It is the sentence, not the refusal, that this adds.
+ * It runs **first** so everything downstream reads a project of known shape, and it gates the
+ * conversion rather than merely preceding it: `convertBundledProject` reads `folders`, `tasks` and
+ * `tabs` directly and throws a bare `TypeError` when one is absent (Task 3), so a manifest nobody
+ * has checked would end an upload that has nine other directories left to describe.
+ *
+ * There is deliberately **no name bound here** — see the amendment dated 2026-09-12 on the plan's
+ * collection-bounds criterion. Every name is either repaired or already refused: `cleanName` caps
+ * the project, folder, task and tab names in both converters, `ShareLink.name` bounds the one name
+ * they leave alone, and an over-long raw name fails `ProjectManifest` below. A bound of its own
+ * could therefore only *disagree* with them, and it did: measured on the raw value it refused
+ * `" " + 80 characters + " "`, which `EntityName` accepts — it trims first — and which `cleanName`
+ * writes as a clean 80-character name. Measuring the trimmed value instead only moves the false
+ * refusal to the 200-character name `cleanName` truncates rather than rejects.
  *
  * A legacy project is schema-checked on the **converted** manifest, that being the only manifest a
  * legacy file has. That is the one thing anywhere in the preview that refuses a `position` which is
@@ -190,11 +164,7 @@ export function prepareDrop(drop: DroppedProject): Prepared {
   }
   const manifest = asManifest(drop.path, drop.manifest)
   const parsed = drop.documents.map((one) => asDocument(one.path, one.json))
-  const reasons = [
-    ...manifest.reasons,
-    ...parsed.flatMap((one) => one.reasons),
-    ...nameReasons(droppedNames(drop.manifest, drop.documents)),
-  ]
+  const reasons = [...manifest.reasons, ...parsed.flatMap((one) => one.reasons)]
   const kept = parsed.flatMap((one) => (one.data === null ? [] : [one.data]))
   if (manifest.data === null || kept.length !== parsed.length) {
     return { drop, reasons, converted: null, named: [] }

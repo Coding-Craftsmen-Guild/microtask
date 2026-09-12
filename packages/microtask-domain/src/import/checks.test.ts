@@ -13,6 +13,7 @@ import type { ShareLink } from '../entities/share-link.js'
 import type { Tab } from '../entities/tab.js'
 import type { TaskDocument } from '../entities/task.js'
 import type { TokenIndex } from '../ports/token-index.js'
+import { cleanName } from '../limits.js'
 import { ShareIndex } from '../storage/share-index.js'
 import { projectListItem, projectView } from '../views/project-view.js'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
@@ -485,6 +486,37 @@ describe('collection bounds, because import never reaches assertWithin', () => {
     expect(said(checked[0] as CheckedProject)).toContain(String(LIMITS.projectsPerProduct))
   })
 
+  it('counts what a confirm will add and not what it will overwrite, a full store taking a replace', () => {
+    const onDisk = [
+      ...Array.from({ length: LIMITS.projectsPerProduct - 1 }, (_unused, index) =>
+        marked('01Q', index + 1),
+      ),
+      P1,
+    ]
+    expect(onDisk).toHaveLength(LIMITS.projectsPerProduct)
+    const checked = only(directory(project(P1), []), target({ projectIds: onDisk }))
+    expect(checked.existsInTarget).toBe(true)
+    expect(checked.reasons).toEqual([])
+    expect(checked.outcome).toBe('importable')
+  })
+
+  it('adds the cap reason only to the rows that would add a project, not to one already refused', () => {
+    const onDisk = Array.from({ length: LIMITS.projectsPerProduct - 1 }, (_unused, index) =>
+      marked('01Q', index + 1),
+    )
+    const tasks = [taskEntry(T1, 'Dangling', { folderId: F3 })]
+    const already = bundled(project(P2, { tasks }), documentsFor([T1]), 9)
+    const adding = [1, 2].map((at) => bundled(project(marked('01R', at)), [], at))
+    const checked = checkImport([already, ...adding], target({ projectIds: onDisk }))
+    expect(checked.map((one) => one.outcome)).toEqual(['blocked', 'blocked', 'blocked'])
+    expect(checked[0]?.reasons).toHaveLength(1)
+    expect(said(checked[0] as CheckedProject)).toContain(F3)
+    expect(said(checked[0] as CheckedProject)).not.toContain('the limit is')
+    for (const one of checked.slice(1)) {
+      expect(said(one)).toContain(`holds ${String(LIMITS.projectsPerProduct + 1)} projects`)
+    }
+  })
+
   it('leaves a drop that fits beside what is on disk alone', () => {
     const onDisk = Array.from({ length: LIMITS.projectsPerProduct - 6 }, (_unused, index) =>
       marked('01Q', index + 1),
@@ -496,25 +528,27 @@ describe('collection bounds, because import never reaches assertWithin', () => {
     expect(checked.every((one) => one.outcome === 'importable')).toBe(true)
   })
 
-  it('blocks a name in the drop set longer than a name may be, as a sentence of its own', () => {
-    const tasks = [taskEntry(T1, 'Fine'), { ...taskEntry(T2, 'Long'), name: 'x'.repeat(200) }]
+  it('bounds no name itself, a padded one the schemas accept being no reason to refuse', () => {
+    const padded = ` ${'x'.repeat(LIMITS.nameLength)} `
+    expect(ProjectView.safeParse(project(P1, { name: padded })).success).toBe(true)
+    const tabs = [tabAt(B1, 0), { ...tabAt(B2, 1), name: padded }]
+    const tasks = [{ ...taskEntry(T1, 'Go-live', { tabCount: 2 }), name: padded }]
+    const shareLinks = [link(TOKEN, { name: padded })]
+    const raw = project(P1, { name: padded, folders: [folder(F1, padded)], tasks, shareLinks })
+    const checked = only(directory(raw, [documentOf(T1, tabs)]))
+    expect(checked.reasons).toEqual([])
+    expect(checked.outcome).toBe('importable')
+    expect(checked.converted?.manifest.name).toHaveLength(LIMITS.nameLength)
+  })
+
+  it('leaves an over-long name to the schema, which refuses it, and to cleanName, which cuts it', () => {
+    const long = 'x'.repeat(200)
+    const tasks = [taskEntry(T1, 'Fine'), { ...taskEntry(T2, 'Long'), name: long }]
     const checked = only(directory(project(P1, { tasks }), documentsFor([T1, T2])))
     expect(checked.outcome).toBe('blocked')
-    expect(said(checked)).toContain(String(LIMITS.nameLength))
+    expect(checked.reasons).toHaveLength(1)
     expect(said(checked)).toContain('tasks.1.name')
-  })
-
-  it('bounds a share link name in the drop set too, that being the one name that may be empty', () => {
-    const shareLinks = [link(TOKEN), link(OTHER, { name: 'x'.repeat(200) })]
-    const checked = only(directory(project(P1, { shareLinks }), []))
-    expect(said(checked)).toContain('shareLinks.1.name')
-  })
-
-  it('bounds a tab name in a dropped task document', () => {
-    const tabs = [tabAt(B1, 0), { ...tabAt(B2, 1), name: 'x'.repeat(200) }]
-    const raw = project(P1, { tasks: [taskEntry(T1, 'Go-live', { tabCount: 2 })] })
-    const checked = only(directory(raw, [documentOf(T1, tabs)]))
-    expect(said(checked)).toContain('tabs.1.name')
+    expect(cleanName(long, 'fallback')).toHaveLength(LIMITS.nameLength)
   })
 })
 
@@ -650,9 +684,11 @@ describe('what the checks answer with', () => {
   })
 
   it('spends its last reason saying how many it dropped, a row holding only so many', () => {
-    const named = taskIds(MAX_PREVIEW_REASONS + 5)
-    const tasks = named.map((id) => ({ ...taskEntry(id, 'x'), name: 'x'.repeat(200) }))
-    const checked = only(directory(project(P1, { tasks }), documentsFor(named)))
+    const planted = Array.from({ length: MAX_PREVIEW_REASONS + 5 }, (_unused, index) => ({
+      token: `short${String(index)}`,
+      name: 'Planted',
+    }))
+    const checked = only(legacy({ shareLinks: planted }))
     expect(checked.reasons).toHaveLength(MAX_PREVIEW_REASONS)
     expect(checked.reasons.at(-1)).toBe('and 7 more problems')
   })

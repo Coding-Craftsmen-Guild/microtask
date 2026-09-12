@@ -129,7 +129,7 @@ function capped(
   const blocked = new Set(adding)
   return checked.map((one) =>
     blocked.has(one)
-      ? { ...one, outcome: 'blocked' as const, reasons: fitted([...one.reasons, ...over]) }
+      ? { ...one, outcome: 'blocked' as const, reasons: [...one.reasons, ...over] }
       : one,
   )
 }

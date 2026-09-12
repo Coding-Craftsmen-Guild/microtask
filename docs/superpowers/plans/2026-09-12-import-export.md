@@ -360,6 +360,58 @@ Same reason, one task later — each is a reading the criteria left open:
   `import/json.ts` beside `grouping.ts` — not exported from `src/index.ts` — and have all three
   import it.
 
+### What Task 4 settled, which later tasks are written against
+
+Same reason again. Every entry here is a reading the criteria left open, and the last four are
+things Task 9 would otherwise reintroduce or get wrong.
+
+- **The checks take one project per row, not one group.** `checkImport(projects, target)` takes a
+  `DroppedProject` per **project**, so Task 9 explodes a `v2-workspace-bundle` into one per
+  embedded project — which `ImportPreview`'s distinct-`projectId` refinement requires anyway — and
+  gives each its own `path`, because that `path` is what a schema reason quotes and the only thing
+  that tells a bundle's nine rows apart.
+- **`DroppedDocument.id` is the id the *drop* named the document by**, not the document's own: a
+  task file's basename, or `null` for a bundled document that nothing but its own `id` names. That
+  is Task 2's settled reading made into a field. Passing a document's own id for a **file** silently
+  disables the third cross-check reason below.
+- **Legacy arrives already converted; v2 arrives raw.** `convertBundledProject` requires
+  pre-validated input, so schema-check-then-convert is `checks.ts`'s to own and not a caller's to
+  remember. `convertLegacyProject` is total, needs a clock and an id generator, and has no order to
+  get wrong — so the caller runs it and hands over the `ConvertedProject`.
+- **Schema conformance also runs on the *converted* legacy manifest**, that being the only manifest
+  a legacy file has. It is the only thing anywhere in the preview that refuses a `position` which is
+  not a number — carried through as `NaN`, written by `JSON.stringify` as `null`, and refused by the
+  client through `ProjectList` with the whole index behind it. It makes the id, token and count
+  checks redundant on that path and not dead: each reports its own sentence where a zod issue path
+  names only a field, and each one's absence is a live hole on the other path.
+- **The cross-check carries a third reason neither difference can see:** a task file named for an id
+  the manifest *does* name, holding the document of a different task. Both id sets agree on such a
+  file, and `convertBundledProject` pairs a document to its entry by the id **inside** the document,
+  so it lands the wrong content under the right name and leaves the entry's cache untouched. It is
+  one reason inside the cross-check, not a ninth check.
+- **Bounds are read from `LIMITS`, not applied through `assertWithin`.** `assertWithin` asks "may
+  one more be added?" and answers by throwing; a preview asks "is what arrived already over?" and
+  may not throw. Same numbers, same module, so nothing can drift from `ProjectService.create`.
+- **Reasons arrive pre-elided *and* pre-capped** — each inside `MAX_PREVIEW_TEXT_LENGTH`, the list
+  inside `MAX_PREVIEW_REASONS`, the last reason spent saying how many were dropped. Task 9 must not
+  elide or truncate a second time, for the reason Task 2 settled for classifier reasons.
+- **A reason names a field path, never a schema's sentence.** Including zod's message would make the
+  bounds tests unfalsifiable, its "Too big" text quoting the very limit a purpose-built reason
+  exists to name.
+- **`CheckedProject.converted` is populated on a blocked row too**, so a preview row can report the
+  counts it is refusing; `outcome` is the field that says whether it may be written. It also carries
+  **live tokens**, being the manifest as it would be stored — so Task 9 builds
+  `ImportPreviewShareLink` from it by index, role and scope and never serialises it whole (ADR 0033).
+- **The session `projectsPerProduct` bound must be re-run by the confirm**, inside the `QueueLock`
+  and **after** any reminting: a concurrent confirm may have landed, and a project imported as `new`
+  takes a fresh id, so it adds one where the colliding id it arrived with adds none.
+- **Four halves of the id/token/role check cannot fire on either path** — the `role` enum,
+  `createdBy`, and the tab-id and folder-id ULID halves. The legacy converter always produces
+  `view`/`write`, `createdBy: null`, minted ULID tab ids and no folders, and a v2 drop is blocked
+  earlier by the schema. They are kept as defence in depth, tested directly against hand-built
+  converted projects, and a later task must not read their presence as evidence that some input
+  reaches them.
+
 ### Task 2: grouping and the four shapes
 
 **Files:** create `packages/microtask-domain/src/import/grouping.ts`, `sniff.ts` + tests; modify
@@ -530,6 +582,22 @@ so these return outcomes and the tests assert on the returned plan.
       bound on the **drop set** instead, the raw manifest and raw task documents, where a malformed
       v2 name still exists; the legacy path then needs no name bound at all, conversion guaranteeing
       it. See "What Task 3 settled" above.
+      **[amended 2026-09-12, during Task 4] The name bound goes entirely. The collection *counts*
+      run exactly as specified above.** The amendment before this one was right that a malformed v2
+      name still exists in the raw drop and wrong that it is a problem there: it is either repaired
+      or already refused, in every one of the five cases. `cleanName` caps the project, folder, task
+      and tab names in *both* converters (`legacy.ts:64,77,100,159` and `:211,214,217`); the
+      share-link name the v2 converter deliberately leaves alone is bounded by
+      `ShareLink.name` = `EntityName.or(z.literal(''))`, so an over-long one fails the
+      schema-conformance check above and blocks the project with a reason. A bound of its own can
+      therefore produce no outcome those do not already produce — except a **false refusal**, and it
+      did produce one: measured on the raw value it blocked `" " + 80 characters + " "`, which
+      `EntityName` accepts because it trims first, and which `cleanName` writes as a clean
+      80-character name. Measuring the trimmed value instead does not fix that, it only moves it:
+      `cleanName` *truncates* at `nameLength` rather than rejecting, so a 200-character name is
+      repaired too and refusing it is equally wrong. Verified against zod 4.6.1 and `cleanName`
+      before removal, and pinned by two tests — one that a padded name imports clean, one that an
+      over-long name draws exactly one reason, the schema's.
 - [ ] **Scope containment**: every share link's scope resolves inside the project it arrived with. A
       test pins a link whose `scope.taskId` names a task in a **different project of the same
       bundle** — plausible, and the case a naive "does this task id exist anywhere" check passes.

@@ -14,15 +14,3 @@
  */
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
-
-/**
- * The members of a raw JSON array, or none at all when the value is not one.
- *
- * Every collection the preview's checks read off an unvalidated manifest — `folders`, `tasks`,
- * `shareLinks`, a document's `tabs` — arrives as `unknown`, and a hand-edited file is as likely to
- * carry `null` there as an array. Answering with an empty list rather than a throw is what lets a
- * check report what it found: the schema-conformance check has already said the collection is
- * missing, and a second module crashing on the same file would cost the other nine directories in
- * the drop their preview rows.
- */
-export const members = (value: unknown): readonly unknown[] => (Array.isArray(value) ? value : [])
