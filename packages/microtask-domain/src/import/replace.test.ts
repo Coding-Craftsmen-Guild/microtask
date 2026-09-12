@@ -19,6 +19,7 @@ const B1 = marked('01B', 1)
 const B2 = marked('01B', 2)
 const B4 = marked('01B', 4)
 const F1 = marked('01F', 1)
+const F2 = marked('01F', 2)
 
 const OLDER = '2026-01-01T00:00:00.000Z'
 const BUNDLED = '2026-05-05T05:05:05.000Z'
@@ -44,7 +45,7 @@ const KEPT = linkAt(UNMENTIONED, { name: 'Long-standing client', role: 'write' }
 const current = (): ProjectManifest =>
   manifest(P1, {
     name: 'Launch as it stands',
-    folders: [folder(F1, 'Clients')],
+    folders: [folder(F1, 'Clients as they stand')],
     tasks: [
       taskEntry(CA, 'Alpha as it stands'),
       taskEntry(CB, 'Beta as it stands', { position: 1 }),
@@ -58,7 +59,10 @@ const current = (): ProjectManifest =>
 const incoming = (): ConvertedProject => ({
   manifest: manifest(P1, {
     name: 'Launch as the bundle has it',
-    folders: [folder(F1, 'Clients')],
+    folders: [
+      folder(F1, 'Clients as the bundle has them'),
+      folder(F2, 'Prospects, which the bundle adds'),
+    ],
     tasks: [
       taskEntry(CA, 'Alpha'),
       taskEntry(CB, 'Beta', { position: 1 }),
@@ -119,6 +123,14 @@ describe('replace preserves the project identity', () => {
     const shared = out.project.manifest.shareLinks.find((one) => one.token === SHARED) as ShareLink
     expect(shared.role).toBe('manage')
     expect(shared.name).toBe('Manager as the bundle has it')
+  })
+
+  it('takes the bundle project name and folders, which a stale re-import would otherwise keep', () => {
+    const out = replaceProject(incoming(), current())
+    expect(out.project.manifest.name).toBe('Launch as the bundle has it')
+    expect(out.project.manifest.name).not.toBe(current().name)
+    expect(out.project.manifest.folders).toEqual(incoming().manifest.folders)
+    expect(out.project.manifest.folders).not.toEqual(current().folders)
   })
 })
 

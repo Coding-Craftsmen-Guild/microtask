@@ -431,6 +431,59 @@ things Task 9 would otherwise reintroduce or get wrong.
   within-project twin is read off `manifest.shareLinks`, the only place that answer lives, and the
   set makes counting entries unexpressible rather than merely discouraged.
 
+### What Task 5 settled, which later tasks are written against
+
+Same reason again, and the first three are things Task 9 cannot get right by reading the criteria.
+
+- **`replaceProject`'s `current` must be resolved by the incoming project's own id, and by nothing
+  else.** Its precondition is that `current` is the manifest of the project `incoming` collides
+  with, and **nothing enforces it** — the function reads `current` only for its share links and its
+  task ids, and writes `incoming`'s id either way. Hand it the wrong manifest and it writes the
+  bundle's project while reporting *another* project's tasks as removed, and merges that project's
+  share links into this one. The confirm therefore reads the manifest at
+  `incoming.manifest.id` — not the manifest of the row, the session, or the collision flag the
+  preview computed earlier, any of which can have moved by the time the lock is held.
+  `ShareIndex.add` is a partial backstop, refusing a token another project owns, but it says
+  nothing about the tasks.
+- **`replace` lives in its own module**, `import/replace.ts`, not in `remint.ts`. The two share no
+  input and no theme: reminting rewrites identity from an injected generator, where a replace
+  reconciles against what the target already holds, mints nothing, and has to return a second
+  value — `removedTaskIds`, which cannot be read off the resulting manifest.
+- **How `removedTaskIds` is applied is deliberately left open**, because ADR 0006 decides it. A
+  project built whole and moved into place drops those files by construction; an apply that writes
+  in place has to delete them, and must do it through `store.deleteTask` rather than
+  `TaskService.remove`, which takes the same non-reentrant lock the confirm already holds
+  (ADR 0030). Either way the list is the statement of what a replace removes, which a per-project
+  outcome has to be able to report.
+- **`remintProject` returns only the reminted `ConvertedProject`** — no old-to-new maps. Link order,
+  names, roles and stamps are preserved, so a caller needing to pair an input link with its output
+  one does it by index. A confirm that wants to say *"N share links will get new URLs"* takes N from
+  the preview row it already has, not from here.
+- **Folder ids and inner tab ids are not minted**, and ADR 0019's list does not ask for them.
+  Nothing references either across a project: a folder id is named only by `TaskEntry.folderId` in
+  the same manifest, a tab id only inside its own task document, and neither becomes a path segment
+  or an index key. A later task must not read their absence as an omission.
+- **A reference that resolves to nothing is carried through unchanged, not repaired** — a
+  `scope.taskId` naming a task the project has not, or a document the manifest names no entry for.
+  Both are refused by checks that already exist, which is what `DroppedProject`'s `'converted'`
+  shape exists to allow, so **re-checking a reminted project reports the problem** where nulling it
+  would import a project nobody could be warned about. Widening such a task scope to a project
+  scope is specifically not the answer: it hands the holder authority no check agreed to.
+- **The bundle is the authority for everything it carries; the kept links are the only thing a
+  replace adds to it.** So a link both sides hold takes the bundle's name and role, the project
+  name, folders and both stamps are the bundle's (design §7.4), and the bundle's links come first
+  with the kept tail after. That ordering is load-bearing for Task 6: a replace into a store
+  holding nothing then produces *exactly* the bundle's manifest, which is what lets the
+  export/import/export round trip compare equal.
+- **A share link the bundle never mentions is kept**, and that is also why a replace needs no
+  lineage pass at all: preserved tokens plus kept links means every token either manifest held
+  still exists, so no `createdBy` that resolved before resolves nowhere afterwards.
+- **What a duplicated token actually costs was measured here and the record corrected.** It is not
+  the link-flips-on-restart ADR 0019 described; `ShareIndex.add` refuses the token and
+  `warmTokenIndex` is awaited before `serve()` with no catch, so the next container restart never
+  opens a socket. See the amendment dated 2026-09-12 on ADR 0019. Reminting and the preview's
+  token-uniqueness check are boot-critical, which is how Task 9 should weigh them.
+
 ### Task 2: grouping and the four shapes
 
 **Files:** create `packages/microtask-domain/src/import/grouping.ts`, `sniff.ts` + tests; modify
