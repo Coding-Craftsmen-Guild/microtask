@@ -2,6 +2,8 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { ProjectService } from '@repo/microtask-domain'
 import type { ApiEnv } from '../../auth/env.js'
 import type { ApiDeps } from '../../deps.js'
+import { exportProject } from './export/handlers.js'
+import { projectExportRoute } from './export/routes.js'
 import { createFolders } from './folders/app.js'
 import { deleteProject, readProject, renameProject } from './projects/handlers.js'
 import { deleteProjectRoute, readProjectRoute, renameProjectRoute } from './projects/routes.js'
@@ -29,6 +31,7 @@ export function createProjectScoped(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   app.openapi(readProjectRoute, readProject(projects))
   app.openapi(renameProjectRoute, renameProject(projects))
   app.openapi(deleteProjectRoute, deleteProject(projects))
+  app.openapi(projectExportRoute, exportProject(deps))
   app.route('/folders', createFolders(deps))
   app.route('/tasks', createTasks(deps))
   app.route('/share-links', createShareLinks(deps))

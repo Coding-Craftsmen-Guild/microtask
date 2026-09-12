@@ -5,6 +5,8 @@ import type { ApiEnv } from '../../auth/env.js'
 import { PrincipalResolver } from '../../auth/principal-resolver.js'
 import { requirePrincipal } from '../../auth/require-principal.js'
 import type { ApiDeps } from '../../deps.js'
+import { exportWorkspace } from './export/handlers.js'
+import { workspaceExportRoute } from './export/routes.js'
 import { createProjectScoped } from './project-scoped.js'
 import { createProject, listProjects } from './projects/handlers.js'
 import { createProjectRoute, listProjectsRoute } from './projects/routes.js'
@@ -33,10 +35,10 @@ const resolverFor = (deps: ApiDeps): PrincipalResolver =>
  * validated params and calls `authorize`. A `view` link scoped to one project reaches every path
  * here; what stops it reading another project is that call and nothing else.
  *
- * The four routes registered here rather than in the project-scoped child are the ones with no
+ * The five routes registered here rather than in the project-scoped child are the ones with no
  * project in their address: two collections, the bootstrap call that describes the caller's own
- * credential, and a search that spans every project. The child is mounted at
- * `/projects/:projectId`, a path none of them has a value for.
+ * credential, a search that spans every project, and an export of all of them. The child is
+ * mounted at `/projects/:projectId`, a path none of them has a value for.
  */
 export function createMicrotask(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
@@ -46,6 +48,7 @@ export function createMicrotask(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   app.openapi(createProjectRoute, createProject(projects))
   app.openapi(currentShareRoute, readCurrentShare(projects))
   app.openapi(searchRoute, search(new SearchService(deps)))
+  app.openapi(workspaceExportRoute, exportWorkspace(deps))
   app.route('/projects/:projectId', createProjectScoped(deps))
   return app
 }

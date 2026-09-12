@@ -73,6 +73,7 @@ describe('guard (2): the credential matrix, per route group', () => {
     const groups = (await oneCallPerGroup()).map((call) => call.group).sort()
     expect(groups).toEqual([
       'auth',
+      'export',
       'folders',
       'meta',
       'projects',

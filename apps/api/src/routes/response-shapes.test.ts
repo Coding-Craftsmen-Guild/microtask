@@ -48,6 +48,10 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     body: json({ name: 'Second launch' }),
   },
   [`GET ${GUARDED_PREFIX}/search`]: { path: `${GUARDED_PREFIX}/search?q=spec`, headers: admin() },
+  [`GET ${GUARDED_PREFIX}/export`]: {
+    path: `${GUARDED_PREFIX}/export?tokens=preserve`,
+    headers: admin(),
+  },
   [`GET ${GUARDED_PREFIX}/shares/current`]: {
     path: `${GUARDED_PREFIX}/shares/current`,
     headers: asLink(TOKENS.p1View),
@@ -55,6 +59,7 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
   [`GET ${PROJECT}`]: { path: P1, headers: admin() },
   [`PATCH ${PROJECT}`]: { path: P1, headers: adminJson(), body: json({ name: 'Renamed' }) },
   [`DELETE ${PROJECT}`]: { path: P1, headers: admin() },
+  [`GET ${PROJECT}/export`]: { path: `${P1}/export`, headers: admin() },
   [`GET ${PROJECT}/folders`]: { path: `${P1}/folders`, headers: admin() },
   [`POST ${PROJECT}/folders`]: {
     path: `${P1}/folders`,

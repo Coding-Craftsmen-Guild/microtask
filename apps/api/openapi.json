@@ -632,6 +632,180 @@
         ],
         "description": "One matched name, and where to find it"
       },
+      "ExportBundle": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "ccg.microtask"
+            ]
+          },
+          "version": {
+            "type": "number",
+            "enum": [
+              2
+            ]
+          },
+          "exportedAt": {
+            "type": "string"
+          },
+          "bundleId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportedProject"
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "format",
+          "version",
+          "exportedAt",
+          "bundleId",
+          "projects"
+        ],
+        "description": "An export: every project in it, with every task document"
+      },
+      "ExportedProject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Folder"
+            },
+            "maxItems": 100
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskEntry"
+            },
+            "maxItems": 500
+          },
+          "shareLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShareLink"
+            },
+            "maxItems": 50
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "taskDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskDocument"
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "folders",
+          "tasks",
+          "shareLinks",
+          "createdAt",
+          "updatedAt",
+          "taskDocuments"
+        ],
+        "description": "One project and the full document of every task it names"
+      },
+      "TaskDocument": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "tabs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tab"
+            },
+            "maxItems": 40
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tabs",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "One task file: its tabs and nothing else"
+      },
+      "Tab": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "document": {
+            "$ref": "#/components/schemas/DocumentJson"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "position",
+          "document",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "One tab inside a task, owning its own document"
+      },
+      "DocumentJson": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "doc"
+            ]
+          },
+          "content": {
+            "type": "array",
+            "items": {}
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "description": "A Tiptap document, stored as JSON and never as HTML"
+      },
       "FolderList": {
         "type": "object",
         "properties": {
@@ -791,58 +965,6 @@
           "updatedAt"
         ],
         "description": "One task and its tabs, shaped for whoever asked"
-      },
-      "Tab": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/EntityId"
-          },
-          "name": {
-            "$ref": "#/components/schemas/EntityName"
-          },
-          "position": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "document": {
-            "$ref": "#/components/schemas/DocumentJson"
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "position",
-          "document",
-          "createdAt",
-          "updatedAt"
-        ],
-        "description": "One tab inside a task, owning its own document"
-      },
-      "DocumentJson": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": [
-              "doc"
-            ]
-          },
-          "content": {
-            "type": "array",
-            "items": {}
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "description": "A Tiptap document, stored as JSON and never as HTML"
       },
       "MoveTaskPayload": {
         "type": "object",
@@ -1413,6 +1535,110 @@
         }
       }
     },
+    "/v1/microtask/export": {
+      "get": {
+        "tags": [
+          "export"
+        ],
+        "summary": "Export every project in this product",
+        "description": "Every project, each with a document for every task it names. A task file that will not read is a 409 naming the project and the task, rather than a bundle that has quietly lost it.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "strip",
+                "preserve"
+              ],
+              "default": "strip",
+              "description": "Omit every share link, or carry the links with their live tokens"
+            },
+            "required": false,
+            "description": "Omit every share link, or carry the links with their live tokens",
+            "name": "tokens",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bundle, with a document for every task each project names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/microtask/projects/{projectId}": {
       "get": {
         "tags": [
@@ -1643,6 +1869,119 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/microtask/projects/{projectId}/export": {
+      "get": {
+        "tags": [
+          "export"
+        ],
+        "summary": "Export one project",
+        "description": "This project, with a document for every task it names. A task file that will not read is a 409 naming the project and the task, rather than a bundle that has quietly lost it.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "projectId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "strip",
+                "preserve"
+              ],
+              "default": "strip",
+              "description": "Omit every share link, or carry the links with their live tokens"
+            },
+            "required": false,
+            "description": "Omit every share link, or carry the links with their live tokens",
+            "name": "tokens",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bundle, with a document for every task each project names",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportBundle"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/problem+json": {
                 "schema": {

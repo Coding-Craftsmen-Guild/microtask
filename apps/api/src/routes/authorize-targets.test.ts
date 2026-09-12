@@ -66,10 +66,9 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
     expect(ACTION_DECISIONS['share:create'].target).toBe('own-scope')
   })
 
-  it('leaves only the actions with no route: export:run, workspace:import, workspace:search', () => {
+  it('leaves only the actions with no route: workspace:import, workspace:search', () => {
     const gated = new Set(gates().map((gate) => gate.action))
     expect(ACTIONS.filter((action) => !gated.has(action))).toEqual([
-      'export:run',
       'workspace:import',
       'workspace:search',
     ])

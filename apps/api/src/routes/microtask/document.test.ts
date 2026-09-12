@@ -5,7 +5,12 @@ import { GUARDED_PREFIX, buildApp } from '../../testing/harness.js'
 const PROJECT = `${GUARDED_PREFIX}/projects/{projectId}`
 
 interface Operation {
-  readonly parameters?: { name: string; in: string; required?: boolean }[]
+  readonly parameters?: {
+    name: string
+    in: string
+    required?: boolean
+    schema?: { default?: string; enum?: string[] }
+  }[]
 }
 
 const operations = async (): Promise<Record<string, Record<string, Operation>>> => {
@@ -23,9 +28,11 @@ const cases: readonly (readonly [string, string, readonly string[]])[] = [
   [`${GUARDED_PREFIX}/projects`, 'post', []],
   [`${GUARDED_PREFIX}/search`, 'get', []],
   [`${GUARDED_PREFIX}/shares/current`, 'get', []],
+  [`${GUARDED_PREFIX}/export`, 'get', []],
   [PROJECT, 'get', ['projectId']],
   [PROJECT, 'patch', ['projectId']],
   [PROJECT, 'delete', ['projectId']],
+  [`${PROJECT}/export`, 'get', ['projectId']],
   [`${PROJECT}/folders`, 'get', ['projectId']],
   [`${PROJECT}/folders`, 'post', ['projectId']],
   [`${PROJECT}/folders/reorder`, 'post', ['projectId']],
@@ -90,6 +97,14 @@ describe('the parameters that are not path segments', () => {
 
   it('gives the bootstrap call no parameter of any kind, so no credential can reach a log', async () => {
     expect(await parameters(`${GUARDED_PREFIX}/shares/current`, 'get')).toEqual([])
+  })
+
+  it('declares the export disposition optional, defaulting to the one that carries no token', async () => {
+    for (const path of [`${GUARDED_PREFIX}/export`, `${PROJECT}/export`]) {
+      const found = (await parameters(path, 'get'))?.filter((one) => one.in === 'query')
+      expect(found).toMatchObject([{ name: 'tokens', in: 'query', required: false }])
+      expect(found?.[0]?.schema).toMatchObject({ default: 'strip', enum: ['strip', 'preserve'] })
+    }
   })
 })
 
