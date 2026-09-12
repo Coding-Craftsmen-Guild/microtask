@@ -227,7 +227,8 @@ Dockerfile — the runner stage's user, copies, probe and command, every `${VAR:
 absent ports and every exclusion. `apps/api/turbo.json` adds the three root files to the API's test
 inputs, so editing one of them is a cache miss. They read files; whether the images build and run
 is still the CI check the consequences above ask for — which, until the amendment below, no CI
-runner could have performed, because the suite the build runs needed an untracked file.
+runner could have performed, because the gate it would run before building needed an untracked
+file.
 
 ## Amended · 2026-09-12 — the suite no longer needs `data/`, and the container lifecycle is real
 
