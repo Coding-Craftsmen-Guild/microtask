@@ -25,6 +25,12 @@ export {
   type ImportGroup,
 } from './import/grouping.js'
 export { sniffGroup, sniffImportFiles, type SniffedGroup } from './import/sniff.js'
+export {
+  convertBundledProject,
+  convertLegacyProject,
+  type BundledProject,
+  type ConvertedProject,
+} from './import/legacy.js'
 export type { ProjectStore } from './ports/project-store.js'
 export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
