@@ -84,9 +84,12 @@ depth in one pass, but would reject a document for writing about prototype pollu
   0003 keeps the store dumb on purpose.
 - **It does not rewrite anything.** A document is accepted or rejected, never silently repaired, so
   what an admin previews on import is what gets stored.
-- **Live data does not exercise the allowlist.** The production dataset contains no `href` or `src`
-  at all, so the parity run in Plan 2 proves only that the guard admits real documents. The scheme
+- **The dataset measured does not exercise the allowlist.** It contains no `href` or `src` at all,
+  so the parity run in Plan 2 proves only that the guard admits those documents. The scheme
   behaviour is proven by tests, and by tests alone.
+  *(Corrected 2026-09-12: that dataset is the local development copy in `data/projects/`, not the
+  live volume, which nothing here has inspected — see the scoping note in the ADR index. Treat the
+  allowlist as load-bearing from the first import rather than eventually.)*
 
 ## Alternatives considered
 

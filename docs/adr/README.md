@@ -160,3 +160,39 @@ required setting, not a preference.
 What remains unverified is everything Coolify-specific, above all whether Coolify renames named
 volumes (ADR 0026, and step 1 of the cutover runbook). The mitigation is backups taken before
 deploy, so a wrong volume name is discovered at the import step with the original data intact.
+
+## What "production data" means in these records · 2026-09-12
+
+Several ADRs reason from a dataset they call *production*, *live* or *production customer data* —
+0026, 0029, 0039, 0042 and 0043, plus the parity inventory and both plans. **They all mean the two
+files in this machine's gitignored `data/projects/`, and those are development data, not the live
+dataset.**
+
+Measured: both were created `2026-09-09T21:16Z` and last written that evening, hours before the
+final commit of the app they belonged to (`legacy-prod`, 2026-09-10 07:56), and they are named
+`ACME Website` and `Other Co` with a share link named `Sam (agency)`. The product owner's
+instruction was explicit that the local copy is disposable and the real dataset is on the Coolify
+volume: *"discard current local, but we need to migrate the ones that are live on coolify before
+deploy."* **Nothing in this repository has ever inspected the live dataset.** Who wrote the local
+files is not established and does not matter; what matters is that no measurement of them is a
+measurement of production.
+
+The designs do not change — every guard, cap and parse was built to hold for arbitrary input, which
+is why this is a scoping correction and not a defect. Three claims get weaker, and two of them are
+cutover checks rather than code changes:
+
+- **0029** says the dataset exercises no `href` or `src`, so the scheme allowlist is never hit in
+  practice. True of the local files (`grep -c '"href"'` is 0 in both). Unknown of the live data, so
+  the allowlist should be assumed load-bearing from the first import, not eventually.
+- **0039** says stored documents round-trip unchanged, qualified as holding *for the production
+  data, which carries no links*. Same scoping. If the live data does carry links, a v2 `link` mark
+  gains `"title": null` under Tiptap 3, so the first edit of such a tab rewrites the document — the
+  round-trip check belongs in the import runbook against the real volume, where it is cheap.
+- **0042** and **0043** justify accepting a blank share-link name because *production data already
+  contains one*. The local dataset does, verified. Accepting a blank on read and refusing to mint
+  one stays correct either way: it is defensive against any stored blank, not evidence of one.
+
+The fixtures under `packages/contracts/src/testing/` are derived from these same local files, which
+bounds what has been published to this public repository — but the derivation is written to be safe
+for the live volume too, because `fixture:derive` is a step the import runbook will eventually run
+on a machine that holds it.

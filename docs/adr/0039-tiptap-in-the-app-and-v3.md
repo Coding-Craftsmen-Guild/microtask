@@ -49,9 +49,11 @@ documents were round-tripped through `getSchema(extensions).nodeFromJSON(doc).ch
 step, and every progress number is identical. Measured over `data/projects/`: five tabs across two
 projects, **12 `taskItem` nodes, 12 checked**, before and after. That equality is the licence for
 everything else here — had it failed, the rest of this ADR would be a migration plan instead.
-*(Amended 2026-09-11: compatible for the production data, which carries no links. A `link` mark
+*(Amended 2026-09-11: compatible for the dataset measured, which carries no links. A `link` mark
 Tiptap 2 wrote gains one attribute, `title: null`, the first time Tiptap 3 writes the tab — see
-the amendment below.)*
+the amendment below. Corrected 2026-09-12: that dataset is the local development copy, not the
+live volume — so re-run this round-trip against the real data during import, where it is cheap,
+because a live document carrying a link is rewritten by its first edit.)*
 
 **`trailingNode: false` is required.** StarterKit 3 bundles `TrailingNode`, which v2 had no
 equivalent of. It appends an empty trailing paragraph on the **first transaction** against any
