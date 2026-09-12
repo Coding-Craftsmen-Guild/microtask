@@ -73,3 +73,34 @@ makes migration pointless.
 
 **Always preserve, and reject on collision.** Safe, but it makes re-importing a backup alongside the
 original impossible, which is a normal thing to want.
+
+---
+
+## Amended · 2026-09-12 — a duplicated token does not flip a link, it stops the process booting
+
+The Context above says a token in two `project.json` files means "which project a live client link
+opens would flip on restart", because the index is "a single-valued `Map<token, projectId>` built in
+`readdir` order". Building the importer found that the code never gets that far, and the real failure
+is worse in a way that matters for where the check has to live.
+
+`ShareIndex.add` does not overwrite a token another project holds — it **refuses** it, throwing
+`Conflict` (`storage/share-index.ts:30`). `warmTokenIndex` calls it once per manifest with no
+`try`/`catch` (`apps/api/src/runtime.ts:50-58`), and `main()` awaits it **before** `serve()`, also
+with no catch (`apps/api/src/server.ts:41-42`). So a volume holding one token in two projects does
+not serve the wrong project: **the next container restart never opens a socket.**
+
+That puts it in the same class as a manifest missing `shareLinks` entirely, which ADR 0045 and the
+import plan's Task 4 record for the same reason — both are unreadable-at-boot rather than
+wrong-at-read.
+
+Two consequences the original decision did not draw:
+
+- **Reminting and the preview's token-uniqueness check are boot-critical, not merely correctness
+  work.** An import that lands a duplicate token takes the API down at the next deploy, on a volume
+  whose data is fine and with nothing in the response to explain it — the process simply stops
+  listening.
+- **The decision itself is unchanged and is, if anything, better supported.** `import as new` must
+  remint precisely because the alternative is not an ambiguity to be resolved later but an outage.
+
+Nothing about the choice in this record changes. Only the stated consequence of getting it wrong,
+which was too mild.
