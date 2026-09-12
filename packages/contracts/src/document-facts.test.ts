@@ -5,24 +5,44 @@ import { countTasks, emptyDocument, SAFE_HREF_SCHEMES } from './document-facts.j
 import { MAX_DOCUMENT_DEPTH } from './limits.js'
 
 /**
- * The project the cutover runbook checks, and the fixture derived from it by
+ * The two projects the cutover runbook checks, and the fixtures derived from them by
  * `scripts/derive-legacy-fixture.mjs`.
  *
  * `data/` is gitignored and holds production customer data, so a fresh clone, a CI runner and
  * every container build have no such file — and a suite that needs one cannot prove the image
- * builds (ADR 0026). The fixture carries, mechanically derived and asserted below against the
- * real file wherever that exists: the four tabs and their `position`; every node type and its
+ * builds (ADR 0026). The fixtures carry, mechanically derived and asserted below against the
+ * real files wherever those exist: the four tabs and their `position`; every node type and its
  * count (`doc`, `paragraph`, `text`, `taskList`, `taskItem`, `heading`); every `attrs`, so all
  * twelve `taskItem`s and the 12-of-12 `checked` distribution behind the measured per-tab numbers
- * survive; the absence of any `marks` array; and the nesting depth of five. That is everything
- * `countTasks` walks and everything `DocumentJson` parses, which is what makes it sufficient:
- * what it drops is the text, and `countTasks` never reads text.
+ * survive; the absence of any `marks` array; the length of every text node, so no stored line
+ * changes shape; and the nesting depth of five. That is everything `countTasks` walks and
+ * everything `DocumentJson` parses, which is what makes it sufficient: what it drops is the text,
+ * and `countTasks` never reads text.
+ *
+ * Two guards keep a re-derivation honest, because the derivation is the thing that could leak.
+ * {@link standsIn} holds on every key the script neutralises — `text`, `name`, `id`, `token` and
+ * both timestamps — rather than only on the tab names and text nodes, so a script that stopped
+ * neutralising share tokens could not commit a live one past a green suite; that guard needs no
+ * `data/` and so runs on CI too. Where `data/` is present, the stronger form runs as well: not
+ * one stored string of three characters or more appears anywhere in either committed fixture.
  */
 const FIXTURE = new URL('./testing/legacy-project.fixture.json', import.meta.url)
+const FIXTURES = [FIXTURE, new URL('./testing/legacy-project-2.fixture.json', import.meta.url)] as const
 const PRODUCTION = new URL('../../../data/projects/01M240ERCRWWCN16Q5AHP1FZAQ.json', import.meta.url)
-const hasProduction = existsSync(PRODUCTION)
+const SOURCES = [
+  PRODUCTION,
+  new URL('../../../data/projects/01M240FB4GD6PF6V0PKZVF6FD9.json', import.meta.url),
+] as const
+const hasProduction = SOURCES.every((source) => existsSync(source))
 
 const FILLER = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor '
+const DASHED = FILLER.replaceAll(' ', '-')
+const STAMP = '2026-01-01T00:00:00.000Z'
+const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
+const NEUTRALISED = new Set(['text', 'name', 'id', 'token'])
+const STAMPED = new Set(['createdAt', 'updatedAt'])
+const SHORTEST_LEAK = 3
+const LEAKABLE_STRINGS = 20
 
 interface StoredTab {
   readonly name: string
@@ -79,8 +99,37 @@ const facts = (document: unknown): Facts =>
 const structure = (tabs: readonly StoredTab[]): readonly unknown[] =>
   tabs.map(({ position, document }) => {
     const { texts, ...rest } = facts(document)
-    return { position, textNodes: texts.length, ...rest }
+    return { position, textNodes: texts.length, textLengths: texts.map((text) => text.length), ...rest }
   })
+
+type Keyed = readonly [string, string]
+
+function keyedStrings(node: unknown, key: string, into: Keyed[]): readonly Keyed[] {
+  if (Array.isArray(node)) {
+    for (const child of node) keyedStrings(child, key, into)
+    return into
+  }
+  if (isRecord(node)) {
+    for (const [own, value] of Object.entries(node)) keyedStrings(value, own, into)
+    return into
+  }
+  if (typeof node === 'string') into.push([key, node])
+  return into
+}
+
+const neutralisable = (source: URL): readonly Keyed[] =>
+  keyedStrings(JSON.parse(readFileSync(source, 'utf8')), '', []).filter(
+    ([key]) => NEUTRALISED.has(key) || STAMPED.has(key),
+  )
+
+function standsIn([key, value]: Keyed): boolean {
+  if (STAMPED.has(key)) return value === STAMP
+  if (value === '') return true
+  const mark = CROCKFORD.includes(value.slice(-1))
+  if (key === 'id') return mark && /^0+.$/.test(value)
+  if (key === 'token') return mark && DASHED.startsWith(value.slice(0, -1))
+  return FILLER.startsWith(value)
+}
 
 const doc = (...content: readonly unknown[]): unknown => ({ type: 'doc', content })
 
@@ -129,6 +178,7 @@ describe('countTasks against the documents production actually holds', () => {
       {
         position: 0,
         textNodes: 7,
+        textLengths: [17, 16, 3, 3, 8, 15, 7],
         nodes: { doc: 1, paragraph: 7, text: 7, taskList: 1, taskItem: 6 },
         marks: [],
         depth: 5,
@@ -138,6 +188,7 @@ describe('countTasks against the documents production actually holds', () => {
       {
         position: 1,
         textNodes: 7,
+        textLengths: [17, 16, 3, 3, 8, 15, 7],
         nodes: { doc: 1, heading: 1, paragraph: 6, text: 7, taskList: 1, taskItem: 6 },
         marks: [],
         depth: 5,
@@ -147,13 +198,23 @@ describe('countTasks against the documents production actually holds', () => {
       {
         position: 2,
         textNodes: 1,
+        textLengths: [4],
         nodes: { doc: 1, paragraph: 1, text: 1 },
         marks: [],
         depth: 3,
         items: 0,
         checked: 0,
       },
-      { position: 3, textNodes: 0, nodes: { doc: 1, paragraph: 1 }, marks: [], depth: 2, items: 0, checked: 0 },
+      {
+        position: 3,
+        textNodes: 0,
+        textLengths: [],
+        nodes: { doc: 1, paragraph: 1 },
+        marks: [],
+        depth: 2,
+        items: 0,
+        checked: 0,
+      },
     ])
   })
 
@@ -163,6 +224,27 @@ describe('countTasks against the documents production actually holds', () => {
       for (const text of facts(tab.document).texts) expect(FILLER.startsWith(text)).toBe(true)
     }
   })
+
+  it.each([0, 1])(
+    'fixture %i carries a stand-in under every key a derivation neutralises, not just under text and name',
+    (which) => {
+      const found = neutralisable(FIXTURES[which] as URL)
+      expect(found.length).toBeGreaterThan(0)
+      expect(found.filter((pair) => !standsIn(pair))).toEqual([])
+    },
+  )
+
+  it.skipIf(!hasProduction)(
+    'leaks not one stored id, token, name or text of three characters into either fixture',
+    () => {
+      const committed = FIXTURES.map((source) => readFileSync(source, 'utf8')).join('\n')
+      const stored = SOURCES.flatMap((source) => [...neutralisable(source)]).filter(
+        ([, value]) => value.length >= SHORTEST_LEAK,
+      )
+      expect(stored.length).toBeGreaterThan(LEAKABLE_STRINGS)
+      expect(stored.filter(([, value]) => committed.includes(value))).toEqual([])
+    },
+  )
 
   it.skipIf(!hasProduction)('counts the real file the same, on a machine that holds data/', () => {
     const counted = tabsIn(PRODUCTION).map((tab) => [tab.name, countTasks(tab.document)] as const)
@@ -175,8 +257,10 @@ describe('countTasks against the documents production actually holds', () => {
     expect(readFileSync(PRODUCTION, 'utf8')).toContain('"taskItem"')
   })
 
-  it.skipIf(!hasProduction)('derives that fixture from the real file: every structural fact agrees', () => {
-    expect(structure(fixture())).toEqual(structure(tabsIn(PRODUCTION)))
+  it.skipIf(!hasProduction)('derives each fixture from its real file: every structural fact agrees', () => {
+    for (const [index, source] of SOURCES.entries()) {
+      expect(structure(tabsIn(FIXTURES[index] as URL))).toEqual(structure(tabsIn(source)))
+    }
   })
 })
 

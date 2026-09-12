@@ -1,8 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-const SOURCE = new URL('../../../data/projects/01M240ERCRWWCN16Q5AHP1FZAQ.json', import.meta.url)
-const TARGET = new URL('../src/testing/legacy-project.fixture.json', import.meta.url)
+const PROJECTS = new URL('../../../data/projects/', import.meta.url)
+const TESTING = new URL('../src/testing/', import.meta.url)
+
+const DERIVED = [
+  ['01M240ERCRWWCN16Q5AHP1FZAQ.json', 'legacy-project.fixture.json'],
+  ['01M240FB4GD6PF6V0PKZVF6FD9.json', 'legacy-project-2.fixture.json'],
+]
 
 const FILLER = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor '
 const STAMP = '2026-01-01T00:00:00.000Z'
@@ -48,13 +53,18 @@ function walk(node) {
 }
 
 /**
- * Derives `src/testing/legacy-project.fixture.json` from the production project the cutover
- * runbook checks, keeping every structural fact and no customer character.
+ * Derives one fixture under `src/testing/` per production project, keeping every structural
+ * fact and no customer character.
  *
  * Run it with `pnpm --filter @repo/contracts fixture:derive`. It needs `data/`, which is
  * gitignored, so it runs on a machine holding production data and nowhere else; the fixture it
- * writes is what the committed suite reads instead (ADR 0026). `document-facts.test.ts` asserts
- * the two agree, on whichever machine has both.
+ * writes is what the committed suites read instead (ADR 0026) — `@repo/contracts`'s
+ * `document-facts.test.ts` and, through the same files, the Tiptap round-trip tests in
+ * `apps/microtask/components/editor`. Each of those asserts fixture and source agree, on
+ * whichever machine has both.
+ *
+ * Both projects are derived, and in `DERIVED` order: the `id` and `token` counters run across
+ * the whole set, so no two fixtures can be given the same stand-in for two different values.
  *
  * Preserved exactly: every `type`, every `attrs` — so the `checked` distribution and the heading
  * level survive — array order, nesting depth, the tab count, each tab's `position`, and the key
@@ -63,16 +73,20 @@ function walk(node) {
  * `token` becomes filler, both numbered in first-seen order, so two values that differ in the
  * source still differ here and two that are equal stay equal.
  *
- * It writes nothing but the fixture, and it never writes to `data/`.
+ * It writes nothing but those fixtures, and it never writes to `data/`.
  */
 export function main() {
-  if (!existsSync(SOURCE)) {
-    console.error(`No file at ${fileURLToPath(SOURCE)} — this script needs a machine holding data/.`)
-    process.exit(NO_SOURCE)
+  for (const [from, to] of DERIVED) {
+    const source = new URL(from, PROJECTS)
+    if (!existsSync(source)) {
+      console.error(`No file at ${fileURLToPath(source)} — this script needs a machine holding data/.`)
+      process.exit(NO_SOURCE)
+    }
+    const derived = walk(JSON.parse(readFileSync(source, 'utf8')))
+    const target = new URL(to, TESTING)
+    writeFileSync(target, `${JSON.stringify(derived, null, 2)}\n`, 'utf8')
+    console.log(`Wrote ${fileURLToPath(target)}`)
   }
-  const derived = walk(JSON.parse(readFileSync(SOURCE, 'utf8')))
-  writeFileSync(TARGET, `${JSON.stringify(derived, null, 2)}\n`, 'utf8')
-  console.log(`Wrote ${fileURLToPath(TARGET)}`)
 }
 
 main()
