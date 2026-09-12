@@ -59,6 +59,8 @@ in the working tree.
 | [0041](0041-api-internal-only.md) | The API is internal-only: no published port and no domain | Accepted |
 | [0042](0042-three-parity-departures-on-the-surfaces.md) | Three departures from the app being replaced: a disabled checkbox, a named link, Sign out everywhere | Accepted |
 | [0043](0043-client-head-names-no-visitor.md) | The client head names no visitor: `Signed in as` is dropped, and the badge stays two-state | Accepted |
+| [0044](0044-uploads-are-chunked.md) | Every import upload is chunked, and the global body limit stands | Accepted |
+| [0045](0045-staging-and-build-roots.md) | Staging and build roots live beside `projects/`, never inside it | Accepted |
 
 ## Amendments
 
