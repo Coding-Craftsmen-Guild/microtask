@@ -1,8 +1,12 @@
+import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { ExportBundle } from '@repo/contracts'
+import { Forbidden, type Principal } from '@repo/kernel'
 import { STAMP } from '@repo/microtask-domain/testing'
 import type { MemoryProjectStore } from '@repo/microtask-domain/testing'
 import { createApp } from '../../app.js'
+import { docConfig } from '../../http/docs.js'
+import { clearedDisposition } from './export/handlers.js'
 import {
   GUARDED_PREFIX,
   IDS,
@@ -175,11 +179,10 @@ describe('GET /v1/microtask/projects/{projectId}/export', () => {
     ])
   })
 
-  it('refuses it on the workspace route for the same reason, both addresses deciding once', async () => {
-    expect(await refusal(`${WORKSPACE}?tokens=preserve`, asLink(TOKENS.p1Manage))).toEqual([
-      403,
-      'forbidden',
-    ])
+  it('answers it the same 403 at the workspace address, which the admin-only gate produces there', async () => {
+    const asking = await refusal(`${WORKSPACE}?tokens=preserve`, asLink(TOKENS.p1Manage))
+    expect(asking).toEqual([403, 'forbidden'])
+    expect(asking).toEqual(await refusal(WORKSPACE, asLink(TOKENS.p1Manage)))
   })
 
   it('discloses nothing by that refusal: the same holder already reads all four tokens', async () => {
@@ -218,5 +221,62 @@ describe('a manifest entry whose task file will not read is a 409', () => {
     const problem = await conflict(PROJECT)
     expect(problem['code']).toBe('conflict')
     expect(problem['detail']).toContain(IDS.t1)
+  })
+})
+
+describe('the one condition that decides whether a response may carry live credentials', () => {
+  const ADMIN: Principal = { kind: 'admin' }
+  const LINK: Principal = {
+    kind: 'link',
+    role: 'manage',
+    scope: { kind: 'project', projectId: IDS.p1 },
+    token: TOKENS.p1Manage,
+  }
+
+  const refused = (principal: Principal): Error => {
+    try {
+      clearedDisposition(principal, 'preserve')
+    } catch (error) {
+      if (error instanceof Error) return error
+      throw error
+    }
+    throw new Error('the disposition was cleared, so there is no refusal to inspect')
+  }
+
+  it('hands the admin the preserve it asked for', () => {
+    expect(clearedDisposition(ADMIN, 'preserve')).toBe('preserve')
+  })
+
+  it('refuses a link holder that same preserve, which the workspace route cannot demonstrate', () => {
+    const error = refused(LINK)
+    expect(error).toBeInstanceOf(Forbidden)
+    expect(error).toMatchObject({ status: 403, code: 'forbidden' })
+  })
+
+  it('hands both of them strip untouched, so the refusal is the disposition and not the caller', () => {
+    expect([clearedDisposition(ADMIN, 'strip'), clearedDisposition(LINK, 'strip')]).toEqual([
+      'strip',
+      'strip',
+    ])
+  })
+})
+
+describe('every export operation runs that condition, which no request to one of them can show', () => {
+  const handlers = async (): Promise<string> => {
+    const source = await readFile(new URL('./export/handlers.ts', import.meta.url), 'utf8')
+    return source.replaceAll(/\/\*[\s\S]*?\*\//g, '')
+  }
+
+  const operations = async (): Promise<number> => {
+    const paths = (await buildApp()).getOpenAPI31Document(docConfig).paths ?? {}
+    return Object.values(paths)
+      .flatMap((item) => Object.values(item as Record<string, { tags?: string[] }>))
+      .filter((operation) => operation.tags?.[0] === 'export').length
+  }
+
+  it('calls it once per operation the document tags export, and there are two of those', async () => {
+    const calls = (await handlers()).match(/(?<![\w$])clearedDisposition\(/g) ?? []
+    expect(calls.length).toBe(await operations())
+    expect(await operations()).toBe(2)
   })
 })

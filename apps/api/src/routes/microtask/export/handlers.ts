@@ -9,7 +9,29 @@ import type { ExportBundleBody, projectExportRoute, workspaceExportRoute } from 
 
 const ADMIN_ONLY = 'Only an admin may export live share tokens'
 
-const cleared = (principal: Principal, tokens: TokenDisposition): TokenDisposition => {
+/**
+ * The disposition this principal may be answered with, or a refusal.
+ *
+ * The one condition in the whole API that decides whether a response may carry live credentials.
+ * Both export handlers call it and neither decides anything itself, so loosening `export:run` or
+ * adding a third export address cannot bring the token-bearing variant along silently.
+ *
+ * Exported because the workspace address is the only part of that route the gate cannot
+ * demonstrate from outside: `workspace:list-projects` refuses every link principal before this
+ * runs, so no request to `GET /v1/microtask/export` can make this throw, and only a direct test
+ * of it can show that it would. The project address does demonstrate it — a `manage` holder is
+ * cleared by the gate there and refused here — but a test of that address measures one call site,
+ * where this is the thing being insured.
+ *
+ * `Forbidden` rather than a second `authorize()` call: one gate per operation is what makes a
+ * missing gate greppable, and this is not a second question about a target. It is shaping one
+ * response for the principal the gate has already cleared, which is what `authorize` returns its
+ * principal for.
+ */
+export const clearedDisposition = (
+  principal: Principal,
+  tokens: TokenDisposition,
+): TokenDisposition => {
   if (tokens === 'preserve' && principal.kind !== 'admin') throw new Forbidden(ADMIN_ONLY)
   return tokens
 }
@@ -20,19 +42,19 @@ const cleared = (principal: Principal, tokens: TokenDisposition): TokenDispositi
  * The gate is `workspace:list-projects` on the workspace, so this address answers the admin and
  * nobody else — there is no scope in which "every project" is a question a seat may ask.
  *
- * `tokens=preserve` is refused a non-admin by {@link Forbidden} rather than by a second
- * `authorize()` call, because the API's one-gate-per-operation rule is what makes a missing gate
- * greppable, and this is not a second question about a target: it is shaping one response for the
- * principal `authorize` just returned. It is also refused rather than silently stripped. A 200
- * that answers a different question than was asked is how a preserved-looking bundle gets
- * imported as new and drops every link a client already holds.
+ * `tokens=preserve` goes through {@link clearedDisposition}, the same call the project route
+ * makes — and **no request to this address can reach that refusal**, the gate above having already
+ * turned away everything that is not the admin. That is the point of it rather than an oversight:
+ * one condition decides whether a response may carry live credentials, so the day this route is
+ * reachable by anything else, the token-bearing variant does not come along with it. Being
+ * unreachable from outside is also why that function is exported and tested directly.
  */
 export const exportWorkspace =
   (ctx: ServiceContext): RouteHandler<typeof workspaceExportRoute, ApiEnv> =>
   async (c) => {
     const { tokens } = c.req.valid('query')
     const principal = authorize(c, 'workspace:list-projects', { kind: 'workspace' })
-    const bundle = await bundleWorkspace(ctx, PRODUCT, cleared(principal, tokens))
+    const bundle = await bundleWorkspace(ctx, PRODUCT, clearedDisposition(principal, tokens))
     return c.json(bundle as ExportBundleBody, 200)
   }
 
@@ -48,11 +70,11 @@ export const exportWorkspace =
  * refuted by the fixture beside this: a `manage` holder reads this project through
  * `GET /v1/microtask/projects/{projectId}` and receives all four of its links with their tokens,
  * the task-scoped one included, because `share:read` is `manage` on a project and `visibleLinks`
- * clears each link against its own scope. What the check buys is that **one condition, in one
- * place, decides whether a response may carry live credentials**, instead of that following
- * implicitly from two route gates plus a per-link view filter. Loosen `export:run` to `write`, or
- * add a second non-admin export address, and the token-bearing variant does not come along
- * silently.
+ * clears each link against its own scope. This is the one address where that refusal is
+ * reachable, so it is where a request can demonstrate it — a `manage` holder asking to preserve
+ * is answered 403 here rather than a stripped 200, which is how a preserved-looking bundle would
+ * otherwise get imported as new and drop every link a client holds. What the condition buys, and
+ * why it is written once rather than at each call site, is in {@link clearedDisposition}.
  */
 export const exportProject =
   (ctx: ServiceContext): RouteHandler<typeof projectExportRoute, ApiEnv> =>
@@ -61,6 +83,6 @@ export const exportProject =
     const { tokens } = c.req.valid('query')
     const principal = authorize(c, 'export:run', { kind: 'project', projectId })
     const at = { product: PRODUCT, projectId }
-    const bundle = await bundleProject(ctx, at, cleared(principal, tokens))
+    const bundle = await bundleProject(ctx, at, clearedDisposition(principal, tokens))
     return c.json(bundle as ExportBundleBody, 200)
   }

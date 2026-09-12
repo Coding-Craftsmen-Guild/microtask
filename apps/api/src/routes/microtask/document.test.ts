@@ -120,6 +120,13 @@ describe('the statuses a route promises beyond the common set', () => {
     expect(found).toContain('413')
   })
 
+  it('promises a conflict on both export routes, a task file that will not read being one', async () => {
+    const declared = ['200', '401', '403', '404', '409', '422', '500']
+    for (const path of [`${GUARDED_PREFIX}/export`, `${PROJECT}/export`]) {
+      expect([path, await statusesOf(path, 'get')]).toEqual([path, declared])
+    }
+  })
+
   it('promises the common error set on every guarded operation, so none drops one quietly', async () => {
     const common = ['401', '403', '404', '422', '500']
     const missing = Object.entries(await operations())

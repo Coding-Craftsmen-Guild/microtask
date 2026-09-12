@@ -75,12 +75,16 @@ const bundleIds = (): IdGenerator => {
   }
 }
 
-const contextOver = (store: MemoryProjectStore, at = NOW): ServiceContext => ({
+const contextOver = (
+  store: MemoryProjectStore,
+  at = NOW,
+  ids: IdGenerator = bundleIds(),
+): ServiceContext => ({
   store,
   tokens: new ShareIndex(),
   lock: new QueueLock(),
   clock: fixedClock(at),
-  ids: bundleIds(),
+  ids,
 })
 
 const seeded = async (): Promise<MemoryProjectStore> => {
@@ -276,11 +280,24 @@ describe('export, import into an empty store, export again', () => {
   })
 
   it('round-trips to the same bundle apart from its id and its stamp', async () => {
-    const first = await bundleWorkspace(contextOver(await seeded()), 'microtask', 'preserve')
+    const ids = bundleIds()
+    const first = await bundleWorkspace(contextOver(await seeded(), NOW, ids), 'microtask', 'preserve')
     const restored = await importInto(new MemoryProjectStore(), first)
-    const second = await bundleWorkspace(contextOver(restored, LATER), 'microtask', 'preserve')
+    const second = await bundleWorkspace(contextOver(restored, LATER, ids), 'microtask', 'preserve')
     expect(comparable(second)).toEqual(comparable(first))
-    expect([second.bundleId, second.exportedAt]).not.toEqual([first.bundleId, first.exportedAt])
+    expect(second.bundleId).not.toBe(first.bundleId)
+    expect(second.exportedAt).not.toBe(first.exportedAt)
+  })
+
+  it('mints the second id rather than carrying the first one back through the store', async () => {
+    const ids = bundleIds()
+    const first = await bundleWorkspace(contextOver(await seeded(), NOW, ids), 'microtask', 'preserve')
+    const restored = await importInto(new MemoryProjectStore(), first)
+    const second = await bundleWorkspace(contextOver(restored, LATER, ids), 'microtask', 'preserve')
+    expect([first.bundleId, second.bundleId]).toEqual([
+      marked(BUNDLE_MARK, 1),
+      marked(BUNDLE_MARK, 2),
+    ])
   })
 
   it('restores the tokens themselves, so the links a client already holds keep opening', async () => {
