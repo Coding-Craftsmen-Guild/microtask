@@ -746,18 +746,27 @@ ADR 0019 lists what reminting rewrites. Each gets a test that fails when that on
 **Files:** create `apps/api/src/routes/microtask/export/{routes,handlers}.ts`,
 `packages/microtask-domain/src/export/bundle.ts` + tests; modify
 `packages/microtask-domain/src/index.ts`, `apps/api/src/routes/authorize-targets.test.ts`,
-`apps/api/src/surface.test.ts`.
+`apps/api/src/surface.test.ts`, `apps/api/src/routes/response-shapes.test.ts`,
+`apps/api/src/routes/microtask/index.ts`, `apps/api/src/routes/microtask/project-scoped.ts`.
 
 - [ ] `GET /v1/microtask/export` and `GET /v1/microtask/projects/:projectId/export`. The workspace
       route is admin-only by `workspace:list-projects`; the project route gates
       `authorize(c, 'export:run', { kind: 'project', projectId })` — a **literal** action and target,
       so the existing literal-agreement test confirms it against `ACTION_DECISIONS`.
-- [ ] **[audited] Two committed tests fail the moment this route exists, and fixing them is part of
+- [ ] **[audited] Three committed tests fail the moment this route exists, and fixing them is part of
       this task, not a surprise at the gate.** `authorize-targets.test.ts` asserts the only ungated
       actions are exactly `export:run`, `workspace:import`, `workspace:search`; remove `export:run`
       from that list and from the test's name. Do **not** weaken or delete the `toEqual` — it is the
       only thing binding the `ACTION_DECISIONS` target column to the targets handlers really gate on.
-      Add the new `export` group to `surface.test.ts`.
+      Add the new `export` group to `surface.test.ts`. **Corrected 2026-09-12: the plan said two, and
+      there is a third** — `routes/response-shapes.test.ts` walks every operation the document
+      declares and asserts `SAMPLES` has an entry for each ("a new route cannot opt out of the
+      walk"), then asserts `walked.length === Object.keys(SAMPLES).length`. Both export operations
+      need a `SAMPLES` entry, and that walk is not a formality: it also enforces that the 200 body
+      comes from a **named component resolvable in `@repo/contracts`**, which is what stops this
+      route declaring an inline bundle shape beside the handler. `ExportBundle` already carries
+      `.meta({ id })` and is exported from that package's index, so it satisfies both — do not
+      declare a second inline schema for the stripped variant.
 - [ ] `?tokens=strip` omits share links **entirely** — not blanked tokens, not empty strings. A test
       serialises a stripped bundle and asserts no token substring appears anywhere in the JSON.
 - [ ] **Stripping is the default.** A request with no `tokens` parameter is a stripped bundle. Getting
@@ -769,9 +778,26 @@ ADR 0019 lists what reminting rewrites. Each gets a test that fails when that on
       seeded data root returns, for each link, its exact `token`, `role`, `scope` and `name`,
       asserted against the fixture's values. Every negative assertion above anchors to the **same**
       fixture, so "preserved" and "stripped" are distinguishable by more than a count.
-- [ ] `tokens=preserve` requires the admin principal. A test asserts a **project-scoped `manage`
-      holder cannot preserve tokens** — it may export its own project's content but not harvest the
-      credentials of links it does not hold.
+- [ ] `tokens=preserve` requires the admin principal, and a non-admin asking for it is a **403 and
+      not a silently stripped 200** — answering a different question than was asked, with a success
+      status, is how a preserved-looking bundle gets imported as new and quietly drops every link.
+      A test asserts a **project-scoped `manage` holder cannot preserve tokens**.
+      **[audited] Corrected 2026-09-12 — keep the behaviour, do not keep the old reason.** The plan
+      said this stops a holder harvesting "the credentials of links it does not hold". That is
+      **false**, and a worker who checks it will be tempted to relax the gate on the strength of it.
+      Measured against the committed fixture: a `manage` holder scoped to project one reads
+      `GET /v1/microtask/projects/:id` and receives **all four** of that project's links, tokens
+      included — the task-scoped one too, since `visibleLinks` clears each link against its own
+      scope and a project scope contains its tasks. `share:read` is `{minimum: manage, target:
+      project}`, so that is the policy working as designed, not a leak.
+      So the admin check on `preserve` discloses nothing on either route: the workspace route is
+      already admin-only, and on the project route the caller can already read the exact tokens it
+      is being refused. What it actually buys is that **one condition, in one place, decides whether
+      a response may carry live credentials** — instead of that following implicitly from two route
+      gates plus a per-link view filter. It is insurance against a later loosening: drop
+      `export:run`'s minimum to `write`, or add a second non-admin export address, and the
+      token-bearing variant does not come along silently. Write it down that way; a TSDoc claiming a
+      present-day confidentiality win is a claim this fixture refutes.
 - [ ] **[audited] A task-scoped `manage` holder is refused with a 403**, matching `share:read`,
       `share:revoke` and `share:update`. `export:run` is decided against a project target and a task
       scope reaches only `project:read`, so a filtered bundle is not an option the policy offers —
@@ -782,6 +808,25 @@ ADR 0019 lists what reminting rewrites. Each gets a test that fails when that on
       root, export again, and assert the two bundles are equal apart from `bundleId` and
       `exportedAt`. **[audited]** This test only means something alongside the positive assertion
       above — with links dropped from both sides, two token-free bundles are still equal.
+      **Added 2026-09-12, two things this criterion does not say and a worker cannot infer:**
+      **(a) There is no import route yet** — Task 9 builds it. The import half is performed at the
+      domain level: `convertBundledProject` per `projects[]` entry, then `saveTask` per document
+      (`saveManifest` for a project carrying none) into a **fresh** `MemoryProjectStore`. Do not
+      reach for `replaceProject`; nothing is being replaced, and its `current` parameter has no
+      value here. Note `convertBundledProject` recomputes all four cache fields from the documents
+      (ADR 0007) and repairs blank names, so this leg is only an identity on a bundle whose cache
+      already agrees with its documents — which the `taskEntry`/`taskDocument` fixture pair
+      guarantees by construction, and which is *itself* worth one assertion rather than an
+      assumption.
+      **(b) Give each project in the round-trip fixture a distinct `updatedAt`.** Both stores end
+      `listManifests` with `sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))` and **no
+      tie-break**, and every shared fixture carries the single `STAMP` — so with the shared fixture
+      every project ties, and the order of `projects[]` falls out of `Array.prototype.sort`'s
+      stability over the store's own insertion order. The test would then pass by accident and
+      `bundleId`/`exportedAt` would not be the only things that could differ. Distinct stamps make
+      the listing order total, which is what lets the assertion stay whole-object equality.
+      Sorting `projects[]` by id before comparing is the **wrong** repair: it silently drops order
+      from an assertion whose whole job is to be exhaustive.
 
 ### Task 7: staging and upload
 
