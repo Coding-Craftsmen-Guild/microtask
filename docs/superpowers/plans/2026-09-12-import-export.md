@@ -804,6 +804,19 @@ ADR 0019 lists what reminting rewrites. Each gets a test that fails when that on
       see the box in "What is already built". `capabilities('manage', {kind:'task'})['export:run']`
       is false, so the UI draws no export control from it.
 - [ ] `bundleId` is a fresh ULID per export, from the injected generator.
+- [ ] **Added 2026-09-12. A manifest entry whose task file will not read is a `Conflict` (409)
+      naming the project and the task, declared as `problemResponses([409])`.** The plan did not
+      say, and this is not a corner: `ProjectStore.readTask` returns `null` both for an absent file
+      and for one that will not decode, and `ExportedProject` **refines** one document per manifest
+      entry — so an export that skipped such an entry's document would emit a bundle that fails the
+      schema its own route declares, and one that dropped the entry as well would silently lose a
+      task on the single path this whole phase exists to make safe. Neither silence is acceptable
+      on a migration read. 409 rather than the `NotFound` `TaskService.read` throws for the same
+      state: on `GET /v1/microtask/export` a 404 reads as "no such route" about a collection
+      address that plainly exists, and it would collide with the project route's real 404 — a
+      `projectId` naming nothing — which an operator has to act on completely differently. The
+      state is not absence; it is a store that cannot be *expressed* as a bundle, which is what
+      409 is for. One test per route.
 - [ ] A round-trip test: export a workspace with `tokens=preserve`, import it into an empty data
       root, export again, and assert the two bundles are equal apart from `bundleId` and
       `exportedAt`. **[audited]** This test only means something alongside the positive assertion
