@@ -39,15 +39,22 @@ const BUNDLE_RESPONSE = {
  * body the document does not. It exists for one variance gap and nothing else: every value
  * `@repo/microtask-domain` builds is readonly to its leaves, while a schema's inferred arrays are
  * mutable, and the two are the same JSON. The **view** schemas in `@repo/contracts` close that gap
- * with `.readonly()`, which is why no other handler states anything — but a bundle schema is also
- * *parsed*, by the import path, and zod 4 freezes what a readonly schema parses, so marking the
- * file format readonly to please a serialiser would change what import reads.
+ * with `.readonly()`, which is why no other handler states anything here.
+ *
+ * A file schema is not a view, which is why that is not the fix taken. Nothing parses
+ * `ExportBundle` yet — the import route will — and zod 4 freezes what a readonly schema parses,
+ * so the day it does, a readonly file format would hand import frozen collections. Reaching the
+ * nested arrays would also mean marking `ProjectManifest` and `TaskDocument` readonly, and
+ * `drop-checks.ts` parses both of those today.
  *
  * Bridging that variance is **all** the conversion does, and it is not what holds the two shapes
- * together. That is `ExportedBundle`'s type-level agreement with this schema, asserted where the
- * bundler lives, plus the response-shape walk parsing a real body against this component and
- * comparing its keys against what the component describes. A field added to one and not the other
- * fails one of those, not this.
+ * together. Two things do, **both only at the envelope**: `ExportedBundle`'s type-level agreement
+ * with this schema, asserted where the bundler lives, and the response-shape walk, which parses a
+ * real body against this component and compares its **top-level** keys. Below that level nothing
+ * catches drift — zod strips an unknown nested key in silence and the walk never looks at one — so
+ * a field added to `BundledProject`, the shape import shares, and not to `ExportedProject` passes
+ * every check in this repo. Measured, not assumed; it is the one place an export and an import can
+ * disagree with the suite green.
  */
 export type ExportBundleBody = z.infer<typeof ExportBundle>
 

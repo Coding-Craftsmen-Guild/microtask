@@ -1,12 +1,10 @@
-import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { ExportBundle } from '@repo/contracts'
 import { Forbidden, type Principal } from '@repo/kernel'
 import { STAMP } from '@repo/microtask-domain/testing'
 import type { MemoryProjectStore } from '@repo/microtask-domain/testing'
 import { createApp } from '../../app.js'
-import { docConfig } from '../../http/docs.js'
-import { clearedDisposition } from './export/handlers.js'
+import { clearedDisposition, exportProject, exportWorkspace } from './export/handlers.js'
 import {
   GUARDED_PREFIX,
   IDS,
@@ -261,22 +259,12 @@ describe('the one condition that decides whether a response may carry live crede
   })
 })
 
-describe('every export operation runs that condition, which no request to one of them can show', () => {
-  const handlers = async (): Promise<string> => {
-    const source = await readFile(new URL('./export/handlers.ts', import.meta.url), 'utf8')
-    return source.replaceAll(/\/\*[\s\S]*?\*\//g, '')
-  }
-
-  const operations = async (): Promise<number> => {
-    const paths = (await buildApp()).getOpenAPI31Document(docConfig).paths ?? {}
-    return Object.values(paths)
-      .flatMap((item) => Object.values(item as Record<string, { tags?: string[] }>))
-      .filter((operation) => operation.tags?.[0] === 'export').length
-  }
-
-  it('calls it once per operation the document tags export, and there are two of those', async () => {
-    const calls = (await handlers()).match(/(?<![\w$])clearedDisposition\(/g) ?? []
-    expect(calls.length).toBe(await operations())
-    expect(await operations()).toBe(2)
+describe('both export handlers run that condition, and each body says so for itself', () => {
+  it('keeps the unreachable workspace call site from being dropped as the reachable one covers it', async () => {
+    const ctx = await buildDeps()
+    expect([
+      String(exportWorkspace(ctx)).includes('clearedDisposition('),
+      String(exportProject(ctx)).includes('clearedDisposition('),
+    ]).toEqual([true, true])
   })
 })

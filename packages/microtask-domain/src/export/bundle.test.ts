@@ -4,6 +4,7 @@ import { Conflict, NotFound, type IdGenerator } from '@repo/kernel'
 import { QueueLock } from '@repo/store'
 import type { ProjectManifest } from '../entities/manifest.js'
 import { convertBundledProject } from '../import/legacy.js'
+import type { ProjectStore } from '../ports/project-store.js'
 import type { ServiceContext } from '../services/context.js'
 import { ShareIndex } from '../storage/share-index.js'
 import { fixedClock } from '../testing/doubles.js'
@@ -66,17 +67,48 @@ const projectTwo = (): ProjectManifest =>
 
 const bundleIds = (): IdGenerator => {
   let minted = 0
+  let handed = 0
   return {
     entityId: () => {
       minted += 1
       return marked(BUNDLE_MARK, minted)
     },
-    token: () => token(minted),
+    token: () => {
+      handed += 1
+      return token(handed)
+    },
   }
 }
 
+const counting = (
+  inner: MemoryProjectStore,
+): { store: ProjectStore; peak: () => number; reads: () => number } => {
+  let live = 0
+  let peak = 0
+  let reads = 0
+  const store: ProjectStore = {
+    listManifests: (product) => inner.listManifests(product),
+    readManifest: (product, projectId) => inner.readManifest(product, projectId),
+    readTask: async (product, projectId, taskId) => {
+      live += 1
+      reads += 1
+      peak = Math.max(peak, live)
+      try {
+        return await inner.readTask(product, projectId, taskId)
+      } finally {
+        live -= 1
+      }
+    },
+    saveManifest: (product, project) => inner.saveManifest(product, project),
+    saveTask: (product, project, task) => inner.saveTask(product, project, task),
+    deleteTask: (product, project, taskId) => inner.deleteTask(product, project, taskId),
+    deleteProject: (product, projectId) => inner.deleteProject(product, projectId),
+  }
+  return { store, peak: () => peak, reads: () => reads }
+}
+
 const contextOver = (
-  store: MemoryProjectStore,
+  store: ProjectStore,
   at = NOW,
   ids: IdGenerator = bundleIds(),
 ): ServiceContext => ({
@@ -112,6 +144,36 @@ const refused = async (run: () => Promise<unknown>): Promise<Error> => {
 const withEntryButNoDocument = async (): Promise<MemoryProjectStore> => {
   const store = new MemoryProjectStore()
   await store.saveManifest('microtask', manifest(P1, { tasks: [taskEntry(T1, 'Write the spec')] }))
+  return store
+}
+
+const withTwoUnreadable = async (): Promise<MemoryProjectStore> => {
+  const store = new MemoryProjectStore()
+  const tasks = [taskEntry(T1, 'Write the spec'), taskEntry(T2, 'Ship it', { position: 1 })]
+  await store.saveManifest('microtask', manifest(P1, { tasks }))
+  return store
+}
+
+const WIDE = [3, 2, 1] as const
+
+const wideProject = (index: number, tasks: number): ProjectManifest =>
+  manifest(marked('01W', index), {
+    tasks: Array.from({ length: tasks }, (_unused, at) =>
+      taskEntry(marked(`01W${index}T`, at + 1), `Task ${at + 1}`, { position: at }),
+    ),
+    updatedAt: `2026-06-0${index}T00:00:00.000Z`,
+  })
+
+const seededWide = async (): Promise<MemoryProjectStore> => {
+  const store = new MemoryProjectStore()
+  let tabs = 0
+  for (const [at, count] of WIDE.entries()) {
+    const project = wideProject(at + 1, count)
+    for (const entry of project.tasks) {
+      tabs += 1
+      await store.saveTask('microtask', project, taskDocument(entry.id, marked('01WB', tabs)))
+    }
+  }
   return store
 }
 
@@ -241,6 +303,13 @@ describe('a manifest entry whose task file will not read is a conflict, not a 40
     expect(error.message).toContain(T1)
   })
 
+  it('names the first unreadable entry in manifest order, not whichever read lost the race', async () => {
+    const ctx = contextOver(await withTwoUnreadable())
+    const error = await refused(() => bundleWorkspace(ctx, 'microtask', 'strip'))
+    expect(error.message).toContain(T1)
+    expect(error.message).not.toContain(T2)
+  })
+
   it('refuses a document that will not decode, which readTask reports the same way', async () => {
     const ctx = contextOver(await withUndecodableDocument())
     const error = await refused(() => bundleWorkspace(ctx, 'microtask', 'strip'))
@@ -300,10 +369,26 @@ describe('export, import into an empty store, export again', () => {
     ])
   })
 
-  it('restores the tokens themselves, so the links a client already holds keep opening', async () => {
+  it('writes the tokens themselves back to the store, in the order the bundle carried them', async () => {
     const first = await bundleWorkspace(contextOver(await seeded()), 'microtask', 'preserve')
     const restored = await importInto(new MemoryProjectStore(), first)
     const found = await restored.readManifest('microtask', P1)
     expect(found?.shareLinks.map((one) => one.token)).toEqual([VIEW_SEAT, MANAGE_SEAT])
+  })
+})
+
+describe('the fan-out is per project, a Promise.all over both levels having died with EMFILE', () => {
+  it('never has more task reads in flight than the largest project holds tasks', async () => {
+    const counted = counting(await seededWide())
+    await bundleWorkspace(contextOver(counted.store), 'microtask', 'strip')
+    expect(counted.reads()).toBe(6)
+    expect(counted.peak()).toBe(3)
+  })
+
+  it('still reads one project’s tasks together, the bound being per project and not per task', async () => {
+    const counted = counting(await seededWide())
+    const at = { product: 'microtask', projectId: marked('01W', 1) } as const
+    await bundleProject(contextOver(counted.store), at, 'strip')
+    expect([counted.reads(), counted.peak()]).toEqual([3, 3])
   })
 })

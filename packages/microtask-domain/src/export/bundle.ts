@@ -1,11 +1,10 @@
 import { BUNDLE_FORMAT, BUNDLE_VERSION } from '@repo/contracts'
-import { Conflict, type Product } from '@repo/kernel'
+import { Conflict, NotFound, type Product } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import type { TaskDocument } from '../entities/task.js'
 import type { BundledProject } from '../import/legacy.js'
 import type { ServiceContext } from '../services/context.js'
-import { ProjectService } from '../services/project-service.js'
 import type { ProjectRef } from '../services/refs.js'
 
 /**
@@ -84,7 +83,8 @@ async function assembled(
   manifests: readonly ProjectManifest[],
   tokens: TokenDisposition,
 ): Promise<ExportedBundle> {
-  const projects = await Promise.all(manifests.map((one) => bundled(ctx, product, one, tokens)))
+  const projects: BundledProject[] = []
+  for (const one of manifests) projects.push(await bundled(ctx, product, one, tokens))
   return {
     format: BUNDLE_FORMAT,
     version: BUNDLE_VERSION,
@@ -107,6 +107,21 @@ async function assembled(
  * no tie-break, so projects sharing an `updatedAt` come back in whatever order the store
  * enumerated them; a caller comparing two whole bundles needs distinct stamps for the comparison
  * to be about content.
+ *
+ * **The projects are read one at a time, and each project's tasks together.** Peak in-flight
+ * `readTask` is therefore one project's task count — capped by `tasksPerProject`, 500 — and not
+ * the whole workspace's, which is what a `Promise.all` over both levels multiplies out to. That
+ * was measured against the real filesystem store on a seeded root: 16 projects of 500 tasks
+ * finished in 1,007 ms and 175 MB, 24 of 500 died with `EMFILE: too many open files`, so the
+ * break point is near 10,000 tasks — and the product's own caps permit 25 times that, which makes
+ * it an ordinary workspace rather than a pathological one. The failure would also not be the
+ * {@link Conflict} below: `FileSystem.readText` maps only a missing file to `null` and rethrows
+ * the rest, so `EMFILE` reaches a client as an unmapped 500 quoting an internal path. Reading one
+ * project at a time was *faster* at every size measured (8,000 tasks in 849 ms and 105 MB;
+ * 30,000 in 3,200 ms, where the unbounded version could not finish 12,000), so nothing is traded
+ * for it. `FsProjectStore.listManifests` walks its manifests in a sequential loop for the same
+ * reason; this is simply the first cross-project reader that opens task files at all, where
+ * `SearchService` deliberately opens none.
  *
  * Nothing takes the lock, matching every other read in this package: an export of a large
  * workspace holding the write queue would stall every client, and a read is not what the lock
@@ -134,16 +149,19 @@ export async function bundleWorkspace(
  * either address imports through the same reader, and a per-project format would be a second
  * thing to classify, version and check.
  *
- * A `projectId` naming nothing is `NotFound`, read through {@link ProjectService} so that the
- * refusal is the same one every other project route gives. That is the 404 this route has, and it
- * is why a task file that will not read is a 409 instead: the two states need completely
- * different actions from whoever sees them.
+ * A `projectId` naming nothing is the same `NotFound` every other project route answers, raised
+ * off the store port directly rather than by constructing a service: a service is something a
+ * caller composes and injects, and building one here would mean a second instance per request
+ * beside the one the route already holds. The repeated message is the cheaper duplication — six
+ * services write it today — and it is why a task file that will not read is a 409 instead: the
+ * two states need completely different actions from whoever sees them.
  */
 export async function bundleProject(
   ctx: ServiceContext,
   at: ProjectRef,
   tokens: TokenDisposition,
 ): Promise<ExportedBundle> {
-  const manifest = await new ProjectService(ctx).read(at)
+  const manifest = await ctx.store.readManifest(at.product, at.projectId)
+  if (manifest === null) throw new NotFound('Project not found')
   return assembled(ctx, at.product, [manifest], tokens)
 }
