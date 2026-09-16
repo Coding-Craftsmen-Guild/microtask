@@ -102,13 +102,26 @@ request" does not by itself fit under the existing cap.
 - [ ] **[audited] Two tests, both against the real composed app** (`createApp` through
       `apps/api/src/testing/harness.ts`), never an isolated `OpenAPIHono` — an isolated app contains
       no global limiter and so cannot see the failure this decision exists to prevent:
-      **(a) the acceptance**, which is the falsifying half: a body larger than
-      `GLOBAL_BODY_LIMIT_BYTES` posted to the import upload route succeeds, and the same body posted
-      to any other route is refused. Without this half, "the import route is still under the 4 MB
-      global" passes every test and the migration cannot run.
-      **(b) the refusal**: one byte over the import route's own cap returns a 413 RFC 7807 document
-      whose `maxBytes` extension equals that cap — not the global one, which is how the two are told
-      apart.
+      **Rewritten 2026-09-16, because these two were written while both options were open and (a)
+      describes the one ADR 0044 rejected.** The ADR kept the global cap and chunks instead, so "a
+      body larger than `GLOBAL_BODY_LIMIT_BYTES` posted to the import route succeeds" is now
+      something that must *not* happen — the global limiter refuses it, deliberately, and a test
+      asserting otherwise could only be made to pass by undoing the decision. The falsifying half
+      still has to exist, though, or "the import route is under the 4 MB global" passes everything
+      while the migration cannot run. Translated to the decision actually taken:
+      **(a) the acceptance, still the falsifying half: a file *larger than* `GLOBAL_BODY_LIMIT_BYTES`
+      is uploaded end to end as a sequence of chunks and reassembles byte-for-byte.** Assert the
+      staged bytes equal the original, not merely that each request answered 2xx. This is the half
+      that proves the migration path works for the data ADR 0044 exists for, and the only half a
+      "chunking is really just one request" regression fails.
+      **(b) the refusal**: one byte over the **chunk** cap returns a 413 RFC 7807 document whose
+      `maxBytes` extension equals that chunk cap — **1,000,000, not 4,000,000**. Naming the global
+      cap there is the specific failure this half catches, since both limiters match the route and
+      the first rejection wins, so a missing route limiter still produces a 413 and only the number
+      tells them apart.
+      **(c) a third, which follows from the cap being per session rather than per request:** a
+      session whose staged total passes the session cap refuses the *next* chunk with a message
+      naming the cap and the bytes already staged (ADR 0044: "not a 413 they cannot act on").
 
 ### Decision 2 — where an *upload* is staged (ADR 0045)
 
