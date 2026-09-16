@@ -21,7 +21,13 @@ export interface UploadFailuresProps {
  * file that was never staged — and a drop that reports fewer files than it contained, with
  * nothing saying which, is precisely the failure ADR 0018 was written about. One refusal does
  * not end the session, so this list sits *beside* a plan that describes everything that did land
- * rather than in place of it.
+ * rather than in place of it. Each failure keeps its own reason: two files can fail differently
+ * in one drop, and one sentence standing for both would hide whichever was not chosen.
+ *
+ * The key carries the row's position as well as its path. A path is *nearly* unique — a session
+ * stages each normalised path once — but a harvest can carry two files at one path before any of
+ * them reaches a session, and React would then drop the second row silently, which is the one
+ * failure mode this component exists to prevent.
  */
 export function UploadFailures({ failures }: UploadFailuresProps) {
   if (failures.length === 0) return null
@@ -29,8 +35,8 @@ export function UploadFailures({ failures }: UploadFailuresProps) {
     <section className={SECTION} data-slot="upload-failures" role="alert">
       <h3 className={HEADING}>{headline(failures.length)}</h3>
       <ul className={LIST}>
-        {failures.map((failure) => (
-          <li key={failure.path}>
+        {failures.map((failure, position) => (
+          <li key={`${String(position)} ${failure.path}`}>
             <span className={PATH} data-slot="failed-path">
               {failure.path}
             </span>

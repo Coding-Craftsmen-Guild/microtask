@@ -1,15 +1,26 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 // Two projects rather than one environment, because the two halves of this app are tested
-// against different globals. `lib/**` is server-only — node:crypto, cookies, redirects — and
-// happy-dom would give it a `window` no request ever has. The `.tsx` half needs a DOM and the
+// against different globals. The server-only half — node:crypto, cookies, redirects — must not
+// be handed a `window` no request ever has, and the rendering half needs a DOM and the
 // `@testing-library/react` cleanup hook, which is what vitest.setup.ts installs.
+//
+// The split is by **extension**, and that is the fix for a measured hole rather than a style
+// choice. These lists used to name directories — `lib/**`, `actions/**`, `app/**`,
+// `components/**` — and three shapes fell between them: `components/**/*.test.ts`,
+// `actions/**/*.test.tsx`, and any `*.test.tsx` at the app root. A file matching no project is
+// not an error; it silently never runs, and the suite reports its usual green. One rule with no
+// directory in it has no gaps to add a directory to, and `vitest.projects.test.ts` fails if one
+// ever reappears.
+
+const EXCLUDE = [...configDefaults.exclude, '.next/**', '.turbo/**']
 
 const node = {
   test: {
     name: 'node',
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'actions/**/*.test.ts', 'app/**/*.test.ts', '*.test.ts'],
+    include: ['**/*.test.ts'],
+    exclude: EXCLUDE,
   },
 }
 
@@ -18,7 +29,8 @@ const dom = {
   test: {
     name: 'dom',
     environment: 'happy-dom',
-    include: ['app/**/*.test.tsx', 'components/**/*.test.tsx', 'lib/**/*.test.tsx'],
+    include: ['**/*.test.tsx'],
+    exclude: EXCLUDE,
     setupFiles: ['./vitest.setup.ts'],
   },
 }

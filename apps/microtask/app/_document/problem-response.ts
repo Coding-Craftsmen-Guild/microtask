@@ -77,10 +77,39 @@ const extensionsOf = (error: ApiError): object => ({
  * would claim the tab was saved.
  */
 export function forwardedProblem(error: unknown, instance: string, copy: RefusalCopy): Response {
+  return forwardedNaming(error, instance, copy, error instanceof ApiError ? error.instance : instance)
+}
+
+function forwardedNaming(
+  error: unknown,
+  instance: string,
+  copy: RefusalCopy,
+  named: string,
+): Response {
   if (!(error instanceof ApiError)) {
     return problemResponse({ status: 503, code: 'service_unavailable', detail: SERVICE_UNAVAILABLE, instance })
   }
   const detail = plainRefusal(error.status, copy)
-  const fields = { status: error.status, code: error.code, detail, instance: error.instance }
-  return problemResponse(fields, extensionsOf(error))
+  return problemResponse({ status: error.status, code: error.code, detail, instance: named }, extensionsOf(error))
+}
+
+/**
+ * The same refusal, named by the path **this app** answers on rather than the API's.
+ *
+ * {@link forwardedProblem} echoes `error.instance`, which is the internal API path — and the API
+ * is internal-only, with no published port and no domain (ADR 0041), so that path names something
+ * no browser can reach and nothing outside the deployment should be told about. It is what the two
+ * proxying handlers would otherwise answer a 409 or a 413 with: `/v1/microtask/import/sessions/…`
+ * in place of `/api/import/upload`.
+ *
+ * It is a second function rather than a change to the first because the two document routes pin
+ * the API's path in their own tests, deliberately — there the `instance` is a log trail across a
+ * hop the editor island knows about. Correcting that is a change to a shipped surface and belongs
+ * with whoever owns it; this is the version the routes added here use.
+ *
+ * Everything else is identical: the status is the API's, the sentence is this surface's, and a
+ * 413 keeps `maxBytes` so the browser can name the cap.
+ */
+export function proxiedProblem(error: unknown, instance: string, copy: RefusalCopy): Response {
+  return forwardedNaming(error, instance, copy, instance)
 }

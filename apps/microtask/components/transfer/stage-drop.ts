@@ -80,7 +80,7 @@ const expansions = async (
  * A file that could not be staged, and an archive the server refused to expand, are reported per
  * file: the drop carries on and the preview still describes everything that did land, because a
  * drop of two hundred files that gives up on the seventh is worse than useless to a migration.
- * Only the three calls that are *about the session* — opening it, and previewing it — can end the
+ * Only the two calls that are *about the session* — opening it, and previewing it — can end the
  * drop, and each ends it with a sentence rather than with an empty table.
  *
  * Archives are expanded **in sequence**, not concurrently: each expansion is measured against the

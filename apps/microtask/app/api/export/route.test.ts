@@ -237,3 +237,21 @@ describe('GET /api/export hands the API refusal back unchanged in kind', () => {
     expect(await (await download()).text()).not.toContain('the API said so')
   })
 })
+
+describe('a forwarded refusal names this app path, never the internal API one (ADR 0041)', () => {
+  it('answers a 409 against /api/export rather than /v1/microtask/export', async () => {
+    answer = () => problem(409, 'conflict')
+    const body = await (await download()).json()
+    expect(body).toMatchObject({ instance: '/api/export' })
+  })
+
+  it('leaks no /v1/ path anywhere in the document, which is a host no browser can reach', async () => {
+    answer = () => problem(409, 'conflict')
+    expect(await (await download()).text()).not.toContain('/v1/')
+  })
+
+  it('names this path on a 401 decided here too, so both refusals read the same', async () => {
+    const body = await (await download('', null)).json()
+    expect(body).toMatchObject({ instance: '/api/export' })
+  })
+})

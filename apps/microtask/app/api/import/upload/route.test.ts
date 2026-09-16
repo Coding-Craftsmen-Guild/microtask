@@ -104,6 +104,26 @@ describe('POST /api/import/upload establishes its own authority, in the order it
     expect(sent).toHaveLength(0)
   })
 
+  it.each([
+    ['no cookie at all', null],
+    ['a link principal in mt_admin', linkCookie],
+  ])(
+    'answers a cross-site request carrying %s 403 and not 401, which is the check that ran first',
+    async (_name, cookie) => {
+      const response = await upload({ origin: 'https://evil.example', cookie })
+      expect(response.status).toBe(403)
+      expect(sent).toHaveLength(0)
+    },
+  )
+
+  it('refuses a cross-site request with an unopenable cookie 403, for the same reason', async () => {
+    const response = await upload({
+      origin: 'https://evil.example',
+      cookie: `${adminCookie.slice(0, -2)}AA`,
+    })
+    expect(response.status).toBe(403)
+  })
+
   it('refuses a request with no Origin at all, which no browser sends on a POST', async () => {
     expect((await upload({ origin: null })).status).toBe(403)
   })
@@ -191,6 +211,30 @@ describe('POST /api/import/upload refuses a chunk it cannot address', () => {
     expect(sent).toHaveLength(0)
   })
 
+  it.each([
+    ['present but empty', ''],
+    ['whitespace', '%20%20'],
+    ['hexadecimal', '0x10'],
+    ['exponent', '1e3'],
+    ['signed', '%2B5'],
+    ['padded with spaces', '%205%20'],
+  ])('refuses a %s offset, which Number() would read as a number no browser sent', async (_name, raw) => {
+    const response = await upload({ query: `?sessionId=${SESSION}&path=a.json&offset=${raw}` })
+    expect(response.status).toBe(422)
+    expect(sent).toHaveLength(0)
+  })
+
+  it('refuses an offset too large to be a byte count this runtime can compare', async () => {
+    const response = await upload({ query: `?sessionId=${SESSION}&path=a.json&offset=${'9'.repeat(30)}` })
+    expect(response.status).toBe(422)
+    expect(sent).toHaveLength(0)
+  })
+
+  it('accepts a plain decimal offset, so the guard refuses shapes and not offsets', async () => {
+    await upload({ query: `?sessionId=${SESSION}&path=a.json&offset=1000000` })
+    expect(sent[0]?.url).toContain('offset=1000000')
+  })
+
   it('refuses a missing path, which is the one thing the API cannot infer', async () => {
     const response = await upload({ query: `?sessionId=${SESSION}&offset=0` })
     expect(response.status).toBe(422)
@@ -233,5 +277,25 @@ describe('POST /api/import/upload hands the API refusal back in the kind the bro
   it('says this surface plain sentence rather than the API detail', async () => {
     answer = () => problem(409, 'conflict')
     expect((await bodyOf(await upload()))['detail']).not.toBe('the API said so')
+  })
+})
+
+describe('a forwarded refusal names this app path, never the internal API one (ADR 0041)', () => {
+  it('answers a 409 against /api/import/upload rather than the session files path', async () => {
+    answer = () => problem(409, 'conflict')
+    expect(await bodyOf(await upload())).toMatchObject({ instance: '/api/import/upload' })
+  })
+
+  it('keeps maxBytes on a 413 while still naming this path', async () => {
+    answer = () => problem(413, 'too_large', { maxBytes: 1_000_000 })
+    const body = await bodyOf(await upload())
+    expect(body).toMatchObject({ instance: '/api/import/upload', maxBytes: 1_000_000 })
+  })
+
+  it('leaks no /v1/ path and no session id anywhere in the document', async () => {
+    answer = () => problem(404, 'not_found')
+    const said = await (await upload()).text()
+    expect(said).not.toContain('/v1/')
+    expect(said).not.toContain('sessions/')
   })
 })

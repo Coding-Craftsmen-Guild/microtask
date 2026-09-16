@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Decoded } from '@repo/api-client'
 import type { ImportPreview } from '@repo/contracts'
 import { HARVEST_FAILED } from './attempt'
+import { UPLOAD_REFUSALS } from './refusal'
 import { TransferConsole } from './transfer-console'
 import type { TransferPorts } from './use-transfer'
 
@@ -240,6 +241,39 @@ describe('a file the session refused is named against that file, beside the plan
     expect(panel()).not.toBeNull()
   })
 
+  it('gives two files that failed differently a row each, with their own reasons', async () => {
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+      const path = harvestedPath(url)
+      if (path.endsWith('big.json')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 'too_large', maxBytes: 262_144 }), { status: 413 }),
+        )
+      }
+      if (path.endsWith('late.json')) {
+        return Promise.resolve(new Response(JSON.stringify({ code: 'not_found' }), { status: 404 }))
+      }
+      return Promise.resolve(staged(url, init))
+    })
+    const { input } = mount()
+    pick(input, ['volume/01P/project.json', 'volume/01P/big.json', 'volume/01P/late.json'])
+    await waitFor(() => {
+      expect(document.body.querySelectorAll('[data-slot="failed-path"]')).toHaveLength(2)
+    })
+    const paths = [...document.body.querySelectorAll('[data-slot="failed-path"]')].map(
+      (node) => node.textContent,
+    )
+    const reasons = [...document.body.querySelectorAll('[data-slot="failed-reason"]')].map(
+      (node) => node.textContent ?? '',
+    )
+    expect(paths).toEqual(['volume/01P/big.json', 'volume/01P/late.json'])
+    expect(new Set(reasons).size).toBe(2)
+    expect(reasons[0]).toContain('262,144 bytes')
+    expect(reasons[1]).toBe(UPLOAD_REFUSALS.missing)
+    expect(document.body.querySelector('[data-slot="upload-failures"]')?.textContent).toContain(
+      'were not staged',
+    )
+  })
+
   it('names the cap from the problem document rather than a number of its own', async () => {
     vi.stubGlobal('fetch', () =>
       Promise.resolve(new Response(JSON.stringify({ code: 'too_large', maxBytes: 262_144 }), { status: 413 })),
@@ -279,6 +313,32 @@ describe('a refusal about the session itself replaces the plan with a sentence',
     await waitFor(() => {
       expect(notice()).toBe('the store changed under it')
     })
+    expect(panel()).not.toBeNull()
+  })
+
+  it('says so when the staging run rejects outright, rather than sitting on the spinner', async () => {
+    ports.onOpen = vi.fn(() => Promise.reject(new Error('NEXT_REDIRECT;/login?next=%2Ftransfer')))
+    const { input } = mount()
+    pick(input, ['volume/01P/project.json'])
+    await waitFor(() => {
+      expect(notice()).toContain('NEXT_REDIRECT')
+    })
+    expect(document.body.querySelector('[data-slot="transfer-busy"]')).toBeNull()
+    expect(panel()).toBeNull()
+  })
+
+  it('says so when a confirm rejects outright, keeping the plan and stopping the spinner', async () => {
+    ports.onConfirm = vi.fn(() => Promise.reject(new Error('NEXT_REDIRECT;/login?next=%2Ftransfer')))
+    const { input } = mount()
+    pick(input, ['volume/01P/project.json'])
+    await waitFor(() => {
+      expect(panel()).not.toBeNull()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }))
+    await waitFor(() => {
+      expect(notice()).toContain('NEXT_REDIRECT')
+    })
+    expect(document.body.querySelector('[data-slot="transfer-busy"]')).toBeNull()
     expect(panel()).not.toBeNull()
   })
 

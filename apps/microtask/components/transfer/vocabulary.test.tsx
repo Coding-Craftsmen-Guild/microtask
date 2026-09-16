@@ -168,40 +168,106 @@ const RETURNED: readonly [
   Conforms<ProjectChoice['choice'], WireChoice['choice']>,
 ] = ['exact', 'exact', 'exact']
 
-describe('the panel structural vocabulary still matches the contracts it restates (ADR 0018)', () => {
-  it('holds the same key set on every shape, so no contract field is silently dropped', () => {
-    expect(SAME_KEYS).toEqual(['exact', 'exact', 'exact', 'exact', 'exact', 'exact'])
+const GROUP_KEYS: readonly (keyof TransferGroup)[] = [
+  'path',
+  'shape',
+  'projectId',
+  'name',
+  'manifestTaskCount',
+  'taskFilesFound',
+  'shareLinks',
+  'existsInTarget',
+  'outcome',
+  'reasons',
+]
+
+const RESULT_KEYS: readonly (keyof TransferProjectResult)[] = [
+  'path',
+  'projectId',
+  'writtenProjectId',
+  'choice',
+  'outcome',
+  'tasksWritten',
+  'tasksRemoved',
+  'shareLinksReminted',
+  'shareLinksStranded',
+  'reasons',
+]
+
+const SHARE_LINK_KEYS: readonly (keyof TransferShareLink)[] = ['index', 'name', 'role', 'scope']
+
+/**
+ * The runtime half, which is deliberately **not** where the conformance is asserted.
+ *
+ * Every check above is a type annotation on a tuple of string literals: the assertion is that the
+ * literal matches the computed type, and it fails in `microtask#typecheck` — which is in the
+ * gate — not in this suite. Naming these cases after the behaviour would misread, because their
+ * bodies compare a literal to itself.
+ *
+ * What they do assert is the one thing a compile-time check cannot: that the lists above still
+ * cover every member. Deleting an entry from a tuple's type *and* its literal typechecks fine and
+ * silently drops a member from the sweep, so each arity is measured against the number of keys the
+ * panel's own shape declares. That is a real failure a real change can cause.
+ */
+describe('the panel structural vocabulary is pinned against contracts at compile time', () => {
+  it('fails typecheck if a contracts field is added or renamed, since key sets are compared', () => {
+    expect(SAME_KEYS).toHaveLength(6)
   })
 
-  it('matches every preview-group member, widening shape and nothing else', () => {
-    expect(GROUP_MEMBERS.filter((one) => one !== 'exact')).toEqual(['B is wider'])
+  it('sweeps every preview-group member, one per key the panel declares', () => {
+    expect(GROUP_MEMBERS).toHaveLength(GROUP_KEYS.length - 1)
+    expect(GROUP_KEYS).toContain('shareLinks')
   })
 
-  it('matches every share-link member, widening role and nothing else', () => {
-    expect(SHARE_LINK_MEMBERS.filter((one) => one !== 'exact')).toEqual(['B is wider'])
+  it('sweeps every share-link member, one per key the panel declares', () => {
+    expect(SHARE_LINK_MEMBERS).toHaveLength(SHARE_LINK_KEYS.length)
   })
 
-  it('matches every project-result member exactly, widening none of them', () => {
-    expect(RESULT_MEMBERS.every((one) => one === 'exact')).toBe(true)
+  it('sweeps every project-result member, one per key the panel declares', () => {
+    expect(RESULT_MEMBERS).toHaveLength(RESULT_KEYS.length)
   })
 
-  it('carries a parsed preview and a parsed confirm result into the panel whole', () => {
-    expect(ENVELOPES).toEqual([
-      'B is wider',
-      'exact',
-      'B is wider',
-      'B is wider',
-      'exact',
-      'exact',
-      'exact',
-    ])
+  it('sweeps both envelopes and the two collections inside them', () => {
+    expect(ENVELOPES).toHaveLength(7)
   })
 
-  it('keeps both outcome enums at full width, which is what makes the tone maps exhaustive', () => {
-    expect(ENUMS.every((one) => one === 'exact')).toBe(true)
+  it('sweeps both outcome enums in both directions, plus the two the panel widens', () => {
+    expect(ENUMS).toHaveLength(9)
   })
 
-  it('lets the panel build a confirm request out of the choices it collected', () => {
-    expect(RETURNED).toEqual(['exact', 'exact', 'exact'])
+  it('sweeps what the panel hands back, which has to be a confirm request choice', () => {
+    expect(RETURNED).toHaveLength(3)
+  })
+
+  it('agrees with a group the panel can actually be handed, key for key', () => {
+    const group: TransferGroup = {
+      path: 'volume/projects/01P',
+      shape: 'v2-project-directory',
+      projectId: '01P',
+      name: 'Acme',
+      manifestTaskCount: 2,
+      taskFilesFound: 2,
+      shareLinks: [],
+      existsInTarget: false,
+      outcome: 'importable',
+      reasons: [],
+    }
+    expect(Object.keys(group).sort()).toEqual([...GROUP_KEYS].sort())
+  })
+
+  it('agrees with a result the panel can actually be handed, key for key', () => {
+    const result: TransferProjectResult = {
+      path: 'volume/projects/01P',
+      projectId: '01P',
+      writtenProjectId: '01P',
+      choice: 'replace',
+      outcome: 'replaced',
+      tasksWritten: 2,
+      tasksRemoved: 0,
+      shareLinksReminted: 0,
+      shareLinksStranded: 0,
+      reasons: [],
+    }
+    expect(Object.keys(result).sort()).toEqual([...RESULT_KEYS].sort())
   })
 })

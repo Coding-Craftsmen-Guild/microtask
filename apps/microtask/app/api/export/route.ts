@@ -1,4 +1,4 @@
-import { forwardedProblem, problemResponse } from '../../_document/problem-response'
+import { proxiedProblem, problemResponse } from '../../_document/problem-response'
 import { apiForSession } from '../../../lib/api'
 import { ACTION_REFUSALS } from '../../../lib/refusal'
 import { exportFilename } from './filename'
@@ -62,6 +62,6 @@ export async function GET(request: Request): Promise<Response> {
     const upstream = await api.transfer.exportWorkspace(url.searchParams.get(TOKENS))
     return attachment(upstream, exportFilename(new Date()))
   } catch (error) {
-    return forwardedProblem(error, instance, ACTION_REFUSALS.admin)
+    return proxiedProblem(error, instance, ACTION_REFUSALS.admin)
   }
 }
