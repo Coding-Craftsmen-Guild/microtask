@@ -1,8 +1,12 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { ApiEnv } from '../../../auth/env.js'
 import type { ApiDeps } from '../../../deps.js'
-import { openImportSession, uploadImportChunk } from './handlers.js'
-import { openImportSessionRoute, uploadImportChunkRoute } from './routes.js'
+import { expandImportArchive, openImportSession, uploadImportChunk } from './handlers.js'
+import {
+  expandImportArchiveRoute,
+  openImportSessionRoute,
+  uploadImportChunkRoute,
+} from './routes.js'
 import { ImportStaging } from './staging.js'
 
 /**
@@ -24,5 +28,6 @@ export function createImport(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const staging = new ImportStaging(deps)
   app.openapi(openImportSessionRoute, openImportSession(staging))
   app.openapi(uploadImportChunkRoute, uploadImportChunk(staging))
+  app.openapi(expandImportArchiveRoute, expandImportArchive(staging))
   return app
 }

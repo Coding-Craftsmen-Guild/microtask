@@ -1,5 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi'
-import { ImportSession, ImportStagedChunk } from '@repo/contracts'
+import { ImportExpansion, ImportSession, ImportStagedChunk } from '@repo/contracts'
 import { problemResponses } from '../../../http/error-responses.js'
 import { importChunkBodyLimit } from '../../../http/body-limits.js'
 import { GUARDED_SECURITY } from '../../../http/security.js'
@@ -100,5 +100,64 @@ export const uploadImportChunkRoute = createRoute({
       content: { 'application/json': { schema: ImportStagedChunk } },
     },
     ...problemResponses([409, 413]),
+  },
+})
+
+/**
+ * Which staged file to expand, as the path it was uploaded at.
+ *
+ * A query parameter for {@link chunkQuery}'s reasons — it holds separators — and a bare string for
+ * the same one: `normaliseImportPath` is the server's authority on what a path may be, and a
+ * second rule stated here would be the place a reader had to look first.
+ *
+ * It names an **already staged** file rather than carrying the archive, because an archive is no
+ * smaller than the drop it holds and every upload is chunked (ADR 0044). A route that took the
+ * bytes could take at most one chunk of them.
+ */
+export const archiveQuery = z.object({
+  path: z
+    .string()
+    .meta({ description: 'The staged path of the .zip to expand, as it was uploaded' }),
+})
+
+/**
+ * Expand one staged archive into the session (ADR 0020).
+ *
+ * The browser never parses an archive: it uploads the bytes and this expands them, because the
+ * hardening an untrusted archive needs cannot be trusted to the client, and a zip parser in two
+ * browser bundles is a dependency this product's storage story does not want.
+ *
+ * It carries no body. The archive is already staged, so the only thing this request adds is the
+ * instruction to expand it — which is also why it is a second call rather than something the
+ * upload could infer: the last chunk of an archive is indistinguishable from the last chunk of
+ * any other file.
+ *
+ * What the session holds afterwards is exactly what the same folder dropped would have staged: the
+ * entries at the paths they name, and the archive itself removed. Every refusal is a refusal of the
+ * **archive** — nothing partially expanded is reported as a success — and the three a client has to
+ * act on differently are: **422** the archive is unreadable, or an entry breaks one of ADR 0020's
+ * rules (a traversal or absolute name, a symbolic link, the entry-count cap, the uncompressed-size
+ * cap, the compression-ratio cap, a path that would sit inside a staged file); **409**, the one
+ * beyond the common set, an entry names a path this session already stages or the session's byte
+ * cap is reached; **404** the session id, or the path inside it, names nothing.
+ */
+export const expandImportArchiveRoute = createRoute({
+  method: 'post',
+  path: '/sessions/{sessionId}/archives',
+  tags: ['import'],
+  summary: 'Expand a staged zip archive into an import session',
+  description:
+    'Stages every entry at the path it names, under the caps ADR 0020 sets, and removes the archive. Nothing outside the session is touched.',
+  security: GUARDED_SECURITY,
+  request: {
+    params: sessionParams,
+    query: archiveQuery,
+  },
+  responses: {
+    200: {
+      description: 'The archive was expanded, and the session now holds this many bytes',
+      content: { 'application/json': { schema: ImportExpansion } },
+    },
+    ...problemResponses([409]),
   },
 })

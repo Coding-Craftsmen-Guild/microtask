@@ -31,6 +31,7 @@ const cases: readonly (readonly [string, string, readonly string[]])[] = [
   [`${GUARDED_PREFIX}/export`, 'get', []],
   [`${GUARDED_PREFIX}/import/sessions`, 'post', []],
   [`${GUARDED_PREFIX}/import/sessions/{sessionId}/files`, 'post', ['sessionId']],
+  [`${GUARDED_PREFIX}/import/sessions/{sessionId}/archives`, 'post', ['sessionId']],
   [PROJECT, 'get', ['projectId']],
   [PROJECT, 'patch', ['projectId']],
   [PROJECT, 'delete', ['projectId']],

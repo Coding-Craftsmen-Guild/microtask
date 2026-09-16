@@ -205,6 +205,9 @@ importers:
       '@repo/store':
         specifier: workspace:*
         version: link:../../packages/store
+      '@zip.js/zip.js':
+        specifier: 2.15.0
+        version: 2.15.0
       hono:
         specifier: 4.13.7
         version: 4.13.7
@@ -2341,6 +2344,10 @@ packages:
 
   '@vitest/spy@5.0.0':
     resolution: {integrity: sha512-uy+luWBAPw9XfthoHi5AkfHUnuPYEESjl0p/r+meoBnU8bxg5GDQ3Ey8MjcJ6sqahkL4PFyrvfMJJBw7LbU06g==}
+
+  '@zip.js/zip.js@2.15.0':
+    resolution: {integrity: sha512-hYAuHAaWjt0axbofaDL5XUlmrQPsBDcK3f45ApZuh6N+8UGVk26GoGdtGDvcvzahsHytTQ6DtBVXwG9IcCMjjQ==}
+    engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
@@ -6524,6 +6531,8 @@ snapshots:
       vite: 8.2.2(@types/node@22.20.2)(jiti@2.7.0)(yaml@2.9.0)
 
   '@vitest/spy@5.0.0': {}
+
+  '@zip.js/zip.js@2.15.0': {}
 
   accepts@2.0.0:
     dependencies:

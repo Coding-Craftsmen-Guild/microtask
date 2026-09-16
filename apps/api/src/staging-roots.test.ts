@@ -7,6 +7,7 @@ import {
   buildDir,
   buildRoot,
   projectsDir,
+  stagedFile,
   stagingDir,
   stagingRoot,
 } from '@repo/microtask-domain'
@@ -15,6 +16,7 @@ import { describe, expect, it } from 'vitest'
 import { createApp } from './app.js'
 import type { ApiDeps } from './deps.js'
 import { warmTokenIndex } from './runtime.js'
+import { zipOfFiles } from './testing/archives.js'
 import { GUARDED_PREFIX, admin, body, buildDeps, testConfig } from './testing/harness.js'
 
 const ROOT = testConfig.dataDir
@@ -106,5 +108,82 @@ describe('ADR 0045 (b): the structural assertion, which holds however the roots 
     for (const resolved of [stagingRoot(ROOT, 'microtask'), buildRoot(ROOT, 'microtask')]) {
       expect(resolved.startsWith(resolve(ROOT) + sep)).toBe(true)
     }
+  })
+})
+
+describe('ADR 0045 (b) against an expansion, the layout where the absence assertion has teeth', () => {
+  const inZip = async (fix: Fixture, entries: Readonly<Record<string, string>>): Promise<string> => {
+    const app = createApp(fix.deps)
+    const opened = await app.request(SESSIONS, { method: 'POST', headers: admin() })
+    expect(opened.status).toBe(201)
+    const session = String((await body(opened))['sessionId'])
+    const archive = zipOfFiles(entries)
+    const staging = await app.request(`${SESSIONS}/${session}/files?path=drop.zip`, {
+      method: 'POST',
+      headers: { ...admin(), 'content-type': 'application/octet-stream' },
+      body: archive,
+    })
+    expect(staging.status).toBe(200)
+    const expanded = await app.request(`${SESSIONS}/${session}/archives?path=drop.zip`, {
+      method: 'POST',
+      headers: admin(),
+    })
+    expect([await body(expanded), expanded.status]).toEqual([expect.anything(), 200])
+    return session
+  }
+
+  it('writes a ULID-named directory holding a project.json — the shape (a) proves is dangerous', async () => {
+    const fix = await onDisk()
+    const id = ulid()
+    const session = await inZip(fix, { [`${id}/project.json`]: dropped(id) })
+    const at = stagedFile(ROOT, 'microtask', session, `${id}/project.json`)
+    expect(await fix.files.readText(at)).toBe(dropped(id))
+  })
+
+  it('lists no project from it, the expansion target being no ancestor of the projects root', async () => {
+    const fix = await onDisk()
+    const id = ulid()
+    await inZip(fix, { [`${id}/project.json`]: dropped(id) })
+    expect(await listed(fix.deps)).toEqual([])
+  })
+
+  it('warms none of its share tokens, so an unconfirmed drop is no credential', async () => {
+    const fix = await onDisk()
+    const id = ulid()
+    await inZip(fix, { [`${id}/project.json`]: dropped(id) })
+    expect(await warmTokenIndex(fix.deps)).toBe(0)
+    expect(fix.deps.tokens.find(TOKEN)).toBeNull()
+  })
+
+  it('resolves that entry under the staging root and nowhere near projectsDir', async () => {
+    const fix = await onDisk()
+    const id = ulid()
+    const session = await inZip(fix, { [`${id}/project.json`]: dropped(id) })
+    const at = stagedFile(ROOT, 'microtask', session, `${id}/project.json`)
+    const projects = projectsDir(ROOT, 'microtask')
+    expect(at).not.toBe(join(projects, id, 'project.json'))
+    expect(at.startsWith(projects + sep)).toBe(false)
+    expect(at.startsWith(stagingDir(ROOT, 'microtask', session) + sep)).toBe(true)
+  })
+
+  it('reaches neither read path even when the archive names the projects root itself, refusing it', async () => {
+    const fix = await onDisk()
+    const id = ulid()
+    const app = createApp(fix.deps)
+    const opened = await app.request(SESSIONS, { method: 'POST', headers: admin() })
+    const session = String((await body(opened))['sessionId'])
+    const archive = zipOfFiles({ [`../../projects/${id}/project.json`]: dropped(id) })
+    await app.request(`${SESSIONS}/${session}/files?path=escape.zip`, {
+      method: 'POST',
+      headers: { ...admin(), 'content-type': 'application/octet-stream' },
+      body: archive,
+    })
+    const expanded = await app.request(`${SESSIONS}/${session}/archives?path=escape.zip`, {
+      method: 'POST',
+      headers: admin(),
+    })
+    expect(expanded.status).toBe(422)
+    expect(await listed(fix.deps)).toEqual([])
+    expect(await warmTokenIndex(fix.deps)).toBe(0)
   })
 })

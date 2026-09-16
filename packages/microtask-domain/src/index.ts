@@ -18,14 +18,22 @@ export {
   type LimitKey,
 } from './limits.js'
 export {
+  collidingPaths,
   duplicatePaths,
   groupImportFiles,
   MANIFEST_FILE_NAME,
   type ImportFile,
   type ImportGroup,
+  type PathCollision,
 } from './import/grouping.js'
 export { normaliseImportPath } from './import/harvested-path.js'
-export { elideMiddle, sniffGroup, sniffImportFiles, type SniffedGroup } from './import/sniff.js'
+export {
+  elideMiddle,
+  LONGEST_QUOTED_PATH,
+  sniffGroup,
+  sniffImportFiles,
+  type SniffedGroup,
+} from './import/sniff.js'
 export {
   convertBundledProject,
   convertLegacyProject,

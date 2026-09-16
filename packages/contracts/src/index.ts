@@ -60,6 +60,7 @@ export { BUNDLE_FORMAT, BUNDLE_VERSION, ExportBundle, ExportedProject } from './
 export {
   ConflictChoice,
   ImportConfirmRequest,
+  ImportExpansion,
   ImportOutcome,
   ImportPreview,
   ImportPreviewGroup,

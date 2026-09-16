@@ -22,6 +22,7 @@ import {
   buildDeps,
   testConfig,
 } from '../../testing/harness.js'
+import { zipOfFiles } from '../../testing/archives.js'
 import { MAX_SESSION_BYTES, SESSION_TTL_MS } from './import/staging.js'
 
 const ROOT = testConfig.dataDir
@@ -94,6 +95,13 @@ const slices = (bytes: Uint8Array, size: number): readonly Uint8Array[] => {
   return out
 }
 
+const ARCHIVE = 'drop.zip'
+
+const named = (at: string): string => {
+  if (at.endsWith('/files')) return `?path=${HARVESTED}`
+  return at.endsWith('/archives') ? `?path=${ARCHIVE}` : ''
+}
+
 const subtree = async (): Promise<readonly { method: string; path: string }[]> => {
   const paths = (await buildApp()).getOpenAPI31Document(docConfig).paths ?? {}
   return Object.entries(paths)
@@ -101,9 +109,7 @@ const subtree = async (): Promise<readonly { method: string; path: string }[]> =
     .flatMap(([at, item]) =>
       Object.keys(item as Record<string, unknown>).map((method) => ({
         method: method.toUpperCase(),
-        path: at
-          .replace('{sessionId}', IDS.missing)
-          .concat(at.endsWith('/files') ? `?path=${HARVESTED}` : ''),
+        path: at.replace('{sessionId}', IDS.missing).concat(named(at)),
       })),
     )
 }
@@ -133,13 +139,14 @@ describe('POST /v1/microtask/import/sessions', () => {
     expect(JSON.parse((await fix.deps.fileSystem.readText(at)) ?? 'null')).toEqual({
       openedAt: STAMP,
       bytes: 0,
+      paths: [],
     })
   })
 })
 
 describe('every route in the import subtree is admin authority, import being what creates projects', () => {
-  it('finds both addresses in the document, so the refusals below are not one route', async () => {
-    expect((await subtree()).length).toBe(2)
+  it('finds all three addresses in the document, so the refusals below are not one route', async () => {
+    expect((await subtree()).length).toBe(3)
   })
 
   it.each([
@@ -163,6 +170,7 @@ describe('every route in the import subtree is admin authority, import being wha
   it('answers the admin on every route in the subtree, so those refusals are the principal', async () => {
     const { app } = await fixture()
     const session = await opened(app)
+    expect((await chunk(app, session, ARCHIVE, zipOfFiles({ 'a.json': '{}' }))).status).toBe(200)
     for (const call of await subtree()) {
       const response = await app.request(call.path.replace(IDS.missing, session), {
         method: call.method,
@@ -239,6 +247,48 @@ describe('the path a chunk names is re-normalised and re-checked server-side', (
     expect(await sessionIds(fix)).toEqual([session])
   })
 
+  it('refuses a file inside a file already staged with a 422 naming the pair, not a 500', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, 'a', 'a file, not a directory')).status).toBe(200)
+    const problem = await body(await chunk(fix.app, session, 'a/b', 'a file under a file'))
+    expect([problem['status'], problem['code']]).toEqual([422, 'invalid'])
+    expect(String(problem['detail'])).toContain('"a"')
+    expect(String(problem['detail'])).toContain('"a/b"')
+  })
+
+  it('refuses it in the other order too, the answer being about the pair and not the arrival', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, 'a/b', 'a file under a file')).status).toBe(200)
+    expect(await refusal(await chunk(fix.app, session, 'a', 'a file, not a directory'))).toEqual([
+      422,
+      'invalid',
+    ])
+  })
+
+  it('leaves the session alone when it refuses the pair: the first file stays, the next is taken', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, 'a', 'first')).status).toBe(200)
+    expect((await chunk(fix.app, session, 'a/b', 'refused')).status).toBe(422)
+    expect(await body(await chunk(fix.app, session, 'c', 'second'))).toMatchObject({
+      path: 'c',
+      sessionBytes: 11,
+    })
+    expect(await staged(fix, session, 'a')).toEqual(new TextEncoder().encode('first'))
+  })
+
+  it('takes the next chunk of a file it already stages, which is not the pair being refused', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, 'a/b', 'first ')).status).toBe(200)
+    expect(await body(await chunk(fix.app, session, 'a/b', 'second'))).toMatchObject({
+      sessionBytes: 12,
+    })
+    expect(await staged(fix, session, 'a/b')).toEqual(new TextEncoder().encode('first second'))
+  })
+
   it('cannot reach the session’s own marker file, whatever an upload calls itself', async () => {
     const fix = await fixture()
     const session = await opened(fix.app)
@@ -250,6 +300,7 @@ describe('the path a chunk names is re-normalised and re-checked server-side', (
     expect(JSON.parse((await fix.deps.fileSystem.readText(marker)) ?? 'null')).toEqual({
       openedAt: STAMP,
       bytes: 14,
+      paths: ['session.json'],
     })
   })
 })
@@ -316,7 +367,8 @@ describe('one chunk over the chunk cap', () => {
 describe('the session byte cap (ADR 0044)', () => {
   const seed = async (fix: Fixture, session: string, bytes: number): Promise<void> => {
     const at = sessionMarkerFile(ROOT, 'microtask', session)
-    await fix.deps.fileSystem.writeTextAtomic(at, JSON.stringify({ openedAt: STAMP, bytes }))
+    const paths = [HARVESTED]
+    await fix.deps.fileSystem.writeTextAtomic(at, JSON.stringify({ openedAt: STAMP, bytes, paths }))
   }
 
   it('takes the chunk that reaches the cap exactly, the total being seeded rather than uploaded', async () => {
@@ -413,7 +465,7 @@ describe('the opportunistic sweep (ADR 0045)', () => {
     const debris = IDS.missing
     await fix.deps.fileSystem.writeTextAtomic(
       sessionMarkerFile(ROOT, 'microtask', debris),
-      JSON.stringify({ openedAt: 'tuesday', bytes: 0 }),
+      JSON.stringify({ openedAt: 'tuesday', bytes: 0, paths: [] }),
     )
     expect(await sessionIds(fix)).toEqual([debris])
     const fresh = await opened(fix.app)

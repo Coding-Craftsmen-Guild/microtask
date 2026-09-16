@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { Conflict, Invalid } from '@repo/kernel'
 import { manifestFile } from '../storage/paths.js'
 import {
+  collidingPaths,
   duplicatePaths,
   groupImportFiles,
   MANIFEST_FILE_NAME,
@@ -172,25 +173,95 @@ describe('groupImportFiles', () => {
 describe('duplicatePaths', () => {
   it('names every path more than one file claimed, so a zip can report its own entries', () => {
     const collided = duplicatePaths([
-      at(`volume/${P1}/project.json`),
-      at(`volume/./${P1}/project.json`),
-      at('export.json'),
-      at('export.json'),
-      at('legacy.json'),
+      `volume/${P1}/project.json`,
+      `volume/./${P1}/project.json`,
+      'export.json',
+      'export.json',
+      'legacy.json',
     ])
     expect(collided).toEqual([`volume/${P1}/project.json`, 'export.json'])
   })
 
   it('names a collided path once, however many files claimed it', () => {
-    expect(duplicatePaths([at('a.json'), at('a.json'), at('a.json')])).toEqual(['a.json'])
+    expect(duplicatePaths(['a.json', 'a.json', 'a.json'])).toEqual(['a.json'])
   })
 
   it('finds none in a drop that has none, which is the case grouping proceeds on', () => {
-    expect(duplicatePaths([at('a.json'), at(`volume/${P1}/project.json`)])).toEqual([])
+    expect(duplicatePaths(['a.json', `volume/${P1}/project.json`])).toEqual([])
   })
 
   it('refuses a hostile path rather than answering a question about it', () => {
-    expect(() => duplicatePaths([at('../../etc/passwd')])).toThrow(Invalid)
+    expect(() => duplicatePaths(['../../etc/passwd'])).toThrow(Invalid)
+  })
+
+  it('still refuses a drop harvested twice through grouping, which takes files', () => {
+    expect(() => groupImportFiles([at('a.json'), at('a.json')])).toThrow(Conflict)
+  })
+})
+
+describe('collidingPaths: the pair one path cannot be both ends of', () => {
+  it('names the pair where one path is a file and the other is a file inside it', () => {
+    expect(collidingPaths(['a', 'a/b'])).toEqual([{ file: 'a', inside: 'a/b' }])
+  })
+
+  it('names it whichever order the two arrived in, the answer being about the set', () => {
+    expect(collidingPaths(['a/b', 'a'])).toEqual([{ file: 'a', inside: 'a/b' }])
+  })
+
+  it('reaches an ancestor that is not the immediate parent, which is the deeper drop', () => {
+    expect(collidingPaths(['drop', 'drop/p/tasks/one.json'])).toEqual([
+      { file: 'drop', inside: 'drop/p/tasks/one.json' },
+    ])
+  })
+
+  it('names every ancestor of one path that is also staged, rather than only the nearest', () => {
+    expect(collidingPaths(['a', 'a/b', 'a/b/c'])).toEqual([
+      { file: 'a', inside: 'a/b' },
+      { file: 'a', inside: 'a/b/c' },
+      { file: 'a/b', inside: 'a/b/c' },
+    ])
+  })
+
+  it('compares by segment and not by string prefix, so "ab" is not inside "a"', () => {
+    expect(collidingPaths(['a', 'ab', 'a.json', 'a-b/c'])).toEqual([])
+  })
+
+  it('normalises first, so a "." segment cannot hide the pair from the prefix test', () => {
+    expect(collidingPaths(['a', './a/b'])).toEqual([{ file: 'a', inside: 'a/b' }])
+    expect(collidingPaths(['a', 'a//b'])).toEqual([{ file: 'a', inside: 'a/b' }])
+  })
+
+  it('is not the duplicate question: one path twice is no collision, and neither is a sibling', () => {
+    expect(collidingPaths(['a', 'a'])).toEqual([])
+    expect(collidingPaths([`${P1}/project.json`, `${P1}/tasks/${T1}.json`])).toEqual([])
+    expect(duplicatePaths(['a', 'a'])).toEqual(['a'])
+  })
+
+  it('answers the same pair once however many times either path was listed', () => {
+    expect(collidingPaths(['a', 'a/b', 'a', 'a/b'])).toEqual([{ file: 'a', inside: 'a/b' }])
+  })
+
+  it('comes back sorted, so it is order-independent the way grouping is', () => {
+    const pairs = collidingPaths(['b/one', 'a/one', 'b', 'a'])
+    expect(pairs).toEqual([
+      { file: 'a', inside: 'a/one' },
+      { file: 'b', inside: 'b/one' },
+    ])
+  })
+
+  it('refuses a hostile path rather than answering a question about it', () => {
+    expect(() => collidingPaths(['a', '../../etc/passwd'])).toThrow(Invalid)
+  })
+
+  it('finds nothing in the shape a real drop has, which is what makes the pairs above specific', () => {
+    expect(
+      collidingPaths([
+        `volume/${P1}/project.json`,
+        `volume/${P1}/tasks/${T1}.json`,
+        `volume/${P2}/project.json`,
+        'volume/legacy.json',
+      ]),
+    ).toEqual([])
   })
 })
 

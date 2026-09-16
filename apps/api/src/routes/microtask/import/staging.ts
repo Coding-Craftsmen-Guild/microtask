@@ -9,6 +9,9 @@ import {
 import type { ApiDeps } from '../../../deps.js'
 import { IMPORT_CHUNK_LIMIT_BYTES } from '../../../http/body-limits.js'
 import { PRODUCT } from '../product.js'
+import { expandArchive } from './archive.js'
+import { including, readMarker, type SessionMarker } from './session-marker.js'
+import { assertFreshPaths, assertNoCollision } from './session-paths.js'
 
 /**
  * How long an unconfirmed session survives before the next `open` sweeps it.
@@ -53,25 +56,25 @@ export interface StagedChunk {
   readonly sessionBytes: number
 }
 
-interface Marker {
-  readonly openedAt: string
+/** Which archive was expanded, what it staged, and what the session now holds. */
+export interface StagedArchive {
+  readonly archive: string
+  readonly files: number
   readonly bytes: number
+  readonly sessionBytes: number
 }
 
-const isMarker = (value: unknown): value is Marker => {
-  if (typeof value !== 'object' || value === null) return false
-  const { openedAt, bytes } = value as Partial<Marker>
-  if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return false
-  return typeof openedAt === 'string' && !Number.isNaN(Date.parse(openedAt))
+interface Archive {
+  readonly marker: SessionMarker
+  readonly at: string
+  readonly bytes: Uint8Array
+  readonly file: string
 }
 
-const parsed = (raw: string): unknown => {
-  try {
-    return JSON.parse(raw) as unknown
-  } catch {
-    return null
-  }
-}
+const NO_SESSION = 'Import session not found'
+
+const noArchive = (at: string): string =>
+  `This session stages no file at "${at}", so there is nothing to expand. Upload the archive first.`
 
 const full = (staged: number): string =>
   `This import session already holds ${String(staged)} bytes and is capped at ${String(MAX_SESSION_BYTES)}. Confirm it and stage the rest in another session, or drop fewer files — one file larger than the cap cannot be staged at all.`
@@ -84,10 +87,19 @@ const full = (staged: number): string =>
  * last consequence ADR 0044 records. Nothing here touches `projects/`: every path comes from a
  * builder in `@repo/microtask-domain`, and those keep the three roots of ADR 0045 apart.
  *
- * The session's `openedAt` and its running byte total live in a small marker file rather than in
- * this process, because a chunked upload straddles requests and a restart between two of them must
- * not lose the accounting — and because a sweep measured against filesystem mtimes could only be
- * tested by touching them, which is a case that gets skipped on one platform.
+ * The session's `openedAt`, its running byte total and the paths it has staged live in a small
+ * marker file rather than in this process, because a chunked upload straddles requests and a
+ * restart between two of them must not lose the accounting — and because a sweep measured against
+ * filesystem mtimes could only be tested by touching them, which is a case that gets skipped on
+ * one platform.
+ *
+ * The path list is what lets a bad path be answered as a 422 instead of a 500 (see `append`), and
+ * it costs a marker that grows with the number of **distinct** files a session stages — around
+ * forty bytes a file, rewritten on every chunk. Nothing bounds that count but the session's byte
+ * cap, so a drop of a hundred thousand tiny files would make each later chunk rewrite a marker of
+ * some megabytes. That is a cost rather than a fault, and the alternative is a syscall per chunk
+ * whose answer is a fault this layer is forbidden to interpret. Against the volume ADR 0044
+ * measures — two files, 8,608 bytes — the list is two lines.
  *
  * **Every public method here takes `lock.run` itself, so none of them may be called from inside a
  * `lock.run`.** `QueueLock` is not reentrant and its failure is not a slow import: the inner
@@ -114,20 +126,23 @@ export class ImportStaging {
    * inside one `lock.run` so a second `open` cannot observe a half-swept root — and neither the
    * sweep nor the marker write takes the lock itself, `Lock` not being reentrant.
    *
-   * A session directory whose marker is missing or unreadable is swept too — unreadable meaning
-   * any of: absent, not JSON, no finite `bytes`, or an `openedAt` that is not an instant. That
-   * last one is a stated rule rather than an accident of the comparison below: without it a
-   * marker reading `"tuesday"` would be swept only because `Date.parse` gives `NaN` and every
-   * comparison against `NaN` is false. Such a directory cannot be a session mid-open, because the
-   * marker is the first thing written and the lock is held while it is, so it is either debris
-   * from an interrupted write or something this API did not put there.
+   * A session directory whose marker `readMarker` cannot read is swept too, on every one of the
+   * grounds that function states — including a marker carrying no `paths` list, which is what a
+   * marker written before this class recorded them looks like. Sweeping such a session is the safe
+   * direction: read instead as a session that has staged nothing, the next upload into it would
+   * have no record of what already sits under `files/` to check a path against, and the 500 that
+   * record exists to remove would be reachable again.
+   *
+   * Such a directory cannot be a session mid-open, because the marker is the first thing written
+   * and the lock is held while it is, so it is either debris from an interrupted write or
+   * something this API did not put there.
    */
   async open(): Promise<StagedSession> {
     return this.#deps.lock.run(async () => {
       await this.#sweep()
       const sessionId = this.#deps.ids.entityId()
       const openedAt = this.#deps.clock.now()
-      await this.#write(sessionId, { openedAt, bytes: 0 })
+      await this.#write(sessionId, { openedAt, bytes: 0, paths: [] })
       return {
         sessionId,
         openedAt,
@@ -153,19 +168,99 @@ export class ImportStaging {
    *
    * The chunk's own size is bounded by the route's limiter rather than re-checked here; the
    * session total is bounded here, because this marker is the only thing that knows it.
+   *
+   * The path is also checked against the paths this session has already staged, which is what
+   * `assertNoCollision` is for and why the marker lists them: a drop holding both `a` and `a/b` as
+   * files reaches `appendBytes` on a path whose parent is a file, and that is a fault the port
+   * requires be left alone rather than caught. Answering it here makes it the 422 it always was.
    */
   async append(sessionId: string, harvested: string, bytes: Uint8Array): Promise<StagedChunk> {
     const at = normaliseImportPath(harvested)
     const file = stagedFile(this.#root(), PRODUCT, sessionId, at)
     return this.#deps.lock.run(async () => {
       const marker = await this.#read(sessionId)
-      if (marker === null) throw new NotFound('Import session not found')
+      if (marker === null) throw new NotFound(NO_SESSION)
+      assertNoCollision([...marker.paths, at])
       const sessionBytes = marker.bytes + bytes.length
       if (sessionBytes > MAX_SESSION_BYTES) throw new Conflict(full(marker.bytes))
       await this.#deps.fileSystem.appendBytes(file, bytes)
-      await this.#write(sessionId, { openedAt: marker.openedAt, bytes: sessionBytes })
+      const paths = including(marker.paths, at)
+      await this.#write(sessionId, { openedAt: marker.openedAt, bytes: sessionBytes, paths })
       return { path: at, chunkBytes: bytes.length, sessionBytes }
     })
+  }
+
+  /**
+   * Expands one staged `.zip` into the session it was uploaded to, and removes the archive.
+   *
+   * The archive arrives the way every other file does — chunked into `files/` at the path the
+   * client named — because a zip is no smaller than the drop it holds and ADR 0044 chunks
+   * everything uniformly. So expansion is a second call rather than something the upload could
+   * do: the last chunk of an archive looks exactly like the last chunk of a file.
+   *
+   * What it stages is what the **same folder dropped** would have staged, at the same paths, and
+   * then the archive itself is gone — expanded to its entries and removed, its bytes leaving the
+   * session's total as theirs join it. That is what makes ADR 0020's convergence real rather than
+   * asserted: after this returns there is nothing in the session for a preview to tell apart from
+   * a drop, and no second importer to keep in step.
+   *
+   * Every rule the expansion enforces lives in `archive.ts`. The two rules that are this class's
+   * own are here, because the marker is the only thing that knows them: no entry may land on a
+   * path the session already stages, and the session's byte cap is measured as each entry is
+   * written rather than after the archive is expanded.
+   *
+   * The archive counts as **staged** for both of those checks, though it is about to be removed,
+   * and that is what closes the one hole in removing it late: an entry named `drop.zip/a.json`
+   * would otherwise be written while `drop.zip` was still a file underneath it, which is the
+   * `ENOTDIR` this whole record exists to answer as a 422. So an entry inside the archive's own
+   * path is refused as the pair it is, and an entry naming the archive exactly is refused as the
+   * duplicate it is — that one would otherwise be appended to the archive and then deleted with it.
+   *
+   * It is removed **after** the expansion has passed every rule, so a refused expansion leaves it
+   * staged to be re-expanded or abandoned rather than deleting the operator's upload, and
+   * **before** the marker is rewritten, so the worst an interruption between the two can leave is
+   * a marker naming a file that is gone. That over-counts the session's bytes and refuses one
+   * path, which are both the safe direction; the other order would leave a file the marker does
+   * not name, and the next upload to that path would append to it. `remove` and not `removeDir`
+   * because its kind is established — the bytes above were read from it as a file.
+   */
+  async expand(sessionId: string, archive: string): Promise<StagedArchive> {
+    const at = normaliseImportPath(archive)
+    const file = stagedFile(this.#root(), PRODUCT, sessionId, at)
+    return this.#deps.lock.run(async () => {
+      const marker = await this.#read(sessionId)
+      if (marker === null) throw new NotFound(NO_SESSION)
+      const bytes = await this.#deps.fileSystem.readBytes(file)
+      if (bytes === null) throw new NotFound(noArchive(at))
+      return this.#expand(sessionId, { marker, at, bytes, file })
+    })
+  }
+
+  async #expand(sessionId: string, archive: Archive): Promise<StagedArchive> {
+    const held = archive.marker.paths
+    const base = archive.marker.bytes - archive.bytes.length
+    let added = 0
+    const expansion = await expandArchive(
+      archive.bytes,
+      (paths) => {
+        assertFreshPaths(held, paths)
+        assertNoCollision([...held, ...paths])
+      },
+      async (path, content) => {
+        if (base + added + content.length > MAX_SESSION_BYTES) throw new Conflict(full(base + added))
+        added += content.length
+        await this.#stage(sessionId, path, content)
+      },
+    )
+    await this.#deps.fileSystem.remove(archive.file)
+    const sessionBytes = base + expansion.bytes
+    const paths = [...held.filter((path) => path !== archive.at), ...expansion.paths]
+    await this.#write(sessionId, { openedAt: archive.marker.openedAt, bytes: sessionBytes, paths })
+    return { archive: archive.at, files: expansion.paths.length, bytes: expansion.bytes, sessionBytes }
+  }
+
+  async #stage(sessionId: string, path: string, content: Uint8Array): Promise<void> {
+    await this.#deps.fileSystem.appendBytes(stagedFile(this.#root(), PRODUCT, sessionId, path), content)
   }
 
   async #sweep(): Promise<void> {
@@ -179,15 +274,12 @@ export class ImportStaging {
     }
   }
 
-  async #read(sessionId: string): Promise<Marker | null> {
+  async #read(sessionId: string): Promise<SessionMarker | null> {
     const at = sessionMarkerFile(this.#root(), PRODUCT, sessionId)
-    const raw = await this.#deps.fileSystem.readText(at)
-    if (raw === null) return null
-    const found = parsed(raw)
-    return isMarker(found) ? found : null
+    return readMarker(await this.#deps.fileSystem.readText(at))
   }
 
-  async #write(sessionId: string, marker: Marker): Promise<void> {
+  async #write(sessionId: string, marker: SessionMarker): Promise<void> {
     const at = sessionMarkerFile(this.#root(), PRODUCT, sessionId)
     await this.#deps.fileSystem.writeTextAtomic(at, JSON.stringify(marker))
   }

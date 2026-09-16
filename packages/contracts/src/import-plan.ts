@@ -273,3 +273,31 @@ export const ImportStagedChunk = z
     sessionBytes: z.number().int().min(0),
   })
   .meta({ id: 'ImportStagedChunk', description: 'The path a chunk was staged at, and the bytes it added' })
+
+/**
+ * What expanding one staged `.zip` put into a session (ADR 0020).
+ *
+ * `archive` is the staged path that **was** expanded, and it no longer exists: an expansion stages
+ * the archive's entries at the paths they name and then removes the archive, so what the session
+ * holds afterwards is what the same folder dropped would have staged and nothing besides. A client
+ * that kept addressing that path would be addressing a file the server deleted, which is why it is
+ * named in the answer rather than only in the request.
+ *
+ * `files` and `bytes` describe the expansion — entries written, and their **uncompressed** size,
+ * which is the number the archive caps are measured in and never the size of the upload. The
+ * entries themselves are deliberately not listed: an archive may carry ten thousand of them, so
+ * the list belongs to the preview that is about to read them rather than to this answer.
+ *
+ * `sessionBytes` is the session's running total afterwards, and it can be **smaller** than before:
+ * the archive's own bytes leave the count as its entries join it, so a well-compressed archive of
+ * a small drop shrinks the total. It is the same field {@link ImportStagedChunk} carries, measured
+ * against the same `maxSessionBytes`.
+ */
+export const ImportExpansion = z
+  .object({
+    archive: z.string(),
+    files: z.number().int().min(0),
+    bytes: z.number().int().min(0),
+    sessionBytes: z.number().int().min(0),
+  })
+  .meta({ id: 'ImportExpansion', description: 'What expanding one staged archive put into a session' })

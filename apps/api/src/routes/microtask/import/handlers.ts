@@ -2,7 +2,11 @@ import type { RouteHandler } from '@hono/zod-openapi'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
 import type { ImportStaging } from './staging.js'
-import type { openImportSessionRoute, uploadImportChunkRoute } from './routes.js'
+import type {
+  expandImportArchiveRoute,
+  openImportSessionRoute,
+  uploadImportChunkRoute,
+} from './routes.js'
 
 /**
  * Opens a session and answers the id every upload into it will name.
@@ -41,4 +45,24 @@ export const uploadImportChunk =
     const { path: harvested } = c.req.valid('query')
     const bytes = new Uint8Array(await c.req.arrayBuffer())
     return c.json(await staging.append(sessionId, harvested, bytes), 200)
+  }
+
+/**
+ * Expands one staged archive into the session it was uploaded to.
+ *
+ * The third gate in this subtree on the same action and the same target, which is what makes
+ * "admin authority" a property of the subtree rather than of a handler: a `manage` link is refused
+ * here by the same call, and expanding an archive is no weaker an act than uploading it.
+ *
+ * It reads nothing from the request but the two validated values. The archive's bytes are already
+ * on the volume, so no expansion is ever driven by a body this process buffered — and every rule
+ * ADR 0020 sets on those bytes is enforced under the session lock, in `staging.expand`.
+ */
+export const expandImportArchive =
+  (staging: ImportStaging): RouteHandler<typeof expandImportArchiveRoute, ApiEnv> =>
+  async (c) => {
+    authorize(c, 'workspace:import', { kind: 'workspace' })
+    const { sessionId } = c.req.valid('param')
+    const { path: archive } = c.req.valid('query')
+    return c.json(await staging.expand(sessionId, archive), 200)
   }

@@ -854,6 +854,33 @@
         ],
         "description": "The path a chunk was staged at, and the bytes it added"
       },
+      "ImportExpansion": {
+        "type": "object",
+        "properties": {
+          "archive": {
+            "type": "string"
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessionBytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "archive",
+          "files",
+          "bytes",
+          "sessionBytes"
+        ],
+        "description": "What expanding one staged archive put into a session"
+      },
       "FolderList": {
         "type": "object",
         "properties": {
@@ -1862,6 +1889,114 @@
           },
           "413": {
             "description": "Content Too Large",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/microtask/import/sessions/{sessionId}/archives": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Expand a staged zip archive into an import session",
+        "description": "Stages every entry at the path it names, under the caps ADR 0020 sets, and removes the archive. Nothing outside the session is touched.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The staged path of the .zip to expand, as it was uploaded"
+            },
+            "required": true,
+            "description": "The staged path of the .zip to expand, as it was uploaded",
+            "name": "path",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archive was expanded, and the session now holds this many bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportExpansion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/problem+json": {
                 "schema": {

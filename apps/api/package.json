@@ -19,6 +19,7 @@
     "hono": "4.13.7",
     "@hono/node-server": "2.1.1",
     "@hono/zod-openapi": "1.6.3",
+    "@zip.js/zip.js": "2.15.0",
     "zod": "catalog:"
   },
   "devDependencies": {

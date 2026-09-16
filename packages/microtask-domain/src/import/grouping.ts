@@ -122,17 +122,75 @@ const sealed = (bucket: Bucket): ImportGroup => ({
  * differ only in a `.` segment or a repeated separator are one path: a caller comparing raw names
  * would miss exactly the collision this exists to find.
  *
+ * Paths rather than {@link ImportFile}s, which is what it took until Task 8 needed it: the caller
+ * that asks before grouping is a **staging** area, which holds bytes on a volume and has parsed
+ * none of them, so it has paths and nothing else. {@link groupImportFiles} maps its files down to
+ * their paths on the way in, and {@link collidingPaths} beside it asks about the same input.
+ *
  * @throws Invalid naming which rule a path broke.
  */
-export function duplicatePaths(files: readonly ImportFile[]): readonly string[] {
+export function duplicatePaths(paths: readonly string[]): readonly string[] {
   const seen = new Set<string>()
   const collided = new Set<string>()
-  for (const harvested of files) {
-    const path = normaliseImportPath(harvested.path)
+  for (const raw of paths) {
+    const path = normaliseImportPath(raw)
     if (seen.has(path)) collided.add(path)
     seen.add(path)
   }
   return [...collided]
+}
+
+/** A path held as a file, beside the path that would put a file inside it. */
+export interface PathCollision {
+  readonly file: string
+  readonly inside: string
+}
+
+const ancestorsOf = (path: string): readonly string[] => {
+  const segments = path.split(SEPARATOR)
+  return segments.slice(0, -1).map((_unused, at) => segments.slice(0, at + 1).join(SEPARATOR))
+}
+
+const byCollision = (left: PathCollision, right: PathCollision): number =>
+  compare(left.file, right.file) || compare(left.inside, right.inside)
+
+/**
+ * The pairs where one path is held as a file and another would be a file **inside** it.
+ *
+ * {@link duplicatePaths}' companion, and the other half of one question: a set of paths cannot all
+ * be files. `a` and `a/b` are not a duplicate — they are two different paths, and
+ * {@link normaliseImportPath} admits both, because neither is malformed and the thing that makes
+ * them incompatible is the *other* one's presence. A drop can produce the pair (a browser directory
+ * pick cannot, but a hand-built request can) and an archive can carry it as two entries.
+ *
+ * It exists so the refusal is a **422 naming both paths** rather than the 500 the filesystem
+ * answers with. Task 7 measured that 500: `appendBytes` on `a/b` where `a` is a file rejects with
+ * `ENOTDIR` on POSIX and `ENOENT` on win32, and the port's contract is that a wrong-kind path is a
+ * fault rather than an absence — so a caller *must* let it reach the error handler as a 500, and
+ * must not catch it, because catching every rejection there would relabel `ENOSPC` and `EACCES` as
+ * a client path error. Deciding it here instead costs one string comparison per segment and no
+ * syscall, so the answer does not depend on which of the two paths arrived first.
+ *
+ * Every path is normalised on the way in, for {@link duplicatePaths}' reason and one more: the
+ * prefix test is only sound on a canonical form. Raw, `a/./b` does not start with `a/b` and `a//b`
+ * does, so both answers would be wrong on the same pair of names.
+ *
+ * The comparison is by **segment**, never by string prefix: `ab` is not inside `a` though `"ab"`
+ * does start with `"a"`, and a caller that used `startsWith` would refuse a drop nothing is wrong
+ * with. Pairs come back sorted, so the result is order-independent the way
+ * {@link groupImportFiles}' is.
+ *
+ * @throws Invalid naming which rule a path broke.
+ */
+export function collidingPaths(paths: readonly string[]): readonly PathCollision[] {
+  const unique = new Set(paths.map((path) => normaliseImportPath(path)))
+  const found: PathCollision[] = []
+  for (const inside of unique) {
+    for (const file of ancestorsOf(inside)) {
+      if (unique.has(file)) found.push({ file, inside })
+    }
+  }
+  return found.sort(byCollision)
 }
 
 /**
@@ -168,7 +226,7 @@ export function duplicatePaths(files: readonly ImportFile[]): readonly string[] 
  * @throws Conflict for a path harvested twice, whose remedy is not a refused path's.
  */
 export function groupImportFiles(files: readonly ImportFile[]): readonly ImportGroup[] {
-  const [collided] = duplicatePaths(files)
+  const [collided] = duplicatePaths(files.map((harvested) => harvested.path))
   if (collided !== undefined) throw new Conflict(`Two files were harvested for "${collided}"`)
   const buckets = new Map<string, Bucket>()
   for (const harvested of files) {

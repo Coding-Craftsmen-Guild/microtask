@@ -2,6 +2,7 @@ import * as contracts from '@repo/contracts'
 import { STAMP, sequentialIds } from '@repo/microtask-domain/testing'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { zipOfFiles } from '../testing/archives.js'
 import { docConfig } from '../http/docs.js'
 import {
   GUARDED_PREFIX,
@@ -23,19 +24,25 @@ interface Step {
   readonly method: string
   readonly path: string
   readonly headers: Record<string, string>
-  readonly body?: string
+  readonly body?: string | Uint8Array
 }
 
 interface Sample {
   readonly path: string
   readonly headers: Record<string, string>
   readonly body?: string
-  readonly setup?: Step
+  readonly setup?: readonly Step[]
 }
 
 const json = (value: unknown): string => JSON.stringify(value)
 
 const FIRST_SESSION = sequentialIds().entityId()
+
+const OPEN_SESSION: Step = {
+  method: 'POST',
+  path: `${GUARDED_PREFIX}/import/sessions`,
+  headers: admin(),
+}
 
 const SAMPLES: Readonly<Record<string, Sample>> = {
   'POST /v1/auth/login': {
@@ -62,11 +69,20 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop/project.json`,
     headers: { ...admin(), 'content-type': 'application/octet-stream' },
     body: '{ "id": "a staged file" }',
-    setup: {
-      method: 'POST',
-      path: `${GUARDED_PREFIX}/import/sessions`,
-      headers: admin(),
-    },
+    setup: [OPEN_SESSION],
+  },
+  [`POST ${GUARDED_PREFIX}/import/sessions/{sessionId}/archives`]: {
+    path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/archives?path=drop.zip`,
+    headers: admin(),
+    setup: [
+      OPEN_SESSION,
+      {
+        method: 'POST',
+        path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop.zip`,
+        headers: { ...admin(), 'content-type': 'application/octet-stream' },
+        body: zipOfFiles({ 'drop/project.json': '{ "id": "a staged project" }' }),
+      },
+    ],
   },
   [`GET ${GUARDED_PREFIX}/shares/current`]: {
     path: `${GUARDED_PREFIX}/shares/current`,
@@ -125,12 +141,14 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
   [`DELETE ${TASK}/tabs/{tabId}`]: {
     path: `${T1}/tabs/${IDS.tab1}`,
     headers: admin(),
-    setup: {
-      method: 'POST',
-      path: `${T1}/tabs`,
-      headers: adminJson(),
-      body: json({ name: 'The one left behind' }),
-    },
+    setup: [
+      {
+        method: 'POST',
+        path: `${T1}/tabs`,
+        headers: adminJson(),
+        body: json({ name: 'The one left behind' }),
+      },
+    ],
   },
   [`PUT ${TASK}/tabs/{tabId}/document`]: {
     path: `${T1}/tabs/${IDS.tab1}/document`,
@@ -211,9 +229,9 @@ const issue = async (app: Awaited<ReturnType<typeof buildApp>>, step: Step): Pro
 
 const send = async (sample: Sample, method: string): Promise<Response> => {
   const app = await buildApp()
-  if (sample.setup !== undefined) {
-    const prepared = await issue(app, sample.setup)
-    expect([sample.setup.path, prepared.status < 300]).toEqual([sample.setup.path, true])
+  for (const step of sample.setup ?? []) {
+    const prepared = await issue(app, step)
+    expect([step.path, prepared.status < 300]).toEqual([step.path, true])
   }
   const { path, headers } = sample
   const step: Step =
