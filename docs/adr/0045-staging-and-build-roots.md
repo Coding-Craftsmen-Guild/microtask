@@ -77,6 +77,29 @@ to exercise a sweep is a test that will be skipped on one platform.
 `build/` needs no TTL sweep: a build directory exists only inside one confirm, under the lock, and
 is removed on both paths out.
 
+### Amendment, 2026-09-16 — a build directory is cleared on the way **in**, not on the way out
+
+"Removed on both paths out" was wrong on the failure path, and Task 9 found it while implementing
+the publish. The publish must clear `projects/<id>/` before it renames onto it: measured on
+win32 / Node 22.16, a directory rename onto an **empty** destination is `EPERM` (where POSIX
+succeeds), onto a **non-empty** one `EPERM`, and onto a **file** it succeeds and replaces the file
+with the directory. So there is an unavoidable window, between clearing the destination and the
+rename completing, in which **neither copy of the project exists**.
+
+Removing the build directory on the failure path would therefore destroy the only remaining copy of
+a project whose destination had just been cleared — the one outcome ADR 0006 calls the worst. So it
+is cleared when a build **begins** instead. A failed publish leaves the assembled project in
+`build/<projectId>/`, which is what makes that window survivable.
+
+Residue is bounded at one directory per project id and is reclaimed by the next publish of the same
+id, so the "no TTL sweep" conclusion stands — for a different reason than the one given above.
+
+This is also where "cross-project atomicity is not claimed" acquires a sharper edge than it reads:
+a project whose publish fails *after* its destination was cleared is **gone**, not merely
+unimported. The confirm reports it as `failed`, the assembled copy is in `build/`, and the admin
+still holds the drop — but for that one project "not atomic" means destructive rather than
+incomplete, and an operator has to be told so rather than inferring it from the word.
+
 ## Consequences
 
 - An unconfirmed upload is invisible to every read path in the product. Not merely unlisted —
