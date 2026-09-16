@@ -988,6 +988,24 @@ written**, and each has a fixture.
 - [ ] Expansion lands in staging and then goes through **exactly the same** grouping and sniffing as a
       dropped folder. A test asserts a zip of a directory and the same directory dropped produce
       identical previews. Two importers that drift is the failure ADR 0020 is avoiding.
+- [ ] **Added 2026-09-16 — a drop holding both `a` and `a/b` as files must be a 422 naming the pair,
+      and this is the task where it becomes reachable.** Task 7 measured it as a **500**:
+      `normaliseImportPath` admits both paths, then `appendBytes` rejects — correctly, since Task 6a
+      made a wrong-kind path a fault rather than a benign answer — and the rejection arrives
+      unhandled. The session survives and the byte accounting does not drift (the marker is written
+      after the append), so this is a wrong status rather than corruption, but the codebase's own
+      rule, stated in `normaliseImportPath`'s TSDoc, is that a filesystem answering a path question
+      is a 500 where the server should answer 422.
+      **Do not implement it by catching `appendBytes`.** The port's TSDoc forbids switching on errno
+      — "callers must treat any of them as a fault rather than switching on one" — and catching
+      everything would relabel `ENOSPC`/`EACCES` as a client path error. The refusal has to know
+      what the session already staged and check the prefix relation **in memory, with no I/O**,
+      which is the same per-file map the offset check in Task 9 needs. The domain already has half
+      of it: `duplicatePaths` catches an exact collision but not the ancestor/descendant one, so a
+      `collidingPaths` companion beside it is the natural home.
+      It lands here rather than in Task 7 because the pair is **unreachable from a browser directory
+      pick**, which is Task 7's only input — it becomes reachable from a hand-built archive, and
+      entry-name rejection is already this task's business.
 - [ ] **Added 2026-09-16 — re-run ADR 0045's staging guard here, because this is the task where its
       absence assertion first has teeth.** Task 7 measured that its own layout cannot produce the
       dangerous shape: uploads land at `<session>/files/<harvested path>`, so even staging directly
@@ -1015,6 +1033,21 @@ written**, and each has a fixture.
 `packages/microtask-domain/src/storage/{paths,fs-project-store}.ts`, and the `MemoryFileSystem` fake
 used by the store's ordering tests.
 
+- [ ] **Added 2026-09-16 — close the chunked-upload retry gap, which Task 7 left open deliberately.**
+      There is no chunk **offset**: ADR 0044 promises only that chunks arrive in sequence, so a
+      client that retries after a timeout appends the same bytes twice. Two corrections to how bad
+      that is, both measured: it is **not silent** — a duplicated chunk breaks `JSON.parse`, every
+      raw read under `import/` opens with that parse, so the group lands `unrecognised` and the
+      preview's blocking checks refuse it; and it is **not reachable yet**, there being no client
+      until Task 12. What a retry *also* does is double `sessionBytes`, so a legitimate drop can hit
+      the session cap spuriously.
+      Take an `offset` the client sends and the server checks. The port has no `stat`, so the
+      expected offset needs an O(1) source, and there are two: add `size(file): Promise<number>` to
+      `FileSystem` (`stat().size` on Node, `bytes.length` in the fake — and this task's file list
+      already opens that port), or keep per-file byte counts in the session marker. The marker map
+      is the same structure Task 8's `collidingPaths` refusal needs, so if both land, one structure
+      serves both. **Not** by reading the file to measure it — that is O(n) per chunk and is the one
+      option Task 7 correctly refused.
 - [ ] `GET …/sessions/:id/preview` returns the plan from Group B. It reads staging and writes nothing.
 - [ ] `POST …/sessions/:id/confirm` applies it under the conflict choices.
 - [ ] **[audited] A confirmed project is built whole, then moved into place.** ADR 0006 states a rule
