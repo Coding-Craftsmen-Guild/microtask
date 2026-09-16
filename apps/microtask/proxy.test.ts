@@ -253,3 +253,33 @@ describe('config', () => {
     }
   })
 })
+
+describe('the transfer page, which is admin-only and reachable from nowhere else', () => {
+  it('sends a navigation with no mt_admin to /login, keeping /transfer as the deep link', () => {
+    const response = visit('/transfer')
+    expect(response.status).toBe(307)
+    expect(locationOf(response)).toBe(`${ORIGIN}/login?next=%2Ftransfer`)
+  })
+
+  it('sends a cookie holding a link principal to /login, since it does not open as an admin', () => {
+    const asLink = seal(SECRET, payloadOf({ kind: 'link', token: 'sharetoken-sharetoken' }))
+    const response = visit('/transfer', { cookies: { [ADMIN_COOKIE]: asLink } })
+    expect(response.status).toBe(307)
+    expect(locationOf(response)).toBe(`${ORIGIN}/login?next=%2Ftransfer`)
+  })
+
+  it('sends a tampered mt_admin to /login, exactly as it sends no cookie', () => {
+    expect(isRedirect(visit('/transfer', { cookies: { [ADMIN_COOKIE]: FLIPPED } }))).toBe(true)
+  })
+
+  it('lets a real admin cookie through, and writes no cookie on the way', () => {
+    const response = visit('/transfer', { cookies: { [ADMIN_COOKIE]: ADMIN } })
+    expect(isRedirect(response)).toBe(false)
+    expect(cookieWrites(response)).toEqual([])
+  })
+
+  it('passes the two route handlers this page uses through ungated, which is why each gates itself', () => {
+    expect(isRedirect(visit('/api/export'))).toBe(false)
+    expect(isRedirect(visit('/api/import/upload', { method: 'POST' }))).toBe(false)
+  })
+})

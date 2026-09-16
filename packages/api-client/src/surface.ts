@@ -4,6 +4,7 @@ import { projectsApi, type ProjectsApi } from './operations/projects.js'
 import { shareLinksApi, type ShareLinksApi } from './operations/share-links.js'
 import { tabsApi, type TabsApi } from './operations/tabs.js'
 import { tasksApi, type TasksApi } from './operations/tasks.js'
+import { transferApi, type TransferApi } from './operations/transfer.js'
 import { CURRENT_SHARE_PATH, SEARCH_PATH } from './paths.js'
 import type { Transport } from './transport.js'
 import type { Decoded } from './types.js'
@@ -37,6 +38,9 @@ export interface MicrotaskApi {
   /** Share links: minting seats, listing them, and revoking a subtree of them. */
   readonly shareLinks: ShareLinksApi
 
+  /** Export and import: the one download this API serves, and one staged import session. */
+  readonly transfer: TransferApi
+
   /**
    * Searches project, folder and task names across the product.
    *
@@ -64,6 +68,7 @@ export function createSurface(transport: Transport): MicrotaskApi {
     tasks: tasksApi(transport),
     tabs: tabsApi(transport),
     shareLinks: shareLinksApi(transport),
+    transfer: transferApi(transport),
     search: (term) =>
       transport.json({ method: 'GET', path: SEARCH_PATH, query: { q: term } }, SearchResults),
     currentShare: () =>

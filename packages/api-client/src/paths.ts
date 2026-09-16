@@ -31,3 +31,20 @@ export const taskPath = (ref: TaskRef): string =>
 export const tabPath = (ref: TabRef): string =>
   `${taskPath(ref)}/tabs/${encodeURIComponent(ref.tabId)}`
 
+/**
+ * Where a whole product's bundle is asked for.
+ *
+ * It sits beside the projects collection rather than under it because it names no project: the
+ * per-project address is {@link projectExportPath} below (ADR 0009).
+ */
+export const WORKSPACE_EXPORT_PATH = '/v1/microtask/export'
+
+/** Where import sessions are opened, and the root every upload into one is addressed under. */
+export const IMPORT_SESSIONS_PATH = '/v1/microtask/import/sessions'
+
+/** One project's export path, built from the project that owns it. */
+export const projectExportPath = (projectId: string): string => `${projectPath(projectId)}/export`
+
+/** One import session's path, which every upload, preview and confirm is built from. */
+export const importSessionPath = (sessionId: string): string =>
+  `${IMPORT_SESSIONS_PATH}/${encodeURIComponent(sessionId)}`

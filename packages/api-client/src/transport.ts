@@ -34,18 +34,72 @@ export interface Call {
   readonly signal?: AbortSignal
 }
 
-/** The two ways a response comes back: decoded through a contract schema, or with no body. */
+/**
+ * What a byte body may be, taken from `fetch`'s own `body` rather than named.
+ *
+ * `BodyInit` is not a global under `lib: ES2023` — this package compiles without the DOM library,
+ * which is what keeps it usable from a Node server as well as a browser bundle — and spelling the
+ * union out here would be a copy of the platform's that could drift. `NonNullable` drops the
+ * `null` a `RequestInit` may legitimately carry for "no body": a byte call always has one.
+ */
+export type RawBody = NonNullable<RequestInit['body']>
+
+/**
+ * One request whose body is **bytes**, for the one operation in this API that carries any.
+ *
+ * A separate shape rather than a widened {@link Call}, because the two bodies are handled
+ * incompatibly: a `Call`'s `body` is JSON-stringified, and a `Uint8Array` stringifies to
+ * `{"0":1,"1":2,…}` — a document the import route would append to a staging file in place of the
+ * bytes it was sent, corrupting the file without failing the request. Naming the byte body
+ * `bytes` makes the two impossible to confuse at the call site and at the type level.
+ */
+export interface RawCall extends Omit<Call, 'body'> {
+  /** The chunk itself, sent verbatim and declared `application/octet-stream`. */
+  readonly bytes: RawBody
+}
+
+/**
+ * The four ways a call is sent and its answer taken.
+ *
+ * `json` and `empty` are the whole of the ordinary API: a JSON body in, a contract-parsed body or
+ * nothing back. The other two exist because two operations move **bytes**, and ADR 0015 makes
+ * each of them a Next route handler rather than a Server Action — neither of which the first two
+ * could serve:
+ *
+ * - `json` **JSON-stringifies every body**, so an import chunk sent through it arrives as a JSON
+ *   object of indices rather than as the bytes the staging file must hold (ADR 0044).
+ *   {@link bytes} sends the body verbatim.
+ * - `json` also awaits and **parses every response through a contract schema**, which buffers a
+ *   whole workspace bundle in this process to hand the browser a string it will only stream out
+ *   again. {@link stream} answers the `Response` with its body unread, so the export proxy passes
+ *   the upstream body straight through (ADR 0041).
+ *
+ * All four go through the same credential wiring, which is why they are methods here rather than
+ * a `fetch` written out again inside each route handler: `x-api-key` and the bearer are required
+ * *together* on every request, and a handler assembling its own could present one without the
+ * other and read the 401 as an outage (ADR 0012).
+ */
 export interface Transport {
   /** Sends a call and decodes its body with the schema the API declares that response with. */
   json<Value>(call: Call, schema: Decoder<Value>): Promise<Value>
 
   /** Sends a call whose success carries no body, such as a delete answering 204. */
   empty(call: Call): Promise<void>
+
+  /** Sends a byte body verbatim and decodes the answer through the response's own schema. */
+  bytes<Value>(call: RawCall, schema: Decoder<Value>): Promise<Value>
+
+  /** Sends a call and answers the `Response` itself, body unread, for a caller that streams it. */
+  stream(call: Call): Promise<Response>
 }
 
 const JSON_MEDIA_TYPE = 'application/json'
 
-const urlFor = (baseUrl: string, call: Call): string => {
+const OCTET_STREAM = 'application/octet-stream'
+
+type Addressed = Pick<Call, 'path' | 'query' | 'signal'>
+
+const urlFor = (baseUrl: string, call: Addressed): string => {
   const root = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl
   const search = new URLSearchParams(call.query ?? {}).toString()
   return search === '' ? `${root}${call.path}` : `${root}${call.path}?${search}`
@@ -73,6 +127,12 @@ const initFor = (options: ClientOptions, token: string | null, call: Call): Requ
     : { method: call.method, headers, body: JSON.stringify(call.body), ...cancellable }
 }
 
+const rawInit = (options: ClientOptions, token: string | null, call: RawCall): RequestInit => {
+  const headers = { ...headersFor(options, token, call), 'content-type': OCTET_STREAM, ...call.headers }
+  const cancellable = call.signal === undefined ? {} : { signal: call.signal }
+  return { method: call.method, headers, body: call.bytes, ...cancellable }
+}
+
 /**
  * Builds the transport both client kinds are made of.
  *
@@ -97,12 +157,13 @@ const initFor = (options: ClientOptions, token: string | null, call: Call): Requ
  */
 export function createTransport(options: ClientOptions, token: string | null): Transport {
   const fetcher: Fetcher = options.fetch ?? ((url, init) => globalThis.fetch(url, init))
-  const send = async (call: Call): Promise<Response> => {
+  const dispatch = async (call: Addressed, init: RequestInit): Promise<Response> => {
     call.signal?.throwIfAborted()
-    const response = await fetcher(urlFor(options.baseUrl, call), initFor(options, token, call))
+    const response = await fetcher(urlFor(options.baseUrl, call), init)
     if (!response.ok) throw await errorFrom(response, call.path)
     return response
   }
+  const send = (call: Call): Promise<Response> => dispatch(call, initFor(options, token, call))
   return {
     async json(call, schema) {
       const response = await send(call)
@@ -112,5 +173,11 @@ export function createTransport(options: ClientOptions, token: string | null): T
     async empty(call) {
       await send(call)
     },
+    async bytes(call, schema) {
+      const response = await dispatch(call, rawInit(options, token, call))
+      const body: unknown = await response.json()
+      return schema.parse(body)
+    },
+    stream: send,
   }
 }

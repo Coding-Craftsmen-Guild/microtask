@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join, relative } from 'node:path'
 import { builtinModules } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { MIN_COOKIE_SECRET_BYTES, readEnv } from './env'
@@ -107,4 +108,41 @@ describe('what the Edge instrumentation bundle pulls in', () => {
       expect(text).not.toMatch(/\bBuffer\s*\./)
     },
   )
+})
+
+describe('exactly one file in this app reads process.env', () => {
+  const ROOT = fileURLToPath(new URL('..', import.meta.url))
+
+  const SKIP = new Set(['node_modules', '.next', '.turbo', 'public'])
+
+  const sources = (directory: string): readonly string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const next = join(directory, entry.name)
+      if (entry.isDirectory()) return SKIP.has(entry.name) ? [] : sources(next)
+      return /\.tsx?$/.test(entry.name) ? [next] : []
+    })
+
+  const stripped = (file: string): string =>
+    readFileSync(file, 'utf8').replaceAll(/\/\*[\s\S]*?\*\//gu, '')
+
+  const named = (file: string): string => relative(ROOT, file).split('\\').join('/')
+
+  const shipped = sources(ROOT).filter((file) => !/\.(test|config)\./.test(named(file)))
+
+  it('walks a real set of shipped sources, so the sweep below is not empty', () => {
+    expect(shipped.length).toBeGreaterThan(100)
+    expect(shipped.map(named)).toContain('lib/env.ts')
+  })
+
+  it('finds process.env in lib/env.ts and nowhere else outside a test or a config', () => {
+    const readers = shipped.filter((file) => stripped(file).includes('process.env')).map(named)
+    expect(readers).toEqual(['lib/env.ts'])
+  })
+
+  it('is the file the lint config lifts n/no-process-env for, and the only one', () => {
+    const config = readFileSync(join(ROOT, 'eslint.config.js'), 'utf8')
+    expect(config).toContain("files: ['lib/env.ts']")
+    expect(config).toContain("'n/no-process-env': 'off'")
+    expect([...config.matchAll(/'n\/no-process-env': 'off'/g)]).toHaveLength(1)
+  })
 })

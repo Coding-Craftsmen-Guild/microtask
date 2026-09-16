@@ -7,13 +7,17 @@ export {
   type FieldError,
   type ValidationTarget,
 } from './api-error.js'
-export { createTransport, type Call, type Transport } from './transport.js'
+export { createTransport, type Call, type RawCall, type Transport } from './transport.js'
 export { createSurface, type MicrotaskApi } from './surface.js'
 export {
   CURRENT_SHARE_PATH,
+  IMPORT_SESSIONS_PATH,
   LOGIN_PATH,
   PROJECTS_PATH,
   SEARCH_PATH,
+  WORKSPACE_EXPORT_PATH,
+  importSessionPath,
+  projectExportPath,
   projectPath,
   tabPath,
   taskPath,
@@ -23,4 +27,5 @@ export type { Project, ProjectsApi } from './operations/projects.js'
 export type { NewShareLink, ShareLinkChange, ShareLinksApi } from './operations/share-links.js'
 export type { Document, TabsApi } from './operations/tabs.js'
 export type { NewTask, TasksApi } from './operations/tasks.js'
+export type { ChunkRef, ImportConfirmation, TransferApi } from './operations/transfer.js'
 export type { ClientOptions, Decoded, Decoder, Fetcher, TabRef, TaskRef } from './types.js'

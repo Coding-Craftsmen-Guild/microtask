@@ -9,6 +9,10 @@ export interface FakeAdmin {
   readonly folders: Record<'list' | 'create' | 'reorder' | 'rename' | 'remove', AnyCall>
   readonly tasks: Record<'create' | 'reorder' | 'read' | 'rename' | 'move' | 'remove', AnyCall>
   readonly shareLinks: Record<'list' | 'create' | 'update' | 'revoke', AnyCall>
+  readonly transfer: Record<
+    'exportWorkspace' | 'exportProject' | 'openSession' | 'uploadChunk' | 'expandArchive' | 'preview' | 'confirm',
+    AnyCall
+  >
 }
 
 const calls = <Name extends string>(names: readonly Name[]): Record<Name, AnyCall> =>
@@ -20,6 +24,15 @@ export const fakeAdmin = (): FakeAdmin => ({
   folders: calls(['list', 'create', 'reorder', 'rename', 'remove']),
   tasks: calls(['create', 'reorder', 'read', 'rename', 'move', 'remove']),
   shareLinks: calls(['list', 'create', 'update', 'revoke']),
+  transfer: calls([
+    'exportWorkspace',
+    'exportProject',
+    'openSession',
+    'uploadChunk',
+    'expandArchive',
+    'preview',
+    'confirm',
+  ]),
 })
 
 /** The double, typed as the client `apiForSession` hands back. */

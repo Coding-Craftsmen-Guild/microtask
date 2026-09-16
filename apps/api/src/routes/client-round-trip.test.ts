@@ -132,3 +132,155 @@ describe('the list the client decodes carries no share token (ADR 0033)', () => 
     expect(read.shareLinks?.map((one) => one.token)).toContain(TOKENS.p1View)
   })
 })
+
+describe('the transfer surface drives the real import routes, chunk by chunk (ADR 0044)', () => {
+  const HARVESTED = 'drop/project.json'
+
+  const bytesOf = (text: string): Uint8Array => new TextEncoder().encode(text)
+
+  it('opens a session and decodes the two caps the browser slices by', async () => {
+    const client = await asAdmin()
+    const opened = await client.transfer.openSession()
+    expect(opened.sessionId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+    expect(opened.maxChunkBytes).toBeGreaterThan(0)
+    expect(opened.maxSessionBytes).toBeGreaterThan(opened.maxChunkBytes)
+  })
+
+  it('appends two chunks at the offsets the caller states, and counts the same bytes', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    const first = bytesOf('{"format":"micro')
+    const second = bytesOf('task-project"}')
+    const one = await client.transfer.uploadChunk({ sessionId, path: HARVESTED, offset: 0 }, first)
+    expect(one).toEqual({ path: HARVESTED, chunkBytes: first.length, sessionBytes: first.length })
+    const two = await client.transfer.uploadChunk(
+      { sessionId, path: HARVESTED, offset: first.length },
+      second,
+    )
+    expect(two.chunkBytes).toBe(second.length)
+    expect(two.sessionBytes).toBe(first.length + second.length)
+  })
+
+  it('refuses a chunk at an offset that is not where the file ends, rather than doubling it', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    const chunk = bytesOf('{"a":1}')
+    await client.transfer.uploadChunk({ sessionId, path: HARVESTED, offset: 0 }, chunk)
+    const error = await refused(() =>
+      client.transfer.uploadChunk({ sessionId, path: HARVESTED, offset: 0 }, chunk),
+    )
+    expect(error.status).toBe(409)
+    expect(error.detail).toContain(String(chunk.length))
+  })
+
+  it('answers the path the server normalised, not the spelling that was sent', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    const staged = await client.transfer.uploadChunk(
+      { sessionId, path: 'drop/./a.json', offset: 0 },
+      bytesOf('{}'),
+    )
+    expect(staged.path).toBe('drop/a.json')
+  })
+
+  it('refuses a harvested path an import may not read, without ending the session', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    const error = await refused(() =>
+      client.transfer.uploadChunk({ sessionId, path: '../../etc/passwd', offset: 0 }, bytesOf('x')),
+    )
+    expect(error.status).toBe(422)
+    const after = await client.transfer.uploadChunk(
+      { sessionId, path: HARVESTED, offset: 0 },
+      bytesOf('{}'),
+    )
+    expect(after.path).toBe(HARVESTED)
+  })
+
+  it('stages a zero-byte file as one empty chunk, so an empty file is not silently lost', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    const staged = await client.transfer.uploadChunk(
+      { sessionId, path: 'drop/empty.json', offset: 0 },
+      new Uint8Array(),
+    )
+    expect(staged).toEqual({ path: 'drop/empty.json', chunkBytes: 0, sessionBytes: 0 })
+  })
+
+  it('previews the session it staged, giving every dropped group a row (ADR 0018)', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    await client.transfer.uploadChunk({ sessionId, path: HARVESTED, offset: 0 }, bytesOf('not json'))
+    const plan = await client.transfer.preview(sessionId)
+    expect(plan.sessionId).toBe(sessionId)
+    expect(plan.groups).toHaveLength(1)
+    expect(plan.groups[0]?.reasons.length).toBeGreaterThan(0)
+  })
+
+  it('confirms a session and answers a row per project, failures included', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    await client.transfer.uploadChunk({ sessionId, path: HARVESTED, offset: 0 }, bytesOf('not json'))
+    const applied = await client.transfer.confirm({ sessionId, choices: [] })
+    expect(applied.sessionId).toBe(sessionId)
+    expect(applied.projects).toHaveLength(1)
+    expect(applied.projects[0]?.outcome).toBe('blocked')
+  })
+
+  it('refuses a choice naming a project the session does not hold, as a 422', async () => {
+    const client = await asAdmin()
+    const { sessionId } = await client.transfer.openSession()
+    const error = await refused(() =>
+      client.transfer.confirm({ sessionId, choices: [{ projectId: IDS.p1, choice: 'replace' }] }),
+    )
+    expect(error.status).toBe(422)
+  })
+
+  it('refuses every import route to a link token, since an import creates projects', async () => {
+    const client = await asLink(TOKENS.p1Manage)
+    expect((await refused(() => client.transfer.openSession())).status).toBe(403)
+  })
+})
+
+describe('the transfer surface reads the real export routes without touching the body', () => {
+  const bundleOf = async (response: Response): Promise<Record<string, unknown>> =>
+    (await response.json()) as Record<string, unknown>
+
+  it('answers an unread response, which is what lets a proxy stream it', async () => {
+    const client = await asAdmin()
+    const response = await client.transfer.exportWorkspace(null)
+    expect(response.status).toBe(200)
+    expect(response.bodyUsed).toBe(false)
+  })
+
+  it('strips share links when no disposition is named, because the API defaults to strip', async () => {
+    const client = await asAdmin()
+    const bundle = JSON.stringify(await bundleOf(await client.transfer.exportWorkspace(null)))
+    expect(bundle).not.toContain(TOKENS.p1View)
+  })
+
+  it('carries the tokens only when preserve was asked for by name (ADR 0017)', async () => {
+    const client = await asAdmin()
+    const bundle = JSON.stringify(await bundleOf(await client.transfer.exportWorkspace('preserve')))
+    expect(bundle).toContain(TOKENS.p1View)
+  })
+
+  it('refuses a disposition outside the enum as a 422 rather than falling back', async () => {
+    const client = await asAdmin()
+    const error = await refused(() => client.transfer.exportWorkspace('keep-them-all'))
+    expect(error.status).toBe(422)
+  })
+
+  it('exports one project at its own address, which a manage link may ask for', async () => {
+    const client = await asLink(TOKENS.p1Manage)
+    const response = await client.transfer.exportProject(IDS.p1, null)
+    expect(response.status).toBe(200)
+    const projects = (await bundleOf(response))['projects']
+    expect(Array.isArray(projects) ? projects.length : 0).toBe(1)
+  })
+
+  it('refuses the workspace export to a link token, which names no project to decide on', async () => {
+    const client = await asLink(TOKENS.p1Manage)
+    expect((await refused(() => client.transfer.exportWorkspace(null))).status).toBe(403)
+  })
+})
