@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import type { FileSystem } from '../ports/file-system.js'
 
 const NAME = 'Ärendehantering 日本語 — år 2026'
@@ -32,8 +32,20 @@ export interface FileSystemHarness {
    * prefixes of the files in them has no way to make one, and skipping the case is preferable
    * to widening FileSystem with a `makeDir` the application would never call — nothing in this
    * codebase creates a directory except as a side effect of writing a file into it.
+   *
+   * Skipping is not cost-free, and the residue is worth naming: the port's own `move` and
+   * `remove` *leave* empty directories behind on a disk, so an adapter that cannot represent one
+   * also makes them disappear. The two cases below are the only place that difference is visible,
+   * and they run for the real filesystem alone.
    */
   makeEmptyDir?(dir: string): Promise<void>
+
+  /**
+   * Releases whatever the last `reset` left behind, once the suite is over. Optional, and only an
+   * adapter holding something outside the process needs it — `reset` cleans up the *previous*
+   * round, so without this the final round's directory outlives every run.
+   */
+  teardown?(): Promise<void>
 }
 
 /** How long one case may take, raised for an adapter doing real IO on a contended disk. */
@@ -45,12 +57,14 @@ export interface FileSystemContractOptions {
 /**
  * Runs the behaviour every FileSystem adapter must exhibit.
  *
- * It exists because the import routes are written against a fake and run against a disk, and the
- * four ways those two can disagree all decide what an import does: a `move` that copies instead
- * of renaming, an `appendBytes` that creates parent directories where the other throws, a
- * `listFiles` that includes directory names, and a `readBytes` answering an empty array rather
- * than null for a file that is not there. Each of those passes a test written against one
- * implementation alone, so the contract is written once and run by both.
+ * It exists because the import routes are written against a fake and run against a disk. Four of
+ * the ways those two can disagree, each of which changes what an import does: a `move` that
+ * copies instead of renaming, an `appendBytes` that creates parent directories where the other
+ * throws, a `listFiles` that includes directory names, and a `readBytes` answering an empty array
+ * rather than null for a file that is not there. Each of those passes a test written against one
+ * implementation alone, so the contract is written once and run by both. It is not exhaustive —
+ * `MemoryFileSystem`'s own TSDoc names the differences no portable case can pin, case sensitivity
+ * and vanishing empty directories among them.
  */
 export function describeFileSystem(
   name: string,
@@ -72,6 +86,10 @@ export function describeFileSystem(
     const intact = async (target: string) => {
       expect(await files.readText(at(target, 'inside.json'))).toBe('kept')
     }
+
+    afterAll(async () => {
+      await harness.teardown?.()
+    })
 
     it('returns null for text that was never written', async () => {
       const dir = await fresh()
@@ -120,6 +138,15 @@ export function describeFileSystem(
       await expect(files.writeTextAtomic(target, 'clobbered')).rejects.toThrow()
       await expect(files.appendBytes(target, encode('clobbered'))).rejects.toThrow()
       await intact(target)
+    })
+
+    it('rejects a write under an ancestor that is a file, which is the staging path before expansion', async () => {
+      const dir = await fresh()
+      const upload = at(dir, 'session')
+      await files.writeTextAtomic(upload, 'an upload not yet expanded')
+      await expect(files.writeTextAtomic(at(upload, 'project.json'), '{}')).rejects.toThrow()
+      await expect(files.appendBytes(at(upload, 'project.json'), encode('{}'))).rejects.toThrow()
+      expect(await files.readText(upload)).toBe('an upload not yet expanded')
     })
 
     it('rejects removing a directory as a file, leaving what is under it', async () => {
@@ -203,7 +230,7 @@ export function describeFileSystem(
       expect([...((await files.readBytes(file)) ?? [])]).toEqual([...encode(NAME)])
     })
 
-    it('hands back bytes the caller owns, so mutating them cannot reach back into the store', async () => {
+    it('copies bytes on the way out, so mutating the array it handed back cannot corrupt the store', async () => {
       const dir = await fresh()
       const file = at(dir, 'upload.zip')
       await files.appendBytes(file, encode('payload'))
@@ -292,6 +319,28 @@ export function describeFileSystem(
       await files.writeTextAtomic(at(to, 'project.json'), 'live')
       await expect(files.move(from, to)).rejects.toThrow()
       expect(await files.readText(at(to, 'project.json'))).toBe('live')
+      expect(await files.readText(at(from, 'project.json'))).toBe('incoming')
+    })
+
+    it('refuses a destination that is an existing file, leaving both sides exactly as they were', async () => {
+      const dir = await fresh()
+      const from = at(dir, 'build', 'project.json')
+      const to = at(dir, 'projects', 'project.json')
+      await files.writeTextAtomic(from, 'incoming')
+      await files.writeTextAtomic(to, 'live')
+      await expect(files.move(from, to)).rejects.toThrow()
+      expect(await files.readText(to)).toBe('live')
+      expect(await files.readText(from)).toBe('incoming')
+    })
+
+    it('refuses a directory source onto an existing file, rather than replacing the file with the directory', async () => {
+      const dir = await fresh()
+      const from = at(dir, 'build', 'project')
+      const to = at(dir, 'projects', 'project')
+      await files.writeTextAtomic(at(from, 'project.json'), 'incoming')
+      await files.writeTextAtomic(to, 'live')
+      await expect(files.move(from, to)).rejects.toThrow()
+      expect(await files.readText(to)).toBe('live')
       expect(await files.readText(at(from, 'project.json'))).toBe('incoming')
     })
 

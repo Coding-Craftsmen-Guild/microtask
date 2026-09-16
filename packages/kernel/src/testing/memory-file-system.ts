@@ -18,22 +18,32 @@ const joined = (existing: Uint8Array | undefined, bytes: Uint8Array): Uint8Array
 /**
  * A FileSystem holding bytes in memory, so a test never touches a disk.
  *
- * Every file is stored as bytes and every path is normalised to forward slashes, so the same
- * instance answers `C:\data\x` and `/data/x` the way the real adapter does on each platform.
- * `readText` and `writeTextAtomic` encode and decode around that byte store rather than keeping
- * a second string map, which is what makes the text and byte halves of the port agree here as
- * they do on a disk.
+ * Every file is stored as bytes, and every path is folded to forward slashes and then compared
+ * case-sensitively. That matches **neither** platform exactly, so keep a test's paths to one
+ * spelling: win32's real adapter is case-*insensitive* — `Projects.json` written and
+ * `projects.json` read gives the content back on disk and `null` here — and on POSIX a backslash
+ * is a legal character in a filename, which this class folds into a separator. `readText` and
+ * `writeTextAtomic` encode and decode around the one byte store rather than keeping a second
+ * string map, which is what makes the text and byte halves of the port agree here as they do on
+ * a disk.
  *
- * Wrong-kind paths throw here exactly where they throw on a disk, rather than answering the
- * benign `null` or `[]` an in-memory map falls into naturally. That asymmetry is the one that
- * matters: a fake more forgiving than production lets a route pass its tests and lose data on
- * the volume. Errors carry a `code` for readability only — the real adapter's codes for these
- * differ by platform, so no case asserts one.
+ * Wrong-kind paths throw here rather than answering the benign `null` or `[]` an in-memory map
+ * falls into naturally, because a fake more forgiving than production lets a route pass its tests
+ * and lose data on the volume. For the path *itself* that matches a disk on both platforms. For a
+ * path whose **ancestor** is a file it matches the writes only: `mkdir` refuses on both, so
+ * `writeTextAtomic` and `appendBytes` throw everywhere, but a bare `readFile`/`readdir` under a
+ * file ancestor reports `ENOENT` on win32 — which the real adapter maps to absent — against
+ * `ENOTDIR` on POSIX. The contract cannot pin what the two platforms disagree about, so this
+ * class takes the stricter answer and throws; only the writes are asserted. Errors carry a `code`
+ * for readability only, and no case asserts one.
  *
- * Directories are implicit: they exist exactly as long as a file sits under them, because the
- * port has no way to create an empty one. That is a real difference from a disk, and it is why
- * `describeFileSystem`'s cases about empty directories are gated on a harness capability
- * instead of being written against this class.
+ * Directories are implicit: they exist exactly as long as a file sits under them. The port cannot
+ * create an empty one, but its own operations *leave* them on a disk, and that is the direction
+ * that bites — `move` out of a staging directory leaves the parent behind on a volume, where
+ * `listDirs` still reports it and `removeDir` still answers `true`, while here it vanishes and
+ * `removeDir` answers `false`. A sweep reading `false` as "already clean" is therefore right here
+ * and wrong on disk. Fixing it needs a directory set this class does not keep, so the cases that
+ * depend on an empty directory are gated on a harness capability instead.
  */
 export class MemoryFileSystem implements FileSystem {
   readonly #files = new Map<string, Uint8Array>()
@@ -99,7 +109,7 @@ export class MemoryFileSystem implements FileSystem {
       throw fault('ENOENT', `ENOENT: no such file or directory, rename '${source}'`)
     }
     if (this.#entriesUnder(target).length > 0) {
-      throw fault('ENOTEMPTY', `ENOTEMPTY: destination not empty, rename '${source}' -> '${target}'`)
+      throw fault('EEXIST', `EEXIST: destination exists, rename '${source}' -> '${target}'`)
     }
     for (const [key, bytes] of moving) {
       this.#files.delete(key)
@@ -108,7 +118,7 @@ export class MemoryFileSystem implements FileSystem {
   }
 
   #asFile(file: string, syscall: string): string {
-    const at = normalise(file)
+    const at = this.#belowNoFile(normalise(file), syscall)
     if (!this.#files.has(at) && this.#entriesUnder(at).length > 0) {
       throw fault('EISDIR', `EISDIR: illegal operation on a directory, ${syscall} '${at}'`)
     }
@@ -116,9 +126,20 @@ export class MemoryFileSystem implements FileSystem {
   }
 
   #asDir(dir: string): string {
-    const at = normalise(dir)
+    const at = this.#belowNoFile(normalise(dir), 'scandir')
     if (this.#files.has(at)) {
       throw fault('ENOTDIR', `ENOTDIR: not a directory, scandir '${at}'`)
+    }
+    return at
+  }
+
+  #belowNoFile(at: string, syscall: string): string {
+    const parts = at.split('/')
+    for (let cut = 1; cut < parts.length; cut += 1) {
+      const ancestor = parts.slice(0, cut).join('/')
+      if (this.#files.has(ancestor)) {
+        throw fault('ENOTDIR', `ENOTDIR: not a directory, ${syscall} '${at}'`)
+      }
     }
     return at
   }

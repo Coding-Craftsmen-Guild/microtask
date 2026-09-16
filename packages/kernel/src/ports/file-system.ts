@@ -1,15 +1,17 @@
 /**
  * The whole filesystem surface the store is allowed to use.
  *
- * **A path of the wrong kind is a fault, not an absence.** Every method below except
- * {@link FileSystem.removeDir} rejects when the path it is given exists but is the other kind of
- * node — a file where a directory was named, or a directory where a file was. That is stated per
- * method, and it is stated because the benign alternative is what produces a false green: `null`
- * from a read and `[]` from a listing both mean *absent* everywhere else in this codebase, so an
- * adapter answering either for a wrong-kind path turns a staging mistake into "nothing is there"
- * and the caller proceeds. `removeDir` is the single deliberate exception: it removes whatever is
+ * **A path of the wrong kind is a fault, not an absence.** Every method below that names a single
+ * path rejects when that path exists but is the other kind of node — a file where a directory was
+ * named, or a directory where a file was. That is stated per method, and it is stated because the
+ * benign alternative is what produces a false green: `null` from a read and `[]` from a listing
+ * both mean *absent* everywhere else in this codebase, so an adapter answering either for a
+ * wrong-kind path turns a staging mistake into "nothing is there" and the caller proceeds.
+ *
+ * Two methods sit outside that rule on purpose. {@link FileSystem.removeDir} removes whatever is
  * at the path, of either kind, because a bulk-import sweep wants `rm -rf` semantics on a staging
- * path that is a file before expansion and a directory after it.
+ * path that is a file before expansion and a directory after it. {@link FileSystem.move} takes a
+ * source of either kind, since moving a directory whole is the reason it exists.
  *
  * The codes differ by platform and are no part of this contract. Measured on win32 / Node 22.16
  * in this repo: `readdir` on a file gives `ENOTDIR`, `readFile` and `appendFile` on a directory
@@ -94,15 +96,16 @@ export interface FileSystem {
    * at all — which is what lets a bulk import assemble a project elsewhere and publish it in
    * one step (ADR 0006).
    *
-   * The destination must be absent. A rename onto an existing directory is not a merge and not
-   * a replace: it fails, and the codes differ by platform, so no code is part of this contract.
-   * Measured on win32 / Node 22.16 in this repo, `fs.renameSync` of a directory onto a
-   * *non-empty* directory fails with `EPERM`, and onto an *empty* one with `EPERM` as well;
-   * POSIX `rename(2)` specifies `ENOTEMPTY` or `EEXIST` for the non-empty case and succeeds for
-   * the empty one. Only the non-empty case is guaranteed to fail on both, so callers must treat
-   * any existing destination as a refusal rather than relying on either behaviour.
+   * The destination must be absent — of either kind — and an implementation enforces that itself
+   * rather than leaving it to the platform, because left to the platform the answers diverge in
+   * the dangerous direction. Measured on win32 / Node 22.16 in this repo, a bare `fs.rename` onto
+   * an existing **file** succeeds and replaces it, and a directory source replaces that file with
+   * the directory; onto a **non-empty directory** it fails with `EPERM`. So a caller using this
+   * rejection as its "already published" guard would be refused by the live directory and would
+   * silently destroy the live file. Both are refused here instead. Codes are no part of this
+   * contract; `NodeFileSystem.move` records what the platform does underneath.
    *
-   * @throws when the source does not exist, or the destination is a directory that is not empty.
+   * @throws when the source does not exist, or anything at all exists at the destination.
    */
   move(from: string, to: string): Promise<void>
 }

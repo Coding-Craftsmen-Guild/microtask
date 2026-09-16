@@ -5,6 +5,13 @@ import type { FileSystem } from '@repo/kernel'
 const missing = (error: unknown): boolean =>
   typeof error === 'object' && error !== null && (error as { code?: string }).code === 'ENOENT'
 
+const present = async (at: string): Promise<boolean> => fs.lstat(at).then(() => true, () => false)
+
+const occupied = (from: string, to: string): Error =>
+  Object.assign(new Error(`EEXIST: destination exists, rename '${from}' -> '${to}'`), {
+    code: 'EEXIST',
+  })
+
 let sequence = 0
 
 /** The only implementation of FileSystem that touches a real disk. */
@@ -90,8 +97,33 @@ export class NodeFileSystem implements FileSystem {
     }
   }
 
-  /** Renames a file or directory onto an absent destination, creating its parent directories. */
+  /**
+   * Renames a file or directory onto an absent destination, creating its parent directories.
+   *
+   * The destination is probed rather than left to `fs.rename`, because `rename` enforces only
+   * half of what the port promises. Measured on win32 / Node 22.16: onto an existing **file** it
+   * succeeds and replaces it — a directory source replaces the file with the directory — while
+   * onto a **non-empty directory** it fails with `EPERM`, and onto an **empty** one with `EPERM`
+   * as well, where POSIX `rename(2)` specifies `ENOTEMPTY`/`EEXIST` for the non-empty case and
+   * succeeds for the empty one. Only the non-empty-directory refusal holds on both platforms, so
+   * without the probe a caller's "already published" guard destroys a live file.
+   *
+   * The probe makes this a check-then-act pair, and `lstat` is used so a symlink counts as
+   * present. That is the same shape as `removeDir`'s stat-then-`rm`, and it is acceptable for the
+   * same reason: every mutating service serialises on `QueueLock` (ADR 0030). Note the limit
+   * honestly — that lock is per-process, which ADR 0030 already records as giving 19 lost updates
+   * out of 20 across two replicas, and the platform's own refusal backstops only the
+   * non-empty-directory case. A cross-replica race onto a destination *file* is therefore not
+   * protected by anything here.
+   *
+   * There is no retry, and that is a known gap rather than a decision: a directory rename is a
+   * classic transient `EPERM`/`EBUSY` source on win32 under a watcher or an anti-virus scanner,
+   * this repo's win32 test harnesses already pass `maxRetries: 5` to their own cleanup, and a
+   * bulk import's publish is the one call where a transient failure loses a whole project.
+   * `removeDir` has the same gap. Whoever wires up the publish step should decide it there.
+   */
   async move(from: string, to: string): Promise<void> {
+    if (await present(to)) throw occupied(from, to)
     await fs.mkdir(path.dirname(to), { recursive: true })
     await fs.rename(from, to)
   }
