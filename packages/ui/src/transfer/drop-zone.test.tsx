@@ -5,6 +5,8 @@ import type { HarvestEntry, HarvestItem, HarvestTransfer } from './harvest'
 
 const CHROMIUM_BATCH = 100
 
+const CHUNKS = [CHROMIUM_BATCH, 30, 20]
+
 const fileEntry = (fullPath: string): HarvestEntry => ({
   isFile: true,
   isDirectory: false,
@@ -27,9 +29,12 @@ const folder = (fullPath: string, count: number): HarvestEntry => {
     fullPath,
     createReader: () => {
       let cursor = 0
+      let call = 0
       return {
         readEntries: (onEntries) => {
-          const batch = children.slice(cursor, cursor + CHROMIUM_BATCH)
+          const size = CHUNKS[call % CHUNKS.length] ?? CHROMIUM_BATCH
+          call += 1
+          const batch = children.slice(cursor, cursor + size)
           cursor += batch.length
           queueMicrotask(() => {
             onEntries(batch)
@@ -70,10 +75,11 @@ const picked = (path: string) => {
 
 const mount = () => {
   const onHarvest = vi.fn()
-  render(<DropZone onHarvest={onHarvest} />)
+  const onError = vi.fn()
+  render(<DropZone onError={onError} onHarvest={onHarvest} />)
   const zone = document.body.querySelector('[data-slot="drop-zone"]')
   if (zone === null) throw new Error('the drop zone did not render')
-  return { onHarvest, zone }
+  return { onError, onHarvest, zone }
 }
 
 const harvested = (onHarvest: ReturnType<typeof vi.fn>) =>
@@ -98,6 +104,20 @@ describe('DropZone', () => {
       'volume/01P/project.json',
       'volume/01P/tasks/01T.json',
     ])
+  })
+
+  it('clears the picker after reading it, so choosing the same folder again is not a no-op', () => {
+    const { onHarvest } = mount()
+    const input = screen.getByLabelText(/choose a folder/i)
+    Object.defineProperty(input, 'files', { configurable: true, value: [picked('volume/p.json')] })
+    Object.defineProperty(input, 'value', {
+      configurable: true,
+      value: 'C:\\fakepath\\volume',
+      writable: true,
+    })
+    fireEvent.change(input)
+    expect(harvested(onHarvest).length).toBe(1)
+    expect((input as HTMLInputElement).value).toBe('')
   })
 
   it('harvests nothing from a cancelled pick rather than throwing on an empty list', () => {
@@ -129,6 +149,40 @@ describe('DropZone', () => {
       expect(onHarvest.mock.calls.length).toBe(1)
     })
     expect(harvested(onHarvest).map((one) => one.path)).toEqual(['volume/01P/project.json'])
+  })
+
+  it('reports a file it could not read, because nothing outside this component can catch it', async () => {
+    const { onError, onHarvest, zone } = mount()
+    const broken: HarvestEntry = {
+      isFile: true,
+      isDirectory: false,
+      fullPath: '/volume/01P/project.json',
+      file: (_onFile, onFailure) => {
+        queueMicrotask(() => {
+          onFailure?.(new Error('the file moved mid-drag'))
+        })
+      },
+    }
+    const { dataTransfer, endDispatch } = dropOf([broken])
+    fireEvent.drop(zone, { dataTransfer })
+    endDispatch()
+    await waitFor(() => {
+      expect(onError.mock.calls.length).toBe(1)
+    })
+    expect(String(onError.mock.calls[0]?.[0])).toContain('the file moved mid-drag')
+    expect(onHarvest.mock.calls.length).toBe(0)
+  })
+
+  it('reports a directory it could not read, rather than harvesting the half it could', async () => {
+    const { onError, onHarvest, zone } = mount()
+    const unreadable: HarvestEntry = { isFile: false, isDirectory: true, fullPath: '/volume/01P' }
+    const { dataTransfer, endDispatch } = dropOf([unreadable])
+    fireEvent.drop(zone, { dataTransfer })
+    endDispatch()
+    await waitFor(() => {
+      expect(onError.mock.calls.length).toBe(1)
+    })
+    expect(onHarvest.mock.calls.length).toBe(0)
   })
 
   it('cancels the dragover, without which the browser never fires a drop at all', () => {

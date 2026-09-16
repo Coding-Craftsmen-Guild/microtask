@@ -132,6 +132,17 @@ const colourOf = (token: string) => {
   return (rest.join('-').split('/')[0] ?? '').trim()
 }
 
+const THIS_TEST = read(join(TRANSFER, 'module-boundaries.test.tsx'))
+
+const componentOf = (file: string) =>
+  file
+    .replace(/\.tsx?$/, '')
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('')
+
+const RENDERED_HERE = SERVER_SAFE.filter((name) => THIS_TEST.includes(`<${componentOf(name)} `))
+
 const TRANSFER_CLASS_TOKENS = [
   ...new Set(walk(TRANSFER).flatMap((file) => literalTokens(read(file)))),
 ].filter((token) => colourOf(token) !== '')
@@ -241,16 +252,14 @@ describe('transfer module boundaries', () => {
     }
   })
 
-  it('keeps the server-safe bucket to what a page renders: each one is a component or reached by one', () => {
-    const rendered = new Set(
-      SERVER_SAFE.filter((name) => name.endsWith('.tsx')).flatMap((name) =>
-        reachableFrom(join(TRANSFER, name)),
-      ),
-    )
-    for (const name of SERVER_SAFE.filter((one) => !one.endsWith('.tsx'))) {
+  it('keeps the server-safe bucket to what a page renders: each one is rendered here or reached by one', () => {
+    expect(RENDERED_HERE.length).toBeGreaterThan(0)
+    const reached = new Set(RENDERED_HERE.flatMap((name) => reachableFrom(join(TRANSFER, name))))
+    for (const name of SERVER_SAFE) {
+      if (RENDERED_HERE.includes(name)) continue
       expect(
-        rendered.has(join(TRANSFER, name)),
-        `${name} is called server-safe, but no server-safe component reaches it`,
+        reached.has(join(TRANSFER, name)),
+        `${name} is called server-safe, but nothing rendered here reaches it`,
       ).toBe(true)
     }
   })
@@ -314,7 +323,7 @@ describe('transfer module boundaries', () => {
       landed({ path: 'c', outcome: 'failed', reasons: ['ENOSPC'] }),
     ]
     const trees = [
-      <DropZone key="d" onHarvest={noop} />,
+      <DropZone key="d" onError={noop} onHarvest={noop} />,
       <PreviewTable groups={groups} key="p" />,
       <ResultTable key="r" results={results} />,
       <ShareLinkList key="s" links={[]} />,

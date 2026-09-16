@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { harvestDrop, harvestPath, harvestPick } from './harvest'
 import type { HarvestEntry, HarvestItem, HarvestReader, HarvestTransfer } from './harvest'
 
 const CHROMIUM_BATCH = 100
+
+const CHUNKS = [CHROMIUM_BATCH, 30, 20]
 
 const picked = (path: string) => {
   const name = path.split('/').pop() ?? ''
@@ -32,10 +34,13 @@ const directoryEntry = (fullPath: string, children: readonly HarvestEntry[]): Ha
   fullPath,
   createReader: () => {
     const reader = readers.push(0) - 1
+    let call = 0
     return {
       readEntries: (onEntries) => {
         const from = readers[reader] ?? 0
-        const batch = children.slice(from, from + CHROMIUM_BATCH)
+        const size = CHUNKS[call % CHUNKS.length] ?? CHROMIUM_BATCH
+        call += 1
+        const batch = children.slice(from, from + size)
         readers[reader] = from + batch.length
         queueMicrotask(() => {
           onEntries(batch)
@@ -54,6 +59,7 @@ const folder = (count: number) =>
 interface DropSpec {
   readonly entries?: readonly HarvestEntry[]
   readonly asFiles?: readonly File[]
+  readonly strings?: number
   readonly files?: readonly File[]
 }
 
@@ -64,6 +70,10 @@ const dropped = (spec: DropSpec) => {
     ...(spec.asFiles ?? []).map((file) => ({
       webkitGetAsEntry: () => null,
       getAsFile: () => (live ? file : null),
+    })),
+    ...Array.from({ length: spec.strings ?? 0 }, () => ({
+      webkitGetAsEntry: () => null,
+      getAsFile: () => null,
     })),
   ]
   const transfer: HarvestTransfer = {
@@ -95,6 +105,10 @@ const readOnce = (reader: HarvestReader) =>
     reader.readEntries(resolve)
   })
 
+beforeEach(() => {
+  readers.length = 0
+})
+
 describe('the doubles these tests rest on', () => {
   it('batches at 100 like Chromium, so one readEntries call cannot see a 150-file folder', async () => {
     const batch = await readOnce(readerOf(folder(150)))
@@ -109,13 +123,26 @@ describe('the doubles these tests rest on', () => {
     expect(restarted[0]?.fullPath).toBe('/volume/task-0.json')
   })
 
-  it('yields the empty array only once a reader is exhausted, never before', async () => {
+  it('varies a mid-stream batch, because Chromium documents 100 as a maximum and not a promise', async () => {
     const reader = readerOf(folder(150))
     const lengths: number[] = []
-    for (let call = 0; call < 3; call += 1) {
+    for (let call = 0; call < 4; call += 1) {
       lengths.push((await readOnce(reader)).length)
     }
-    expect(lengths).toEqual([100, 50, 0])
+    const midStream = lengths.slice(0, -1)
+    expect(midStream.filter((length) => length > 0 && length < CHROMIUM_BATCH).length,
+    ).toBeGreaterThan(0)
+    expect(midStream.every((length) => length > 0 && length <= CHROMIUM_BATCH)).toBe(true)
+    expect(midStream.reduce((sum, length) => sum + length, 0)).toBe(150)
+  })
+
+  it('yields the empty array only once exhausted, so nothing short of it can mean done', async () => {
+    const reader = readerOf(folder(150))
+    const lengths: number[] = []
+    for (let call = 0; call < 4; call += 1) {
+      lengths.push((await readOnce(reader)).length)
+    }
+    expect(lengths.indexOf(0)).toBe(lengths.length - 1)
   })
 
   it('goes back to protected mode once dispatch ends, which is how a lost drop shows up', () => {
@@ -144,7 +171,7 @@ describe('harvestPath', () => {
     expect(harvestPath('', 'workspace.json')).toBe('workspace.json')
   })
 
-  it('names it by itself where webkitRelativePath is not implemented at all, not "undefined"', () => {
+  it('does not crash where webkitRelativePath is absent, as it is in happy-dom but in no browser', () => {
     expect(harvestPath(undefined, 'workspace.json')).toBe('workspace.json')
   })
 
@@ -203,8 +230,14 @@ describe('harvestDrop', () => {
     expect(paths(harvested)).toContain('volume/task-149.json')
   })
 
+  it('keeps reading past a batch shorter than the last, since only the empty array ends one', async () => {
+    const { transfer } = dropped({ entries: [folder(150)] })
+    const harvested = await harvestDrop(transfer)
+    expect(paths(harvested)).toContain('volume/task-130.json')
+    expect(harvested.length).toBe(150)
+  })
+
   it('pumps one reader per directory, because creating a second restarts it from entry 0', async () => {
-    readers.length = 0
     const { transfer } = dropped({ entries: [folder(150)] })
     await harvestDrop(transfer)
     expect(readers.length).toBe(1)
@@ -270,6 +303,44 @@ describe('harvestDrop', () => {
     }
     const { transfer } = dropped({ entries: [broken] })
     await expect(harvestDrop(transfer)).rejects.toThrow('read failed')
+  })
+
+  it('rejects rather than losing a whole subtree when a directory offers no reader at all', async () => {
+    const unreadable: HarvestEntry = { isFile: false, isDirectory: true, fullPath: '/volume/01P' }
+    const { transfer } = dropped({
+      entries: [directoryEntry('/volume', [fileEntry('/volume/project.json'), unreadable])],
+    })
+    await expect(harvestDrop(transfer)).rejects.toThrow('offers no reader')
+  })
+
+  it('rejects an entry claiming to be neither a file nor a directory, rather than reading it as one', async () => {
+    const neither: HarvestEntry = {
+      isFile: false,
+      isDirectory: false,
+      fullPath: '/volume/project.json',
+      file: (onFile) => {
+        onFile(loose('project.json'))
+      },
+    }
+    const { transfer } = dropped({ entries: [neither] })
+    await expect(harvestDrop(transfer)).rejects.toThrow('neither file nor directory')
+  })
+
+  it('does not take the transfer files as well, since they mirror the items and would double it', async () => {
+    const file = loose('workspace.json')
+    const { transfer } = dropped({ asFiles: [file], files: [file] })
+    expect(paths(await harvestDrop(transfer))).toEqual(['workspace.json'])
+  })
+
+  it('harvests nothing from a string item, which is in no file list either and so cannot be lost', async () => {
+    const { transfer } = dropped({ strings: 1 })
+    expect(await harvestDrop(transfer)).toEqual([])
+  })
+
+  it('reads a file item beside a string one without the string reaching the files fallback', async () => {
+    const file = loose('workspace.json')
+    const { transfer } = dropped({ asFiles: [file], strings: 1, files: [file] })
+    expect(paths(await harvestDrop(transfer))).toEqual(['workspace.json'])
   })
 
   it('rejects rather than reporting a short harvest when one file cannot be read', async () => {

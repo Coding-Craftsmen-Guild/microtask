@@ -19,7 +19,12 @@ export interface HarvestReader {
  * module can be exercised against is one it names itself. A real Chromium entry satisfies it.
  */
 export interface HarvestEntry {
-  /** Whether the entry is a file, which is the only thing a harvest can carry. */
+  /**
+   * Whether the entry is a file, which is the only thing a harvest can carry.
+   *
+   * Read rather than inferred from `isDirectory` being false: an entry claiming neither is a
+   * shape no browser produces, and it is refused rather than read as a file.
+   */
   readonly isFile: boolean
   /** Whether the entry is a directory, whose members have to be pumped out of a reader. */
   readonly isDirectory: boolean
@@ -69,10 +74,12 @@ interface Seized {
  * nobody dropped. A `..`, a backslash, a drive letter and a trailing separator likewise travel
  * untouched, and `a//b` and `a/./b` are left for the server to collapse.
  *
- * `reported` admits `undefined` because it is read off a `File`, and `webkitRelativePath` is
- * absent rather than empty in an environment that does not implement it (happy-dom 20.14.3, the
- * one these tests run in). Without that the path of a loose file would be the string
- * `"undefined"`, which is a file quietly harvested under the wrong name.
+ * `reported` admits `undefined` for one environmental reason and no production one. A browser
+ * reports `''` for a file picked without a directory, never nothing at all, so the `undefined`
+ * arm cannot fire in one. It fires in happy-dom 20.14.3, whose `File` declares no
+ * `webkitRelativePath` at all, and would fire for any other non-browser caller; without it that
+ * caller gets a `TypeError` off `startsWith` rather than a harvested path. It guards against a
+ * loud crash in a test environment, not against a quietly mis-named file.
  *
  * @param reported - `File.webkitRelativePath` for a pick, `FileSystemEntry.fullPath` for a drop.
  * @param name - The file's own name, which is the path of a loose file that has no other.
@@ -99,7 +106,7 @@ const fileOf = (entry: HarvestEntry) =>
 
 async function membersOf(directory: HarvestEntry): Promise<readonly HarvestEntry[]> {
   const reader = directory.createReader?.()
-  if (reader === undefined) return []
+  if (reader === undefined) throw new Error(`the directory ${directory.fullPath} offers no reader`)
   const members: HarvestEntry[] = []
   for (;;) {
     const batch = await batchOf(reader)
@@ -114,6 +121,7 @@ async function walk(entry: HarvestEntry): Promise<readonly HarvestedFile[]> {
     const harvested = await Promise.all(members.map(walk))
     return harvested.flat()
   }
+  if (!entry.isFile) throw new Error(`the entry ${entry.fullPath} is neither file nor directory`)
   const file = await fileOf(entry)
   return [{ path: harvestPath(entry.fullPath, file.name), file }]
 }
@@ -166,12 +174,26 @@ export function harvestPick(files: ArrayLike<File> | null): readonly HarvestedFi
  * before touching `transfer` — silently harvests nothing from a real drop, which is why the
  * seizing is a separate synchronous step and the returned promise is built from its result.
  *
- * Each dropped directory is pumped through **one** reader until it yields the empty array,
- * because Chromium's `readEntries()` batches at 100 and a second reader restarts from entry 0 —
- * so both the single-call and the reader-per-batch implementations lose or repeat files.
+ * Each dropped directory is pumped through **one** reader until it yields the empty array. A
+ * second reader restarts from entry 0, so a reader per batch repeats the first batch forever; and
+ * the empty array is the *only* end of a directory, because Chromium's 100 is a documented
+ * maximum rather than a promise — a mid-stream batch may be shorter than the one before it, so
+ * treating a short batch as the last silently truncates the directory.
  *
  * A file or directory that cannot be read rejects rather than resolving short: a drop that
- * reports fewer files than it contained is the failure ADR 0018 exists to prevent.
+ * reports fewer files than it contained is the failure ADR 0018 exists to prevent. That covers a
+ * file entry offering no `file()` and a directory entry offering no `createReader()` — neither
+ * occurs on a real entry, whose prototype carries both, but both are reachable through the
+ * exported interfaces, which a zip or `showDirectoryPicker()` adapter would implement by hand.
+ *
+ * The walk has **no cycle guard**, which is a recorded limit rather than an oversight. An entry
+ * carries exactly two discriminators, `isFile` and `isDirectory`, and the whole API declares no
+ * link indicator at all, so a harvester cannot tell a symlinked directory from a real one even in
+ * principle. Whether a dropped tree can contain a traversable link to one of its own ancestors is
+ * therefore implementation-defined, and it cannot be measured in an environment that implements
+ * none of this API; if it can, this recurses until it exhausts memory. A depth cap guessed
+ * against a hazard nobody here has observed would add a stall mode of its own and truncate a
+ * legitimately deep tree, which is the silent short harvest this module exists to prevent.
  *
  * @param transfer - The drop event's `dataTransfer`, while the event is still dispatching.
  * @returns Every file the drop carried, each under its decoded path.

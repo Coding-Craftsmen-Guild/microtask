@@ -25,6 +25,8 @@ const DIRECTORY = {
 export interface DropZoneProps {
   /** Called with everything the drop or the pick harvested, each file under its decoded path. */
   onHarvest: (files: readonly HarvestedFile[]) => void
+  /** Called instead, with the reason, when a dropped file or directory could not be read. */
+  onError: (reason: unknown) => void
 }
 
 /**
@@ -43,11 +45,20 @@ export interface DropZoneProps {
  * because a drag moving onto one of the zone's own children fires a dragleave for the zone on the
  * way — a move within the target, not a departure from it — and the child's enter arrives first.
  *
- * A harvest that fails rejects rather than resolving short: a drop reporting fewer files than it
- * carried is the failure ADR 0018 exists to prevent, so nothing here turns one into an empty
- * success.
+ * A harvest that fails rejects rather than resolving short, and `onError` is **required** because
+ * no consumer can supply that channel afterwards: a React error boundary catches errors in render,
+ * lifecycle and effects, never an unhandled promise rejection, and the drop's promise is created
+ * and settled entirely in here. Discarding it would leave an admin whose folder half-read with an
+ * un-highlighted zone, no message and nothing to retry against — the empty *nothing* that is as
+ * undiagnosable as the empty success ADR 0018 was written about. The rejection handler is passed
+ * to `then` rather than chained through `catch`, so a consumer bug inside `onHarvest` is not
+ * reported to the admin as a drop that failed.
+ *
+ * The picker's value is cleared after each read, so choosing the same folder twice — which is
+ * what an admin does after a preview refuses something and they fix it — fires `change` again
+ * instead of doing nothing.
  */
-export function DropZone({ onHarvest }: DropZoneProps) {
+export function DropZone({ onHarvest, onError }: DropZoneProps) {
   const [depth, setDepth] = useState(0)
   const enter = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
@@ -63,7 +74,7 @@ export function DropZone({ onHarvest }: DropZoneProps) {
     event.preventDefault()
     const harvesting = harvestDrop(event.dataTransfer)
     setDepth(0)
-    void harvesting.then(onHarvest)
+    void harvesting.then(onHarvest, onError)
   }
   return (
     <section
@@ -81,7 +92,9 @@ export function DropZone({ onHarvest }: DropZoneProps) {
           {...DIRECTORY}
           className={FIELD}
           onChange={(event) => {
-            onHarvest(harvestPick(event.target.files))
+            const input = event.target
+            onHarvest(harvestPick(input.files))
+            input.value = ''
           }}
         />
       </label>
