@@ -274,6 +274,36 @@ export function describeFileSystem(
       expect(await files.readText(file)).toBe(NAME)
     })
 
+    it('answers 0 bytes for a file that is not there, which is where a fresh upload resumes', async () => {
+      const dir = await fresh()
+      expect(await files.size(at(dir, 'absent.bin'))).toBe(0)
+    })
+
+    it('counts the bytes appended, not the characters, so an offset lands on a byte boundary', async () => {
+      const dir = await fresh()
+      const file = at(dir, 'upload.zip')
+      const whole = encode(NAME)
+      expect(whole.length).toBeGreaterThan([...NAME].length)
+      await files.appendBytes(file, whole.subarray(0, 4))
+      expect(await files.size(file)).toBe(4)
+      await files.appendBytes(file, whole.subarray(4))
+      expect(await files.size(file)).toBe(whole.length)
+    })
+
+    it('agrees with what a text write put there, so the two halves of the port measure one file', async () => {
+      const dir = await fresh()
+      const file = at(dir, 'project.json')
+      await files.writeTextAtomic(file, NAME)
+      expect(await files.size(file)).toBe(encode(NAME).length)
+    })
+
+    it('rejects sizing a path that is a directory, which stat would answer a number for', async () => {
+      const dir = await fresh()
+      const target = await staged(dir)
+      await expect(files.size(target)).rejects.toThrow()
+      await intact(target)
+    })
+
     it('lists no files for a directory that is not there', async () => {
       const dir = await fresh()
       expect(await files.listFiles(at(dir, 'absent'))).toEqual([])

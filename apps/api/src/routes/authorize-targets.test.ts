@@ -73,7 +73,13 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
 
   it('finds workspace:import gated on the workspace, which is the target its row records', () => {
     const imports = gates().filter((gate) => gate.action === 'workspace:import')
-    expect(imports.map((gate) => gate.target)).toEqual(['workspace', 'workspace', 'workspace'])
+    expect(imports.map((gate) => gate.target)).toEqual([
+      'workspace',
+      'workspace',
+      'workspace',
+      'workspace',
+      'workspace',
+    ])
     expect(ACTION_DECISIONS['workspace:import'].target).toBe('workspace')
   })
 })

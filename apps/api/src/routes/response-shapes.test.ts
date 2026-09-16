@@ -44,6 +44,13 @@ const OPEN_SESSION: Step = {
   headers: admin(),
 }
 
+const STAGE_ARCHIVE: Step = {
+  method: 'POST',
+  path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop.zip&offset=0`,
+  headers: { ...admin(), 'content-type': 'application/octet-stream' },
+  body: zipOfFiles({ 'drop/project.json': '{ "id": "a staged project" }' }),
+}
+
 const SAMPLES: Readonly<Record<string, Sample>> = {
   'POST /v1/auth/login': {
     path: '/v1/auth/login',
@@ -66,7 +73,7 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     headers: admin(),
   },
   [`POST ${GUARDED_PREFIX}/import/sessions/{sessionId}/files`]: {
-    path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop/project.json`,
+    path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop/project.json&offset=0`,
     headers: { ...admin(), 'content-type': 'application/octet-stream' },
     body: '{ "id": "a staged file" }',
     setup: [OPEN_SESSION],
@@ -74,15 +81,18 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
   [`POST ${GUARDED_PREFIX}/import/sessions/{sessionId}/archives`]: {
     path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/archives?path=drop.zip`,
     headers: admin(),
-    setup: [
-      OPEN_SESSION,
-      {
-        method: 'POST',
-        path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop.zip`,
-        headers: { ...admin(), 'content-type': 'application/octet-stream' },
-        body: zipOfFiles({ 'drop/project.json': '{ "id": "a staged project" }' }),
-      },
-    ],
+    setup: [OPEN_SESSION, STAGE_ARCHIVE],
+  },
+  [`GET ${GUARDED_PREFIX}/import/sessions/{sessionId}/preview`]: {
+    path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/preview`,
+    headers: admin(),
+    setup: [OPEN_SESSION, STAGE_ARCHIVE],
+  },
+  [`POST ${GUARDED_PREFIX}/import/sessions/{sessionId}/confirm`]: {
+    path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/confirm`,
+    headers: adminJson(),
+    body: json({ sessionId: FIRST_SESSION, choices: [] }),
+    setup: [OPEN_SESSION, STAGE_ARCHIVE],
   },
   [`GET ${GUARDED_PREFIX}/shares/current`]: {
     path: `${GUARDED_PREFIX}/shares/current`,

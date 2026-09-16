@@ -100,6 +100,11 @@ export class MemoryFileSystem implements FileSystem {
     return this.#names(dir, false)
   }
 
+  /** How many bytes a file holds, or 0 when it does not exist. */
+  async size(file: string): Promise<number> {
+    return this.#files.get(this.#asFile(file, 'stat'))?.length ?? 0
+  }
+
   /** Renames a file or directory onto an absent destination, whole or not at all. */
   async move(from: string, to: string): Promise<void> {
     const source = normalise(from)

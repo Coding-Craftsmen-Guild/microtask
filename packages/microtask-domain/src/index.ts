@@ -49,6 +49,13 @@ export {
   type DroppedProject,
   type ImportTarget,
 } from './import/checks.js'
+export {
+  planImport,
+  type ImportMint,
+  type PlannedProject,
+  type PreviewRow,
+  type PreviewShareLink,
+} from './import/plan.js'
 export { remintProject } from './import/remint.js'
 export { replaceProject, type Replacement } from './import/replace.js'
 export {
@@ -58,7 +65,7 @@ export {
   type ExportedBundle,
   type TokenDisposition,
 } from './export/bundle.js'
-export type { ProjectStore } from './ports/project-store.js'
+export type { ProjectStore, WholeProject } from './ports/project-store.js'
 export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
 export type { ProjectRef, TaskRef } from './services/refs.js'
@@ -85,12 +92,15 @@ export { FsProjectStore, type FsProjectStoreOptions } from './storage/fs-project
 export { ShareIndex } from './storage/share-index.js'
 export {
   buildDir,
+  buildManifestFile,
   buildRoot,
+  buildTaskFile,
   manifestFile,
   projectDir,
   projectsDir,
   sessionMarkerFile,
   stagedFile,
+  stagedRoot,
   stagingDir,
   stagingRoot,
   taskFile,

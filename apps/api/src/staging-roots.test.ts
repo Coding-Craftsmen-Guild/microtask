@@ -46,7 +46,7 @@ const upload = async (deps: ApiDeps, id: string, text: string): Promise<void> =>
   const opened = await app.request(SESSIONS, { method: 'POST', headers: admin() })
   expect(opened.status).toBe(201)
   const sessionId = (await body(opened))['sessionId']
-  const at = `${SESSIONS}/${String(sessionId)}/files?path=drop/${id}/project.json`
+  const at = `${SESSIONS}/${String(sessionId)}/files?path=drop/${id}/project.json&offset=0`
   const staged = await app.request(at, {
     method: 'POST',
     headers: { ...admin(), 'content-type': 'application/octet-stream' },
@@ -118,7 +118,7 @@ describe('ADR 0045 (b) against an expansion, the layout where the absence assert
     expect(opened.status).toBe(201)
     const session = String((await body(opened))['sessionId'])
     const archive = zipOfFiles(entries)
-    const staging = await app.request(`${SESSIONS}/${session}/files?path=drop.zip`, {
+    const staging = await app.request(`${SESSIONS}/${session}/files?path=drop.zip&offset=0`, {
       method: 'POST',
       headers: { ...admin(), 'content-type': 'application/octet-stream' },
       body: archive,
@@ -173,7 +173,7 @@ describe('ADR 0045 (b) against an expansion, the layout where the absence assert
     const opened = await app.request(SESSIONS, { method: 'POST', headers: admin() })
     const session = String((await body(opened))['sessionId'])
     const archive = zipOfFiles({ [`../../projects/${id}/project.json`]: dropped(id) })
-    await app.request(`${SESSIONS}/${session}/files?path=escape.zip`, {
+    await app.request(`${SESSIONS}/${session}/files?path=escape.zip&offset=0`, {
       method: 'POST',
       headers: { ...admin(), 'content-type': 'application/octet-stream' },
       body: archive,

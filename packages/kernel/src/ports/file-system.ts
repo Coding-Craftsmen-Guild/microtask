@@ -91,6 +91,28 @@ export interface FileSystem {
   listFiles(dir: string): Promise<readonly string[]>
 
   /**
+   * How many bytes a file holds, or 0 when it does not exist.
+   *
+   * **O(1), and that is the whole reason it is on the port.** A chunked upload has to know where
+   * the next chunk belongs so that a client retrying after a timeout cannot append the same bytes
+   * twice, and the only other ways to answer it are reading the file — O(n) per chunk, against a
+   * file that may be the 100 MB a session admits — or trusting a caller's own bookkeeping, which
+   * is not the file. An implementation that cannot answer in constant time should not implement
+   * this.
+   *
+   * 0 for an absent file, matching the benign absence `listDirs` answers with rather than the
+   * `null` the reads answer: the caller asking is asking how many bytes are already there, and
+   * "none" is the true answer for a file nothing has been appended to yet. Absent and empty are
+   * therefore not distinguishable through this method, which is sound for the one question it
+   * exists for and is why `readBytes` keeps its `null`.
+   *
+   * @throws when the path exists and is a directory. `fs.stat` answers a size for one, so an
+   * adapter has to refuse it deliberately: a caller handed a directory's size would resume an
+   * upload at an offset no file has.
+   */
+  size(file: string): Promise<number>
+
+  /**
    * Renames a file or directory onto an absent destination, creating the destination's parent
    * directories. Implementations rename rather than copy, so a directory arrives whole or not
    * at all — which is what lets a bulk import assemble a project elsewhere and publish it in

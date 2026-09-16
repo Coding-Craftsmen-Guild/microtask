@@ -228,6 +228,9 @@ export type ImportShapeValue = z.infer<typeof ImportShape>
 /** What will happen to a group, as a value rather than as a schema. */
 export type ImportOutcomeValue = z.infer<typeof ImportOutcome>
 
+/** One of skip, new or replace, as a value rather than as a schema. */
+export type ConflictChoiceValue = z.infer<typeof ConflictChoice>
+
 /**
  * A staged import session as it is opened, carrying the two bounds ADR 0044 sets on an upload.
  *

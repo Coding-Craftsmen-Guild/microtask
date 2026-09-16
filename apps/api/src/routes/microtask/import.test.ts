@@ -49,21 +49,34 @@ const opened = async (app: OpenAPIHono<ApiEnv>, headers = admin()): Promise<stri
 const sizeOf = (payload: string | Uint8Array): number =>
   typeof payload === 'string' ? new TextEncoder().encode(payload).length : payload.length
 
+interface Upload {
+  readonly at: string
+  readonly offset: number
+}
+
+const resolved = (upload: string | Upload): Upload =>
+  typeof upload === 'string' ? { at: upload, offset: 0 } : upload
+
 const chunk = async (
   app: OpenAPIHono<ApiEnv>,
   session: string,
-  at: string,
+  upload: string | Upload,
   payload: string | Uint8Array,
-): Promise<Response> =>
-  app.request(`${SESSIONS}/${session}/files?path=${encodeURIComponent(at)}`, {
-    method: 'POST',
-    headers: {
-      ...admin(),
-      'content-type': OCTETS,
-      'content-length': String(sizeOf(payload)),
+): Promise<Response> => {
+  const { at, offset } = resolved(upload)
+  return app.request(
+    `${SESSIONS}/${session}/files?path=${encodeURIComponent(at)}&offset=${String(offset)}`,
+    {
+      method: 'POST',
+      headers: {
+        ...admin(),
+        'content-type': OCTETS,
+        'content-length': String(sizeOf(payload)),
+      },
+      body: payload,
     },
-    body: payload,
-  })
+  )
+}
 
 const refusal = async (response: Response): Promise<unknown[]> => [
   response.status,
@@ -98,8 +111,28 @@ const slices = (bytes: Uint8Array, size: number): readonly Uint8Array[] => {
 const ARCHIVE = 'drop.zip'
 
 const named = (at: string): string => {
-  if (at.endsWith('/files')) return `?path=${HARVESTED}`
+  if (at.endsWith('/files')) return `?path=${HARVESTED}&offset=0`
   return at.endsWith('/archives') ? `?path=${ARCHIVE}` : ''
+}
+
+const confirmBody = (at: string): string => {
+  const session = at.split('/sessions/')[1]?.split('/')[0] ?? IDS.missing
+  return JSON.stringify({ sessionId: session, choices: [] })
+}
+
+const sent = async (
+  app: OpenAPIHono<ApiEnv>,
+  call: { method: string; path: string },
+  credentials: Record<string, string>,
+): Promise<Response> => {
+  const { method, path } = call
+  if (method === 'GET') return app.request(path, { method, headers: credentials })
+  if (path.endsWith('/confirm')) {
+    const headers = { ...credentials, 'content-type': 'application/json' }
+    return app.request(path, { method, headers, body: confirmBody(path) })
+  }
+  const headers = { ...credentials, 'content-type': OCTETS }
+  return app.request(path, { method, headers, body: 'a chunk' })
 }
 
 const subtree = async (): Promise<readonly { method: string; path: string }[]> => {
@@ -145,8 +178,8 @@ describe('POST /v1/microtask/import/sessions', () => {
 })
 
 describe('every route in the import subtree is admin authority, import being what creates projects', () => {
-  it('finds all three addresses in the document, so the refusals below are not one route', async () => {
-    expect((await subtree()).length).toBe(3)
+  it('finds all five addresses in the document, so the refusals below are not one route', async () => {
+    expect((await subtree()).length).toBe(5)
   })
 
   it.each([
@@ -158,26 +191,23 @@ describe('every route in the import subtree is admin authority, import being wha
   ])('refuses %s on every route in the subtree', async (_who, token) => {
     const { app } = await fixture()
     for (const call of await subtree()) {
-      const response = await app.request(call.path, {
-        method: call.method,
-        headers: { ...asLink(token), 'content-type': OCTETS },
-        body: 'a chunk',
-      })
+      const response = await sent(app, call, asLink(token))
       expect([call.path, ...(await refusal(response))]).toEqual([call.path, 403, 'forbidden'])
     }
   })
 
   it('answers the admin on every route in the subtree, so those refusals are the principal', async () => {
     const { app } = await fixture()
-    const session = await opened(app)
-    expect((await chunk(app, session, ARCHIVE, zipOfFiles({ 'a.json': '{}' }))).status).toBe(200)
     for (const call of await subtree()) {
-      const response = await app.request(call.path.replace(IDS.missing, session), {
-        method: call.method,
-        headers: { ...admin(), 'content-type': OCTETS },
-        body: 'a chunk',
-      })
-      expect([call.path, response.status < 300]).toEqual([call.path, true])
+      const session = await opened(app)
+      const at = call.path.replaceAll(IDS.missing, session)
+      expect((await chunk(app, session, ARCHIVE, zipOfFiles({ 'a.json': '{}' }))).status).toBe(200)
+      const response = await sent(app, { ...call, path: at }, admin())
+      expect([call.path, response.status, response.status < 300]).toEqual([
+        call.path,
+        response.status,
+        true,
+      ])
     }
   })
 })
@@ -283,7 +313,7 @@ describe('the path a chunk names is re-normalised and re-checked server-side', (
     const fix = await fixture()
     const session = await opened(fix.app)
     expect((await chunk(fix.app, session, 'a/b', 'first ')).status).toBe(200)
-    expect(await body(await chunk(fix.app, session, 'a/b', 'second'))).toMatchObject({
+    expect(await body(await chunk(fix.app, session, { at: 'a/b', offset: 6 }, 'second'))).toMatchObject({
       sessionBytes: 12,
     })
     expect(await staged(fix, session, 'a/b')).toEqual(new TextEncoder().encode('first second'))
@@ -323,7 +353,7 @@ describe('a file larger than the global body limit, uploaded as chunks (ADR 0044
     expect(parts.length).toBe(5)
     let total = 0
     for (const part of parts) {
-      const response = await chunk(fix.app, session, HARVESTED, part)
+      const response = await chunk(fix.app, session, { at: HARVESTED, offset: total }, part)
       total += part.length
       expect([part.length, response.status]).toEqual([part.length, 200])
       expect(await body(response)).toEqual({
@@ -490,5 +520,90 @@ describe('the opportunistic sweep (ADR 0045)', () => {
     await fix.deps.fileSystem.writeTextAtomic(`${at}/something.json`, '{}')
     const fresh = await opened(fix.app)
     expect([...(await sessionIds(fix))].sort()).toEqual(['not-a-session', fresh].sort())
+  })
+})
+
+describe('the chunk offset, which closes the retry gap the upload left open', () => {
+  const detail = async (response: Response): Promise<string> =>
+    String((await body(response))['detail'])
+
+  it('takes a first chunk at offset 0, a file nothing has been appended to holding no bytes', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, HARVESTED, 'first')).status).toBe(200)
+  })
+
+  it('refuses a retry of a chunk that already landed, which is the append that corrupted the file', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, HARVESTED, '{"id":1}')).status).toBe(200)
+    const retry = await chunk(fix.app, session, HARVESTED, '{"id":1}')
+    expect(await refusal(retry)).toEqual([409, 'conflict'])
+    expect(await staged(fix, session, HARVESTED)).toEqual(new TextEncoder().encode('{"id":1}'))
+  })
+
+  it('names the offset to resume from, which is what turns a retry into a resumption', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await chunk(fix.app, session, HARVESTED, 'six!!!')
+    const why = await detail(await chunk(fix.app, session, HARVESTED, 'more'))
+    expect(why).toContain('starts at offset 6')
+    expect(why).toContain('not at 0')
+  })
+
+  it('leaves the session’s byte total untouched when it refuses, which is the harm being closed', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    const first = await body(await chunk(fix.app, session, HARVESTED, 'six!!!'))
+    expect(first['sessionBytes']).toBe(6)
+    expect((await chunk(fix.app, session, HARVESTED, 'six!!!')).status).toBe(409)
+    const next = await body(await chunk(fix.app, session, { at: HARVESTED, offset: 6 }, 'seven!!'))
+    expect(next['sessionBytes']).toBe(13)
+  })
+
+  it('refuses an offset past the end as readily as one before it, so no gap can be left in a file', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await chunk(fix.app, session, HARVESTED, 'six!!!')
+    expect((await chunk(fix.app, session, { at: HARVESTED, offset: 99 }, 'ahead')).status).toBe(409)
+    expect(await staged(fix, session, HARVESTED)).toEqual(new TextEncoder().encode('six!!!'))
+  })
+
+  it('measures the offset in bytes and not characters, so a multi-byte name cannot shift it', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    const head = new TextEncoder().encode('{"name":"Ärendehantering 日本語"')
+    expect(head.length).toBeGreaterThan([...'{"name":"Ärendehantering 日本語"'].length)
+    expect((await chunk(fix.app, session, HARVESTED, head)).status).toBe(200)
+    expect((await chunk(fix.app, session, { at: HARVESTED, offset: head.length }, '}')).status).toBe(200)
+    expect(await staged(fix, session, HARVESTED)).toEqual(
+      new TextEncoder().encode('{"name":"Ärendehantering 日本語"}'),
+    )
+  })
+
+  it('refuses a request that names no offset at all, rather than assuming one', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    const response = await fix.app.request(`${SESSIONS}/${session}/files?path=${HARVESTED}`, {
+      method: 'POST',
+      headers: { ...admin(), 'content-type': OCTETS },
+      body: 'a chunk',
+    })
+    expect(response.status).toBe(422)
+    expect((await body(response))['errors']).toMatchObject([{ path: 'offset' }])
+  })
+
+  it('refuses a negative offset in the validator, before any path is resolved from it', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, { at: HARVESTED, offset: -1 }, 'x')).status).toBe(422)
+    expect(await sessionIds(fix)).toEqual([session])
+  })
+
+  it('answers the offset check before it reads a path whose ancestor is a file, keeping that a 422', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    expect((await chunk(fix.app, session, 'a', 'a file, not a directory')).status).toBe(200)
+    expect(await refusal(await chunk(fix.app, session, 'a/b', 'inside it'))).toEqual([422, 'invalid'])
   })
 })

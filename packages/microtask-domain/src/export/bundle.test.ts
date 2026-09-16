@@ -102,6 +102,7 @@ const counting = (
     saveManifest: (product, project) => inner.saveManifest(product, project),
     saveTask: (product, project, task) => inner.saveTask(product, project, task),
     deleteTask: (product, project, taskId) => inner.deleteTask(product, project, taskId),
+    publishProject: (product, project) => inner.publishProject(product, project),
     deleteProject: (product, projectId) => inner.deleteProject(product, projectId),
   }
   return { store, peak: () => peak, reads: () => reads }

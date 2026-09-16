@@ -1,8 +1,16 @@
 import { isUlid, type FileSystem, type Product } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
-import type { ProjectStore } from '../ports/project-store.js'
+import type { ProjectStore, WholeProject } from '../ports/project-store.js'
 import type { TaskDocument } from '../entities/task.js'
-import { manifestFile, projectDir, projectsDir, taskFile } from './paths.js'
+import {
+  buildDir,
+  buildManifestFile,
+  buildTaskFile,
+  manifestFile,
+  projectDir,
+  projectsDir,
+  taskFile,
+} from './paths.js'
 
 /** How an FsProjectStore reaches the disk and where it puts its data. */
 export interface FsProjectStoreOptions {
@@ -70,6 +78,57 @@ export class FsProjectStore implements ProjectStore {
   ): Promise<void> {
     await this.saveManifest(product, manifest)
     await this.#files.remove(taskFile(this.#root(), product, manifest.id, taskId))
+  }
+
+  /**
+   * Assembles the whole project in `build/<id>/` and renames it onto `projects/<id>/`.
+   *
+   * ADR 0006's bulk rule, and the rename is what makes it one step: a directory rename is atomic
+   * on both platforms, so `listManifests` sees the project wholly absent or wholly present and
+   * never a manifest naming a task file the loop had not reached. `build/` is a sibling of
+   * `projects/` under the same data root precisely so this is a rename and not a copy (ADR 0045).
+   *
+   * **The window in which neither copy is in place.** `move` requires an absent destination — it
+   * probes with `lstat` and refuses anything there, of either kind — and a live project occupies
+   * it. Measured on win32 / Node 22.16, leaving it to the platform is not an option: a directory
+   * rename onto a non-empty destination gives `EPERM`, onto an *empty* one `EPERM` as well where
+   * POSIX succeeds, and a bare `fs.rename` onto a destination **file** silently replaces it. So
+   * the destination is cleared first, and between that `removeDir` and the `move` completing
+   * there is an instant in which the project is in neither place. A kill there leaves it
+   * **wholly absent** rather than half-written, which is the invariant this method promises; the
+   * assembled copy is still in `build/<id>/`, and the drop the admin dropped is still theirs.
+   * Clearing is preferred over moving the live copy aside because the recovery state is better:
+   * what survives in `build/` is the project they asked for, not the one they replaced.
+   *
+   * ADR 0045 says a build directory is removed on both paths out. It is removed on the way **in**
+   * instead — before anything is written, which reclaims whatever an interrupted publish left and
+   * bounds the residue at one directory per project id. Removing it on the failure path would
+   * destroy the only copy of a project whose destination had just been cleared, which is the one
+   * outcome ADR 0006 calls the worst. That is a deliberate departure and worth an amendment.
+   *
+   * **Nothing retries.** Neither `move` nor `removeDir` retries in the port, a directory rename
+   * is a classic transient `EPERM`/`EBUSY` on win32 under a watcher or an anti-virus scanner, and
+   * this is the one call where a transient failure loses a project — so the decision is stated
+   * rather than left implicit. `NodeFileSystem.removeDir` passes Node's own `maxRetries`, which
+   * covers the clearing half at no cost. The rename half is **not** retried here: a retry needs
+   * elapsed time to be worth anything, every caller of this runs inside the process-wide write
+   * lock where that time is time every other write in the API waits, and the port forbids
+   * switching on an error code — so a retry could not tell a transient `EPERM` from the
+   * deterministic `EEXIST` or `ENOSPC` it would then spend the same delay on. The failure is
+   * reported instead, per project, which is what a bulk import's outcome list is for.
+   */
+  async publishProject(product: Product, project: WholeProject): Promise<void> {
+    const root = this.#root()
+    const id = project.manifest.id
+    const build = buildDir(root, product, id)
+    await this.#files.removeDir(build)
+    for (const document of project.documents) {
+      await this.#writeJson(buildTaskFile(root, product, id, document.id), document)
+    }
+    await this.#writeJson(buildManifestFile(root, product, id), project.manifest)
+    const live = projectDir(root, product, id)
+    await this.#files.removeDir(live)
+    await this.#files.move(build, live)
   }
 
   /** Removes a project and everything under it, reporting whether it existed. */

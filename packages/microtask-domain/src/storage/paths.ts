@@ -11,6 +11,7 @@ const BUILD = 'build'
 const STAGED = 'files'
 const MARKER = 'session.json'
 const PROJECT_ID = 'Project id must be a ULID'
+const TASK_ID = 'Task id must be a ULID'
 
 const productRoot = (root: string, product: Product): string => {
   if (!isProduct(product)) throw new Invalid('Unknown product')
@@ -19,6 +20,13 @@ const productRoot = (root: string, product: Product): string => {
 
 const inside = (parent: string, segment: string): string =>
   contained(parent, path.join(parent, segment))
+
+const manifestIn = (dir: string): string => inside(dir, MANIFEST)
+
+const taskIn = (dir: string, taskId: string): string => {
+  if (!isUlid(taskId)) throw new Invalid(TASK_ID)
+  return inside(inside(dir, TASKS), `${taskId}.json`)
+}
 
 /** Resolves the directory holding every project for one product. */
 export function projectsDir(root: string, product: Product): string {
@@ -33,7 +41,7 @@ export function projectDir(root: string, product: Product, projectId: string): s
 
 /** Resolves the file holding one project's manifest. */
 export function manifestFile(root: string, product: Product, projectId: string): string {
-  return inside(projectDir(root, product, projectId), MANIFEST)
+  return manifestIn(projectDir(root, product, projectId))
 }
 
 /** Resolves the directory holding one project's task files. */
@@ -48,8 +56,7 @@ export function taskFile(
   projectId: string,
   taskId: string,
 ): string {
-  if (!isUlid(taskId)) throw new Invalid('Task id must be a ULID')
-  return inside(tasksDir(root, product, projectId), `${taskId}.json`)
+  return taskIn(projectDir(root, product, projectId), taskId)
 }
 
 /**
@@ -98,6 +105,18 @@ export function sessionMarkerFile(root: string, product: Product, sessionId: str
 }
 
 /**
+ * Resolves the directory every uploaded file of one session sits under.
+ *
+ * The root {@link stagedFile} joins a harvested path onto, exported because reading a session back
+ * means enumerating what is in it and a caller that cannot name this directory cannot start. It is
+ * one segment below the session directory so that no path a client sends can address
+ * {@link sessionMarkerFile}, which is the reason that segment exists at all.
+ */
+export function stagedRoot(root: string, product: Product, sessionId: string): string {
+  return inside(stagingDir(root, product, sessionId), STAGED)
+}
+
+/**
  * Resolves one uploaded file inside a session, from the relative path the drop was harvested at.
  *
  * The path goes through `normaliseImportPath` here rather than only at the call site, which makes
@@ -114,7 +133,7 @@ export function stagedFile(
   sessionId: string,
   harvested: string,
 ): string {
-  const parent = inside(stagingDir(root, product, sessionId), STAGED)
+  const parent = stagedRoot(root, product, sessionId)
   return contained(parent, path.join(parent, normaliseImportPath(harvested)))
 }
 
@@ -133,4 +152,27 @@ export function buildRoot(root: string, product: Product): string {
 export function buildDir(root: string, product: Product, projectId: string): string {
   if (!isUlid(projectId)) throw new Invalid(PROJECT_ID)
   return inside(buildRoot(root, product), projectId)
+}
+
+/**
+ * Resolves the manifest of a project being assembled, inside its build directory.
+ *
+ * A second pair of builders rather than a `dir` argument on {@link manifestFile}, because the
+ * roots are what ADR 0045 keeps apart and a builder taking a directory would let a caller pass
+ * `projectsDir` — the one mistake that ADR exists to make unreachable. The layout inside the two
+ * directories is deliberately identical, which is what makes the publish a rename of a directory
+ * that is already shaped like a project rather than a per-file copy.
+ */
+export function buildManifestFile(root: string, product: Product, projectId: string): string {
+  return manifestIn(buildDir(root, product, projectId))
+}
+
+/** Resolves one task file of a project being assembled, inside its build directory. */
+export function buildTaskFile(
+  root: string,
+  product: Product,
+  projectId: string,
+  taskId: string,
+): string {
+  return taskIn(buildDir(root, product, projectId), taskId)
 }

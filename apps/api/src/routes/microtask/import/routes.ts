@@ -1,5 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi'
-import { ImportExpansion, ImportSession, ImportStagedChunk } from '@repo/contracts'
+import {
+  ImportConfirmRequest,
+  ImportConfirmResult,
+  ImportExpansion,
+  ImportPreview,
+  ImportSession,
+  ImportStagedChunk,
+} from '@repo/contracts'
 import { problemResponses } from '../../../http/error-responses.js'
 import { importChunkBodyLimit } from '../../../http/body-limits.js'
 import { GUARDED_SECURITY } from '../../../http/security.js'
@@ -23,6 +30,11 @@ export const chunkQuery = z.object({
   path: z
     .string()
     .meta({ description: 'The normalised relative path this file was harvested at' }),
+  offset: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .meta({ description: 'How many bytes of this file the client believes are already staged' }),
 })
 
 /**
@@ -71,9 +83,18 @@ export const openImportSessionRoute = createRoute({
  * to build anything from. It is what makes a session id that is not a ULID a 422 before a handler
  * runs.
  *
- * Three refusals beyond the common set, and they mean different things to a client: **413** the
- * chunk is too big and should be sliced smaller, **409** the session is full and should be
- * confirmed or abandoned, **404** the session id names nothing — expired, swept, or never opened.
+ * `offset` is **required**, not defaulted, and that is the decision rather than an omission. A
+ * default of 0 would be silently wrong for every chunk after the first, and a default of "wherever
+ * the file ends" is what this route did before — under which a client retrying after a timeout
+ * appended the same bytes twice, doubling `sessionBytes` and pushing a legitimate drop into the
+ * session cap for no reason the operator could see. There is no client to break: the browser side
+ * arrives with Task 12. `z.coerce` because a query string carries text, and the bound keeps a
+ * negative or fractional offset out of the comparison rather than leaving it to the staging area.
+ *
+ * Four refusals beyond the common set, and they mean different things to a client: **413** the
+ * chunk is too big and should be sliced smaller, **409** either the session is full — confirm it
+ * or abandon it — or the offset is not where the file ends, in which case the message names the
+ * offset to resume from, **404** the session id names nothing: expired, swept, or never opened.
  * A traversal in `path` is the common 422, and it rejects the file rather than the session.
  */
 export const uploadImportChunkRoute = createRoute({
@@ -157,6 +178,101 @@ export const expandImportArchiveRoute = createRoute({
     200: {
       description: 'The archive was expanded, and the session now holds this many bytes',
       content: { 'application/json': { schema: ImportExpansion } },
+    },
+    ...problemResponses([409]),
+  },
+})
+
+/**
+ * The plan for one staged session. Answers **200** and **writes nothing** (design §7.3).
+ *
+ * A `GET`, because that is what it is: every file was staged by the uploads above, and this reads
+ * them back, classifies them, runs every blocking check and describes what a confirm would do. It
+ * takes no lock either — a read holding the process-wide write queue would stall every client for
+ * the length of an admin's deliberation — so the plan it answers is the plan as of the moment it
+ * was taken. The confirm runs the same builder again inside the lock it holds, which is what makes
+ * a preview a description rather than a promise: a concurrent write can land in between, and the
+ * two checks that read the target store — token uniqueness and `projectsPerProduct` — are measured
+ * where the write happens.
+ *
+ * It is also **not** idempotent in the way a cache would want: a legacy file carries no task ids,
+ * so previewing one mints them, and two previews of the same session produce projects with
+ * different task ids. Nothing depends on them agreeing — a choice is addressed by **project** id,
+ * which a legacy file carries itself — and the alternative is either storing a preview, which is
+ * the state §7.3 avoids, or minting ids on the confirm alone, which would leave the preview unable
+ * to report the task counts it exists to report.
+ *
+ * Every group gets a row, including the ones this repo cannot read, because silent skipping is the
+ * failure ADR 0018 was written about. **404** is the session id naming nothing; a hostile harvested
+ * path is the common 422; **409** is two files harvested for one normalised path, which the uploads
+ * make unreachable — a session stages each path once, by construction — and which is declared
+ * because the classifier is the authority that answers it and a 409 the document did not mention
+ * would be worse than one that cannot fire.
+ */
+export const previewImportRoute = createRoute({
+  method: 'get',
+  path: '/sessions/{sessionId}/preview',
+  tags: ['import'],
+  summary: 'Preview what one staged import session would do',
+  description:
+    'Reads the staged session and describes every group in it. Nothing is written, and no project is touched.',
+  security: GUARDED_SECURITY,
+  request: { params: sessionParams },
+  responses: {
+    200: {
+      description: 'The plan: one row per dropped group, with every reason a group is refused',
+      content: { 'application/json': { schema: ImportPreview } },
+    },
+    ...problemResponses([409]),
+  },
+})
+
+/**
+ * Apply one staged session under the admin's conflict choices. Answers **200**.
+ *
+ * The body names the session as well as the path, and a body naming a different one is refused
+ * rather than resolved in either direction (ADR 0015): the files were staged under one id when
+ * they were previewed, and picking one of two ids would apply a session nobody previewed.
+ *
+ * `choices` is sparse, and the two ways it can be wrong are answered differently because the
+ * remedies differ. A choice naming a project **this session does not hold** is a **422** — a
+ * malformed request, and the only thing that can see it is this route, since the schema cannot
+ * know what was staged. A project that collides with one already on disk and carries **no**
+ * choice is a **409** — the request was well formed, the store changed under it, and the remedy is
+ * to preview again and choose. Guessing a choice is not an option: `skip`, `new` and `replace`
+ * differ in whether tokens already in clients' hands keep working (ADR 0019).
+ *
+ * **It answers 200 with per-project outcomes, failures included.** A drop is many independent
+ * projects and cross-project atomicity is not claimed: a failure on the seventh is no reason to
+ * discard the six that landed, and there is no status that is true of a confirm where eight
+ * projects were created and one could not be. `ImportConfirmResult` carries a row per project
+ * saying which it was. A request that fails as a whole — an unknown session, a bad choice set —
+ * never reaches that shape.
+ *
+ * The session is swept once the apply has begun, success or failure (ADR 0045), which is why a
+ * refused choice set is answered **before** anything is applied: a 422 or 409 here leaves the
+ * upload staged to be confirmed again, where a failure during the apply does not.
+ */
+export const confirmImportRoute = createRoute({
+  method: 'post',
+  path: '/sessions/{sessionId}/confirm',
+  tags: ['import'],
+  summary: 'Apply one staged import session',
+  description:
+    'Writes every importable project under the choices given, reports what became of each, and sweeps the session either way.',
+  security: GUARDED_SECURITY,
+  request: {
+    params: sessionParams,
+    body: {
+      required: true,
+      description: 'The session to apply and the conflict choice for each colliding project',
+      content: { 'application/json': { schema: ImportConfirmRequest } },
+    },
+  },
+  responses: {
+    200: {
+      description: 'What the confirm did, project by project',
+      content: { 'application/json': { schema: ImportConfirmResult } },
     },
     ...problemResponses([409]),
   },

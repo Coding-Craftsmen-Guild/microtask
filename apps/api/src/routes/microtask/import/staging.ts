@@ -10,6 +10,7 @@ import type { ApiDeps } from '../../../deps.js'
 import { IMPORT_CHUNK_LIMIT_BYTES } from '../../../http/body-limits.js'
 import { PRODUCT } from '../product.js'
 import { expandArchive } from './archive.js'
+import { misplacedChunk, noArchiveAt, sessionFull } from './staging-refusals.js'
 import { including, readMarker, type SessionMarker } from './session-marker.js'
 import {
   assertFreshPaths,
@@ -77,14 +78,14 @@ interface Archive {
 
 const NO_SESSION = 'Import session not found'
 
-const noArchive = (at: string): string =>
-  `This session stages no file at "${at}", so there is nothing to expand. Upload the archive first.`
-
-const full = (staged: number): string =>
-  `This import session already holds ${String(staged)} bytes and is capped at ${String(MAX_SESSION_BYTES)}. Confirm it and stage the rest in another session, or drop fewer files — one file larger than the cap cannot be staged at all.`
 
 /**
- * The staging area one import session occupies, and the only thing that writes under `import/`.
+ * The staging area one import session occupies, and the only thing that **uploads** into `import/`.
+ *
+ * One other module touches that root: `session-files.ts`, which reads a staged session back and
+ * removes the session a confirm has just applied. Both of its functions are lock-free because a
+ * confirm calls them from inside the one `lock.run` it holds around its whole apply, which is
+ * exactly what no method of this class may be called from — see the paragraph on reentrancy below.
  *
  * It reaches the disk through the injected `FileSystem` port alone, so a route test drives the
  * real composed app against the in-memory adapter and still exercises this code — which is the
@@ -181,16 +182,41 @@ export class ImportStaging {
    * as files reaches `appendBytes` on a path whose parent is a file, and that is a fault the port
    * requires be left alone rather than caught. Answering it here makes it the 422 it always was,
    * and in the one-arrival form, because this is the only place that pays it per chunk.
+   *
+   * **`offset` is where the client believes this chunk belongs, and it is checked against the
+   * file.** Without it a client that retried after a timeout appended the same bytes twice. That
+   * was never silent — every raw read under `import/` opens with `JSON.parse`, so a duplicated
+   * chunk lands the group `unrecognised` and the preview's blocking checks refuse it — but it
+   * doubled `sessionBytes`, so a legitimate drop could hit the session cap for no reason the
+   * operator could see. A mismatch is a **409** naming the expected offset, which is a resumable
+   * state rather than a malformed request: the client re-slices from there.
+   *
+   * The expected offset comes from `FileSystem.size`, which is `stat().size` on a disk and
+   * therefore **O(1)**. The two alternatives were reading the file to measure it — O(n) per
+   * chunk, against a file that may be the 100 MB a session admits — and counting bytes per path
+   * in the marker. The marker was rejected as the source because it is **not the file**: this
+   * method appends and *then* rewrites the marker, so an interruption between the two leaves the
+   * marker under-counting, and a retry the marker approved would append the duplicate bytes that
+   * the offset exists to refuse. `size` is the one source that cannot disagree with what is
+   * there. The read is inside the lock, beside the marker's own read-modify-write, so the answer
+   * cannot be stale by the time it is used.
    */
-  async append(sessionId: string, harvested: string, bytes: Uint8Array): Promise<StagedChunk> {
+  async append(
+    sessionId: string,
+    harvested: string,
+    offset: number,
+    bytes: Uint8Array,
+  ): Promise<StagedChunk> {
     const at = normaliseImportPath(harvested)
     const file = stagedFile(this.#root(), PRODUCT, sessionId, at)
     return this.#deps.lock.run(async () => {
       const marker = await this.#read(sessionId)
       if (marker === null) throw new NotFound(NO_SESSION)
       assertNoCollisionWith(marker.paths, at)
+      const staged = await this.#deps.fileSystem.size(file)
+      if (offset !== staged) throw new Conflict(misplacedChunk(at, offset, staged))
       const sessionBytes = marker.bytes + bytes.length
-      if (sessionBytes > MAX_SESSION_BYTES) throw new Conflict(full(marker.bytes))
+      if (sessionBytes > MAX_SESSION_BYTES) throw new Conflict(sessionFull(marker.bytes, MAX_SESSION_BYTES))
       await this.#deps.fileSystem.appendBytes(file, bytes)
       const paths = including(marker.paths, at)
       await this.#write(sessionId, { openedAt: marker.openedAt, bytes: sessionBytes, paths })
@@ -239,7 +265,7 @@ export class ImportStaging {
       const marker = await this.#read(sessionId)
       if (marker === null) throw new NotFound(NO_SESSION)
       const bytes = await this.#deps.fileSystem.readBytes(file)
-      if (bytes === null) throw new NotFound(noArchive(at))
+      if (bytes === null) throw new NotFound(noArchiveAt(at))
       return this.#expand(sessionId, { marker, at, bytes, file })
     })
   }
@@ -255,7 +281,7 @@ export class ImportStaging {
         assertNoCollision([...held, ...paths])
       },
       async (path, content) => {
-        if (base + added + content.length > MAX_SESSION_BYTES) throw new Conflict(full(base + added))
+        if (base + added + content.length > MAX_SESSION_BYTES) throw new Conflict(sessionFull(base + added, MAX_SESSION_BYTES))
         added += content.length
         await this.#stage(sessionId, path, content)
       },

@@ -72,4 +72,14 @@ export {
   MAX_PREVIEW_REASONS,
   MAX_PREVIEW_TEXT_LENGTH,
 } from './import-plan.js'
-export type { ImportOutcomeValue, ImportShapeValue } from './import-plan.js'
+export type {
+  ConflictChoiceValue,
+  ImportOutcomeValue,
+  ImportShapeValue,
+} from './import-plan.js'
+export {
+  ImportConfirmResult,
+  ImportProjectResult,
+  ImportWriteOutcome,
+} from './import-result.js'
+export type { ImportWriteOutcomeValue } from './import-result.js'

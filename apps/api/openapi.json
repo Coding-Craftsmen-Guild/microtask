@@ -881,6 +881,320 @@
         ],
         "description": "What expanding one staged archive put into a session"
       },
+      "ImportPreview": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportPreviewGroup"
+            }
+          }
+        },
+        "required": [
+          "sessionId",
+          "groups"
+        ],
+        "description": "What one staged import session holds, before anything is written"
+      },
+      "ImportPreviewGroup": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "shape": {
+            "$ref": "#/components/schemas/ImportShape"
+          },
+          "projectId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityName"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  ""
+                ]
+              }
+            ]
+          },
+          "manifestTaskCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "taskFilesFound": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shareLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportPreviewShareLink"
+            }
+          },
+          "existsInTarget": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ImportOutcome"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "path",
+          "shape",
+          "projectId",
+          "name",
+          "manifestTaskCount",
+          "taskFilesFound",
+          "shareLinks",
+          "existsInTarget",
+          "outcome",
+          "reasons"
+        ],
+        "description": "One dropped group, what it is, and what will happen to it"
+      },
+      "ImportShape": {
+        "type": "string",
+        "enum": [
+          "v2-workspace-bundle",
+          "v2-single-project",
+          "v2-project-directory",
+          "legacy-project",
+          "unrecognised"
+        ],
+        "description": "What a dropped directory group was detected as"
+      },
+      "ImportPreviewShareLink": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityName"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  ""
+                ]
+              }
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "scope",
+          "index"
+        ],
+        "description": "A share link a bundle asserts, named by index, never by token"
+      },
+      "ImportOutcome": {
+        "type": "string",
+        "enum": [
+          "importable",
+          "blocked",
+          "error"
+        ],
+        "description": "Whether a group will import, and whether it was even read"
+      },
+      "ImportConfirmResult": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportProjectResult"
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "sessionId",
+          "projects"
+        ],
+        "description": "What one confirm did, project by project"
+      },
+      "ImportProjectResult": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "projectId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "writtenProjectId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "choice": {
+            "$ref": "#/components/schemas/ConflictChoice"
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/ImportWriteOutcome"
+          },
+          "tasksWritten": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tasksRemoved": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shareLinksReminted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shareLinksStranded": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "path",
+          "projectId",
+          "writtenProjectId",
+          "choice",
+          "outcome",
+          "tasksWritten",
+          "tasksRemoved",
+          "shareLinksReminted",
+          "shareLinksStranded",
+          "reasons"
+        ],
+        "description": "One project a confirm handled, and what became of it"
+      },
+      "ConflictChoice": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "skip",
+          "new",
+          "replace",
+          null
+        ],
+        "description": "Skip a project, import it as new, or replace it"
+      },
+      "ImportWriteOutcome": {
+        "type": "string",
+        "enum": [
+          "created",
+          "replaced",
+          "skipped",
+          "blocked",
+          "failed"
+        ],
+        "description": "What a confirm did with one project"
+      },
+      "ImportConfirmRequest": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportProjectChoice"
+            },
+            "maxItems": 500
+          }
+        },
+        "required": [
+          "sessionId",
+          "choices"
+        ],
+        "description": "Apply one staged session, one choice per project"
+      },
+      "ImportProjectChoice": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/ConflictChoice"
+          }
+        },
+        "required": [
+          "projectId",
+          "choice"
+        ],
+        "description": "One project and what was chosen for it"
+      },
       "FolderList": {
         "type": "object",
         "properties": {
@@ -1823,6 +2137,20 @@
             "description": "The normalised relative path this file was harvested at",
             "name": "path",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "How many bytes of this file the client believes are already staged"
+            },
+            "required": false,
+            "description": "How many bytes of this file the client believes are already staged",
+            "name": "offset",
+            "in": "query"
           }
         ],
         "requestBody": {
@@ -1961,6 +2289,213 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImportExpansion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/microtask/import/sessions/{sessionId}/preview": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Preview what one staged import session would do",
+        "description": "Reads the staged session and describes every group in it. Nothing is written, and no project is touched.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan: one row per dropped group, with every reason a group is refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/microtask/import/sessions/{sessionId}/confirm": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Apply one staged import session",
+        "description": "Writes every importable project under the choices given, reports what became of each, and sweeps the session either way.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The session to apply and the conflict choice for each colliding project",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the confirm did, project by project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportConfirmResult"
                 }
               }
             }

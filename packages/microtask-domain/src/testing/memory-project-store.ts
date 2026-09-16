@@ -1,6 +1,6 @@
 import { Invalid, isProduct, isUlid, type Product } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
-import type { ProjectStore } from '../ports/project-store.js'
+import type { ProjectStore, WholeProject } from '../ports/project-store.js'
 import type { TaskDocument } from '../entities/task.js'
 
 const containerKey = (product: Product, name: string): string => `${product}/${name}`
@@ -105,6 +105,25 @@ export class MemoryProjectStore implements ProjectStore {
     assertIds(product, manifest.id, taskId)
     await this.saveManifest(product, manifest)
     this.#tasks.delete(taskKey(product, manifest.id, taskId))
+  }
+
+  /**
+   * Replaces a whole project, so a reader sees it wholly absent or wholly present.
+   *
+   * Every id is validated **before** anything is dropped, which is the one ordering this adapter
+   * has to get right: a document carrying a non-ULID id must not destroy the project already
+   * there on its way to throwing. The manifest is written last for the same reason the
+   * filesystem adapter renames last — it is what makes the project visible to `listManifests`.
+   */
+  async publishProject(product: Product, project: WholeProject): Promise<void> {
+    const id = project.manifest.id
+    assertIds(product, id)
+    for (const document of project.documents) assertIds(product, id, document.id)
+    await this.deleteProject(product, id)
+    for (const document of project.documents) {
+      this.#tasks.set(taskKey(product, id, document.id), JSON.stringify(document))
+    }
+    await this.saveManifest(product, project.manifest)
   }
 
   /** Removes a project and everything under it, reporting whether it existed. */

@@ -12,6 +12,11 @@ const occupied = (from: string, to: string): Error =>
     code: 'EEXIST',
   })
 
+const isDirectory = (at: string): Error =>
+  Object.assign(new Error(`EISDIR: illegal operation on a directory, stat '${at}'`), {
+    code: 'EISDIR',
+  })
+
 let sequence = 0
 
 /** The only implementation of FileSystem that touches a real disk. */
@@ -68,10 +73,43 @@ export class NodeFileSystem implements FileSystem {
     }
   }
 
-  /** Removes whatever is at the path, of either kind, reporting whether it existed. */
+  /**
+   * How many bytes a file holds, or 0 when it does not exist.
+   *
+   * `stat().size`, so it is one syscall and no read: the file may be the 100 MB one import
+   * session admits, and this is asked once per chunk from inside the process-wide write lock.
+   *
+   * A directory is refused explicitly, because `fs.stat` does **not** refuse one — it answers a
+   * size. Measured on win32 / Node 22.16 in this repo: `statSync` on a directory succeeds with
+   * `size: 0`, which is indistinguishable from the absent file this method answers 0 for and
+   * would resume an upload at an offset into a file that does not exist.
+   */
+  async size(file: string): Promise<number> {
+    try {
+      const found = await fs.stat(file)
+      if (found.isDirectory()) throw isDirectory(file)
+      return found.size
+    } catch (error) {
+      if (missing(error)) return 0
+      throw error
+    }
+  }
+
+  /**
+   * Removes whatever is at the path, of either kind, reporting whether it existed.
+   *
+   * `maxRetries` is passed because this is half of ADR 0006's bulk publish: clearing the
+   * destination is what a project directory being moved into place waits on, and a directory
+   * removal is a classic transient `EPERM`/`EBUSY` on win32 under a watcher or an anti-virus
+   * scanner. Node's own retry covers exactly that set — its `fs.rm` documentation applies
+   * `maxRetries` to `EBUSY`, `EMFILE`, `ENFILE`, `ENOTEMPTY` and `EPERM`, with a backoff it
+   * manages itself — so the platform answers the one gap that could be closed without a timer
+   * of this repo's own inside the write lock. `move`'s rename has no equivalent and stays
+   * un-retried; `storage/publish.ts` states that decision where the publish is wired.
+   */
   async removeDir(dir: string): Promise<boolean> {
     const existed = await fs.stat(dir).then(() => true, () => false)
-    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(dir, { recursive: true, force: true, maxRetries: 5 })
     return existed
   }
 

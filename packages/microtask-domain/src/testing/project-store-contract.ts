@@ -6,7 +6,9 @@ import { manifest, taskDocument, taskEntry } from './fixtures.js'
 const P1 = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const P2 = '01M240ERCRWWCN16Q5AHP1FZAB'
 const T1 = '01M240FB4GD6PF6V0PKZVF6FD9'
+const T2 = '01M240FB4GD6PF6V0PKZVF6FDB'
 const TAB1 = '01M240FB4GD6PF6V0PKZVF6FDA'
+const TAB2 = '01M240FB4GD6PF6V0PKZVF6FDC'
 
 /** The adapter under test, plus whatever setup that adapter can offer the contract. */
 export interface StoreHarness {
@@ -100,6 +102,49 @@ export function describeProjectStore(name: string, makeHarness: () => StoreHarne
       await store.saveManifest('microtask', manifest(P1, { tasks: [taskEntry(T1, 'Ghost')] }))
       expect(await store.readTask('microtask', P1, T1)).toBeNull()
       expect((await store.readManifest('microtask', P1))?.tasks[0]?.name).toBe('Ghost')
+    })
+
+    it('publishes a whole project, manifest and every task together', async () => {
+      await fresh()
+      const whole = manifest(P1, { tasks: [taskEntry(T1, 'Go-live'), taskEntry(T2, 'Cost it')] })
+      await store.publishProject('microtask', {
+        manifest: whole,
+        documents: [taskDocument(T1, TAB1), taskDocument(T2, TAB2)],
+      })
+      expect((await store.readManifest('microtask', P1))?.tasks.map((one) => one.id)).toEqual([T1, T2])
+      expect(await store.readTask('microtask', P1, T1)).not.toBeNull()
+      expect(await store.readTask('microtask', P1, T2)).not.toBeNull()
+    })
+
+    it('drops a task the published project does not name, a publish being a replace and not a merge', async () => {
+      await fresh()
+      await store.saveTask('microtask', manifest(P1, { tasks: [taskEntry(T2, 'Leftover')] }), taskDocument(T2, TAB2))
+      const whole = manifest(P1, { tasks: [taskEntry(T1, 'Go-live')] })
+      await store.publishProject('microtask', { manifest: whole, documents: [taskDocument(T1, TAB1)] })
+      expect((await store.readManifest('microtask', P1))?.tasks.map((one) => one.id)).toEqual([T1])
+      expect(await store.readTask('microtask', P1, T2)).toBeNull()
+    })
+
+    it('refuses a document whose id is not a ULID without destroying the project already there', async () => {
+      await fresh()
+      const live = manifest(P1, { tasks: [taskEntry(T1, 'Go-live')] })
+      await store.saveTask('microtask', live, taskDocument(T1, TAB1))
+      const broken = manifest(P1, { tasks: [taskEntry(T2, 'Incoming')] })
+      await expect(
+        store.publishProject('microtask', {
+          manifest: broken,
+          documents: [{ ...taskDocument(T2, TAB2), id: 'not-a-ulid' }],
+        }),
+      ).rejects.toThrow(Invalid)
+      expect((await store.readManifest('microtask', P1))?.tasks.map((one) => one.id)).toEqual([T1])
+      expect(await store.readTask('microtask', P1, T1)).not.toBeNull()
+    })
+
+    it('publishes a project holding no task at all, which a legacy file with no tabs converts to', async () => {
+      await fresh()
+      await store.publishProject('microtask', { manifest: manifest(P1), documents: [] })
+      expect((await store.readManifest('microtask', P1))?.tasks).toEqual([])
+      expect((await store.listManifests('microtask')).map((one) => one.id)).toEqual([P1])
     })
 
     it('removes a project and everything under it', async () => {

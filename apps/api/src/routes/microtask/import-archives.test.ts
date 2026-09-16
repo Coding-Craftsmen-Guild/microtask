@@ -59,7 +59,7 @@ const upload = async (
   for (let from = 0; from < Math.max(bytes.length, 1); from += IMPORT_CHUNK_LIMIT_BYTES) {
     const slice = bytes.subarray(from, from + IMPORT_CHUNK_LIMIT_BYTES)
     const response = await app.request(
-      `${SESSIONS}/${session}/files?path=${encodeURIComponent(at)}`,
+      `${SESSIONS}/${session}/files?path=${encodeURIComponent(at)}&offset=${String(from)}`,
       {
         method: 'POST',
         headers: { ...admin(), 'content-type': OCTETS, 'content-length': String(slice.length) },
