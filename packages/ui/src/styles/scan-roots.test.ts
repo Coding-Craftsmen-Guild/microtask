@@ -59,6 +59,11 @@ describe('globals.css scan roots', () => {
     expect(scanned('src/components/dialog.tsx')).toBe(true)
   })
 
+  it('already covers src/transfer in both extensions, so the panel needs no third @source', () => {
+    expect(scanned('src/transfer/preview-table.tsx')).toBe(true)
+    expect(scanned('src/transfer/outcomes.ts')).toBe(true)
+  })
+
   it('does not cover a sibling package or a non-source file, so the matcher discriminates', () => {
     expect(scanned('../contracts/src/limits.ts')).toBe(false)
     expect(scanned('src/styles/globals.css')).toBe(false)

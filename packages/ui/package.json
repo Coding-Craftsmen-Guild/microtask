@@ -13,6 +13,10 @@
     "./shell/*": "./src/shell/*.tsx",
     "./lib/*.test": null,
     "./lib/*": "./src/lib/*.ts",
+    "./transfer/*.test": null,
+    "./transfer/*.test.js": null,
+    "./transfer/*.js": "./src/transfer/*.ts",
+    "./transfer/*": "./src/transfer/*.tsx",
     "./globals.css": "./src/styles/globals.css"
   },
   "scripts": {
