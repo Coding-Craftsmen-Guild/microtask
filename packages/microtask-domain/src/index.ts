@@ -19,6 +19,7 @@ export {
 } from './limits.js'
 export {
   collidingPaths,
+  collisionWith,
   duplicatePaths,
   groupImportFiles,
   MANIFEST_FILE_NAME,
@@ -26,7 +27,7 @@ export {
   type ImportGroup,
   type PathCollision,
 } from './import/grouping.js'
-export { normaliseImportPath } from './import/harvested-path.js'
+export { normaliseImportPath, SEPARATOR } from './import/harvested-path.js'
 export {
   elideMiddle,
   LONGEST_QUOTED_PATH,

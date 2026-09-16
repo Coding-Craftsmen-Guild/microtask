@@ -4,6 +4,7 @@ import { Conflict, Invalid } from '@repo/kernel'
 import { manifestFile } from '../storage/paths.js'
 import {
   collidingPaths,
+  collisionWith,
   duplicatePaths,
   groupImportFiles,
   MANIFEST_FILE_NAME,
@@ -270,5 +271,68 @@ describe('MANIFEST_FILE_NAME', () => {
     expect(manifestFile(ROOT, 'microtask', P1)).toBe(
       path.join(ROOT, 'microtask', 'projects', P1, MANIFEST_FILE_NAME),
     )
+  })
+})
+
+describe('collisionWith: the same question about one arrival, which a chunk asks per chunk', () => {
+  it('finds an ancestor of the new path that is held as a file', () => {
+    expect(collisionWith(['x.json', 'a'], 'a/b')).toEqual({ file: 'a', inside: 'a/b' })
+  })
+
+  it('finds a held path the new path would be an ancestor of', () => {
+    expect(collisionWith(['x.json', 'a/b'], 'a')).toEqual({ file: 'a', inside: 'a/b' })
+  })
+
+  it('reaches an ancestor that is not the immediate parent', () => {
+    expect(collisionWith(['drop'], 'drop/p/tasks/one.json')).toEqual({
+      file: 'drop',
+      inside: 'drop/p/tasks/one.json',
+    })
+  })
+
+  it('answers null for the path already held, a next chunk being no collision', () => {
+    expect(collisionWith(['a/b'], 'a/b')).toBeNull()
+  })
+
+  it('compares by segment, so "ab", "a.json" and "a-b/c" are not inside "a"', () => {
+    expect(collisionWith(['ab', 'a.json', 'a-b/c'], 'a')).toBeNull()
+    expect(collisionWith(['a'], 'ab')).toBeNull()
+  })
+
+  it('normalises the arrival, so a "." segment cannot hide the pair', () => {
+    expect(collisionWith(['a'], './a/b')).toEqual({ file: 'a', inside: 'a/b' })
+    expect(collisionWith(['a'], 'a//b')).toEqual({ file: 'a', inside: 'a/b' })
+  })
+
+  it('refuses a hostile arrival rather than answering a question about it', () => {
+    expect(() => collisionWith(['a'], '../../etc/passwd')).toThrow(Invalid)
+  })
+
+  it('agrees with collidingPaths on every pair either is asked about', () => {
+    const sets: readonly (readonly [readonly string[], string])[] = [
+      [['a'], 'a/b'],
+      [['a/b'], 'a'],
+      [['drop', 'x.json'], 'drop/p/project.json'],
+      [['ab', 'a.json'], 'a'],
+      [[`volume/${P1}/project.json`], `volume/${P1}/tasks/${T1}.json`],
+    ]
+    for (const [held, at] of sets) {
+      const [pair] = collidingPaths([...held, at])
+      expect([held, at, collisionWith(held, at)]).toEqual([held, at, pair ?? null])
+    }
+  })
+
+  it('takes the held paths as canonical, which is the narrowing that buys the cost', () => {
+    expect(collisionWith(['a//b'], 'a/b/c')).toBeNull()
+    expect(collidingPaths(['a//b', 'a/b/c'])).toEqual([{ file: 'a/b', inside: 'a/b/c' }])
+  })
+
+  it('finds nothing in the shape a real session holds, so the pairs above are specific', () => {
+    const held = [
+      `volume/${P1}/project.json`,
+      `volume/${P1}/tasks/${T1}.json`,
+      `volume/${P2}/project.json`,
+    ]
+    expect(collisionWith(held, `volume/${P2}/tasks/${T2}.json`)).toBeNull()
   })
 })

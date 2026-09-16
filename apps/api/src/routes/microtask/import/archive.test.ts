@@ -7,6 +7,8 @@ import {
   directory,
   encrypted,
   lying,
+  mislabelled,
+  overstated,
   stored,
   symlink,
   textFile,
@@ -27,6 +29,14 @@ const T1 = marked('01T', 1)
 const ENCODER = new TextEncoder()
 
 const zeros = (length: number): Uint8Array => new Uint8Array(length)
+
+const compressionOf = (data: Uint8Array): number => data.length / deflateRawSync(data).length
+
+const noise = (length: number): Uint8Array => {
+  const bytes = new Uint8Array(length)
+  for (let at = 0; at < length; at += 1) bytes[at] = (at * 31 + 7) % 251
+  return bytes
+}
 
 interface Run {
   readonly staged: { path: string; bytes: number }[]
@@ -124,6 +134,38 @@ describe('the entry rules, every one of them decided before a byte is staged (AD
     expect(attempt.checked).toEqual([])
   })
 
+  it('refuses a hostile directory entry, whose name the skip must not step over', async () => {
+    const attempt = await refused(
+      zipArchive([directory('../../etc'), textFile('ok.json', '{}')]),
+    )
+    expect(attempt.detail).toContain('Entry "../../etc/" is refused')
+    expect(attempt.detail).toContain('cannot step out with ".."')
+    expect(attempt.staged).toEqual([])
+  })
+
+  it.each([
+    ['an absolute directory name', '/etc'],
+    ['a drive-letter directory name', 'C:/Windows'],
+    ['a backslash directory name', 'drop\\..\\secrets'],
+  ])('refuses %s the same way, rather than expanding the archive minus that entry', async (_what, hostile) => {
+    const attempt = await refused(zipArchive([directory(hostile), textFile('ok.json', '{}')]))
+    expect(attempt.staged).toEqual([])
+  })
+
+  it('refuses an entry whose mode calls it a directory while its name calls it a file', async () => {
+    const attempt = await refused(zipArchive([mislabelled('project.json', '{"id":"mine"}')]))
+    expect(attempt.detail).toContain('marked as a directory')
+    expect(attempt.detail).toContain('project.json')
+  })
+
+  it('does not silently drop that entry, which is what skipping it would have done', async () => {
+    const attempt = expanding(
+      zipArchive([mislabelled('project.json', '{}'), textFile('ok.json', '{}')]),
+    )
+    await expect(attempt.run()).rejects.toBeInstanceOf(Invalid)
+    expect(attempt.staged).toEqual([])
+  })
+
   it('skips a directory entry rather than refusing the trailing separator it is named by', async () => {
     const attempt = expanding(
       zipArchive([directory('drop'), directory('drop/tasks'), textFile('drop/tasks/a.json', '{}')]),
@@ -189,7 +231,7 @@ describe('the size cap and the ratio cap, each pinned by a fixture the other can
   const ratioBomb = (): ArchiveEntry => deflated('bomb.bin', zeros(RATIO_BOMB_BYTES))
   const sizeBomb = (): ArchiveEntry => stored('big.bin', zeros(MAX_ARCHIVE_BYTES + 1))
 
-  const measured = (detail: string): number => Number(/expands at ([\d.]+):1/.exec(detail)?.[1] ?? 0)
+  const measured = (detail: string): number => Number(/expands at at least ([\d.]+):1/.exec(detail)?.[1] ?? 0)
 
   it('fixture A sits under the size cap and the entry cap, so only the ratio can refuse it', () => {
     const entry = ratioBomb()
@@ -234,6 +276,32 @@ describe('the size cap and the ratio cap, each pinned by a fixture the other can
   it('fixture B never names the ratio cap, the entry expanding at one byte for one byte', async () => {
     const attempt = await refused(zipArchive([sizeBomb()]))
     expect(attempt.detail).not.toContain('compression ratio')
+  })
+
+  const FLATTERED = 25_000
+
+  const lyingCentral = (): Uint8Array =>
+    zipArchive([
+      overstated('bomb.bin', zeros(RATIO_BOMB_BYTES), FLATTERED),
+      stored('pad.bin', noise(40_000)),
+    ])
+
+  it('would flatter this bomb to under the cap if the number it divides by were believed', () => {
+    expect(compressionOf(zeros(RATIO_BOMB_BYTES))).toBeGreaterThan(MAX_ARCHIVE_RATIO)
+    expect(RATIO_BOMB_BYTES / FLATTERED).toBeLessThan(MAX_ARCHIVE_RATIO)
+    expect(FLATTERED).toBeGreaterThan(deflateRawSync(zeros(RATIO_BOMB_BYTES)).length)
+  })
+
+  it('refuses an archive that overstates a compressed size in the central directory alone', async () => {
+    const attempt = await refused(lyingCentral())
+    expect(attempt.detail).toContain('not a zip archive')
+    expect(attempt.staged).toEqual([])
+  })
+
+  it('refuses one that overstates it past the end of the file, which is the other half', async () => {
+    const attempt = await refused(zipArchive([overstated('bomb.bin', zeros(1000), 5_000_000)]))
+    expect(attempt.detail).toContain('not a zip archive')
+    expect(attempt.staged).toEqual([])
   })
 
   it('stages neither bomb, both caps being measured as the bytes arrive', async () => {
@@ -295,6 +363,62 @@ describe('the ratio cap admits what this product own files compress at', () => {
         document: document(60, `Notes for milestone ${String(at)}, written out at some length.`),
       })),
     })
+
+  const words = [
+    'launch', 'venue', 'budget', 'draft', 'review', 'ship', 'spec', 'invoice', 'vendor',
+    'kickoff', 'retro', 'signoff', 'catering', 'badge', 'stage', 'lighting', 'rider', 'permit',
+  ]
+
+  const wandering = (): (() => string) => {
+    let seed = 7
+    return () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      return words[Math.floor((seed / 2147483648) * words.length)] ?? 'launch'
+    }
+  }
+
+  const variedDocument = (count: number, next = wandering()): unknown => {
+    return {
+      type: 'doc',
+      content: Array.from({ length: count }, () =>
+        paragraph(Array.from({ length: 16 }, () => next()).join(' ')),
+      ),
+    }
+  }
+
+  const variedTask = (): string => {
+    const next = wandering()
+    return JSON.stringify({
+      id: T1,
+      createdAt: STAMP,
+      updatedAt: STAMP,
+      tabs: Array.from({ length: 40 }, (_unused, at) => ({
+        id: marked('01B', at + 1),
+        name: `Tab ${String(at)}`,
+        position: at,
+        createdAt: STAMP,
+        updatedAt: STAMP,
+        document: variedDocument(60, next),
+      })),
+    })
+  }
+
+  it.each([
+    ['200 varied paragraphs', () => JSON.stringify(variedDocument(200))],
+    ['2,000 varied paragraphs', () => JSON.stringify(variedDocument(2_000))],
+    ['20,000 varied paragraphs', () => JSON.stringify(variedDocument(20_000))],
+    ['forty tabs of varied prose', variedTask],
+  ])('compresses %s at 8 to 10:1, which is the number that says 500 is safe', (_what, build) => {
+    const ratio = ratioOf(build())
+    expect(ratio).toBeGreaterThan(8)
+    expect(ratio).toBeLessThan(10)
+    expect(ratio).toBeLessThan(MAX_ARCHIVE_RATIO / 50)
+  })
+
+  it('measures the repetitive shapes far higher, so neither figure is read as the other', () => {
+    expect(ratioOf(proseTask())).toBeGreaterThan(100)
+    expect(ratioOf(JSON.stringify(document(12_000, 'The same sentence over and over again.')))).toBeGreaterThan(200)
+  })
 
   it.each([
     ['a manifest carrying forty tasks', bigManifest],

@@ -11,7 +11,11 @@ import { IMPORT_CHUNK_LIMIT_BYTES } from '../../../http/body-limits.js'
 import { PRODUCT } from '../product.js'
 import { expandArchive } from './archive.js'
 import { including, readMarker, type SessionMarker } from './session-marker.js'
-import { assertFreshPaths, assertNoCollision } from './session-paths.js'
+import {
+  assertFreshPaths,
+  assertNoCollision,
+  assertNoCollisionWith,
+} from './session-paths.js'
 
 /**
  * How long an unconfirmed session survives before the next `open` sweeps it.
@@ -94,12 +98,15 @@ const full = (staged: number): string =>
  * one platform.
  *
  * The path list is what lets a bad path be answered as a 422 instead of a 500 (see `append`), and
- * it costs a marker that grows with the number of **distinct** files a session stages — around
- * forty bytes a file, rewritten on every chunk. Nothing bounds that count but the session's byte
- * cap, so a drop of a hundred thousand tiny files would make each later chunk rewrite a marker of
- * some megabytes. That is a cost rather than a fault, and the alternative is a syscall per chunk
- * whose answer is a fault this layer is forbidden to interpret. Against the volume ADR 0044
- * measures — two files, 8,608 bytes — the list is two lines.
+ * what it costs is **CPU inside the write lock**, once per chunk, growing with the number of
+ * distinct files the session holds. Measured on win32 / Node 22.16 at fifty thousand staged paths —
+ * which is what `MAX_SESSION_BYTES` admits at two kilobytes a file, so it is reachable — the marker
+ * is 2.5 MB and its JSON round trip is 4.3 ms to read and 6.9 ms to write, and
+ * `assertNoCollisionWith` over it is 3.4 ms. The whole of that runs inside `lock.run`, the
+ * process-wide write lock, so it is time every other write in the API waits for; at the ten
+ * thousand paths a large migration would actually hold it is around 3 ms in total. The set form of
+ * the collision check cost 310 ms per chunk at the same size, which is why `append` does not use
+ * it. Against the volume ADR 0044 measures — two files, 8,608 bytes — the list is two lines.
  *
  * **Every public method here takes `lock.run` itself, so none of them may be called from inside a
  * `lock.run`.** `QueueLock` is not reentrant and its failure is not a slow import: the inner
@@ -170,9 +177,10 @@ export class ImportStaging {
    * session total is bounded here, because this marker is the only thing that knows it.
    *
    * The path is also checked against the paths this session has already staged, which is what
-   * `assertNoCollision` is for and why the marker lists them: a drop holding both `a` and `a/b` as
-   * files reaches `appendBytes` on a path whose parent is a file, and that is a fault the port
-   * requires be left alone rather than caught. Answering it here makes it the 422 it always was.
+   * `assertNoCollisionWith` is for and why the marker lists them: a drop holding both `a` and `a/b`
+   * as files reaches `appendBytes` on a path whose parent is a file, and that is a fault the port
+   * requires be left alone rather than caught. Answering it here makes it the 422 it always was,
+   * and in the one-arrival form, because this is the only place that pays it per chunk.
    */
   async append(sessionId: string, harvested: string, bytes: Uint8Array): Promise<StagedChunk> {
     const at = normaliseImportPath(harvested)
@@ -180,7 +188,7 @@ export class ImportStaging {
     return this.#deps.lock.run(async () => {
       const marker = await this.#read(sessionId)
       if (marker === null) throw new NotFound(NO_SESSION)
-      assertNoCollision([...marker.paths, at])
+      assertNoCollisionWith(marker.paths, at)
       const sessionBytes = marker.bytes + bytes.length
       if (sessionBytes > MAX_SESSION_BYTES) throw new Conflict(full(marker.bytes))
       await this.#deps.fileSystem.appendBytes(file, bytes)

@@ -9,7 +9,10 @@ import { deflateRawSync } from 'node:zlib'
  * mode that marks a symbolic link; `method` is 0 stored or 8 deflated, and a stored entry is how a
  * fixture pins a compression ratio of exactly 1; and `flags` is the general-purpose bit field,
  * whose first bit marks an entry encrypted and whose twelfth says the name is UTF-8 — which every
- * builder below sets, because a name decoded as CP437 instead is a different name.
+ * builder below sets, because a name decoded as CP437 instead is a different name. And
+ * `centralCompressed`, when it is not null, is the compressed size written into the **central**
+ * header alone, leaving the local header honest: the one way to build an archive that lies about
+ * the number a compression-ratio cap divides by.
  */
 export interface ArchiveEntry {
   readonly name: string
@@ -18,6 +21,7 @@ export interface ArchiveEntry {
   readonly attributes: number
   readonly declaredSize: number
   readonly flags: number
+  readonly centralCompressed: number | null
 }
 
 const STORED = 0
@@ -102,7 +106,7 @@ const centralHeader = (entry: ArchiveEntry, body: Uint8Array, offset: number): U
   out.u16(8, entry.flags)
   out.u16(10, entry.method)
   out.u32(16, crc32(entry.data))
-  out.u32(20, body.length)
+  out.u32(20, entry.centralCompressed ?? body.length)
   out.u32(24, entry.declaredSize)
   out.u16(28, name.length)
   out.u32(38, entry.attributes)
@@ -129,6 +133,7 @@ export const deflated = (name: string, data: Uint8Array): ArchiveEntry => ({
   attributes: attributesFor(MODE_FILE),
   declaredSize: data.length,
   flags: UTF8_NAMES,
+  centralCompressed: null,
 })
 
 /** A stored file entry, whose compression ratio is exactly 1 however large it is. */
@@ -139,6 +144,7 @@ export const stored = (name: string, data: Uint8Array): ArchiveEntry => ({
   attributes: attributesFor(MODE_FILE),
   declaredSize: data.length,
   flags: UTF8_NAMES,
+  centralCompressed: null,
 })
 
 /** A deflated entry of UTF-8 text, which is what every file in a real drop is. */
@@ -165,12 +171,25 @@ export const directory = (name: string): ArchiveEntry => ({
   attributes: (attributesFor(MODE_DIR) | 0x10) >>> 0,
   declaredSize: 0,
   flags: UTF8_NAMES,
+  centralCompressed: null,
 })
 
 /** An entry flagged as encrypted, which an import has no password to read. */
 export const encrypted = (name: string, data: Uint8Array): ArchiveEntry => ({
   ...deflated(name, data),
   flags: UTF8_NAMES | 1,
+})
+
+/** An entry whose central header overstates the bytes it occupies, flattering its ratio. */
+export const overstated = (name: string, data: Uint8Array, centralCompressed: number): ArchiveEntry => ({
+  ...deflated(name, data),
+  centralCompressed,
+})
+
+/** An entry the unix mode calls a directory though its name is a file's, which no zipper writes. */
+export const mislabelled = (name: string, text: string): ArchiveEntry => ({
+  ...textFile(name, text),
+  attributes: attributesFor(MODE_DIR),
 })
 
 /** An entry whose headers understate what it expands to, which a real archive never does. */

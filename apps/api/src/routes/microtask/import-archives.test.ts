@@ -148,6 +148,8 @@ const DROP: Readonly<Record<string, string>> = {
   'volume/notes.txt': 'not json at all, and not a project',
 }
 
+const DROPPED_BYTES = 1293
+
 const dropped = async (fix: Fixture): Promise<string> => {
   const session = await opened(fix.app)
   for (const [at, text] of Object.entries(DROP)) {
@@ -174,9 +176,16 @@ describe('POST /v1/microtask/import/sessions/{sessionId}/archives', () => {
     expect(await body(response)).toEqual({
       archive: ARCHIVE,
       files: 5,
-      bytes: sizeOf(await staged(fix, session)),
-      sessionBytes: sizeOf(await staged(fix, session)),
+      bytes: DROPPED_BYTES,
+      sessionBytes: DROPPED_BYTES,
     })
+    expect(sizeOf(await staged(fix, session))).toBe(DROPPED_BYTES)
+  })
+
+  it('counts the drop own bytes in that literal, so neither number is the other repeated', () => {
+    const total = Object.values(DROP).reduce((sum, text) => sum + ENCODER.encode(text).length, 0)
+    expect(total).toBe(DROPPED_BYTES)
+    expect(Object.keys(DROP).length).toBe(5)
   })
 
   it('removes the archive it expanded, so nothing is left for a preview to parse as JSON', async () => {
@@ -192,7 +201,7 @@ describe('POST /v1/microtask/import/sessions/{sessionId}/archives', () => {
     const session = await expanded(fix, zipOfFiles(DROP))
     const found = await marker(fix, session)
     expect([...(found['paths'] as string[])].sort()).toEqual(Object.keys(DROP).sort())
-    expect(found['bytes']).toBe(sizeOf(await staged(fix, session)))
+    expect(found['bytes']).toBe(DROPPED_BYTES)
   })
 
   it('answers 404 the second time, the archive it expanded no longer being staged', async () => {
@@ -273,6 +282,7 @@ describe('a zip of a directory and the same directory dropped are one import (AD
     const drop = await marker(fix, await dropped(fix))
     const zip = await marker(fix, await expanded(fix, zipOfFiles(DROP)))
     expect(zip['bytes']).toEqual(drop['bytes'])
+    expect(zip['bytes']).toBe(DROPPED_BYTES)
   })
 })
 
@@ -303,6 +313,17 @@ describe('the hardening ADR 0020 names, through the composed app', () => {
     ])
   })
 
+  it('refuses a hostile directory entry rather than expanding the archive without it', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    const archive = zipArchive([directory('../../etc'), textFile('ok.json', '{}')])
+    await upload(fix.app, session, ARCHIVE, archive)
+    const [status, code, detail] = await refusal(await expand(fix.app, session))
+    expect([status, code]).toEqual([422, 'invalid'])
+    expect(String(detail)).toContain('Entry "../../etc/" is refused')
+    expect([...(await staged(fix, session)).keys()]).toEqual([ARCHIVE])
+  })
+
   it('refuses an entry expanding above the ratio cap, naming that cap and the measured ratio', async () => {
     const fix = await fixture()
     const [status, code, detail] = await refuse(
@@ -311,7 +332,7 @@ describe('the hardening ADR 0020 names, through the composed app', () => {
     )
     expect([status, code]).toEqual([422, 'invalid'])
     expect(String(detail)).toContain(`${String(MAX_ARCHIVE_RATIO)}:1`)
-    expect(Number(/expands at ([\d.]+):1/.exec(String(detail))?.[1])).toBeGreaterThan(
+    expect(Number(/expands at at least ([\d.]+):1/.exec(String(detail))?.[1])).toBeGreaterThan(
       MAX_ARCHIVE_RATIO,
     )
   })

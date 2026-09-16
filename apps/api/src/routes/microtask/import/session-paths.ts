@@ -2,6 +2,7 @@ import { Conflict, Invalid } from '@repo/kernel'
 import {
   LONGEST_QUOTED_PATH,
   collidingPaths,
+  collisionWith,
   duplicatePaths,
   elideMiddle,
   type PathCollision,
@@ -41,6 +42,28 @@ const both = (pair: PathCollision): string =>
 export function assertNoCollision(paths: readonly string[]): void {
   const [collision] = collidingPaths(paths)
   if (collision !== undefined) throw new Invalid(both(collision))
+}
+
+/**
+ * Refuses **one** arriving path against the paths a session already holds, with the same message.
+ *
+ * The form a chunked upload asks in, and the difference is the cost rather than the answer.
+ * {@link assertNoCollision} asks about a whole set, so it re-parses every held path through
+ * `normaliseImportPath` and rebuilds every ancestor of every one — and an upload would pay that
+ * **per chunk**, inside the process-wide write lock, where it stalls every other write in the API.
+ * Measured on win32 / Node 22.16: 85 ms per chunk at ten thousand staged files and 310 ms at fifty
+ * thousand, against 0.89 ms and 3.42 ms for `collisionWith`, which asks the two questions an
+ * arrival actually raises. Fifty thousand two-kilobyte files is what `MAX_SESSION_BYTES` admits, so
+ * that is a reachable session and not a thought experiment.
+ *
+ * An expansion keeps the set form, because it brings many paths at once: one pass that normalises
+ * n + m paths beats m passes over n.
+ *
+ * @throws Invalid naming the two paths, or naming the rule the arriving path broke.
+ */
+export function assertNoCollisionWith(held: readonly string[], at: string): void {
+  const collision = collisionWith(held, at)
+  if (collision !== null) throw new Invalid(both(collision))
 }
 
 /**
