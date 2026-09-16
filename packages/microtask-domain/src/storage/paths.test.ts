@@ -1,7 +1,9 @@
-import path from 'node:path'
+import { readFileSync, readdirSync } from 'node:fs'
+import path, { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { Invalid } from '@repo/kernel'
-import { normaliseImportPath } from '../import/grouping.js'
+import { normaliseImportPath } from '../import/harvested-path.js'
 import {
   buildDir,
   buildRoot,
@@ -178,5 +180,28 @@ describe('the build root (ADR 0045)', () => {
 
   it('refuses an unknown product', () => {
     expect(() => buildRoot(ROOT, 'other' as 'microtask')).toThrow(Invalid)
+  })
+})
+
+describe('what the path builders are allowed to depend on', () => {
+  const SRC = dirname(fileURLToPath(import.meta.url))
+
+  const sources = (): readonly string[] =>
+    readdirSync(SRC, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts'))
+      .map((entry) => join(SRC, entry.name))
+
+  const code = (file: string): string =>
+    readFileSync(file, 'utf8').replaceAll(/\/\*[\s\S]*?\*\//gu, '')
+
+  it('walks the storage modules, so the ban below is not measured over nothing', () => {
+    expect(sources().length).toBeGreaterThan(3)
+  })
+
+  it('reaches the harvested-path leaf and never the classifier, whose consumers would become theirs', () => {
+    const importers = sources().filter((file) => /from '\.\.\/import\/grouping\.js'/u.test(code(file)))
+    expect(importers).toEqual([])
+    const leaf = sources().filter((file) => /from '\.\.\/import\/harvested-path\.js'/u.test(code(file)))
+    expect(leaf).toEqual([join(SRC, 'paths.ts')])
   })
 })

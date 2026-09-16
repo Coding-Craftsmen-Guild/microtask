@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { Invalid, isProduct, isUlid, type Product } from '@repo/kernel'
-import { normaliseImportPath } from '../import/grouping.js'
+import { normaliseImportPath } from '../import/harvested-path.js'
 import { contained } from './contained.js'
 
 const MANIFEST = 'project.json'

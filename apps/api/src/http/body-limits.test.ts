@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest'
 import {
   DOCUMENT_BODY_LIMIT_BYTES,
   GLOBAL_BODY_LIMIT_BYTES,
+  IMPORT_CHUNK_LIMIT_BYTES,
   documentBodyLimit,
   globalBodyLimit,
+  importChunkBodyLimit,
   jsonBodyLimit,
 } from './body-limits.js'
 import { errorHandler } from './error-handler.js'
@@ -91,6 +93,19 @@ describe('the global body limit', () => {
 describe('the per-route limits', () => {
   it('is stricter than the global one, because every matching limiter runs and the first rejection wins', () => {
     expect(DOCUMENT_BODY_LIMIT_BYTES).toBeLessThan(GLOBAL_BODY_LIMIT_BYTES)
+    expect(IMPORT_CHUNK_LIMIT_BYTES).toBeLessThan(GLOBAL_BODY_LIMIT_BYTES)
+  })
+
+  it('caps an import chunk at the million bytes ADR 0044 decided, which nothing else pins', () => {
+    expect(IMPORT_CHUNK_LIMIT_BYTES).toBe(1_000_000)
+  })
+
+  it('refuses a body in the gap between the two caps, which only the route limiter can see', async () => {
+    const app = buildApp(importChunkBodyLimit)
+    const response = await post(app, 'y'.repeat(IMPORT_CHUNK_LIMIT_BYTES + 1))
+    expect(response.status).toBe(413)
+    expect(await body(response)).toMatchObject({ maxBytes: IMPORT_CHUNK_LIMIT_BYTES })
+    expect((await post(buildApp(), 'y'.repeat(IMPORT_CHUNK_LIMIT_BYTES + 1))).status).toBe(200)
   })
 
   it('leaves headroom over the document bound, so a document the domain accepts is never refused in transit', () => {

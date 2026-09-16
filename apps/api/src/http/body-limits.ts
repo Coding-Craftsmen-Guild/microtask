@@ -77,10 +77,15 @@ export const documentBodyLimit: MiddlewareHandler = jsonBodyLimit(DOCUMENT_BODY_
  * Every import upload is chunked, uniformly — one code path, no size branch — so this is not a
  * ceiling that only large files meet. A browser slices each harvested file (and a `.zip`) with
  * `Blob.slice()` at this many bytes and posts each slice as a whole request body, which the API
- * appends into the session's staging file. It is a quarter of {@link GLOBAL_BODY_LIMIT_BYTES},
- * which is what keeps the two answers distinguishable: both limiters match the upload route and
- * the first rejection wins, so a route that lost its own limiter would still answer 413 — only
- * `maxBytes` says which cap refused it.
+ * appends into the session's staging file.
+ *
+ * It is a quarter of {@link GLOBAL_BODY_LIMIT_BYTES}, and the gap between the two caps is what a
+ * test of this bound has to aim at. A body in that gap — over this cap, under the global one — is
+ * refused **only** by the route's own limiter: without it in the route's `middleware` array the
+ * global limiter admits the body and the request answers 200. Measured, at this cap plus one byte.
+ * So the **status** is what catches a route that lost its limiter, and `maxBytes` — with
+ * `toBeLessThan(GLOBAL_BODY_LIMIT_BYTES)` beside it — is what catches one that was loosened past
+ * this number. Neither assertion covers the other's failure, which is why both are written.
  *
  * Measured against the live volume this replaces: ADR 0044 records `data/projects/` as 8,608
  * bytes across two files on 2026-09-12, so every file there is one chunk today. The reason the

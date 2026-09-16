@@ -61,7 +61,8 @@ interface Marker {
 const isMarker = (value: unknown): value is Marker => {
   if (typeof value !== 'object' || value === null) return false
   const { openedAt, bytes } = value as Partial<Marker>
-  return typeof openedAt === 'string' && typeof bytes === 'number' && Number.isFinite(bytes)
+  if (typeof bytes !== 'number' || !Number.isFinite(bytes)) return false
+  return typeof openedAt === 'string' && !Number.isNaN(Date.parse(openedAt))
 }
 
 const parsed = (raw: string): unknown => {
@@ -73,7 +74,7 @@ const parsed = (raw: string): unknown => {
 }
 
 const full = (staged: number): string =>
-  `This import session already holds ${String(staged)} bytes and is capped at ${String(MAX_SESSION_BYTES)}. Confirm it or open another.`
+  `This import session already holds ${String(staged)} bytes and is capped at ${String(MAX_SESSION_BYTES)}. Confirm it and stage the rest in another session, or drop fewer files — one file larger than the cap cannot be staged at all.`
 
 /**
  * The staging area one import session occupies, and the only thing that writes under `import/`.
@@ -87,6 +88,15 @@ const full = (staged: number): string =>
  * this process, because a chunked upload straddles requests and a restart between two of them must
  * not lose the accounting — and because a sweep measured against filesystem mtimes could only be
  * tested by touching them, which is a case that gets skipped on one platform.
+ *
+ * **Every public method here takes `lock.run` itself, so none of them may be called from inside a
+ * `lock.run`.** `QueueLock` is not reentrant and its failure is not a slow import: the inner
+ * `run` chains onto a promise that only settles when the outer work finishes, and the outer work
+ * is waiting on the inner one, so `#chain` is left pointing at a promise that never settles and
+ * **every subsequent write anywhere in the process hangs forever** while reads and `/healthz`
+ * keep answering 200. A confirm that wants one lock around a whole apply therefore cannot reuse
+ * these; the private helpers below (`#read`, `#write`, `#sweep`) are deliberately lock-free, so
+ * exposing a lock-free variant beside a public one is a cheap change when that day comes.
  */
 export class ImportStaging {
   readonly #deps: ApiDeps
@@ -104,9 +114,13 @@ export class ImportStaging {
    * inside one `lock.run` so a second `open` cannot observe a half-swept root — and neither the
    * sweep nor the marker write takes the lock itself, `Lock` not being reentrant.
    *
-   * A session directory whose marker is missing or unreadable is swept too. It cannot be a session
-   * mid-open, because the marker is the first thing written and the lock is held while it is; so
-   * it is either debris from an interrupted write or something this API did not put there.
+   * A session directory whose marker is missing or unreadable is swept too — unreadable meaning
+   * any of: absent, not JSON, no finite `bytes`, or an `openedAt` that is not an instant. That
+   * last one is a stated rule rather than an accident of the comparison below: without it a
+   * marker reading `"tuesday"` would be swept only because `Date.parse` gives `NaN` and every
+   * comparison against `NaN` is false. Such a directory cannot be a session mid-open, because the
+   * marker is the first thing written and the lock is held while it is, so it is either debris
+   * from an interrupted write or something this API did not put there.
    */
   async open(): Promise<StagedSession> {
     return this.#deps.lock.run(async () => {

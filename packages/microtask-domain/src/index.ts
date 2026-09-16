@@ -21,10 +21,10 @@ export {
   duplicatePaths,
   groupImportFiles,
   MANIFEST_FILE_NAME,
-  normaliseImportPath,
   type ImportFile,
   type ImportGroup,
 } from './import/grouping.js'
+export { normaliseImportPath } from './import/harvested-path.js'
 export { elideMiddle, sniffGroup, sniffImportFiles, type SniffedGroup } from './import/sniff.js'
 export {
   convertBundledProject,

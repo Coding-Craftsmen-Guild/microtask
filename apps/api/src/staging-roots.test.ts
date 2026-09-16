@@ -53,7 +53,7 @@ const upload = async (deps: ApiDeps, id: string, text: string): Promise<void> =>
   expect(staged.status).toBe(200)
 }
 
-describe('ADR 0045 (a): the positive control, so the absence assertion below can see a failure', () => {
+describe('ADR 0045 (a): the positive control, proving both read paths do pick such a directory up', () => {
   it('lists a ULID-named directory written straight under projectsDir as a live project', async () => {
     const { deps, files } = await onDisk()
     const id = ulid()
@@ -70,15 +70,15 @@ describe('ADR 0045 (a): the positive control, so the absence assertion below can
   })
 })
 
-describe('ADR 0045 (a): the same bytes staged as an upload reach neither', () => {
-  it('leaves the projects list empty, the staging root being no child of it', async () => {
+describe('the same bytes staged as an upload reach neither read path, for a weaker reason', () => {
+  it('stages through the FileSystem port and not through the project store, so no project is listed', async () => {
     const { deps } = await onDisk()
     const id = ulid()
     await upload(deps, id, dropped(id))
     expect(await listed(deps)).toEqual([])
   })
 
-  it('warms no token, so an unconfirmed drop’s credentials are not live after a restart', async () => {
+  it('warms no token, though so would a wrong layout: uploads keep the drop’s path under files/', async () => {
     const { deps } = await onDisk()
     const id = ulid()
     await upload(deps, id, dropped(id))

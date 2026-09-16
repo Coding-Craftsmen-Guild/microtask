@@ -61,8 +61,10 @@ export const openImportSessionRoute = createRoute({
  *
  * `importChunkBodyLimit` sits in this route's own `middleware` array, which runs before every
  * validator, so an oversized chunk is refused before the path is looked at. It can only tighten
- * the global cap — every matching limiter runs and the first rejection wins — and it is what makes
- * the 413 name 1,000,000 rather than 4,000,000.
+ * the global cap — every matching limiter runs and the first rejection wins — and it is the whole
+ * of the chunk bound: a body over 1,000,000 bytes and under the global 4,000,000 is refused by
+ * nothing else, so dropping this line does not soften the 413 to a larger `maxBytes`, it answers
+ * 200 and stages the oversized chunk. Measured.
  *
  * `sessionParams` is redeclared rather than inherited from the mount path, because a parameter
  * that exists only on a parent's path is not emitted into the document and has no validated value

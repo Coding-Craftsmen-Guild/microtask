@@ -327,16 +327,16 @@ describe('the session byte cap (ADR 0044)', () => {
     expect(await body(response)).toMatchObject({ sessionBytes: MAX_SESSION_BYTES })
   })
 
-  it('refuses the next chunk, naming the cap and the bytes already staged', async () => {
+  it('refuses the next chunk, naming the cap and the bytes already staged as two numbers', async () => {
     const fix = await fixture()
     const session = await opened(fix.app)
-    await seed(fix, session, MAX_SESSION_BYTES)
-    const response = await chunk(fix.app, session, HARVESTED, 'x')
+    await seed(fix, session, MAX_SESSION_BYTES - 1)
+    const response = await chunk(fix.app, session, HARVESTED, 'xy')
     expect(response.status).toBe(409)
     const problem = await body(response)
     expect(problem['code']).toBe('conflict')
-    expect(String(problem['detail'])).toContain(String(MAX_SESSION_BYTES))
-    expect(String(problem['detail'])).toContain(`already holds ${String(MAX_SESSION_BYTES)} bytes`)
+    expect(String(problem['detail'])).toContain(`already holds ${String(MAX_SESSION_BYTES - 1)}`)
+    expect(String(problem['detail'])).toContain(`capped at ${String(MAX_SESSION_BYTES)}`)
   })
 
   it('is not a 413 naming a chunk cap, because the chunk is not what the operator must change', async () => {
@@ -406,6 +406,18 @@ describe('the opportunistic sweep (ADR 0045)', () => {
     at(after(SESSION_TTL_MS - 1))
     const second = await opened(fix.app, credentials())
     expect([...(await sessionIds(fix))].sort()).toEqual([first, second].sort())
+  })
+
+  it('sweeps a marker whose openedAt is not an instant, by the rule rather than by NaN accident', async () => {
+    const fix = await fixture()
+    const debris = IDS.missing
+    await fix.deps.fileSystem.writeTextAtomic(
+      sessionMarkerFile(ROOT, 'microtask', debris),
+      JSON.stringify({ openedAt: 'tuesday', bytes: 0 }),
+    )
+    expect(await sessionIds(fix)).toEqual([debris])
+    const fresh = await opened(fix.app)
+    expect(await sessionIds(fix)).toEqual([fresh])
   })
 
   it('sweeps a directory whose marker will not parse, since no open can be mid-write', async () => {
