@@ -1,9 +1,34 @@
-/** The whole filesystem surface the store is allowed to use. */
+/**
+ * The whole filesystem surface the store is allowed to use.
+ *
+ * **A path of the wrong kind is a fault, not an absence.** Every method below except
+ * {@link FileSystem.removeDir} rejects when the path it is given exists but is the other kind of
+ * node — a file where a directory was named, or a directory where a file was. That is stated per
+ * method, and it is stated because the benign alternative is what produces a false green: `null`
+ * from a read and `[]` from a listing both mean *absent* everywhere else in this codebase, so an
+ * adapter answering either for a wrong-kind path turns a staging mistake into "nothing is there"
+ * and the caller proceeds. `removeDir` is the single deliberate exception: it removes whatever is
+ * at the path, of either kind, because a bulk-import sweep wants `rm -rf` semantics on a staging
+ * path that is a file before expansion and a directory after it.
+ *
+ * The codes differ by platform and are no part of this contract. Measured on win32 / Node 22.16
+ * in this repo: `readdir` on a file gives `ENOTDIR`, `readFile` and `appendFile` on a directory
+ * give `EISDIR`, and `unlink` on a directory gives `EPERM` where Linux gives `EISDIR`. Callers
+ * must treat any of them as a fault rather than switching on one.
+ */
 export interface FileSystem {
-  /** Reads a UTF-8 file, or returns null when it does not exist. */
+  /**
+   * Reads a UTF-8 file, or returns null when it does not exist.
+   *
+   * @throws when the path exists and is a directory, which is not the same as absent.
+   */
   readText(file: string): Promise<string | null>
 
-  /** Writes a UTF-8 file atomically, creating parent directories. */
+  /**
+   * Writes a UTF-8 file atomically, creating parent directories.
+   *
+   * @throws when the path exists and is a directory.
+   */
   writeTextAtomic(file: string, text: string): Promise<void>
 
   /**
@@ -14,6 +39,10 @@ export interface FileSystem {
    * decoding each chunk on its own substitutes U+FFFD at every such split. Reading the
    * reassembled file as bytes and decoding once is the only way a non-ASCII project name
    * survives a file large enough to chunk.
+   *
+   * The array handed back is the caller's own: mutating it changes nothing the next read sees.
+   *
+   * @throws when the path exists and is a directory, which is not the same as absent.
    */
   readBytes(file: string): Promise<Uint8Array | null>
 
@@ -22,19 +51,41 @@ export interface FileSystem {
    *
    * Appending bytes is the other half of the chunked upload: the caller hands over exactly what
    * it received, and no encode/decode round trip sits between one chunk and the next.
+   *
+   * @throws when the path exists and is a directory.
    */
   appendBytes(file: string, bytes: Uint8Array): Promise<void>
 
-  /** Deletes a file, reporting whether it existed. */
+  /**
+   * Deletes a file, reporting whether it existed.
+   *
+   * @throws when the path is a directory. Use {@link FileSystem.removeDir} for those; a caller
+   * that does not know which it holds wants `removeDir`, which takes either.
+   */
   remove(file: string): Promise<boolean>
 
-  /** Deletes a directory and everything under it, reporting whether it existed. */
+  /**
+   * Deletes a directory and everything under it, reporting whether it existed.
+   *
+   * Takes a file just as willingly, removing it and reporting true — the one method here that
+   * does not care which kind of node it was given. A bulk import stages an upload as a file and
+   * expands it into a directory at the same path, so its sweep must not have to know which stage
+   * it interrupted.
+   */
   removeDir(dir: string): Promise<boolean>
 
-  /** Lists immediate subdirectory names, or an empty array when absent. */
+  /**
+   * Lists immediate subdirectory names, or an empty array when absent.
+   *
+   * @throws when the path exists and is a file, which is not the same as absent.
+   */
   listDirs(dir: string): Promise<readonly string[]>
 
-  /** Lists immediate file names, or an empty array when absent. */
+  /**
+   * Lists immediate file names, or an empty array when absent.
+   *
+   * @throws when the path exists and is a file, which is not the same as absent.
+   */
   listFiles(dir: string): Promise<readonly string[]>
 
   /**

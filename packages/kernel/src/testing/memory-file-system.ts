@@ -24,13 +24,16 @@ const joined = (existing: Uint8Array | undefined, bytes: Uint8Array): Uint8Array
  * a second string map, which is what makes the text and byte halves of the port agree here as
  * they do on a disk.
  *
+ * Wrong-kind paths throw here exactly where they throw on a disk, rather than answering the
+ * benign `null` or `[]` an in-memory map falls into naturally. That asymmetry is the one that
+ * matters: a fake more forgiving than production lets a route pass its tests and lose data on
+ * the volume. Errors carry a `code` for readability only — the real adapter's codes for these
+ * differ by platform, so no case asserts one.
+ *
  * Directories are implicit: they exist exactly as long as a file sits under them, because the
  * port has no way to create an empty one. That is a real difference from a disk, and it is why
  * `describeFileSystem`'s cases about empty directories are gated on a harness capability
  * instead of being written against this class.
- *
- * Errors carry a `code` for readability only. The real adapter's code for a move onto an
- * occupied destination differs by platform, so no case asserts one.
  */
 export class MemoryFileSystem implements FileSystem {
   readonly #files = new Map<string, Uint8Array>()
@@ -42,36 +45,37 @@ export class MemoryFileSystem implements FileSystem {
 
   /** Reads a UTF-8 file, or returns null when it does not exist. */
   async readText(file: string): Promise<string | null> {
-    const bytes = this.#files.get(normalise(file))
+    const bytes = this.#files.get(this.#asFile(file, 'read'))
     return bytes === undefined ? null : new TextDecoder().decode(bytes)
   }
 
   /** Writes a UTF-8 file atomically, creating parent directories. */
   async writeTextAtomic(file: string, text: string): Promise<void> {
-    this.#files.set(normalise(file), new TextEncoder().encode(text))
+    this.#files.set(this.#asFile(file, 'open'), new TextEncoder().encode(text))
   }
 
   /** Reads a file's bytes, or returns null when it does not exist. */
   async readBytes(file: string): Promise<Uint8Array | null> {
-    const bytes = this.#files.get(normalise(file))
+    const bytes = this.#files.get(this.#asFile(file, 'read'))
     return bytes === undefined ? null : Uint8Array.from(bytes)
   }
 
   /** Appends bytes to a file, creating it and its parent directories when absent. */
   async appendBytes(file: string, bytes: Uint8Array): Promise<void> {
-    const key = normalise(file)
+    const key = this.#asFile(file, 'open')
     this.#files.set(key, joined(this.#files.get(key), bytes))
   }
 
   /** Deletes a file, reporting whether it existed. */
   async remove(file: string): Promise<boolean> {
-    return this.#files.delete(normalise(file))
+    return this.#files.delete(this.#asFile(file, 'unlink'))
   }
 
-  /** Deletes a directory and everything under it, reporting whether it existed. */
+  /** Removes whatever is at the path, of either kind, reporting whether it existed. */
   async removeDir(dir: string): Promise<boolean> {
-    const prefix = under(dir)
-    const doomed = [...this.#files.keys()].filter((key) => key.startsWith(prefix))
+    const at = normalise(dir)
+    if (this.#files.delete(at)) return true
+    const doomed = [...this.#files.keys()].filter((key) => key.startsWith(under(at)))
     for (const key of doomed) this.#files.delete(key)
     return doomed.length > 0
   }
@@ -94,7 +98,7 @@ export class MemoryFileSystem implements FileSystem {
     if (moving.length === 0) {
       throw fault('ENOENT', `ENOENT: no such file or directory, rename '${source}'`)
     }
-    if (this.#occupied(target)) {
+    if (this.#entriesUnder(target).length > 0) {
       throw fault('ENOTEMPTY', `ENOTEMPTY: destination not empty, rename '${source}' -> '${target}'`)
     }
     for (const [key, bytes] of moving) {
@@ -103,8 +107,24 @@ export class MemoryFileSystem implements FileSystem {
     }
   }
 
+  #asFile(file: string, syscall: string): string {
+    const at = normalise(file)
+    if (!this.#files.has(at) && this.#entriesUnder(at).length > 0) {
+      throw fault('EISDIR', `EISDIR: illegal operation on a directory, ${syscall} '${at}'`)
+    }
+    return at
+  }
+
+  #asDir(dir: string): string {
+    const at = normalise(dir)
+    if (this.#files.has(at)) {
+      throw fault('ENOTDIR', `ENOTDIR: not a directory, scandir '${at}'`)
+    }
+    return at
+  }
+
   #names(dir: string, wantDirs: boolean): readonly string[] {
-    const prefix = under(dir)
+    const prefix = under(this.#asDir(dir))
     const found = new Set<string>()
     for (const key of this.#files.keys()) {
       if (!key.startsWith(prefix)) continue
@@ -120,9 +140,5 @@ export class MemoryFileSystem implements FileSystem {
     if (exact !== undefined) return [[at, exact]]
     const prefix = `${at}/`
     return [...this.#files].filter(([key]) => key.startsWith(prefix))
-  }
-
-  #occupied(at: string): boolean {
-    return this.#entriesUnder(at).length > 0
   }
 }

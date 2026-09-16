@@ -63,6 +63,16 @@ export function describeFileSystem(
 
     const fresh = async () => harness.reset()
 
+    const staged = async (dir: string) => {
+      const target = at(dir, 'staged')
+      await files.writeTextAtomic(at(target, 'inside.json'), 'kept')
+      return target
+    }
+
+    const intact = async (target: string) => {
+      expect(await files.readText(at(target, 'inside.json'))).toBe('kept')
+    }
+
     it('returns null for text that was never written', async () => {
       const dir = await fresh()
       expect(await files.readText(at(dir, 'absent.json'))).toBeNull()
@@ -96,6 +106,46 @@ export function describeFileSystem(
       expect(await files.remove(at(dir, 'absent.json'))).toBe(false)
     })
 
+    it('rejects a read of a path that is a directory, since a wrong kind is a fault and not an absence', async () => {
+      const dir = await fresh()
+      const target = await staged(dir)
+      await expect(files.readText(target)).rejects.toThrow()
+      await expect(files.readBytes(target)).rejects.toThrow()
+      await intact(target)
+    })
+
+    it('rejects a write to a path that is a directory, leaving what is under it', async () => {
+      const dir = await fresh()
+      const target = await staged(dir)
+      await expect(files.writeTextAtomic(target, 'clobbered')).rejects.toThrow()
+      await expect(files.appendBytes(target, encode('clobbered'))).rejects.toThrow()
+      await intact(target)
+    })
+
+    it('rejects removing a directory as a file, leaving what is under it', async () => {
+      const dir = await fresh()
+      const target = await staged(dir)
+      await expect(files.remove(target)).rejects.toThrow()
+      await intact(target)
+    })
+
+    it('rejects listing a path that is a file, since a wrong kind is a fault and not an absence', async () => {
+      const dir = await fresh()
+      const file = at(dir, 'upload.zip')
+      await files.writeTextAtomic(file, 'staged')
+      await expect(files.listDirs(file)).rejects.toThrow()
+      await expect(files.listFiles(file)).rejects.toThrow()
+      expect(await files.readText(file)).toBe('staged')
+    })
+
+    it('removes a file handed to removeDir, so a sweep need not know which stage it interrupted', async () => {
+      const dir = await fresh()
+      const file = at(dir, 'session')
+      await files.writeTextAtomic(file, 'an upload not yet expanded')
+      expect(await files.removeDir(file)).toBe(true)
+      expect(await files.readText(file)).toBeNull()
+    })
+
     it('removes a directory and everything nested under it, reporting it existed', async () => {
       const dir = await fresh()
       const project = at(dir, 'project')
@@ -124,6 +174,14 @@ export function describeFileSystem(
       expect(sorted(await files.listDirs(dir))).toEqual(['one', 'two'])
     })
 
+    it('answers the same for a directory named with a trailing separator as without one', async () => {
+      const dir = await fresh()
+      await files.writeTextAtomic(at(dir, 'one', 'project.json'), '{}')
+      await files.writeTextAtomic(at(dir, 'loose.json'), '{}')
+      expect(await files.listDirs(`${dir}/`)).toEqual(['one'])
+      expect(await files.listFiles(`${dir}/`)).toEqual(['loose.json'])
+    })
+
     it('answers null, not an empty array, for bytes of a file that is not there', async () => {
       const dir = await fresh()
       expect(await files.readBytes(at(dir, 'absent.bin'))).toBeNull()
@@ -143,6 +201,16 @@ export function describeFileSystem(
       const file = at(dir, 'project.json')
       await files.writeTextAtomic(file, NAME)
       expect([...((await files.readBytes(file)) ?? [])]).toEqual([...encode(NAME)])
+    })
+
+    it('hands back bytes the caller owns, so mutating them cannot reach back into the store', async () => {
+      const dir = await fresh()
+      const file = at(dir, 'upload.zip')
+      await files.appendBytes(file, encode('payload'))
+      const handed = await files.readBytes(file)
+      expect(handed).not.toBeNull()
+      handed?.fill(0)
+      expect([...((await files.readBytes(file)) ?? [])]).toEqual([...encode('payload')])
     })
 
     it('appends bytes into parent directories that did not exist', async () => {

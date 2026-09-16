@@ -61,7 +61,7 @@ export class NodeFileSystem implements FileSystem {
     }
   }
 
-  /** Deletes a directory and everything under it, reporting whether it existed. */
+  /** Removes whatever is at the path, of either kind, reporting whether it existed. */
   async removeDir(dir: string): Promise<boolean> {
     const existed = await fs.stat(dir).then(() => true, () => false)
     await fs.rm(dir, { recursive: true, force: true })
