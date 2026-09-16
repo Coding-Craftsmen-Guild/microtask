@@ -6,6 +6,7 @@ import {
   PREVIEW_TONE,
   RESULT_LABEL,
   RESULT_TONE,
+  collidingProjects,
   remintNotice,
   scopeLabel,
   taskCountLabel,
@@ -75,12 +76,42 @@ describe('taskCountLabel', () => {
 })
 
 describe('scopeLabel', () => {
-  it('names the task a task-scoped link reaches, which is the containment check’s subject', () => {
-    expect(scopeLabel({ kind: 'task', projectId: '01P', taskId: '01T' })).toBe('task 01T')
+  it('names the project a task-scoped link reaches, not only the task', () => {
+    expect(scopeLabel({ kind: 'task', projectId: '01OTHER', taskId: '01T' })).toBe(
+      'task 01T of project 01OTHER',
+    )
+  })
+
+  it('tells one task id in two projects apart, which is what ADR 0019 blocks an import over', () => {
+    const here = scopeLabel({ kind: 'task', projectId: '01HERE', taskId: '01T' })
+    const away = scopeLabel({ kind: 'task', projectId: '01AWAY', taskId: '01T' })
+    expect(here).not.toBe(away)
+    expect(away).toContain('01AWAY')
   })
 
   it('names the project a project-scoped link reaches', () => {
     expect(scopeLabel({ kind: 'project', projectId: '01P' })).toBe('project 01P')
+  })
+})
+
+describe('collidingProjects', () => {
+  it('picks out the groups the target store already holds, and no others', () => {
+    const picked = collidingProjects([
+      group({ path: 'a', projectId: '01A', existsInTarget: true }),
+      group({ path: 'b', projectId: '01B', existsInTarget: false }),
+      group({ path: 'c', projectId: '01C', existsInTarget: true }),
+    ])
+    expect(picked.map((one) => one.projectId)).toEqual(['01A', '01C'])
+  })
+
+  it('drops a colliding group the preview left without an id, which no choice could address', () => {
+    expect(collidingProjects([group({ projectId: null, existsInTarget: true })])).toEqual([])
+  })
+
+  it('hands back the group beside its id, so one definition serves both callers', () => {
+    const [only] = collidingProjects([group({ path: 'a', projectId: '01A', existsInTarget: true })])
+    expect(only?.group.path).toBe('a')
+    expect(only?.projectId).toBe('01A')
   })
 })
 

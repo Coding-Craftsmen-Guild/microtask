@@ -7,7 +7,7 @@ const open = (preserveTokens: boolean) => {
   const onPreserveTokensChange = vi.fn()
   const onExport = vi.fn()
   const onCancel = vi.fn()
-  render(
+  const view = render(
     <ExportDialog
       onCancel={onCancel}
       onExport={onExport}
@@ -16,11 +16,12 @@ const open = (preserveTokens: boolean) => {
       preserveTokens={preserveTokens}
     />,
   )
-  return { onCancel, onExport, onPreserveTokensChange }
+  return { onCancel, onExport, onPreserveTokensChange, view }
 }
 
 const warning = () => document.querySelector('[data-slot="token-warning"]')
 const stripped = () => document.querySelector('[data-slot="stripped-notice"]')
+const download = () => screen.getByRole('button', { name: 'Download' })
 
 describe('ExportDialog', () => {
   it('warns that the file will carry live tokens in plaintext once preserving is selected', () => {
@@ -61,10 +62,53 @@ describe('ExportDialog', () => {
     expect(document.body.textContent).toContain('credential dump')
   })
 
-  it('downloads only when the download button is used, and cancels without exporting', async () => {
+  it('downloads when the Download button is used, which is the whole point of the dialog', async () => {
+    const { onCancel, onExport } = open(false)
+    await userEvent.click(download())
+    expect(onExport.mock.calls.length).toBe(1)
+    expect(onCancel.mock.calls.length).toBe(0)
+  })
+
+  it('downloads under the preserving setting too, so the opt-in does not disarm the button', async () => {
+    const { onExport } = open(true)
+    await userEvent.click(download())
+    expect(onExport.mock.calls.length).toBe(1)
+  })
+
+  it('cancels without downloading when the Cancel button is used', async () => {
     const { onCancel, onExport } = open(true)
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(onExport.mock.calls.length).toBe(0)
-    expect(onCancel.mock.calls.length).toBeGreaterThan(0)
+    expect(onCancel.mock.calls.length).toBe(1)
+  })
+
+  it('resolves the cancel branch on Escape, so the modal cannot get stuck open', async () => {
+    const { onCancel, onExport } = open(true)
+    await userEvent.keyboard('{Escape}')
+    expect(onCancel.mock.calls.length).toBe(1)
+    expect(onExport.mock.calls.length).toBe(0)
+  })
+
+  it('holds no setting of its own, so what it shows is what the caller will export', () => {
+    const { view } = open(false)
+    expect(warning()).toBeNull()
+    view.rerender(
+      <ExportDialog
+        onCancel={vi.fn()}
+        onExport={vi.fn()}
+        onPreserveTokensChange={vi.fn()}
+        open
+        preserveTokens
+      />,
+    )
+    expect(warning()).not.toBeNull()
+    expect(stripped()).toBeNull()
+  })
+
+  it('focuses nothing actionable on open, so a keystroke cannot switch the opt-in on', () => {
+    open(false)
+    expect(document.activeElement).not.toBe(screen.getByRole('checkbox'))
+    expect(document.activeElement).not.toBe(download())
+    expect(document.activeElement?.getAttribute('data-slot')).toBe('dialog-content')
   })
 })

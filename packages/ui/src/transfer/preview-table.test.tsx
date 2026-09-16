@@ -24,6 +24,11 @@ const badgeOf = (row: Element | undefined) =>
   row?.querySelector('[data-slot="outcome"]')?.className ?? ''
 
 describe('PreviewTable', () => {
+  it('has an accessible name, so it is not one of two anonymous tables on the page', () => {
+    render(<PreviewTable groups={[group()]} />)
+    expect(screen.getByRole('table', { name: 'Import preview' })).toBeTruthy()
+  })
+
   it('gives every dropped group a row, including the ones that will not import', () => {
     render(
       <PreviewTable
@@ -92,6 +97,28 @@ describe('PreviewTable', () => {
     const row = document.querySelector('[data-slot="preview-row"]')
     expect(row?.querySelector('[data-slot="share-link-role"]')?.textContent).toBe('manage')
     expect(row?.querySelector('[data-slot="share-link-scope"]')?.textContent).toBe('project 01PROJECT')
+  })
+
+  it('still lists the links of a blocked group, which is where an escaped scope is read', () => {
+    render(
+      <PreviewTable
+        groups={[
+          group({
+            outcome: 'blocked',
+            reasons: ['a share link is scoped outside the project it arrived with'],
+            shareLinks: [
+              {
+                index: 0,
+                name: 'Acme',
+                role: 'manage',
+                scope: { kind: 'task', projectId: '01OTHER', taskId: '01TASK' },
+              },
+            ],
+          }),
+        ]}
+      />,
+    )
+    expect(screen.getByText('task 01TASK of project 01OTHER')).toBeTruthy()
   })
 
   it('names a group that has no project name rather than leaving the cell blank', () => {

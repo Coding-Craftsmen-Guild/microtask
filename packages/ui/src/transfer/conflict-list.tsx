@@ -1,6 +1,7 @@
 'use client'
 
 import { ConflictChoiceField } from './conflict-choice'
+import { collidingProjects } from './outcomes'
 import type { ConflictChoices } from './use-conflict-choices'
 import type { TransferGroup } from './vocabulary'
 
@@ -24,23 +25,21 @@ export interface ConflictListProps {
  * nothing a choice could address it by.
  */
 export function ConflictList({ groups, choices }: ConflictListProps) {
-  const colliding = groups.flatMap((group) =>
-    group.existsInTarget && group.projectId !== null ? [{ group, id: group.projectId }] : [],
-  )
+  const colliding = collidingProjects(groups)
   if (colliding.length === 0) return null
   return (
     <section className={SECTION} data-slot="conflicts">
       <h3 className={HEADING}>Projects that already exist</h3>
-      {colliding.map(({ group, id }) => (
+      {colliding.map(({ group, projectId }) => (
         <ConflictChoiceField
           key={group.path}
           name={group.name}
           onChange={(choice) => {
-            choices.choose(id, choice)
+            choices.choose(projectId, choice)
           }}
-          projectId={id}
+          projectId={projectId}
           shareLinks={group.shareLinks.length}
-          value={choices.choiceFor(id)}
+          value={choices.choiceFor(projectId)}
         />
       ))}
     </section>

@@ -22,6 +22,12 @@ const badgeOf = (outcome: string) =>
     ?.className ?? ''
 
 describe('ResultTable', () => {
+  it('has an accessible name distinct from the preview table above it', () => {
+    render(<ResultTable results={[result()]} />)
+    expect(screen.getByRole('table', { name: 'Import result' })).toBeTruthy()
+    expect(screen.queryByRole('table', { name: 'Import preview' })).toBeNull()
+  })
+
   it('gives every confirmed project a row, whichever of the five things happened to it', () => {
     render(
       <ResultTable

@@ -9,7 +9,7 @@ import { PreviewTable } from '@repo/ui/transfer/preview-table'
 import { ResultTable } from '@repo/ui/transfer/result-table'
 import { ShareLinkList } from '@repo/ui/transfer/share-link-list'
 import { TransferPanel } from '@repo/ui/transfer/transfer-panel'
-import { remintNotice, taskCountLabel } from '@repo/ui/transfer/outcomes.js'
+import { collidingProjects, remintNotice, taskCountLabel } from '@repo/ui/transfer/outcomes.js'
 import { useConflictChoices } from '@repo/ui/transfer/use-conflict-choices.js'
 import type { TransferGroup, TransferProjectResult } from './vocabulary'
 
@@ -86,9 +86,50 @@ const walk = (dir: string): string[] =>
     return /\.tsx?$/.test(entry.name) && !entry.name.includes('.test.') ? [next] : []
   })
 
-const SCANNED_SOURCE = walk(SRC)
-  .map((file) => read(file))
-  .join('\n')
+const literalTokens = (source: string) =>
+  (source.replace(/\/\*[\s\S]*?\*\//g, ' ').match(/"[^"\n]*"|'[^'\n]*'/g) ?? [])
+    .flatMap((literal) => literal.slice(1, -1).split(/\s+/))
+    .filter((token) => token !== '')
+
+const SCANNED_TOKENS = new Set(walk(SRC).flatMap((file) => literalTokens(read(file))))
+
+const THEME_CSS = read(join(SRC, 'styles', 'globals.css'))
+
+const THEME_COLOURS = new Set(
+  [...THEME_CSS.matchAll(/--color-([\w-]+)\s*:/g)].map((match) => match[1] ?? ''),
+)
+
+const COLOUR_PREFIXES = new Set([
+  'accent',
+  'bg',
+  'border',
+  'caret',
+  'decoration',
+  'divide',
+  'fill',
+  'from',
+  'outline',
+  'ring',
+  'shadow',
+  'stroke',
+  'text',
+  'to',
+  'via',
+])
+
+const NOT_A_COLOUR = new Set(['1', 'collapse', 'left', 't'])
+
+const colourOf = (token: string) => {
+  if (token.includes('[')) return ''
+  const bare = token.split(':').pop() ?? ''
+  const [prefix, ...rest] = bare.split('-')
+  if (!COLOUR_PREFIXES.has(prefix ?? '')) return ''
+  return (rest.join('-').split('/')[0] ?? '').trim()
+}
+
+const TRANSFER_CLASS_TOKENS = [
+  ...new Set(walk(TRANSFER).flatMap((file) => literalTokens(read(file)))),
+].filter((token) => colourOf(token) !== '')
 
 const group = (over: Partial<TransferGroup> = {}): TransferGroup => ({
   path: 'volume/projects/01PROJECT',
@@ -130,6 +171,7 @@ describe('transfer module boundaries', () => {
       ResultTable,
       ShareLinkList,
       TransferPanel,
+      collidingProjects,
       remintNotice,
       taskCountLabel,
       useConflictChoices,
@@ -233,19 +275,43 @@ describe('transfer module boundaries', () => {
         result={null}
       />,
     ]
-    expect(SCANNED_SOURCE).not.toContain('bg-not-a-real-utility')
+    expect(SCANNED_TOKENS.has('bg-not-a-real-utility')).toBe(false)
+    expect(SCANNED_TOKENS.has('text-ok-ligh')).toBe(false)
     for (const tree of trees) {
       render(tree)
       const nodes = document.body.querySelectorAll<HTMLElement>('[class]')
       expect(nodes.length).toBeGreaterThan(0)
       for (const node of nodes) {
         for (const token of node.className.split(/\s+/).filter(Boolean)) {
-          expect(SCANNED_SOURCE, `class "${token}" is not a literal under any scan root`).toContain(
-            token,
-          )
+          expect(
+            SCANNED_TOKENS.has(token),
+            `class "${token}" is not a whole literal under any scan root`,
+          ).toBe(true)
         }
       }
       cleanup()
     }
+  })
+
+  it('names only theme colours globals.css declares, so a renamed token cannot go unpainted', () => {
+    const unknown = TRANSFER_CLASS_TOKENS.filter((token) => {
+      const colour = colourOf(token)
+      return !THEME_COLOURS.has(colour) && !NOT_A_COLOUR.has(colour)
+    })
+    expect(unknown).toEqual([])
+    expect(THEME_COLOURS.size).toBeGreaterThan(20)
+  })
+
+  it('keeps that allowlist honest: nothing in it is a colour, and nothing in it is unused', () => {
+    const used = new Set(TRANSFER_CLASS_TOKENS.map((token) => colourOf(token)))
+    for (const entry of NOT_A_COLOUR) {
+      expect(THEME_COLOURS.has(entry), `${entry} is a declared colour`).toBe(false)
+      expect(used.has(entry), `${entry} is allowlisted but never used`).toBe(true)
+    }
+  })
+
+  it('reads a real set of colour-carrying classes, so the two checks above are not empty', () => {
+    expect(TRANSFER_CLASS_TOKENS.length).toBeGreaterThan(15)
+    expect(TRANSFER_CLASS_TOKENS).toContain('bg-brand-soft')
   })
 })

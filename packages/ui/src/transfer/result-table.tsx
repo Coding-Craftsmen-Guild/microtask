@@ -20,7 +20,7 @@ export interface ResultTableProps {
  */
 export function ResultTable({ results }: ResultTableProps) {
   return (
-    <table className={TABLE} data-slot="result-table">
+    <table aria-label="Import result" className={TABLE} data-slot="result-table">
       <thead>
         <tr>
           {COLUMNS.map((column) => (

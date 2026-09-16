@@ -20,7 +20,7 @@ export interface PreviewTableProps {
  */
 export function PreviewTable({ groups }: PreviewTableProps) {
   return (
-    <table className={TABLE} data-slot="preview-table">
+    <table aria-label="Import preview" className={TABLE} data-slot="preview-table">
       <thead>
         <tr>
           {COLUMNS.map((column) => (

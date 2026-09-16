@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { Button } from '../components/button'
 import { ConflictList } from './conflict-list'
+import { collidingProjects } from './outcomes'
 import { PreviewTable } from './preview-table'
 import { ResultTable } from './result-table'
 import { useConflictChoices } from './use-conflict-choices'
@@ -42,10 +43,7 @@ export interface TransferPanelProps {
  */
 export function TransferPanel({ files, preview, result, onConfirm }: TransferPanelProps) {
   const collidingIds = useMemo(
-    () =>
-      (preview?.groups ?? []).flatMap((group) =>
-        group.existsInTarget && group.projectId !== null ? [group.projectId] : [],
-      ),
+    () => collidingProjects(preview?.groups ?? []).map((one) => one.projectId),
     [preview],
   )
   const choices = useConflictChoices(collidingIds)

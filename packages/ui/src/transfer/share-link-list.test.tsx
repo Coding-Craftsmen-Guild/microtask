@@ -11,6 +11,20 @@ const link = (over: Partial<TransferShareLink> = {}): TransferShareLink => ({
   ...over,
 })
 
+const TOKEN = 'Zb2F7sQx9tLm4Kd1'
+const PARENT = 'PdQ8w3Nv5Rj7Hy2c'
+const STAMP = '2026-09-01T09:00:00.000Z'
+
+const withCredentials = {
+  index: 0,
+  name: 'Acme',
+  role: 'write',
+  scope: { kind: 'project' as const, projectId: '01PROJECT' },
+  token: TOKEN,
+  createdBy: PARENT,
+  createdAt: STAMP,
+}
+
 const rows = () => [...document.querySelectorAll('[data-slot="share-link"]')]
 
 describe('ShareLinkList', () => {
@@ -29,17 +43,41 @@ describe('ShareLinkList', () => {
     expect(screen.getByText('manage')).toBeTruthy()
   })
 
-  it('shows a link scoped into another project by naming its task, not just its project', () => {
+  it('names the project a task-scoped link reaches, so an escaped scope is readable', () => {
     render(
       <ShareLinkList
         links={[link({ scope: { kind: 'task', projectId: '01OTHER', taskId: '01TASK' } })]}
       />,
     )
-    expect(screen.getByText('task 01TASK')).toBeTruthy()
+    expect(screen.getByText('task 01TASK of project 01OTHER')).toBeTruthy()
+  })
+
+  it('distinguishes a link scoped into another project from one scoped inside this one', () => {
+    render(
+      <ShareLinkList
+        links={[
+          link({ index: 0, scope: { kind: 'task', projectId: '01PROJECT', taskId: '01TASK' } }),
+          link({ index: 1, scope: { kind: 'task', projectId: '01OTHER', taskId: '01TASK' } }),
+        ]}
+      />,
+    )
+    const scopes = [...document.querySelectorAll('[data-slot="share-link-scope"]')].map(
+      (node) => node.textContent,
+    )
+    expect(new Set(scopes).size).toBe(2)
+    expect(scopes).toEqual(['task 01TASK of project 01PROJECT', 'task 01TASK of project 01OTHER'])
+  })
+
+  it('renders no token, parent or stamp from a link object that carries all three', () => {
+    render(<ShareLinkList links={[withCredentials]} />)
+    expect(rows().length).toBe(1)
+    expect(document.body.innerHTML).not.toContain(TOKEN)
+    expect(document.body.innerHTML).not.toContain(PARENT)
+    expect(document.body.innerHTML).not.toContain(STAMP)
   })
 
   it('renders name, role and scope and nothing else, so no fourth field can leak into a row', () => {
-    render(<ShareLinkList links={[link({ name: 'Acme', role: 'write' })]} />)
+    render(<ShareLinkList links={[withCredentials]} />)
     expect(rows()[0]?.textContent).toBe('Acmewriteproject 01PROJECT')
   })
 

@@ -115,10 +115,41 @@ export const taskCountLabel = (group: TransferGroup): string =>
     : `${String(group.manifestTaskCount)} in manifest · ${String(group.taskFilesFound)} found`
 
 /**
- * What a share link reaches, in words, so a link scoped into another project is readable.
+ * What a share link reaches, in words, naming the project in both cases.
+ *
+ * A task scope names its project as well as its task, because the project is the half that says
+ * whether the link reaches outside the group it arrived with — which is the containment check
+ * ADR 0019 makes blocking. A blocked group still lists every link it asserts, so this is the row
+ * an admin reads when the reason says a scope escaped, and a bare task id is indistinguishable
+ * from one of the group's own.
  *
  * @param scope - The link's scope.
  * @returns The cell's text.
  */
 export const scopeLabel = (scope: TransferScope): string =>
-  scope.kind === 'project' ? `project ${scope.projectId}` : `task ${scope.taskId}`
+  scope.kind === 'project'
+    ? `project ${scope.projectId}`
+    : `task ${scope.taskId} of project ${scope.projectId}`
+
+/**
+ * The projects a confirm has to be given a choice for.
+ *
+ * A project the target store does not hold needs no choice — it is simply created — which is why
+ * the confirm request's list is sparse. A group carrying no project id is excluded too: it is one
+ * the preview refused, and a choice is addressed by id, so there is nothing to address it by.
+ *
+ * One definition rather than one per caller, because the panel decides what to send and the
+ * conflict list decides what to show, and the two disagreeing would offer a choice that is never
+ * sent or send one that was never offered.
+ *
+ * @param groups - Every previewed group.
+ * @returns Each colliding group beside the id a choice will name it by.
+ */
+export const collidingProjects = (
+  groups: readonly TransferGroup[],
+): readonly { readonly group: TransferGroup; readonly projectId: string }[] =>
+  groups.flatMap((group) =>
+    group.existsInTarget && group.projectId !== null
+      ? [{ group, projectId: group.projectId }]
+      : [],
+  )
