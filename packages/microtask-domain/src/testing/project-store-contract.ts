@@ -45,7 +45,25 @@ function renameInPlace(target: { readonly name: string } | undefined, name: stri
   mutable.name = name
 }
 
-/** Runs the behaviour every ProjectStore adapter must exhibit. */
+/**
+ * Runs the behaviour every ProjectStore adapter must exhibit.
+ *
+ * **It does not bind `publishProject`'s headline promise.** Every case here is sequential, so
+ * "wholly absent or wholly present" cannot be observed from inside one: `MemoryProjectStore` would
+ * pass all four publish cases with no atomicity at all — it deletes, writes each task, then writes
+ * the manifest, with no build area and no rename. What the cases do bind is the *observable
+ * result*: the whole project lands, a task it does not name is gone, a bad document id destroys
+ * nothing, and a project with no tasks is publishable. Atomicity is asserted where it lives, in
+ * `fs-project-store.ordering.test.ts` against `FsProjectStore` over a `FileSystem` that dies on
+ * the rename, and again through the composed API. A contract case would need a harness hook for
+ * "interrupt the publish", which is the kind of adapter-specific probe this file keeps optional.
+ *
+ * One other difference the cases cannot pin: `MemoryProjectStore` validates every document id up
+ * front, where `FsProjectStore` validates lazily as it builds each task path. Both leave the
+ * project that was there untouched — which is the case below — but the filesystem adapter will
+ * have written the earlier task files into its build directory first, and reclaims them on the
+ * next publish of that id rather than immediately.
+ */
 export function describeProjectStore(name: string, makeHarness: () => StoreHarness): void {
   describe(`${name} — ProjectStore contract`, () => {
     const harness = makeHarness()

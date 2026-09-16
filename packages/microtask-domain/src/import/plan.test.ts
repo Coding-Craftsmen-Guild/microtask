@@ -232,3 +232,34 @@ describe('the two rules a preview row has to obey however hostile the drop is', 
     expect(planned[1]?.project).not.toBeNull()
   })
 })
+
+describe('what a legacy conversion mints, which is tab ids and not task ids', () => {
+  const twice = (): readonly [readonly PlannedProject[], readonly PlannedProject[]] => {
+    const ids = sequentialIds()
+    const shared = { clock: fixedClock(STAMP), ids }
+    const file = legacyFile('old.json', P1)
+    return [planImport([file], target(), shared), planImport([file], target(), shared)]
+  }
+
+  it('keeps the file’s own id for the project and for every task it converts', () => {
+    const [planned] = twice()
+    expect(planned[0]?.project?.manifest.id).toBe(P1)
+    expect(planned[0]?.project?.manifest.tasks.map((one) => one.id)).toEqual([T1])
+    expect(planned[0]?.project?.documents.map((one) => one.id)).toEqual([T1])
+  })
+
+  it('mints the inner tab id instead, which is the one thing two conversions disagree about', () => {
+    const [first, second] = twice()
+    const tabOf = (one: readonly PlannedProject[]): string | undefined =>
+      one[0]?.project?.documents[0]?.tabs[0]?.id
+    expect(tabOf(first)).not.toBe(tabOf(second))
+    expect(tabOf(first)).toBeDefined()
+  })
+
+  it('answers the identical row both times, a tab id reaching no field a row carries', () => {
+    const [first, second] = twice()
+    expect(JSON.stringify(second.map((one) => one.row))).toBe(
+      JSON.stringify(first.map((one) => one.row)),
+    )
+  })
+})

@@ -65,7 +65,9 @@ const previewLinks = (project: ConvertedProject | null): readonly PreviewShareLi
 
 const shortPath = (path: string): string => elideMiddle(path, MAX_PREVIEW_TEXT_LENGTH)
 
-function unreadable(one: ExplodedProject): PlannedProject {
+const UNPAIRED = 'This group could not be paired with a checked project'
+
+function unreadable(one: ExplodedProject, why = one.error): PlannedProject {
   return {
     row: {
       path: shortPath(one.path),
@@ -77,7 +79,7 @@ function unreadable(one: ExplodedProject): PlannedProject {
       shareLinks: [],
       existsInTarget: false,
       outcome: 'error',
-      reasons: fitted(one.error === null ? [] : [one.error]),
+      reasons: fitted(why === null ? [UNPAIRED] : [why]),
     },
     project: null,
   }
@@ -123,6 +125,12 @@ function judged(one: ExplodedProject, checked: CheckedProject): PlannedProject {
  *
  * Nothing here throws except on a path no client may send: `sniffImportFiles` refuses a traversal
  * as `Invalid` and two files harvested for one path as `Conflict`. Every other problem is a row.
+ *
+ * `checkImport` answers one result per project in the order it was given, so the pairing below is
+ * positional and cannot run short. It is written to produce a **row carrying a reason** if it ever
+ * did rather than a row with none: `ImportProjectResult` refuses an unexplained refusal, so an
+ * empty-reason row would turn a structurally unreachable case into a 500 for the whole confirm
+ * instead of one degraded project.
  *
  * @throws Invalid naming which rule a harvested path broke.
  * @throws Conflict when two files were harvested for one normalised path.

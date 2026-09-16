@@ -1,4 +1,4 @@
-import { isUlid, type FileSystem, type Product } from '@repo/kernel'
+import { Conflict, isUlid, type FileSystem, type Product } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ProjectStore, WholeProject } from '../ports/project-store.js'
 import type { TaskDocument } from '../entities/task.js'
@@ -11,6 +11,9 @@ import {
   projectsDir,
   taskFile,
 } from './paths.js'
+
+const interrupted = (projectId: string): string =>
+  `Not published: the live directory was already cleared, so this project is gone. A complete copy is at build/${projectId}/ under the data root; rename it into place to publish it.`
 
 /** How an FsProjectStore reaches the disk and where it puts its data. */
 export interface FsProjectStoreOptions {
@@ -100,11 +103,29 @@ export class FsProjectStore implements ProjectStore {
    * Clearing is preferred over moving the live copy aside because the recovery state is better:
    * what survives in `build/` is the project they asked for, not the one they replaced.
    *
-   * ADR 0045 says a build directory is removed on both paths out. It is removed on the way **in**
-   * instead — before anything is written, which reclaims whatever an interrupted publish left and
-   * bounds the residue at one directory per project id. Removing it on the failure path would
-   * destroy the only copy of a project whose destination had just been cleared, which is the one
-   * outcome ADR 0006 calls the worst. That is a deliberate departure and worth an amendment.
+   * A failure **inside that window is reported differently from every other failure here**, and
+   * that distinction is the whole reason this method catches anything. A build write that fails
+   * leaves the project exactly as it was, so the caller needs to know nothing but that it failed.
+   * A failed rename leaves the project **gone**, and ADR 0045's amendment requires an operator be
+   * told rather than left to infer it — so that one is wrapped in a `Conflict` naming
+   * `build/<id>/`, which is where the complete, correctly-laid-out copy is and which a rename by
+   * hand publishes. It names that directory **relative to the data root** rather than absolutely:
+   * a project id is 26 characters, so the sentence is 192 and always inside the 200 a preview row
+   * may carry, where an absolute path could be elided through its own middle — and the container
+   * layout is not something a response should carry anyway.
+   *
+   * `Conflict` because it is the error class this repo writes *for a caller to
+   * read* (`apply-outcome.ts` echoes an `AppError`'s message and suppresses every other), and
+   * because "the store is not in a state where this could complete" is what it means. The status
+   * it carries is never reached: every caller is a bulk import that catches this per project.
+   * The underlying cause is attached as `error.cause` rather than quoted, so the platform's own
+   * message stays out of a response and reaches the process log instead.
+   *
+   * ADR 0045 said a build directory is removed on both paths out; its 2026-09-16 amendment
+   * corrects that to the way **in**, which is what this does. Removing it on the failure path
+   * would destroy the only copy of a project whose destination had just been cleared, which is
+   * the one outcome ADR 0006 calls the worst. Clearing on entry reclaims whatever an interrupted
+   * publish left and bounds the residue at one directory per project id.
    *
    * **Nothing retries.** Neither `move` nor `removeDir` retries in the port, a directory rename
    * is a classic transient `EPERM`/`EBUSY` on win32 under a watcher or an anti-virus scanner, and
@@ -128,7 +149,11 @@ export class FsProjectStore implements ProjectStore {
     await this.#writeJson(buildManifestFile(root, product, id), project.manifest)
     const live = projectDir(root, product, id)
     await this.#files.removeDir(live)
-    await this.#files.move(build, live)
+    try {
+      await this.#files.move(build, live)
+    } catch (cause) {
+      throw Object.assign(new Conflict(interrupted(id)), { cause })
+    }
   }
 
   /** Removes a project and everything under it, reporting whether it existed. */

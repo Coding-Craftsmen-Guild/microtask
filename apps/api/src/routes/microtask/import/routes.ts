@@ -195,12 +195,14 @@ export const expandImportArchiveRoute = createRoute({
  * two checks that read the target store — token uniqueness and `projectsPerProduct` — are measured
  * where the write happens.
  *
- * It is also **not** idempotent in the way a cache would want: a legacy file carries no task ids,
- * so previewing one mints them, and two previews of the same session produce projects with
- * different task ids. Nothing depends on them agreeing — a choice is addressed by **project** id,
- * which a legacy file carries itself — and the alternative is either storing a preview, which is
- * the state §7.3 avoids, or minting ids on the confirm alone, which would leave the preview unable
- * to report the task counts it exists to report.
+ * What it mints is narrower than it looks, and worth stating because it is the one thing a preview
+ * of the same session twice does not answer identically. A legacy file carries no **tab** ids, so
+ * previewing one mints them; it does **not** mint task ids, each legacy tab becoming a task under
+ * that tab's own `id` taken from the file verbatim. Measured: two previews of one legacy file are
+ * byte-identical, because a tab id reaches no field a row carries. So a client may cache and
+ * compare a row, and may address a choice by the `projectId` it reports — which a legacy file
+ * carries itself. What it must not do is treat a *tab* id seen anywhere as stable across a
+ * preview and the confirm.
  *
  * Every group gets a row, including the ones this repo cannot read, because silent skipping is the
  * failure ADR 0018 was written about. **404** is the session id naming nothing; a hostile harvested

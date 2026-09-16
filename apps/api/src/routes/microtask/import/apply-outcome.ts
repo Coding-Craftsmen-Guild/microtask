@@ -3,9 +3,11 @@ import {
   type ConflictChoiceValue,
   type ImportWriteOutcomeValue,
 } from '@repo/contracts'
+import { AppError } from '@repo/kernel'
 import { elideMiddle, type ConvertedProject, type PreviewRow } from '@repo/microtask-domain'
 
-const WRITE_FAILED = 'The write did not complete'
+const WRITE_FAILED =
+  'This project could not be written. The project that was already in this workspace, if any, is untouched. See the server log for what the volume reported.'
 
 /** One project a confirm handled, and what became of it, as the response reports it. */
 export interface ProjectOutcome {
@@ -48,10 +50,28 @@ export const refusedOutcome = (
 })
 
 /**
- * A project whose write was attempted and did not complete, carrying what went wrong.
+ * A project whose write was attempted and did not complete, carrying what an operator may see.
  *
- * The message is the thrown error's, elided to the width a row may carry, and the fallback exists
- * because `ImportProjectResult` refuses a `failed` row with no reason: a throw carrying an empty
+ * **This is the boundary between what a response says and what the process log keeps, and the
+ * rule is the error's class.** An `AppError` is the kind this repo writes *for a caller to read*
+ * — `Conflict` from `ShareIndex.add` naming the projects that share a token, and the `Conflict`
+ * `FsProjectStore.publishProject` raises when a rename failed after the destination was cleared,
+ * which names `build/<id>/` because that copy is the recovery and an operator has to be told. So
+ * an `AppError`'s message is echoed. Anything else is a fault, its message is the platform's, and
+ * quoting it would put an absolute container path in a response — `EPERM: … rename
+ * 'C:\\srv\\data\\microtask\\build\\…'`. Those get a fixed sentence and the cause is logged
+ * instead, which is the same split `session-files.ts` makes when it declines to let `EMFILE`
+ * reach a client quoting an internal path.
+ *
+ * Admin authority is not the reason either way. Gating this route on `workspace:import` is what
+ * makes the disclosure small, not what makes it wanted: a `failed` row is rendered into an admin
+ * page and a volume's error string is not something that page can act on, where the build
+ * directory is.
+ *
+ * The log line is the one side effect in this module and it is deliberate — this is the only place
+ * that holds the raw error. `cause` is unwrapped because `publishProject` attaches the platform's
+ * rejection there rather than quoting it. The fallback sentence also satisfies
+ * `ImportProjectResult`, which refuses a `failed` row with no reason: a throw carrying an empty
  * message would otherwise produce a response the schema rejects, turning one project's failure
  * into a 500 for the whole confirm.
  */
@@ -60,11 +80,20 @@ export const failedOutcome = (
   choice: ConflictChoiceValue | null,
   error: unknown,
 ): ProjectOutcome => {
-  const why = error instanceof Error && error.message !== '' ? error.message : WRITE_FAILED
+  const shown = error instanceof AppError && error.message !== '' ? error.message : WRITE_FAILED
+  const cause = error instanceof Error ? (error.cause ?? error) : error
+  console.warn(
+    JSON.stringify({
+      event: 'microtask.import.project.failed',
+      path: row.path,
+      projectId: row.projectId,
+      reason: cause instanceof Error ? cause.message : String(cause),
+    }),
+  )
   return {
     ...refusedOutcome(row, choice),
     outcome: 'failed',
-    reasons: [elideMiddle(why, MAX_PREVIEW_TEXT_LENGTH)],
+    reasons: [elideMiddle(shown, MAX_PREVIEW_TEXT_LENGTH)],
   }
 }
 

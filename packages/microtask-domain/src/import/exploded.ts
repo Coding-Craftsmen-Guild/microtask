@@ -15,10 +15,15 @@ const BUNDLE_DOCUMENTS = 'taskDocuments'
 /**
  * The two ports a plan reaches outside itself for, and the whole of what it is not pure about.
  *
- * A legacy file carries no task ids and its stamps may be missing, so `convertLegacyProject` mints
- * one id per tab and falls back to the import's clock — which is why it takes both rather than
- * reading either. Nothing else in planning touches a port: the disk is read by whoever hands the
- * files over, and §7.3's *nothing touches disk until confirmed* is that caller's to keep.
+ * A legacy file's stamps may be missing and it carries no **tab** ids, so `convertLegacyProject`
+ * falls back to the import's clock and mints one tab id per task — which is why it takes both
+ * rather than reading either. It does **not** mint task ids: each legacy tab becomes a task under
+ * that tab's own `id`, taken from the file verbatim (`legacy.ts`), so a project id and every task
+ * id in a converted legacy project are the file's. Two conversions of one file therefore differ
+ * only in their tab ids.
+ *
+ * Nothing else in planning touches a port: the disk is read by whoever hands the files over, and
+ * §7.3's *nothing touches disk until confirmed* is that caller's to keep.
  */
 export interface ImportMint {
   readonly clock: Clock

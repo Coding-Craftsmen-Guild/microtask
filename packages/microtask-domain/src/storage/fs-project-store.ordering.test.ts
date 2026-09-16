@@ -171,7 +171,7 @@ describe('the bulk rule (ADR 0006): built whole, then moved into place', () => {
   it('shows it wholly absent when the kill lands between the last task file and the move', async () => {
     const { files, store } = setup()
     files.killMove = true
-    await expect(store.publishProject('microtask', whole())).rejects.toThrow('killed mid-move')
+    await expect(store.publishProject('microtask', whole())).rejects.toThrow('is gone')
     expect(await store.listManifests('microtask')).toEqual([])
     expect(await store.readManifest('microtask', P)).toBeNull()
     expect(await store.readTask('microtask', P, T)).toBeNull()
@@ -180,7 +180,7 @@ describe('the bulk rule (ADR 0006): built whole, then moved into place', () => {
   it('had in fact finished building when that kill landed, so absence is the move and not a short build', async () => {
     const { files, store } = setup()
     files.killMove = true
-    await expect(store.publishProject('microtask', whole())).rejects.toThrow('killed mid-move')
+    await expect(store.publishProject('microtask', whole())).rejects.toThrow('is gone')
     expect(await files.readText(buildTask(T))).not.toBeNull()
     expect(await files.readText(buildTask(T2))).not.toBeNull()
     expect(await files.readText(buildManifest())).not.toBeNull()
@@ -190,7 +190,7 @@ describe('the bulk rule (ADR 0006): built whole, then moved into place', () => {
     const { files, store, entry } = setup()
     await store.saveTask('microtask', entry, taskDocument(T, TAB))
     files.killMove = true
-    await expect(store.publishProject('microtask', whole())).rejects.toThrow('killed mid-move')
+    await expect(store.publishProject('microtask', whole())).rejects.toThrow('is gone')
     expect(await store.readManifest('microtask', P)).toBeNull()
     expect(await store.readTask('microtask', P, T)).toBeNull()
   })
@@ -204,5 +204,31 @@ describe('the bulk rule (ADR 0006): built whole, then moved into place', () => {
       `${T}.json`,
       `${T2}.json`,
     ])
+  })
+})
+
+describe('what a publish reports when it dies, which is two different facts', () => {
+  it('names build/<projectId>/ when the rename died, because the project is then in neither place', async () => {
+    const { files, store } = setup()
+    files.killMove = true
+    await expect(store.publishProject('microtask', whole())).rejects.toThrow(`build/${P}/`)
+  })
+
+  it('keeps the platform’s own rejection as the cause rather than quoting it in the message', async () => {
+    const { files, store } = setup()
+    files.killMove = true
+    const failed = await store.publishProject('microtask', whole()).catch((error: unknown) => error)
+    expect(failed).toBeInstanceOf(Error)
+    expect((failed as Error).message).not.toContain('killed mid-move')
+    expect(((failed as Error).cause as Error).message).toBe('killed mid-move')
+  })
+
+  it('does not wrap a failure before the destination was cleared, that project being untouched', async () => {
+    const { files, store, entry } = setup()
+    await store.saveTask('microtask', entry, taskDocument(T, TAB))
+    files.failOn = (file) => file.includes(SEP_BUILD)
+    const failed = await store.publishProject('microtask', whole()).catch((error: unknown) => error)
+    expect((failed as Error).message).toBe('killed mid-write')
+    expect(await store.readManifest('microtask', P)).not.toBeNull()
   })
 })

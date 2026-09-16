@@ -105,7 +105,8 @@ export class NodeFileSystem implements FileSystem {
    * `maxRetries` to `EBUSY`, `EMFILE`, `ENFILE`, `ENOTEMPTY` and `EPERM`, with a backoff it
    * manages itself — so the platform answers the one gap that could be closed without a timer
    * of this repo's own inside the write lock. `move`'s rename has no equivalent and stays
-   * un-retried; `storage/publish.ts` states that decision where the publish is wired.
+   * un-retried; `FsProjectStore.publishProject` in `@repo/microtask-domain` states that decision
+   * where the publish is wired.
    */
   async removeDir(dir: string): Promise<boolean> {
     const existed = await fs.stat(dir).then(() => true, () => false)

@@ -87,10 +87,17 @@ export function resolveChoices(
  * inner `run` chains onto a promise that settles only when the outer work returns while the outer
  * work awaits the inner one. The result is not a slow import: `#chain` is left pointing at a
  * promise that never settles, so **every subsequent write anywhere in the process hangs forever**
- * while reads and `/healthz` keep answering 200. Measured. So this reaches only `store`, `tokens`
- * and `fileSystem` — ports, none of which locks — and never a `*Service`, and it reads the session
+ * while reads and `/healthz` keep answering 200. So this reaches only `store`, `tokens` and
+ * `fileSystem` — ports, none of which locks — and never a `*Service`, and it reads the session
  * through `session-files.ts` rather than through `ImportStaging`, whose every public method takes
  * the lock itself.
+ *
+ * Measured against this suite, and the two shapes fail differently, which is worth knowing before
+ * trusting a green run: an **awaited** nested `run` never returns, so the confirm never answers
+ * and 52 of 78 cases die on vitest's own five-second timeout — no assertion in any of them ever
+ * executes. An **unawaited** one wedges nothing and is named by exactly one assertion, the
+ * counting-lock case, which reports 4 where 1 is expected. So the lock count is the guard here;
+ * a race on a later write cannot be, because it is never reached.
  *
  * One lock rather than one per project is also what the lost-update hazard needs. Both sides
  * read-modify-write the same manifest: `TabService.writeDocument` reloads it to refresh the
@@ -108,6 +115,14 @@ export function resolveChoices(
  * leaves the upload staged to be confirmed again — where a failure *during* the apply cannot be
  * retried from the session, which is why every project's outcome is reported rather than summed
  * into a status.
+ *
+ * The cost of that ordering is stated rather than hidden: **the lock is held across the session
+ * read and the plan, before either refusal can be reached**, so a confirm that goes on to write
+ * nothing still stalls every write in the process for the length of a session read. It is
+ * inherent rather than chosen — the refusals are decided from the plan, the plan is measured
+ * against the target store, and reading the target outside the lock is exactly the staleness the
+ * re-plan exists to remove. What bounds it is `MAX_SESSION_BYTES` and nothing else. Moving the
+ * read outside would buy a faster refusal for a plan that could be wrong by the time it is used.
  *
  * @throws NotFound when the session id names nothing — expired, swept, or never opened.
  * @throws Invalid or Conflict for a choice set that cannot be applied, before anything is written.

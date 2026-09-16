@@ -1,5 +1,7 @@
+import { sep } from 'node:path'
 import { LIMITS } from '@repo/contracts'
-import type { Clock, FileSystem, Lock } from '@repo/kernel'
+import { Conflict } from '@repo/kernel'
+import type { Clock, FileSystem, IdGenerator, Lock } from '@repo/kernel'
 import { MemoryFileSystem } from '@repo/kernel/testing'
 import {
   FsProjectStore,
@@ -22,6 +24,7 @@ import {
   folder,
   manifest,
   marked,
+  sequentialIds,
   shareLink,
   taskDocument,
   taskEntry,
@@ -30,6 +33,7 @@ import {
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { describe, expect, it } from 'vitest'
 import { createApp } from '../../app.js'
+import { warmTokenIndex } from '../../runtime.js'
 import type { ApiEnv } from '../../auth/env.js'
 import type { ApiDeps } from '../../deps.js'
 import {
@@ -430,6 +434,17 @@ describe('the choice set, and the two ways it can be refused before anything is 
     expect(again.status).toBe(200)
   })
 
+  it('leaves the session staged when it refuses an unknown choice too, not only a missing one', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(N1, [NT1]))
+    const refused = await confirmed(fix.app, session, [{ projectId: N2, choice: 'skip' }])
+    expect(refused.status).toBe(422)
+    expect(await sessionIds(fix)).toEqual([session])
+    expect((await confirmed(fix.app, session)).status).toBe(200)
+    expect(await storedIds(fix)).toContain(N1)
+  })
+
   it('writes nothing when it refuses a choice set, the refusal coming before the apply', async () => {
     const fix = await fixture()
     const session = await opened(fix.app)
@@ -602,7 +617,7 @@ const within = async (work: Promise<unknown>, ms: number): Promise<unknown> => {
 }
 
 describe('the write lock a confirm takes, which QueueLock does not let it take twice', () => {
-  it('takes it exactly once for a whole apply, however many projects the session holds', async () => {
+  it('takes it exactly once for a whole apply, however many projects the session holds — measured: this names an unawaited nested run as 4, where an awaited one hangs the confirm and this case with it', async () => {
     const base = await buildDeps()
     const counted = countingLock(base.lock)
     const fix = await fixture(undefined, { ...base, lock: counted.lock })
@@ -627,7 +642,7 @@ describe('the write lock a confirm takes, which QueueLock does not let it take t
     expect(counted.runs() - before).toBe(0)
   })
 
-  it('leaves the write queue able to settle, which is the measured symptom of a nested run', async () => {
+  it('leaves the queue settling after a confirm returns — a weaker guard, since an awaited nested run hangs the confirm itself and never reaches this race', async () => {
     const fix = await fixture()
     const session = await opened(fix.app)
     await stageProject(fix.app, session, dropped(N1, [NT1]))
@@ -642,7 +657,7 @@ describe('the write lock a confirm takes, which QueueLock does not let it take t
     expect(await within(write, 2000)).toBe(201)
   })
 
-  it('keeps reads answering either way, so that symptom is a write queue and not an outage', async () => {
+  it('keeps reads answering after a confirm, so a wedged queue would be a write outage and not a total one', async () => {
     const fix = await fixture()
     const session = await opened(fix.app)
     await stageProject(fix.app, session, dropped(N1, [NT1]))
@@ -754,9 +769,42 @@ describe('per-project outcomes: a failure on one project does not take the rest 
       [N2, 'failed'],
     ])
     const rows = await projectsOf(applied)
-    expect(rows[1]?.['reasons']).toEqual(['the volume is full'])
+    expect(String((rows[1]?.['reasons'] as readonly string[])[0])).toContain('could not be written')
     expect(await storedIds(fix)).toContain(N1)
     expect(await storedIds(fix)).not.toContain(N2)
+  })
+
+  it('does not echo a volume’s own message, which carries the container path it failed on', async () => {
+    const base = await buildDeps()
+    const leaky = `EPERM: operation not permitted, rename '${ROOT}/microtask/build/${N1}'`
+    const store = delegating(base.store, {
+      publishProject: async () => {
+        throw new Error(leaky)
+      },
+    })
+    const fix = await fixture(undefined, { ...base, store })
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(N1, [NT1]))
+    const applied = await confirmed(fix.app, session)
+    const said = JSON.stringify(await projectsOf(applied))
+    expect(said).not.toContain('EPERM')
+    expect(said).not.toContain(ROOT)
+    expect(said).toContain('See the server log')
+  })
+
+  it('does echo an AppError, that being the class this repo writes for a caller to read', async () => {
+    const base = await buildDeps()
+    const store = delegating(base.store, {
+      publishProject: async () => {
+        throw new Conflict('Share token already belongs to another project: tok_x')
+      },
+    })
+    const fix = await fixture(undefined, { ...base, store })
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(N1, [NT1]))
+    const applied = await confirmed(fix.app, session)
+    const [row] = await projectsOf(applied)
+    expect(row?.['reasons']).toEqual(['Share token already belongs to another project: tok_x'])
   })
 
   it('reports a blocked project beside a created one, both in the order they were dropped', async () => {
@@ -822,10 +870,13 @@ describe('the session a confirm applied is swept, success or failure (ADR 0045)'
   })
 })
 
+const BUILD_SEGMENT = `${sep}build${sep}`
+
 class Publishing implements FileSystem {
   readonly writes: string[] = []
   readonly moves: string[] = []
   killMove = false
+  killBuildWrite = false
 
   readonly #inner = new MemoryFileSystem()
 
@@ -834,6 +885,7 @@ class Publishing implements FileSystem {
   }
 
   async writeTextAtomic(file: string, text: string) {
+    if (this.killBuildWrite && file.includes(BUILD_SEGMENT)) throw new Error('killed mid-build')
     this.writes.push(file)
     await this.#inner.writeTextAtomic(file, text)
   }
@@ -1068,5 +1120,265 @@ describe('which project a replace resolves against, nothing inside replaceProjec
     const other = await fix.deps.store.readManifest('microtask', IDS.p1)
     expect(other?.tasks.map((one) => one.id)).toEqual([IDS.t1, IDS.t2, IDS.t3, IDS.t4])
     expect(other?.shareLinks.length).toBe(4)
+  })
+})
+
+const REPEATED = token(99)
+
+const repeatingIds = (): IdGenerator => {
+  const inner = sequentialIds()
+  return { entityId: () => inner.entityId(), token: () => REPEATED }
+}
+
+describe('the token index is written before the project, and that refusal is reachable', () => {
+  const clashing = async (): Promise<Fixture> => {
+    const base = await buildDeps()
+    const fix = await fixture(undefined, { ...base, ids: repeatingIds() })
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(IDS.p1, [IDS.t1], { shareLinks: [shareLink(token(41), IDS.p1)] }))
+    await stageProject(fix.app, session, dropped(N1, [NT1], { shareLinks: [shareLink(REPEATED, N1)] }))
+    return fix
+  }
+
+  it('previews both as importable, carriers() seeing only the tokens the drops arrived with', async () => {
+    const fix = await clashing()
+    const [session] = await sessionIds(fix)
+    const rows = await groupsOf(await previewed(fix.app, String(session)))
+    expect(rows.map((one) => [one['projectId'], one['outcome']])).toEqual([
+      [IDS.p1, 'importable'],
+      [N1, 'importable'],
+    ])
+  })
+
+  it('lands the first and refuses the second, the remint having taken the token in between', async () => {
+    const fix = await clashing()
+    const [session] = await sessionIds(fix)
+    const applied = await confirmed(fix.app, String(session), [{ projectId: IDS.p1, choice: 'new' }])
+    expect(applied.status).toBe(200)
+    const rows = await projectsOf(applied)
+    expect(rows.map((one) => one['outcome'])).toEqual(['created', 'failed'])
+    expect(String((rows[1]?.['reasons'] as readonly string[])[0])).toContain(
+      'already belongs to another project',
+    )
+  })
+
+  it('leaves the refused project unwritten, so no two projects on disk hold one token', async () => {
+    const fix = await clashing()
+    const [session] = await sessionIds(fix)
+    await confirmed(fix.app, String(session), [{ projectId: IDS.p1, choice: 'new' }])
+    expect(await storedIds(fix)).not.toContain(N1)
+    const held = (await fix.deps.store.listManifests('microtask')).flatMap((one) =>
+      one.shareLinks.map((link) => link.token),
+    )
+    expect(new Set(held).size).toBe(held.length)
+  })
+
+  it('still opens a socket at the next restart, which the other write order would not', async () => {
+    const fix = await clashing()
+    const [session] = await sessionIds(fix)
+    await confirmed(fix.app, String(session), [{ projectId: IDS.p1, choice: 'new' }])
+    const rebuilt: ApiDeps = { ...fix.deps, tokens: new ShareIndex() }
+    await expect(warmTokenIndex(rebuilt)).resolves.toBeGreaterThan(0)
+  })
+})
+
+describe('a legacy project and a bundle reach disk too, not only a project directory (ADR 0018)', () => {
+  const LEGACY_STAMP = '2019-04-05T06:07:08.000Z'
+  const LT1 = marked('01KT', 1)
+  const LT2 = marked('01KT', 2)
+
+  const legacyFile = (id: string): string =>
+    JSON.stringify({
+      id,
+      name: 'The old workspace',
+      createdAt: LEGACY_STAMP,
+      updatedAt: LEGACY_STAMP,
+      tabs: [
+        {
+          id: LT1,
+          name: 'Kitchen',
+          position: 0,
+          document: emptyDocument(),
+          createdAt: LEGACY_STAMP,
+          updatedAt: LEGACY_STAMP,
+        },
+        {
+          id: LT2,
+          name: 'Garden',
+          position: 1,
+          document: emptyDocument(),
+          createdAt: LEGACY_STAMP,
+          updatedAt: LEGACY_STAMP,
+        },
+      ],
+      shareLinks: [{ token: token(51), name: 'The old link', permission: 'read' }],
+    })
+
+  const bundleFile = (ids: readonly string[]): string =>
+    JSON.stringify({
+      format: 'ccg.microtask',
+      version: 2,
+      exportedAt: STAMP,
+      bundleId: marked('01X', 1),
+      projects: ids.map((id) => {
+        const drop = dropped(id, [NT1])
+        return { ...drop.manifest, taskDocuments: drop.documents }
+      }),
+    })
+
+  it('lands a legacy file as a project whose tasks keep the file’s own ids and stamps', async () => {
+    const fix = await fixture(tickingClock())
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/old-workspace.json', legacyFile(N1))
+    const applied = await confirmed(fix.app, session)
+    expect(await outcomesOf(applied)).toEqual([[N1, 'created']])
+    const live = await fix.deps.store.readManifest('microtask', N1)
+    expect(live?.tasks.map((one) => [one.id, one.name])).toEqual([
+      [LT1, 'Kitchen'],
+      [LT2, 'Garden'],
+    ])
+    expect([live?.createdAt, live?.updatedAt]).toEqual([LEGACY_STAMP, LEGACY_STAMP])
+  })
+
+  it('converts its read permission to a project-scoped view link that serves at once', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/old-workspace.json', legacyFile(N1))
+    expect((await confirmed(fix.app, session)).status).toBe(200)
+    const live = await fix.deps.store.readManifest('microtask', N1)
+    expect(live?.shareLinks).toMatchObject([
+      { token: token(51), role: 'view', scope: { kind: 'project', projectId: N1 } },
+    ])
+    const read = await fix.app.request(`${GUARDED_PREFIX}/shares/current`, {
+      headers: { 'x-api-key': SERVICE_KEY, authorization: `Bearer ${token(51)}` },
+    })
+    expect(read.status).toBe(200)
+  })
+
+  it('previews a legacy file identically twice, a tab id reaching no field a row carries', async () => {
+    const fix = await fixture(tickingClock())
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/old-workspace.json', legacyFile(N1))
+    const first = await previewed(fix.app, session)
+    const second = await previewed(fix.app, session)
+    expect(await second.text()).toBe(await first.text())
+  })
+
+  it('lands both projects of a workspace bundle, each as its own row', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/workspace.json', bundleFile([N1, N2]))
+    const applied = await confirmed(fix.app, session)
+    expect(await outcomesOf(applied)).toEqual([
+      [N1, 'created'],
+      [N2, 'created'],
+    ])
+    expect(await storedIds(fix)).toContain(N1)
+    expect(await storedIds(fix)).toContain(N2)
+    expect(await fix.deps.store.readTask('microtask', N2, NT1)).not.toBeNull()
+  })
+
+  it('labels those two rows by position in the file, there being nothing else to tell them apart', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/workspace.json', bundleFile([N1, N2]))
+    expect((await projectsOf(await confirmed(fix.app, session))).map((one) => one['path'])).toEqual([
+      'drop/workspace.json project 1',
+      'drop/workspace.json project 2',
+    ])
+  })
+
+  it('lands a single-project bundle under the file’s own path, that file being the project', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/one-project.json', bundleFile([N1]))
+    const rows = await projectsOf(await confirmed(fix.app, session))
+    expect(rows.map((one) => [one['path'], one['outcome']])).toEqual([
+      ['drop/one-project.json', 'created'],
+    ])
+    expect(await storedIds(fix)).toContain(N1)
+  })
+
+  it('lands all three shapes in one confirm, which is what a real migration drops', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(marked('01D', 1), [NT1]))
+    await stage(fix.app, session, 'drop/old.json', legacyFile(N1))
+    await stage(fix.app, session, 'drop/bundle.json', bundleFile([N2]))
+    const applied = await confirmed(fix.app, session)
+    const rows = await projectsOf(applied)
+    expect(rows.map((one) => one['outcome'])).toEqual(['created', 'created', 'created'])
+    expect((await storedIds(fix)).length).toBe(5)
+  })
+})
+
+describe('a destructive failure is told apart from a harmless one in the row (ADR 0045 amended)', () => {
+  const reasonOf = async (response: Response): Promise<string> =>
+    String(((await projectsOf(response))[0]?.['reasons'] as readonly string[])[0])
+
+  it('names build/<projectId>/ when the rename died, that copy being the whole recovery', async () => {
+    const { fix, files } = await onDisk()
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(N1, [NT1]))
+    files.killMove = true
+    const applied = await confirmed(fix.app, session)
+    const why = await reasonOf(applied)
+    expect(why).toContain(`build/${N1}/`)
+    expect(why).toContain('this project is gone')
+    expect(await fix.deps.store.readManifest('microtask', N1)).toBeNull()
+  })
+
+  it('says nothing about a build directory when the build died, the project being untouched', async () => {
+    const { fix, files } = await onDisk()
+    await fix.deps.store.publishProject('microtask', dropped(IDS.p1, [IDS.t1, IDS.t2]))
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(IDS.p1, [IDS.t1]))
+    files.killBuildWrite = true
+    const applied = await confirmed(fix.app, session, [{ projectId: IDS.p1, choice: 'replace' }])
+    const why = await reasonOf(applied)
+    expect(why).not.toContain('build/')
+    expect(why).toContain('is untouched')
+    const live = await fix.deps.store.readManifest('microtask', IDS.p1)
+    expect(live?.tasks.map((one) => one.id)).toEqual([IDS.t1, IDS.t2])
+  })
+
+  it('reports both as failed, so the word alone is what cannot tell them apart', async () => {
+    const both: string[] = []
+    for (const kill of ['move', 'build'] as const) {
+      const { fix, files } = await onDisk()
+      const session = await opened(fix.app)
+      await stageProject(fix.app, session, dropped(N1, [NT1]))
+      if (kill === 'move') files.killMove = true
+      else files.killBuildWrite = true
+      const applied = await confirmed(fix.app, session)
+      expect(await outcomesOf(applied)).toEqual([[N1, 'failed']])
+      both.push(await reasonOf(applied))
+    }
+    expect(both[0]).not.toBe(both[1])
+  })
+
+  it('keeps the platform’s own rejection out of the row, however the publish died', async () => {
+    const { fix, files } = await onDisk()
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(N1, [NT1]))
+    files.killMove = true
+    const said = JSON.stringify(await projectsOf(await confirmed(fix.app, session)))
+    expect(said).not.toContain('killed mid-move')
+    expect(said).not.toContain(ROOT)
+  })
+
+  it('leaves that copy complete and correctly laid out, so the rename it names would publish it', async () => {
+    const { fix, files } = await onDisk()
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(N1, [NT1, NT2]))
+    files.killMove = true
+    expect((await confirmed(fix.app, session)).status).toBe(200)
+    files.killMove = false
+    await files.move(buildDir(ROOT, 'microtask', N1), projectDir(ROOT, 'microtask', N1))
+    const live = await fix.deps.store.readManifest('microtask', N1)
+    expect(live?.tasks.map((one) => one.id)).toEqual([NT1, NT2])
+    for (const id of [NT1, NT2]) {
+      expect([id, await fix.deps.store.readTask('microtask', N1, id)]).not.toEqual([id, null])
+    }
   })
 })

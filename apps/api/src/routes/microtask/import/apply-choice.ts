@@ -33,9 +33,24 @@ export interface ChoiceContext {
  * worse failure: the project would already be on disk carrying a token a second project also
  * holds, and `warmTokenIndex` calls `add` once per manifest, awaited before `serve()` with no
  * `catch` — so the next container restart would never open a socket. This way a refused token
- * means nothing was written for that project and the index is untouched. The residue if the
- * **publish** then fails is an index entry for a project that is not there, which resolves a share
- * URL to a 404 and is rebuilt from disk at the next restart.
+ * means nothing was written for that project and the index is untouched.
+ *
+ * That refusal is **reachable, and the preview cannot predict it.** `carriers()` in `checks.ts`
+ * builds the in-session token map from the drops' *original* links, so a token minted by a remint
+ * earlier in the same confirm is never checked against a project later in it. An id generator
+ * that repeats a token therefore lands the first project and refuses the second with
+ * `Conflict`, as a test beside this pins. In production the case is theoretical — a freshly
+ * minted ULID token colliding with one a bundle carries is negligible — but the ordering is what
+ * decides whether it is one refused row or a container that will not boot.
+ *
+ * The residue when the **publish** fails after the index was written is an index entry ahead of
+ * disk, and it is inert rather than merely harmless: `PrincipalResolver.resolve` reads the link
+ * off the manifest on every request, so an index hit whose manifest has no such token resolves to
+ * no principal at all (measured: 401 `unknown_principal`). That is also what covers the case a
+ * 404 would not — a `replace` whose publish fails *before* the destination is cleared, where the
+ * index now maps the bundle's tokens onto a project that is still live and still serving its own.
+ * The manifest re-read is why those tokens open nothing. Either way the index is rebuilt from
+ * disk at the next restart.
  */
 export async function writeProject(deps: ApiDeps, project: ConvertedProject): Promise<void> {
   deps.tokens.add(PRODUCT, project.manifest)
