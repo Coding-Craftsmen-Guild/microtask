@@ -54,6 +54,14 @@ describe('TransferPanel', () => {
     expect(screen.getByText('2 files harvested')).toBeTruthy()
   })
 
+  it('lists two files the browser reported at one path, a drag of two same-named files giving both the same fullPath', () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    panel({ files: [harvested('a.json'), harvested('a.json')] })
+    expect(document.querySelectorAll('[data-slot="transfer-panel"] ul li').length).toBe(2)
+    expect(warn.mock.calls.flat().join(' ')).not.toContain('same key')
+    warn.mockRestore()
+  })
+
   it('renders the preview table once a preview arrives, and says so before one has', () => {
     panel()
     expect(document.querySelector('[data-slot="preview-table"]')).toBeNull()

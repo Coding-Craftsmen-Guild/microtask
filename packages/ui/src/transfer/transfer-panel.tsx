@@ -54,8 +54,8 @@ export function TransferPanel({ files, preview, result, onConfirm }: TransferPan
           {harvested(files.length)}
         </h3>
         <ul className={PATHS}>
-          {files.map((one) => (
-            <li key={one.path}>{one.path}</li>
+          {files.map((one, at) => (
+            <li key={`${String(at)} ${one.path}`}>{one.path}</li>
           ))}
         </ul>
       </div>
