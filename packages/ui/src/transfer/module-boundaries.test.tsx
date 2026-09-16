@@ -4,11 +4,13 @@ import { cleanup, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ConflictChoiceField } from '@repo/ui/transfer/conflict-choice'
 import { ConflictList } from '@repo/ui/transfer/conflict-list'
+import { DropZone } from '@repo/ui/transfer/drop-zone'
 import { ExportDialog } from '@repo/ui/transfer/export-dialog'
 import { PreviewTable } from '@repo/ui/transfer/preview-table'
 import { ResultTable } from '@repo/ui/transfer/result-table'
 import { ShareLinkList } from '@repo/ui/transfer/share-link-list'
 import { TransferPanel } from '@repo/ui/transfer/transfer-panel'
+import { harvestDrop, harvestPath, harvestPick } from '@repo/ui/transfer/harvest.js'
 import { collidingProjects, remintNotice, taskCountLabel } from '@repo/ui/transfer/outcomes.js'
 import { useConflictChoices } from '@repo/ui/transfer/use-conflict-choices.js'
 import type { TransferGroup, TransferProjectResult } from './vocabulary'
@@ -30,9 +32,12 @@ const SERVER_SAFE = [
   'vocabulary.ts',
 ]
 
+const BROWSER_ONLY = ['harvest.ts']
+
 const CLIENT_ONLY = [
   'conflict-choice.tsx',
   'conflict-list.tsx',
+  'drop-zone.tsx',
   'export-dialog.tsx',
   'transfer-panel.tsx',
   'use-conflict-choices.ts',
@@ -117,7 +122,7 @@ const COLOUR_PREFIXES = new Set([
   'via',
 ])
 
-const NOT_A_COLOUR = new Set(['1', 'collapse', 'left', 't'])
+const NOT_A_COLOUR = new Set(['1', '2', 'center', 'collapse', 'dashed', 'left', 't'])
 
 const colourOf = (token: string) => {
   if (token.includes('[')) return ''
@@ -166,12 +171,16 @@ describe('transfer module boundaries', () => {
     for (const exported of [
       ConflictChoiceField,
       ConflictList,
+      DropZone,
       ExportDialog,
       PreviewTable,
       ResultTable,
       ShareLinkList,
       TransferPanel,
       collidingProjects,
+      harvestDrop,
+      harvestPath,
+      harvestPick,
       remintNotice,
       taskCountLabel,
       useConflictChoices,
@@ -191,11 +200,16 @@ describe('transfer module boundaries', () => {
     expect(MANIFEST.exports['./transfer/*.test.js']).toBeNull()
   })
 
-  it('accounts for every module in the directory as either client-only or server-safe', () => {
-    const listed = new Set([...SERVER_SAFE, ...CLIENT_ONLY])
+  it('accounts for every module in the directory as server-safe, client-only, or browser-only', () => {
+    const listed = new Set([...SERVER_SAFE, ...CLIENT_ONLY, ...BROWSER_ONLY])
     const onDisk = walk(TRANSFER).map((file) => relative(TRANSFER, file).split('\\').join('/'))
     expect(onDisk.filter((file) => !listed.has(file))).toEqual([])
     expect([...listed].filter((file) => !onDisk.includes(file))).toEqual([])
+  })
+
+  it('keeps the three buckets disjoint, so no module is classified twice to make a check pass', () => {
+    const all = [...SERVER_SAFE, ...CLIENT_ONLY, ...BROWSER_ONLY]
+    expect(all.length).toBe(new Set(all).size)
   })
 
   it('puts the use client directive on the first line of each interactive module', () => {
@@ -219,6 +233,58 @@ describe('transfer module boundaries', () => {
         ).toBe(false)
       }
     }
+  })
+
+  it('leaves the directive off a browser-only module, which is not a React module at all', () => {
+    for (const name of BROWSER_ONLY) {
+      expect(declaresUseClient(read(join(TRANSFER, name))), name).toBe(false)
+    }
+  })
+
+  it('keeps the server-safe bucket to what a page renders: each one is a component or reached by one', () => {
+    const rendered = new Set(
+      SERVER_SAFE.filter((name) => name.endsWith('.tsx')).flatMap((name) =>
+        reachableFrom(join(TRANSFER, name)),
+      ),
+    )
+    for (const name of SERVER_SAFE.filter((one) => !one.endsWith('.tsx'))) {
+      expect(
+        rendered.has(join(TRANSFER, name)),
+        `${name} is called server-safe, but no server-safe component reaches it`,
+      ).toBe(true)
+    }
+  })
+
+  it('reaches no React module from a browser-only one, which is what framework-free means', () => {
+    expect(BROWSER_ONLY.length).toBeGreaterThan(0)
+    for (const name of BROWSER_ONLY) {
+      const entry = join(TRANSFER, name)
+      for (const file of [entry, ...reachableFrom(entry)]) {
+        const framework = specifiersOf(read(file)).filter(
+          (specifier) => specifier === 'react' || specifier.startsWith('react/'),
+        )
+        expect(framework, `${name} reaches ${relative(SRC, file)}, which imports React`).toEqual([])
+        expect(file.endsWith('.tsx'), `${name} reaches the component ${relative(SRC, file)}`).toBe(
+          false,
+        )
+      }
+    }
+  })
+
+  it('reaches no browser-only module from any server-safe one, since a page cannot run one', () => {
+    const browserOnly = new Set(BROWSER_ONLY.map((name) => join(TRANSFER, name)))
+    for (const name of SERVER_SAFE) {
+      for (const reached of reachableFrom(join(TRANSFER, name))) {
+        expect(
+          browserOnly.has(reached),
+          `${name} reaches the browser-only module ${relative(SRC, reached)}`,
+        ).toBe(false)
+      }
+    }
+  })
+
+  it('does reach the harvester from the drop zone, which is what makes that check meaningful', () => {
+    expect(reachableFrom(join(TRANSFER, 'drop-zone.tsx'))).toContain(join(TRANSFER, 'harvest.ts'))
   })
 
   it('does reach client modules from the panel, which is what makes the check meaningful', () => {
@@ -248,6 +314,7 @@ describe('transfer module boundaries', () => {
       landed({ path: 'c', outcome: 'failed', reasons: ['ENOSPC'] }),
     ]
     const trees = [
+      <DropZone key="d" onHarvest={noop} />,
       <PreviewTable groups={groups} key="p" />,
       <ResultTable key="r" results={results} />,
       <ShareLinkList key="s" links={[]} />,
