@@ -988,6 +988,17 @@ written**, and each has a fixture.
 - [ ] Expansion lands in staging and then goes through **exactly the same** grouping and sniffing as a
       dropped folder. A test asserts a zip of a directory and the same directory dropped produce
       identical previews. Two importers that drift is the failure ADR 0020 is avoiding.
+- [ ] **Added 2026-09-16 — re-run ADR 0045's staging guard here, because this is the task where its
+      absence assertion first has teeth.** Task 7 measured that its own layout cannot produce the
+      dangerous shape: uploads land at `<session>/files/<harvested path>`, so even staging directly
+      under `projects/<sessionId>/` would put `project.json` at `files/…/project.json` rather than at
+      the directory root, and `listManifests` reads only `<projectsDir>/<id>/project.json`. The
+      layout `listManifests` genuinely cannot tell from a live project is the one **an expansion
+      produces** — a directory whose *root* holds `project.json`. So repeat the two-part guard
+      against the expanded tree: the positive control proving `listManifests` and `warmTokenIndex`
+      do pick up a ULID-named child of `projectsDir` holding a well-formed manifest, and then the
+      absence assertion over the real expansion target. Until this task, that absence assertion
+      passed for essentially any layout.
 - [ ] **[audited] The dependency claim needs a test that can fail.** The deploy tests read the
       Dockerfile as text; they install nothing and build nothing, so they are green whether the zip
       reader is a dependency, a devDependency, or absent — and `pnpm --filter=api deploy --prod` drops
