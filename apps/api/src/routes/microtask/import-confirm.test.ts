@@ -877,6 +877,7 @@ class Publishing implements FileSystem {
   readonly moves: string[] = []
   killMove = false
   killBuildWrite = false
+  killClear: (dir: string) => boolean = () => false
 
   readonly #inner = new MemoryFileSystem()
 
@@ -904,6 +905,7 @@ class Publishing implements FileSystem {
   }
 
   async removeDir(dir: string) {
+    if (this.killClear(dir)) throw new Error('killed mid-clear')
     return this.#inner.removeDir(dir)
   }
 
@@ -1380,5 +1382,66 @@ describe('a destructive failure is told apart from a harmless one in the row (AD
     for (const id of [NT1, NT2]) {
       expect([id, await fix.deps.store.readTask('microtask', N1, id)]).not.toEqual([id, null])
     }
+  })
+})
+
+describe('a clear that died is told apart from a build that died, the live project differing', () => {
+  const reasonOf = async (response: Response): Promise<string> =>
+    String(((await projectsOf(response))[0]?.['reasons'] as readonly string[])[0])
+
+  const halfCleared = async (): Promise<{ fix: Fixture; files: Publishing }> => {
+    const { fix, files } = await onDisk()
+    await fix.deps.store.publishProject('microtask', dropped(IDS.p1, [IDS.t1, IDS.t2]))
+    const session = await opened(fix.app)
+    await stageProject(fix.app, session, dropped(IDS.p1, [IDS.t1]))
+    files.killClear = (dir) => dir === projectDir(ROOT, 'microtask', IDS.p1)
+    return { fix, files }
+  }
+
+  const applied = async (fix: Fixture): Promise<Response> => {
+    const [session] = await sessionIds(fix)
+    return confirmed(fix.app, String(session), [{ projectId: IDS.p1, choice: 'replace' }])
+  }
+
+  it('reports it failed, rm -rf being no more atomic than the loop it replaces', async () => {
+    const { fix } = await halfCleared()
+    expect(await outcomesOf(await applied(fix))).toEqual([[IDS.p1, 'failed']])
+  })
+
+  it('says the live project may be partly removed rather than claiming it is untouched', async () => {
+    const { fix } = await halfCleared()
+    const why = await reasonOf(await applied(fix))
+    expect(why).toContain('may be partly removed')
+    expect(why).toContain(`projects/${IDS.p1}/`)
+    expect(why).not.toContain('is untouched')
+  })
+
+  it('instructs no rename, the destination one would rename onto being what just failed', async () => {
+    const { fix } = await halfCleared()
+    const why = await reasonOf(await applied(fix))
+    expect(why).not.toContain('rename')
+    expect(why).not.toContain('build/')
+  })
+
+  it('keeps the platform’s own rejection out of the row here too', async () => {
+    const { fix } = await halfCleared()
+    const said = JSON.stringify(await projectsOf(await applied(fix)))
+    expect(said).not.toContain('killed mid-clear')
+    expect(said).not.toContain(ROOT)
+  })
+
+  it('reads differently from a build that died, which is the distinction being drawn', async () => {
+    const { fix } = await halfCleared()
+    const clearing = await reasonOf(await applied(fix))
+    const second = await onDisk()
+    await second.fix.deps.store.publishProject('microtask', dropped(IDS.p1, [IDS.t1, IDS.t2]))
+    const session = await opened(second.fix.app)
+    await stageProject(second.fix.app, session, dropped(IDS.p1, [IDS.t1]))
+    second.files.killBuildWrite = true
+    const building = await reasonOf(
+      await confirmed(second.fix.app, session, [{ projectId: IDS.p1, choice: 'replace' }]),
+    )
+    expect(building).toContain('is untouched')
+    expect(clearing).not.toBe(building)
   })
 })

@@ -15,6 +15,9 @@ import {
 const interrupted = (projectId: string): string =>
   `Not published: the live directory was already cleared, so this project is gone. A complete copy is at build/${projectId}/ under the data root; rename it into place to publish it.`
 
+const halfCleared = (projectId: string): string =>
+  `Not published: clearing projects/${projectId}/ failed partway, so that project may be partly removed — a manifest can outlive its task files. Inspect it before importing again.`
+
 /** How an FsProjectStore reaches the disk and where it puts its data. */
 export interface FsProjectStoreOptions {
   readonly files: FileSystem
@@ -103,22 +106,35 @@ export class FsProjectStore implements ProjectStore {
    * Clearing is preferred over moving the live copy aside because the recovery state is better:
    * what survives in `build/` is the project they asked for, not the one they replaced.
    *
-   * A failure **inside that window is reported differently from every other failure here**, and
-   * that distinction is the whole reason this method catches anything. A build write that fails
-   * leaves the project exactly as it was, so the caller needs to know nothing but that it failed.
-   * A failed rename leaves the project **gone**, and ADR 0045's amendment requires an operator be
-   * told rather than left to infer it — so that one is wrapped in a `Conflict` naming
-   * `build/<id>/`, which is where the complete, correctly-laid-out copy is and which a rename by
-   * hand publishes. It names that directory **relative to the data root** rather than absolutely:
-   * a project id is 26 characters, so the sentence is 192 and always inside the 200 a preview row
-   * may carry, where an absolute path could be elided through its own middle — and the container
-   * layout is not something a response should carry anyway.
+   * **Three regions, and what an operator is told differs in each**, which is the whole reason
+   * this method catches anything. Up to and including the build writes, a failure leaves the
+   * project exactly as it was: the caller needs to know nothing but that it failed, and that
+   * failure is left unwrapped.
    *
-   * `Conflict` because it is the error class this repo writes *for a caller to
-   * read* (`apply-outcome.ts` echoes an `AppError`'s message and suppresses every other), and
-   * because "the store is not in a state where this could complete" is what it means. The status
-   * it carries is never reached: every caller is a bulk import that catches this per project.
-   * The underlying cause is attached as `error.cause` rather than quoted, so the platform's own
+   * **The clear is its own region and is not part of the build.** `removeDir` is `rm -rf`, not an
+   * atomic operation — it unlinks children and then the directory — so a throw partway (a locked
+   * file, an ACL, `EBUSY` once the retries are spent: the same win32 conditions the retry
+   * paragraph below names) leaves the live project **partly removed**, with a manifest that can
+   * outlive its own task files and that `listManifests` will keep listing. Reporting that as an
+   * ordinary failure would tell an operator the project already there is untouched, which is
+   * false in the destructive direction, so it is wrapped in a `Conflict` naming `projects/<id>/`
+   * and saying it may be partly removed. It deliberately does **not** suggest a rename: the
+   * incoming copy in `build/<id>/` is the *incoming* project, not the one being damaged, and a
+   * rename onto a destination that is still occupied is exactly what just failed.
+   *
+   * **A failed rename is the third region**, and there the project is **gone** — ADR 0045's
+   * amendment requires an operator be told rather than left to infer it, so that `Conflict` names
+   * `build/<id>/`, which is where the complete, correctly-laid-out copy is and which a rename by
+   * hand does publish. Both sentences name their directory **relative to the data root** rather
+   * than absolutely: a project id is 26 characters, so they measure 192 and 190 and are always
+   * inside the 200 a preview row may carry, where an absolute path could be elided through its
+   * own middle — and the container layout is not something a response should carry anyway.
+   *
+   * `Conflict` for both, because it is the error class this repo writes *for a caller to read*
+   * (`apply-outcome.ts` echoes an `AppError`'s message and suppresses every other), and because
+   * "the store is not in a state where this could complete" is what it means. The status it
+   * carries is never reached: every caller is a bulk import that catches this per project. The
+   * underlying cause is attached as `error.cause` rather than quoted, so the platform's own
    * message stays out of a response and reaches the process log instead.
    *
    * ADR 0045 said a build directory is removed on both paths out; its 2026-09-16 amendment
@@ -148,7 +164,11 @@ export class FsProjectStore implements ProjectStore {
     }
     await this.#writeJson(buildManifestFile(root, product, id), project.manifest)
     const live = projectDir(root, product, id)
-    await this.#files.removeDir(live)
+    try {
+      await this.#files.removeDir(live)
+    } catch (cause) {
+      throw Object.assign(new Conflict(halfCleared(id)), { cause })
+    }
     try {
       await this.#files.move(build, live)
     } catch (cause) {

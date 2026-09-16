@@ -4,7 +4,7 @@ import type { FileSystem } from '@repo/kernel'
 import { MemoryFileSystem } from '@repo/kernel/testing'
 import { manifest, taskDocument, taskEntry } from '../testing/index.js'
 import { FsProjectStore } from './fs-project-store.js'
-import { buildManifestFile, buildTaskFile, projectDir, tasksDir } from './paths.js'
+import { buildDir, buildManifestFile, buildTaskFile, projectDir, tasksDir } from './paths.js'
 
 const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const T = '01M240FB4GD6PF6V0PKZVF6FD9'
@@ -15,6 +15,7 @@ class RecordingFileSystem implements FileSystem {
   readonly removals: string[] = []
   readonly log: { op: 'write' | 'remove' | 'move'; file: string }[] = []
   failOn: (file: string) => boolean = () => false
+  killRemoveDir: (dir: string) => boolean = () => false
   killMove = false
 
   readonly #inner = new MemoryFileSystem()
@@ -45,6 +46,8 @@ class RecordingFileSystem implements FileSystem {
   }
 
   async removeDir(dir: string) {
+    if (this.killRemoveDir(dir)) throw new Error('killed mid-clear')
+    this.log.push({ op: 'remove', file: dir })
     return this.#inner.removeDir(dir)
   }
 
@@ -230,5 +233,51 @@ describe('what a publish reports when it dies, which is two different facts', ()
     const failed = await store.publishProject('microtask', whole()).catch((error: unknown) => error)
     expect((failed as Error).message).toBe('killed mid-write')
     expect(await store.readManifest('microtask', P)).not.toBeNull()
+  })
+})
+
+describe('clearing the destination is its own region, rm -rf being no more atomic than a loop', () => {
+  const onlyLive = (dir: string): boolean => dir === liveDir()
+
+  it('reports a clear that died as a project that may be partly removed, not one untouched', async () => {
+    const { files, store, entry } = setup()
+    await store.saveTask('microtask', entry, taskDocument(T, TAB))
+    files.killRemoveDir = onlyLive
+    const failed = await store.publishProject('microtask', whole()).catch((error: unknown) => error)
+    expect((failed as Error).message).toContain('may be partly removed')
+    expect((failed as Error).message).toContain(`projects/${P}/`)
+  })
+
+  it('never tells an operator to rename, the destination it would rename onto being the one that failed', async () => {
+    const { files, store, entry } = setup()
+    await store.saveTask('microtask', entry, taskDocument(T, TAB))
+    files.killRemoveDir = onlyLive
+    const failed = await store.publishProject('microtask', whole()).catch((error: unknown) => error)
+    expect((failed as Error).message).not.toContain('rename')
+    expect((failed as Error).message).not.toContain('build/')
+  })
+
+  it('keeps the platform’s own rejection as the cause here too, rather than quoting it', async () => {
+    const { files, store } = setup()
+    files.killRemoveDir = onlyLive
+    const failed = await store.publishProject('microtask', whole()).catch((error: unknown) => error)
+    expect((failed as Error).message).not.toContain('killed mid-clear')
+    expect(((failed as Error).cause as Error).message).toBe('killed mid-clear')
+  })
+
+  it('had built the whole project first, so the kill is the clear and not something earlier', async () => {
+    const { files, store } = setup()
+    files.killRemoveDir = onlyLive
+    await expect(store.publishProject('microtask', whole())).rejects.toThrow('partly removed')
+    expect(await files.readText(buildManifest())).not.toBeNull()
+    expect(await files.readText(buildTask(T))).not.toBeNull()
+  })
+
+  it('still clears the build directory on the way in, so that kill is the live one alone', async () => {
+    const { files, store } = setup()
+    await files.writeTextAtomic(buildTask(T2), '{"id":"left by an interrupted publish"}')
+    files.killRemoveDir = onlyLive
+    await expect(store.publishProject('microtask', whole())).rejects.toThrow('partly removed')
+    expect(files.log.some((one) => one.op === 'remove' && one.file === buildDir('/data', 'microtask', P))).toBe(true)
   })
 })

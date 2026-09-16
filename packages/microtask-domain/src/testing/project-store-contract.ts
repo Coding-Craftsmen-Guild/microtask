@@ -58,6 +58,14 @@ function renameInPlace(target: { readonly name: string } | undefined, name: stri
  * the rename, and again through the composed API. A contract case would need a harness hook for
  * "interrupt the publish", which is the kind of adapter-specific probe this file keeps optional.
  *
+ * **Which step of a publish died is deliberately not a contract case either.** `FsProjectStore`
+ * distinguishes three — a build write, the clear of the destination, and the rename — because on
+ * a filesystem they leave the project that was there untouched, partly removed, and gone
+ * respectively, and an operator has to be told which. `MemoryProjectStore` has no such steps: its
+ * clear is one map operation that cannot fail partway, so there is nothing for it to agree with.
+ * The two adapters do not share that behaviour because they do not share the failure mode, and a
+ * case asserting it would be asserting `FsProjectStore` twice under a name that claims otherwise.
+ *
  * One other difference the cases cannot pin: `MemoryProjectStore` validates every document id up
  * front, where `FsProjectStore` validates lazily as it builds each task path. Both leave the
  * project that was there untouched — which is the case below — but the filesystem adapter will
