@@ -185,8 +185,8 @@ packages/microtask-domain/src/export/
 packages/microtask-domain/src/storage/
   paths.ts               (modify) stagingDir / stagingFile / buildDir beside projectDir
 packages/kernel/src/
-  ports/file-system.ts   (modify) [Task 6a] readBytes, appendBytes, listFiles, move
-  testing/               [Task 6a] the in-memory FileSystem + describeFileSystem contract
+  ports/file-system.ts   [built — Task 6a] readBytes, appendBytes, listFiles, move
+  testing/               [built — Task 6a] MemoryFileSystem + describeFileSystem, 33 cases
 apps/api/src/routes/microtask/import/
   routes.ts  handlers.ts  staging.ts  zip.ts  apply.ts
 apps/api/src/routes/microtask/export/
@@ -1015,6 +1015,18 @@ used by the store's ordering tests.
       inside the lock. The reason the addition moved is that Tasks 7 and 8 need three further
       methods and owned none of them, so the port was being designed three times from three callers'
       points of view.
+      **Two gaps Task 6a measured and recorded rather than closed — read
+      `NodeFileSystem.move`'s TSDoc before writing the publish.** (a) `move` now **refuses** an
+      occupied destination of either kind, rather than silently replacing a destination file as a
+      bare `rename` does; but the probe-then-rename pair is a TOCTOU that the `QueueLock` does
+      **not** close, ADR 0030 recording that lock as per-process with "19 lost updates out of 20
+      concurrent conditional writes" across two replicas. The platform's own refusal backstops only
+      the non-empty-directory case, so a cross-replica race onto a destination **file** is protected
+      by nothing — which is one more reason the API stays at one replica. (b) `move` has **no
+      retry**, and neither does `removeDir`. A directory rename is a classic transient `EPERM`/
+      `EBUSY` on win32 under a watcher or antivirus, and this publish is the one call where a
+      transient failure loses a project; this repo's own win32 harnesses already pass
+      `maxRetries: 5` to their cleanup. Decide whether the publish retries, and say so.
 - [ ] **[audited] `QueueLock` is not reentrant, and this is the criterion most likely to be violated.**
       Confirm takes `lock.run` **exactly once** for the whole apply and inside it calls **only the
       `store` and `tokens` ports — never a `*Service`**. Every mutating service method takes the same
