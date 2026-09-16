@@ -93,8 +93,11 @@ export type CapabilityAction = keyof typeof ROWS
  * so it is recorded as such; what a link holder may ask instead is `project:read` or
  * `task:read`, which have rows of their own.
  *
- * `export:run` and `workspace:import` have no route yet, so their rows are the policy's answer
- * and nothing has confirmed the target against a gate.
+ * `export:run` and `workspace:import` both have routes now — two export addresses and two
+ * import-session addresses — and the scan above confirms both targets against the `authorize()`
+ * call each handler makes. `workspace:search` is the one row left that the scan cannot confirm,
+ * and for the reason the paragraph above gives rather than for want of a route: its gate names a
+ * computed action and a computed target, so there is no literal in the source to read.
  *
  * Declared at the widened type rather than left as the literal the rows infer, so a caller may
  * read `alsoGatedOn` off any row instead of off the one row that happens to carry it.

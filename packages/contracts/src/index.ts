@@ -65,7 +65,9 @@ export {
   ImportPreviewGroup,
   ImportPreviewShareLink,
   ImportProjectChoice,
+  ImportSession,
   ImportShape,
+  ImportStagedChunk,
   MAX_PREVIEW_REASONS,
   MAX_PREVIEW_TEXT_LENGTH,
 } from './import-plan.js'

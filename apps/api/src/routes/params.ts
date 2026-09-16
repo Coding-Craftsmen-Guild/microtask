@@ -32,3 +32,14 @@ export const tabParams = taskParams.extend({ tabId: EntityId })
  * header, which is what keeps it out of server logs and `Referer` (ADR 0013).
  */
 export const shareLinkParams = projectParams.extend({ token: ShareToken })
+
+/**
+ * A route under `/import/sessions/{sessionId}`.
+ *
+ * Not an extension of {@link projectParams}: an import session is addressed above any project,
+ * because importing is what creates projects. It is a real {@link EntityId} so a session id that
+ * is not a ULID is a 422 from the validator, before a handler runs and before any path is built
+ * from it — the builders in `@repo/microtask-domain` check it again, and that backstop is only
+ * reachable by code that skipped this.
+ */
+export const sessionParams = z.object({ sessionId: EntityId })

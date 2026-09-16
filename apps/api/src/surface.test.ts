@@ -11,6 +11,7 @@ const SAMPLES: Readonly<Record<string, string>> = {
   taskId: IDS.t1,
   tabId: IDS.tab1,
   token: TOKENS.p1View,
+  sessionId: IDS.missing,
 }
 
 const concrete = (path: string): string =>
@@ -75,6 +76,7 @@ describe('guard (2): the credential matrix, per route group', () => {
       'auth',
       'export',
       'folders',
+      'import',
       'meta',
       'projects',
       'search',

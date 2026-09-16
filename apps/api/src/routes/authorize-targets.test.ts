@@ -66,11 +66,14 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
     expect(ACTION_DECISIONS['share:create'].target).toBe('own-scope')
   })
 
-  it('leaves only the actions with no route: workspace:import, workspace:search', () => {
+  it('leaves only the action whose gate names no literal to read: workspace:search', () => {
     const gated = new Set(gates().map((gate) => gate.action))
-    expect(ACTIONS.filter((action) => !gated.has(action))).toEqual([
-      'workspace:import',
-      'workspace:search',
-    ])
+    expect(ACTIONS.filter((action) => !gated.has(action))).toEqual(['workspace:search'])
+  })
+
+  it('finds workspace:import gated on the workspace, which is the target its row records', () => {
+    const imports = gates().filter((gate) => gate.action === 'workspace:import')
+    expect(imports.map((gate) => gate.target)).toEqual(['workspace', 'workspace'])
+    expect(ACTION_DECISIONS['workspace:import'].target).toBe('workspace')
   })
 })

@@ -1,5 +1,5 @@
 import * as contracts from '@repo/contracts'
-import { STAMP } from '@repo/microtask-domain/testing'
+import { STAMP, sequentialIds } from '@repo/microtask-domain/testing'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { docConfig } from '../http/docs.js'
@@ -35,6 +35,8 @@ interface Sample {
 
 const json = (value: unknown): string => JSON.stringify(value)
 
+const FIRST_SESSION = sequentialIds().entityId()
+
 const SAMPLES: Readonly<Record<string, Sample>> = {
   'POST /v1/auth/login': {
     path: '/v1/auth/login',
@@ -51,6 +53,20 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
   [`GET ${GUARDED_PREFIX}/export`]: {
     path: `${GUARDED_PREFIX}/export?tokens=preserve`,
     headers: admin(),
+  },
+  [`POST ${GUARDED_PREFIX}/import/sessions`]: {
+    path: `${GUARDED_PREFIX}/import/sessions`,
+    headers: admin(),
+  },
+  [`POST ${GUARDED_PREFIX}/import/sessions/{sessionId}/files`]: {
+    path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop/project.json`,
+    headers: { ...admin(), 'content-type': 'application/octet-stream' },
+    body: '{ "id": "a staged file" }',
+    setup: {
+      method: 'POST',
+      path: `${GUARDED_PREFIX}/import/sessions`,
+      headers: admin(),
+    },
   },
   [`GET ${GUARDED_PREFIX}/shares/current`]: {
     path: `${GUARDED_PREFIX}/shares/current`,

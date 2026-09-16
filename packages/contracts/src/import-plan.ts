@@ -227,3 +227,49 @@ export type ImportShapeValue = z.infer<typeof ImportShape>
 
 /** What will happen to a group, as a value rather than as a schema. */
 export type ImportOutcomeValue = z.infer<typeof ImportOutcome>
+
+/**
+ * A staged import session as it is opened, carrying the two bounds ADR 0044 sets on an upload.
+ *
+ * The caps are answered rather than left for a client to hard-code, because the browser is what
+ * slices each file: `Blob.slice()` is given `maxChunkBytes`, and a client carrying its own copy of
+ * that number would start being refused 413 the day the server's changed. `maxSessionBytes` is the
+ * other half — it is what lets a client say "this drop is too large for one session" before
+ * spending an upload on it, rather than learning it partway through.
+ *
+ * `openedAt` is the instant the sweep measures a session's age against (ADR 0045), so it is here
+ * for the same reason a manifest carries its stamps: the client can see how long it has.
+ */
+export const ImportSession = z
+  .object({
+    sessionId: EntityId,
+    openedAt: z.string(),
+    maxChunkBytes: z.number().int().positive(),
+    maxSessionBytes: z.number().int().positive(),
+  })
+  .meta({ id: 'ImportSession', description: 'An open import session and the bounds on uploading to it' })
+
+/**
+ * What one uploaded chunk added to a session.
+ *
+ * `path` is the path **the server** normalised, which is not always the one the client sent: the
+ * server re-runs `normaliseImportPath` on whatever arrives, so `a//./b` is staged at `a/b`. A
+ * client that assumed its own spelling survived would address the wrong file on the confirm, which
+ * is why this is answered rather than implied.
+ *
+ * It is deliberately **not** bounded here, where every other path-shaped field in this module is.
+ * The normaliser is the one authority on what a path may be and it carries its own length bound; a
+ * second, shorter bound restated here could only refuse a response describing bytes that are
+ * already staged — a 500 after the write, which is the worst of both answers.
+ *
+ * Both counts are bytes. `chunkBytes` is what this request contributed, which is what lets a
+ * client check the server counted the same number it sent; `sessionBytes` is the session's running
+ * total, measured against `maxSessionBytes`.
+ */
+export const ImportStagedChunk = z
+  .object({
+    path: z.string(),
+    chunkBytes: z.number().int().min(0),
+    sessionBytes: z.number().int().min(0),
+  })
+  .meta({ id: 'ImportStagedChunk', description: 'The path a chunk was staged at, and the bytes it added' })

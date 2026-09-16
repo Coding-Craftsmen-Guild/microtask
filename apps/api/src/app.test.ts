@@ -39,6 +39,7 @@ const SAMPLES: Readonly<Record<string, string>> = {
   taskId: SAMPLE_ID,
   tabId: SAMPLE_ID,
   token: SAMPLE_TOKEN,
+  sessionId: SAMPLE_ID,
 }
 
 const concrete = (path: string): string =>

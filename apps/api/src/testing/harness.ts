@@ -11,7 +11,8 @@ import {
   taskEntry,
   STAMP,
 } from '@repo/microtask-domain/testing'
-import { NodeFileSystem, QueueLock } from '@repo/store'
+import { MemoryFileSystem } from '@repo/kernel/testing'
+import { QueueLock } from '@repo/store'
 import { createApp } from '../app.js'
 import { AdminVerifier } from '../auth/admin-verifier.js'
 import type { ApiEnv } from '../auth/env.js'
@@ -131,6 +132,13 @@ const projectTwo = (): ProjectManifest =>
  * Project one carries two folders and four tasks — two inside `f1` and two at the root, so a
  * reorder of either group is a real permutation rather than a list of one — plus a link per role.
  * Project two carries a `manage` link of its own and nothing else. Everything is in memory.
+ *
+ * `fileSystem` is a {@link MemoryFileSystem} rather than the real adapter, because the import
+ * routes write through that port and `testConfig.dataDir` is `/srv/data`: with the real adapter a
+ * route test would create directories on the machine running it, at an absolute path chosen for a
+ * container. No caller is affected — the store here is a `MemoryProjectStore`, so nothing else in
+ * the fixture reaches this port — and a suite that wants to see what a route staged holds the
+ * deps this returns and reads them back through it.
  */
 export async function buildDeps(at: Clock = clock): Promise<ApiDeps> {
   const store = new MemoryProjectStore()
@@ -145,7 +153,7 @@ export async function buildDeps(at: Clock = clock): Promise<ApiDeps> {
   for (const project of [first, second]) tokens.add('microtask', project)
   return {
     config: testConfig,
-    fileSystem: new NodeFileSystem(),
+    fileSystem: new MemoryFileSystem(),
     store,
     lock: new QueueLock(),
     clock: at,

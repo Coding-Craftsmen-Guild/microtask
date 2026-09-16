@@ -70,3 +70,25 @@ export const globalBodyLimit: MiddlewareHandler = jsonBodyLimit(GLOBAL_BODY_LIMI
 
 /** The limiter for the tab-document write, declared in that route's own `middleware` array. */
 export const documentBodyLimit: MiddlewareHandler = jsonBodyLimit(DOCUMENT_BODY_LIMIT_BYTES)
+
+/**
+ * The cap on one import chunk, and the tighter half of ADR 0044's two bounds.
+ *
+ * Every import upload is chunked, uniformly — one code path, no size branch — so this is not a
+ * ceiling that only large files meet. A browser slices each harvested file (and a `.zip`) with
+ * `Blob.slice()` at this many bytes and posts each slice as a whole request body, which the API
+ * appends into the session's staging file. It is a quarter of {@link GLOBAL_BODY_LIMIT_BYTES},
+ * which is what keeps the two answers distinguishable: both limiters match the upload route and
+ * the first rejection wins, so a route that lost its own limiter would still answer 413 — only
+ * `maxBytes` says which cap refused it.
+ *
+ * Measured against the live volume this replaces: ADR 0044 records `data/projects/` as 8,608
+ * bytes across two files on 2026-09-12, so every file there is one chunk today. The reason the
+ * cap is not simply raised instead is that {@link GLOBAL_BODY_LIMIT_BYTES} is registered ahead of
+ * the credential guard, and raising it to cover the ~80 MB ceiling this product's own limits allow
+ * would hand that to every unauthenticated socket.
+ */
+export const IMPORT_CHUNK_LIMIT_BYTES = 1_000_000
+
+/** The limiter for an import chunk, declared in that route's own `middleware` array. */
+export const importChunkBodyLimit: MiddlewareHandler = jsonBodyLimit(IMPORT_CHUNK_LIMIT_BYTES)

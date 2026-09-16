@@ -74,4 +74,16 @@ export { shareView, type ShareView } from './views/share-view.js'
 export { taskView, type TaskView } from './views/task-view.js'
 export { FsProjectStore, type FsProjectStoreOptions } from './storage/fs-project-store.js'
 export { ShareIndex } from './storage/share-index.js'
-export { manifestFile, projectDir, projectsDir, taskFile, tasksDir } from './storage/paths.js'
+export {
+  buildDir,
+  buildRoot,
+  manifestFile,
+  projectDir,
+  projectsDir,
+  sessionMarkerFile,
+  stagedFile,
+  stagingDir,
+  stagingRoot,
+  taskFile,
+  tasksDir,
+} from './storage/paths.js'

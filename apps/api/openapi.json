@@ -806,6 +806,54 @@
         ],
         "description": "A Tiptap document, stored as JSON and never as HTML"
       },
+      "ImportSession": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "openedAt": {
+            "type": "string"
+          },
+          "maxChunkBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "maxSessionBytes": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "sessionId",
+          "openedAt",
+          "maxChunkBytes",
+          "maxSessionBytes"
+        ],
+        "description": "An open import session and the bounds on uploading to it"
+      },
+      "ImportStagedChunk": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "chunkBytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessionBytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "path",
+          "chunkBytes",
+          "sessionBytes"
+        ],
+        "description": "The path a chunk was staged at, and the bytes it added"
+      },
       "FolderList": {
         "type": "object",
         "properties": {
@@ -1608,6 +1656,212 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/microtask/import/sessions": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Open an import session",
+        "description": "Stages nothing yet. Every upload into this session is chunked, and opening one sweeps any session older than the staging TTL.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The session, with the chunk and session byte caps to upload within",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSession"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/microtask/import/sessions/{sessionId}/files": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Upload one chunk of one file into an import session",
+        "description": "The body is the raw bytes of one chunk, appended to this session in the order the chunks arrive. Nothing outside the session is touched.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "sessionId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "The normalised relative path this file was harvested at"
+            },
+            "required": true,
+            "description": "The normalised relative path this file was harvested at",
+            "name": "path",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The chunk, as raw bytes",
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The chunk was appended, and the session now holds this many bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStagedChunk"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
             "content": {
               "application/problem+json": {
                 "schema": {

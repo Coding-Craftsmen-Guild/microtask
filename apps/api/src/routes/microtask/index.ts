@@ -7,6 +7,7 @@ import { requirePrincipal } from '../../auth/require-principal.js'
 import type { ApiDeps } from '../../deps.js'
 import { exportWorkspace } from './export/handlers.js'
 import { workspaceExportRoute } from './export/routes.js'
+import { createImport } from './import/app.js'
 import { createProjectScoped } from './project-scoped.js'
 import { createProject, listProjects } from './projects/handlers.js'
 import { createProjectRoute, listProjectsRoute } from './projects/routes.js'
@@ -37,8 +38,10 @@ const resolverFor = (deps: ApiDeps): PrincipalResolver =>
  *
  * The five routes registered here rather than in the project-scoped child are the ones with no
  * project in their address: two collections, the bootstrap call that describes the caller's own
- * credential, a search that spans every project, and an export of all of them. The child is
- * mounted at `/projects/:projectId`, a path none of them has a value for.
+ * credential, a search that spans every project, and an export of all of them. `/import` is
+ * mounted beside them for a stronger version of the same reason — an import *creates* projects,
+ * so there is no project id it could hang under. The project-scoped child is mounted at
+ * `/projects/:projectId`, a path none of the six has a value for.
  */
 export function createMicrotask(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
@@ -49,6 +52,7 @@ export function createMicrotask(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   app.openapi(currentShareRoute, readCurrentShare(projects))
   app.openapi(searchRoute, search(new SearchService(deps)))
   app.openapi(workspaceExportRoute, exportWorkspace(deps))
+  app.route('/import', createImport(deps))
   app.route('/projects/:projectId', createProjectScoped(deps))
   return app
 }
