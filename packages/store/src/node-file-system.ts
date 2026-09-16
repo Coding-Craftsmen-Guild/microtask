@@ -33,6 +33,23 @@ export class NodeFileSystem implements FileSystem {
     }
   }
 
+  /** Reads a file's bytes, or returns null when it does not exist. */
+  async readBytes(file: string): Promise<Uint8Array | null> {
+    try {
+      const buffer = await fs.readFile(file)
+      return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    } catch (error) {
+      if (missing(error)) return null
+      throw error
+    }
+  }
+
+  /** Appends bytes to a file, creating it and its parent directories when absent. */
+  async appendBytes(file: string, bytes: Uint8Array): Promise<void> {
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    await fs.appendFile(file, bytes)
+  }
+
   /** Deletes a file, reporting whether it existed. */
   async remove(file: string): Promise<boolean> {
     try {
@@ -60,5 +77,22 @@ export class NodeFileSystem implements FileSystem {
       if (missing(error)) return []
       throw error
     }
+  }
+
+  /** Lists immediate file names, or an empty array when absent. */
+  async listFiles(dir: string): Promise<readonly string[]> {
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true })
+      return entries.filter((entry) => entry.isFile()).map((entry) => entry.name)
+    } catch (error) {
+      if (missing(error)) return []
+      throw error
+    }
+  }
+
+  /** Renames a file or directory onto an absent destination, creating its parent directories. */
+  async move(from: string, to: string): Promise<void> {
+    await fs.mkdir(path.dirname(to), { recursive: true })
+    await fs.rename(from, to)
   }
 }

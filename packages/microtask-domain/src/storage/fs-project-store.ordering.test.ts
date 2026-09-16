@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FileSystem } from '@repo/kernel'
+import { MemoryFileSystem } from '@repo/kernel/testing'
 import { manifest, taskDocument, taskEntry } from '../testing/index.js'
 import { FsProjectStore } from './fs-project-store.js'
 
@@ -7,37 +8,53 @@ const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const T = '01M240FB4GD6PF6V0PKZVF6FD9'
 const TAB = '01M240FB4GD6PF6V0PKZVF6FDA'
 
-class MemoryFileSystem implements FileSystem {
+class RecordingFileSystem implements FileSystem {
   readonly writes: string[] = []
   readonly removals: string[] = []
   readonly log: { op: 'write' | 'remove'; file: string }[] = []
   failOn: (file: string) => boolean = () => false
 
-  readonly #store = new Map<string, string>()
+  readonly #inner = new MemoryFileSystem()
 
   async readText(file: string) {
-    return this.#store.get(file) ?? null
+    return this.#inner.readText(file)
   }
 
   async writeTextAtomic(file: string, text: string) {
     if (this.failOn(file)) throw new Error('killed mid-write')
     this.writes.push(file)
     this.log.push({ op: 'write', file })
-    this.#store.set(file, text)
+    await this.#inner.writeTextAtomic(file, text)
+  }
+
+  async readBytes(file: string) {
+    return this.#inner.readBytes(file)
+  }
+
+  async appendBytes(file: string, bytes: Uint8Array) {
+    await this.#inner.appendBytes(file, bytes)
   }
 
   async remove(file: string) {
     this.removals.push(file)
     this.log.push({ op: 'remove', file })
-    return this.#store.delete(file)
+    return this.#inner.remove(file)
   }
 
-  async removeDir() {
-    return true
+  async removeDir(dir: string) {
+    return this.#inner.removeDir(dir)
   }
 
-  async listDirs() {
-    return []
+  async listDirs(dir: string) {
+    return this.#inner.listDirs(dir)
+  }
+
+  async listFiles(dir: string) {
+    return this.#inner.listFiles(dir)
+  }
+
+  async move(from: string, to: string) {
+    await this.#inner.move(from, to)
   }
 }
 
@@ -47,7 +64,7 @@ const step = ({ op, file }: { op: 'write' | 'remove'; file: string }) =>
   `${op} ${isManifest(file) ? 'manifest' : 'task'}`
 
 function setup() {
-  const files = new MemoryFileSystem()
+  const files = new RecordingFileSystem()
   const store = new FsProjectStore({ files, root: () => '/data' })
   const entry = manifest(P, { tasks: [taskEntry(T, 'Go-live')] })
   const emptied = manifest(P, { tasks: [] })
@@ -90,5 +107,13 @@ describe('write ordering (ADR 0006)', () => {
     await expect(store.deleteTask('microtask', emptied, T)).rejects.toThrow('killed mid-write')
     expect(files.removals).toEqual([])
     expect(await store.readTask('microtask', P, T)).not.toBeNull()
+  })
+
+  it('records the ordering over a filesystem that answers for the directories it wrote, not a stub that answers [] to everything', async () => {
+    const { store, entry } = setup()
+    await store.saveTask('microtask', entry, taskDocument(T, TAB))
+    expect((await store.listManifests('microtask')).map((found) => found.id)).toEqual([P])
+    expect(await store.deleteProject('microtask', P)).toBe(true)
+    expect(await store.listManifests('microtask')).toEqual([])
   })
 })
