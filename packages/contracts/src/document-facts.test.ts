@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import * as contracts from './index.js'
 import { countTasks, emptyDocument, SAFE_HREF_SCHEMES } from './document-facts.js'
@@ -49,6 +49,18 @@ const SOURCES = [
   new URL('../../../data/projects/01M240FB4GD6PF6V0PKZVF6FD9.json', import.meta.url),
 ] as const
 const hasProduction = SOURCES.every((source) => existsSync(source))
+
+const BACKUP = new URL('../../../data/projects/', import.meta.url)
+
+const liveFiles = (): readonly URL[] =>
+  existsSync(BACKUP)
+    ? readdirSync(BACKUP)
+        .filter((one) => one.endsWith('.json'))
+        .sort()
+        .map((one) => new URL(one, BACKUP))
+    : []
+
+const hasBackup = liveFiles().length > 0
 
 const FILLER = 'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor '
 const DASHED = FILLER.replaceAll(' ', '-')
@@ -276,11 +288,11 @@ describe('countTasks against the documents production actually holds', () => {
     expect(standsIn(['type', 'Jane at ACME'])).toBe(false)
   })
 
-  it.skipIf(!hasProduction)(
+  it.skipIf(!hasBackup)(
     'leaks not one stored string of three characters into either fixture, whatever its key',
     () => {
       const committed = FIXTURES.map((source) => readFileSync(source, 'utf8')).join('\n')
-      const stored = SOURCES.flatMap((source) => [...everyKeyedString(source)]).filter(
+      const stored = liveFiles().flatMap((source) => [...everyKeyedString(source)]).filter(
         ([key, value]) => !PRESERVED.has(key) && value.length >= SHORTEST_LEAK,
       )
       expect(stored.length).toBeGreaterThan(LEAKABLE_STRINGS)
@@ -288,7 +300,13 @@ describe('countTasks against the documents production actually holds', () => {
     },
   )
 
-  it.skipIf(!hasProduction)('counts the real file the same, on a machine that holds data/', () => {
+  it.skipIf(!hasBackup)('reads whatever backup data/projects holds, not two names that may be gone', () => {
+    expect(liveFiles().length).toBeGreaterThan(0)
+    const scanned = liveFiles().flatMap((source) => [...everyKeyedString(source)])
+    expect(scanned.length).toBeGreaterThan(LEAKABLE_STRINGS)
+  })
+
+  it.skipIf(!hasProduction)('counts the real file the same, where the two files it was derived from are still present', () => {
     const counted = tabsIn(PRODUCTION).map((tab) => [tab.name, countTasks(tab.document)] as const)
     expect(counted).toEqual([
       ['Go-live', { done: 6, total: 6 }],

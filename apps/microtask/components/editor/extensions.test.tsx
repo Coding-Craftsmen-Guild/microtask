@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Editor } from '@tiptap/core'
@@ -19,13 +19,83 @@ const stored = (directory: string, file: string): readonly StoredTab[] =>
 
 const DERIVED = ['legacy-project.fixture.json', 'legacy-project-2.fixture.json'] as const
 
-const PRODUCTION = ['01M240ERCRWWCN16Q5AHP1FZAQ.json', '01M240FB4GD6PF6V0PKZVF6FD9.json'] as const
+const PRODUCTION = (): readonly string[] =>
+  existsSync(DATA) ? readdirSync(DATA).filter((file) => file.endsWith('.json')).sort() : []
 
-const hasProduction = PRODUCTION.every((file) => existsSync(join(DATA, file)))
+const hasProduction = PRODUCTION().length > 0
 
 const every = (): readonly StoredTab[] => DERIVED.flatMap((file) => [...stored(FIXTURES, file)])
 
-const production = (): readonly StoredTab[] => PRODUCTION.flatMap((file) => [...stored(DATA, file)])
+const production = (): readonly StoredTab[] =>
+  PRODUCTION().flatMap((file) => [...stored(DATA, file)])
+
+const MANAGED_LINK_ATTRS = {
+  target: '_blank',
+  rel: 'noopener noreferrer nofollow',
+  class: null,
+  title: null,
+} as const
+
+const withManagedLinkAttrs = (node: unknown): unknown => {
+  if (Array.isArray(node)) return node.map((child) => withManagedLinkAttrs(child))
+  if (node === null || typeof node !== 'object') return node
+  const record = node as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'attrs' && record['type'] === 'link' && value !== null && typeof value === 'object') {
+      out[key] = { ...MANAGED_LINK_ATTRS, ...(value as Record<string, unknown>) }
+      continue
+    }
+    out[key] = withManagedLinkAttrs(value)
+  }
+  return out
+}
+
+const sameMarks = (left: unknown, right: unknown): boolean =>
+  JSON.stringify((left as Record<string, unknown>)['marks'] ?? null) ===
+  JSON.stringify((right as Record<string, unknown>)['marks'] ?? null)
+
+const isText = (node: unknown): boolean =>
+  node !== null && typeof node === 'object' && (node as Record<string, unknown>)['type'] === 'text'
+
+const mergeAdjacentText = (nodes: readonly unknown[]): readonly unknown[] =>
+  nodes.reduce<unknown[]>((out, node) => {
+    const last = out.at(-1)
+    if (last !== undefined && isText(last) && isText(node) && sameMarks(last, node)) {
+      const left = last as Record<string, unknown>
+      out[out.length - 1] = {
+        ...left,
+        text: `${String(left['text'])}${String((node as Record<string, unknown>)['text'])}`,
+      }
+      return out
+    }
+    out.push(node)
+    return out
+  }, [])
+
+const normalised = (node: unknown): unknown => {
+  if (Array.isArray(node)) return mergeAdjacentText(node).map((child) => normalised(child))
+  if (node === null || typeof node !== 'object') return node
+  const record = node as Record<string, unknown>
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [key, normalised(value)]),
+  )
+}
+
+const linkAttrSets = (node: unknown, found: string[][] = []): readonly string[][] => {
+  if (Array.isArray(node)) {
+    for (const child of node) linkAttrSets(child, found)
+    return found
+  }
+  if (node === null || typeof node !== 'object') return found
+  const record = node as Record<string, unknown>
+  const attrs = record['attrs']
+  if (record['type'] === 'link' && attrs !== null && typeof attrs === 'object') {
+    found.push(Object.keys(attrs as Record<string, unknown>).sort())
+  }
+  for (const value of Object.values(record)) linkAttrSets(value, found)
+  return found
+}
 
 const skeleton = (node: unknown): unknown => {
   if (Array.isArray(node)) return node.map((child) => skeleton(child))
@@ -89,8 +159,68 @@ describe('a stored production document survives Tiptap 3', () => {
     expect(raw).toContain('"checked": true')
   })
 
-  it.skipIf(!hasProduction)('mounts what production holds, the fixtures agreeing tab for tab', () => {
-    expect(shape(every())).toEqual(shape(production()))
+  it.skipIf(!hasProduction)('reads the live backup rather than a name that may not be there', () => {
+    expect(production().length).toBeGreaterThan(0)
+    expect(shape(production()).length).toBe(production().length)
+  })
+
+  it.skipIf(!hasProduction)('holds at least one live href, which is what the demo data never did', () => {
+    const raw = PRODUCTION().map((file) => readFileSync(join(DATA, file), 'utf8')).join('')
+    expect(raw).toContain('"href"')
+    expect(raw).toContain('"link"')
+  })
+
+  it.skipIf(!hasProduction)('holds both link shapes, so this is not one stored spelling', () => {
+    const sets = linkAttrSets(production().map((tab) => tab.document))
+    expect(sets.length).toBeGreaterThan(0)
+    expect(new Set(sets.map((one) => one.join(','))).size).toBeGreaterThan(1)
+    expect(sets.every((one) => one.includes('href'))).toBe(true)
+  })
+
+  it.skipIf(!hasProduction)('round-trips every live document under exactly two known normalisations', () => {
+    for (const tab of production()) {
+      const editor = mount(tab.document)
+      const mounted = editor.getJSON()
+      editor.destroy()
+      expect([tab.name, mounted]).toEqual([
+        tab.name,
+        normalised(withManagedLinkAttrs(tab.document)),
+      ])
+    }
+  })
+
+  it.skipIf(!hasProduction)('really does hold adjacent same-mark text nodes, so that normalisation is not idle', () => {
+    const unmerged = production().filter(
+      (tab) => JSON.stringify(normalised(tab.document)) !== JSON.stringify(tab.document),
+    )
+    expect(unmerged.length).toBeGreaterThan(0)
+  })
+
+  it.skipIf(!hasProduction)('changes no rendered text and no checked count when it merges them', () => {
+    const text = (node: unknown): string =>
+      Array.isArray(node)
+        ? node.map((child) => text(child)).join('')
+        : node === null || typeof node !== 'object'
+          ? ''
+          : `${String((node as Record<string, unknown>)['text'] ?? '')}${text(
+              (node as Record<string, unknown>)['content'],
+            )}`
+    for (const tab of production()) {
+      expect([tab.name, text(normalised(tab.document))]).toEqual([tab.name, text(tab.document)])
+      expect([tab.name, countTasks(normalised(tab.document))]).toEqual([
+        tab.name,
+        countTasks(tab.document),
+      ])
+    }
+  })
+
+  it.skipIf(!hasProduction)('counts the same checked items in every live document after mounting', () => {
+    for (const tab of production()) {
+      const editor = mount(tab.document)
+      const after = countTasks(editor.getJSON())
+      editor.destroy()
+      expect([tab.name, after]).toEqual([tab.name, countTasks(tab.document)])
+    }
   })
 
   it('counts the same twelve checked items before and after mounting', () => {
