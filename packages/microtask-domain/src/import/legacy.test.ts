@@ -192,6 +192,17 @@ describe('convertLegacyProject preserves ids', () => {
     expect(converted.documents.map((document) => document.id)).toEqual([T1, T2])
   })
 
+  it('keeps the project id and every tab id of a real legacy file, which is what the R3 redirect maps', () => {
+    for (const [, fixture] of each) {
+      const file = derived(fixture)
+      const converted = convert(file)
+      expect(file.tabs).not.toHaveLength(0)
+      expect(converted.manifest.id).toBe(file.id)
+      expect(converted.manifest.tasks.map((task) => task.id)).toEqual(file.tabs.map((tab) => tab.id))
+      expect(converted.documents.map((document) => document.id)).toEqual(file.tabs.map((tab) => tab.id))
+    }
+  })
+
   it('produces task ids that are ULIDs, which is what a task file can be named for', () => {
     for (const [, fixture] of each) {
       const converted = convert(derived(fixture))

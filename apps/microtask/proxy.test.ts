@@ -283,3 +283,29 @@ describe('the transfer page, which is admin-only and reachable from nowhere else
     expect(isRedirect(visit('/api/import/upload', { method: 'POST' }))).toBe(false)
   })
 })
+
+describe('the legacy admin address, which only a pre-cutover bookmark holds (ADR 0046)', () => {
+  const LEGACY = '/admin/projects/01HXYZ'
+
+  it('sends a navigation with no mt_admin to /login, keeping the legacy address as the deep link', () => {
+    const response = visit(`${LEGACY}?tab=01HABC`)
+    expect(response.status).toBe(307)
+    expect(locationOf(response)).toBe(`${ORIGIN}/login?next=%2Fadmin%2Fprojects%2F01HXYZ%3Ftab%3D01HABC`)
+  })
+
+  it('gates it as an admin page and never as the client surface, so it reaches no share handling', () => {
+    expect(isRedirect(visit(LEGACY))).toBe(true)
+    expect(matched(LEGACY)).toBe(true)
+  })
+
+  it('lets a real admin cookie through to the redirect, and writes no cookie on the way', () => {
+    const response = visit(LEGACY, { cookies: { [ADMIN_COOKIE]: ADMIN } })
+    expect(isRedirect(response)).toBe(false)
+    expect(cookieWrites(response)).toEqual([])
+  })
+
+  it('sends a cookie holding a link principal to /login, a client having no admin surface', () => {
+    const asLink = seal(SECRET, payloadOf({ kind: 'link', token: 'sharetoken-sharetoken' }))
+    expect(isRedirect(visit(LEGACY, { cookies: { [ADMIN_COOKIE]: asLink } }))).toBe(true)
+  })
+})

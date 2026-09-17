@@ -61,6 +61,7 @@ in the working tree.
 | [0043](0043-client-head-names-no-visitor.md) | The client head names no visitor: `Signed in as` is dropped, and the badge stays two-state | Accepted |
 | [0044](0044-uploads-are-chunked.md) | Every import upload is chunked, and the global body limit stands | Accepted |
 | [0045](0045-staging-and-build-roots.md) | Staging and build roots live beside `projects/`, never inside it | Accepted |
+| [0046](0046-legacy-admin-address-redirect.md) | The legacy admin address redirects, and a stale `?tab=` degrades instead of 404ing | Accepted |
 
 ## Amendments
 
@@ -122,13 +123,17 @@ of debt to where it now lives, kept here because this index is where a reader lo
 | (no ADR) → [0042](0042-three-parity-departures-on-the-surfaces.md) | Three behaviours built and tested with a record nowhere but their TSDoc: a read-only checkbox `disabled`, a share-link name required at minting, Sign out on every admin page (parity features 28, 43, 2 and U32, U39) |
 | (no ADR) → [0043](0043-client-head-names-no-visitor.md) | The one parity loss nothing decided: legacy's `Signed in as <link name>` is dropped rather than added to `ShareView` (parity feature 51) |
 
-The code gaps are deliberately **not** given a decision here, because each is scheduled work the
-parity audit already names and none of them is a record problem: there is no importer (feature 67),
-no redirect from the old admin addresses (route R3), and `QueueLock` plus the token index still
-assume a single replica (ADR 0030; plan 2 says ADR 0006 records whichever way that goes). Inventing
-decisions for them would put a choice in the index that nobody has made; each is named in the parity
-audit instead, with what it is waiting on. A fourth stood here — no `SIGTERM`/`SIGINT` handler,
-feature 71 — and was closed the same day by the fixes in the table above.
+The code gaps were deliberately **not** given a decision here, because each was scheduled work the
+parity audit already names and none of them was a record problem. Three of the four are now closed,
+and the rows are kept so the closing is legible: no `SIGTERM`/`SIGINT` handler (feature 71), closed
+on 2026-09-12 by the fixes in the table above; the importer, which exists as of the import/export
+plan (feature 67); and no redirect from the old admin addresses (route R3), closed on 2026-09-17 by
+[0046](0046-legacy-admin-address-redirect.md) — the decision the parity audit said had to be taken
+alongside ADR 0022, and which could not be taken until the importer existed to make a legacy
+`?tab=` mappable at all. What remains is `QueueLock` plus the token index still assuming a single
+replica (ADR 0030; plan 2 says ADR 0006 records whichever way that goes), and inventing a decision
+for it would put a choice in the index that nobody has made; it is named in the parity audit
+instead, with what it is waiting on.
 
 ## Verification
 

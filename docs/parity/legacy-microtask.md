@@ -27,6 +27,7 @@ is `git show legacy-prod:public/js/share.js`. `git show legacy-prod:apps/legacy/
 | 30-day cookie whose value **is** the password hash; any 401 hard-navigates to `/login`, losing the deep link | Two encrypted cookies, lifetime per credential, 401 handled per cookie — an admin gets `/login?next=`, a client gets a terminal page and never a password form | [ADR 0032](../adr/0032-two-cookies-url-wins.md) |
 | `read` / `write` permission on a link, changeable in place, name editable | `view` / `write` / `manage`; role still changeable in place, scope immutable; a link with no `permission` maps to `write`, not `view` | [0008](../adr/0008-three-roles-one-policy.md), [0035](../adr/0035-share-links-renamable-role-changeable.md), [0019](../adr/0019-token-identity-on-import.md) |
 | `/share/<token>`, any two-segment path, no token validation at the routing layer | `308` to `/s/<token>`; task scope lands on the task, project scope on a task list. Every `/s/*` route is `noindex`, not just one page | [0037](../adr/0037-share-url-shape.md), [0022](../adr/0022-hostname-continuity-gated-cutover.md) |
+| `/admin/projects/:projectId?tab=<tabId>`, the page rewriting its own URL to carry `?tab=` on every switch | `308` to `/p/:projectId`; a legacy tab id is a **task** id now, so a `?tab=` is a `307` to `/p/:projectId/t/<tabId>`, and one the project no longer holds falls back to the project page rather than 404ing | [0046](../adr/0046-legacy-admin-address-redirect.md), [0022](../adr/0022-hostname-continuity-gated-cutover.md) |
 | The projects list ships every project's full tab documents, plus `shareCount` | A `shareLinkCount` and a cached `TaskEntry` — tokens never leave `projects.read()`, and the list reads one manifest per project | [0033](../adr/0033-list-ships-no-share-tokens.md), [0034](../adr/0034-task-entry-carries-list-row.md) |
 | Tiptap 2.27.3, toolbar state refreshed on `onSelectionUpdate` **and** `onTransaction` | Tiptap 3.31.3 in `apps/microtask`, toolbar state from `useEditorState`. Stored documents are byte-for-byte compatible; `trailingNode` must be `false` or the first transaction mutates them | spec §11 |
 | One hand-written 598-line stylesheet, light theme only | `packages/ui` with Tailwind v4 and one shared theme. The Styling section below is the record of the visual identity worth carrying — indigo and gold, gold for the headline action and for "in progress", green only for complete | [ADR 0025](../adr/0025-shadcn-tailwind-shared-package.md) |
@@ -660,9 +661,9 @@ other way round: an old project becomes a Project and each old tab a Task holdin
 one `General` tab (spec §7.6). The UI rows below are audited against the task page; the data rows
 against the API and the domain.
 
-**Totals**, restated on 2026-09-12 as unit H2 left them. Features: 23 reproduced, 46 changed, 0
-dropped, 2 gaps. Routes: 1 reproduced, 22 changed, 1 dropped, 1 gap. Non-obvious UX: 22 reproduced,
-19 changed, 0 dropped, 0 gaps. **No row carries a dagger any more**: every behaviour built without a
+**Totals**, restated on 2026-09-17 as the import/export plan left them. Features: 24 reproduced, 46
+changed, 0 dropped, 1 gap. Routes: 2 reproduced, 22 changed, 1 dropped, 0 gaps. Non-obvious UX: 22
+reproduced, 19 changed, 0 dropped, 0 gaps. **No row carries a dagger any more**: every behaviour built without a
 decision record now has one (ADR 0042, ADR 0043), and the dagger is free for whatever earns it next.
 
 **Closed in this unit** (each was a gap when the audit started): the task page's title-row overall
@@ -743,7 +744,7 @@ styling (U14, U15, U38), the 640px steps (U37) and Escape on the share dialog (f
 | 64 | Name normalisation | REPRODUCED | `cleanName` in the domain, truncating by code point; prompts keep legacy's 200, inline fields cap at the 80 the API keeps and show what it stored. `packages/microtask-domain/src/limits.test.ts` cleanName block; `prompt-dialog.test` "caps the field at legacy 200 characters"; `inline-name.test` "caps what can be typed at the name length the API accepts" |
 | 65 | Hard caps and payload limits | CHANGED | 40 tabs, 50 links, one tab kept, 4 MB body → 413, bad JSON → 400, as legacy; the document cap is 2 MB in **bytes** (was characters); caps on tasks, folders and projects are new (spec §11 Caps). A refusal is said in the surface's words (ADR 0016 last amendment). `packages/microtask-domain/src/limits.test.ts` assertWithin; `apps/api/src/http/body-limits.test.ts` "matches the legacy transport bound exactly"; `actions/tabs.test` "answers the refusal of a task’s last tab as a failure"; `lib/refusal.test` |
 | 66 | Write serialisation | CHANGED | One process-wide queue, temp file then rename, and a directory per project — a manifest plus one file per task, written in order (ADR 0005, 0006). `packages/store/src/queue-lock.test.ts` "never overlaps two pieces of work"; `node-file-system.test.ts` "leaves one whole payload behind, never a mix of two"; `packages/microtask-domain/.../fs-project-store.ordering.test.ts` |
-| 67 | Legacy share-link migration | GAP | Spec §7.6 decides it — a link with no `permission` becomes `write` — but there is no importer at all (spec §7, ADR 0017, 0019), so nothing reads a legacy project file |
+| 67 | Legacy share-link migration | REPRODUCED | **Closed by the import/export plan** (spec §7, ADR 0017, 0019). A legacy file is classified, converted, previewed and written: `packages/microtask-domain/src/import/sniff.test.ts` "detects a legacy project by its four keys and the absence of format", "lets format win over the legacy keys"; `import/legacy.test.ts` "maps read to view and write to write, which is the §7.6 permission mapping", "maps a link with no permission to write, because the oldest links are write-capable", "takes a label as the name when a link carries no name, which older links did", "accepts a link with no name at all, because import is not minting (ADR 0042)", "preserves every token and scopes every link to the project it arrived with"; end to end through the API in `apps/api/src/routes/microtask/import-confirm.test.ts` "lands a legacy file as a project whose tasks keep the file’s own ids and stamps", "converts its read permission to a project-scoped view link that serves at once"; and through the admin surface in `app/(admin)/transfer/page.test` and `app/api/import/upload/route.test` |
 | 68 | Token index rebuilt at boot | REPRODUCED | Same single-process design (ADR 0002). `apps/api/src/runtime.test.ts` "indexes every share link already on disk, across every project", "resolves no token at all before it runs"; `share-index.test.ts` (all) |
 | 69 | Static asset serving | CHANGED | Next serves the app (ADR 0002, 0026): the raw shells are gone, the logo is `public/img/logo.webp`, and the proxy's matcher leaves assets alone. Caching is Next's own for everything served as a file, not the `no-cache` / `max-age=86400` split spec §11 used to describe — corrected there on 2026-09-12. The app sets `Cache-Control` twice and neither is an asset rule: `private, no-store` on the link surface (ADR 0040) and `public, max-age=3600` on the `/favicon.ico` **redirect**. One measurement is owed rather than a contradiction: the logo is not content-hashed, and what Next serves it with has not been measured. `app/layout.test` "serves that icon from this app’s own public directory"; `proxy.test` config block |
 | 70 | Error response shape | CHANGED | RFC 7807 problem documents with a closed code set (spec §12, ADR 0036). `apps/api/src/http/error-handler.test.ts`; `app/_document` routes' problem bodies in both document route tests |
@@ -759,7 +760,7 @@ unload flush cannot dispatch an action.
 | --- | --- | --- | --- |
 | R1 | `/` | CHANGED | The projects index; with no `mt_admin` a 307 to `/login`, not the form served at `/` (ADR 0032). `proxy.test` "sends %s to /login", "omits next= for the root" |
 | R2 | `/login` | REPRODUCED | Always the form, a signed-in admin keeping their session; success follows `?next=` (ADR 0032). `proxy.test` "touches neither cookie on %s, so a signed-in admin stays signed in"; `login/page.test` "passes a same-origin next= to the form" |
-| R3 | `/admin/projects/:projectId` | GAP | Replaced by `/p/[projectId]` and `/p/[projectId]/t/[taskId]`, with no redirect from the old address; no record decides whether admin bookmarks deserve the continuity `/share/` got (ADR 0022) |
+| R3 | `/admin/projects/:projectId` | REPRODUCED | **Closed by the import/export plan, Task 13.** The old address is answered rather than 404'd: a `308` to `/p/:projectId`, and a legacy `?tab=` — now a **task** id (spec §7.6) — a `307` to `/p/:projectId/t/<tabId>`, falling back to the project page for a tab the project no longer holds rather than 404ing. Admin bookmarks get the continuity `/share/` got, decided in [ADR 0046](../adr/0046-legacy-admin-address-redirect.md) alongside ADR 0022. `app/admin/projects/[projectId]/route.ts` · `route.test` "answers 308 to /p/<projectId>, the mapping §7.6 makes permanent", "maps onto /p/<projectId>/t/<tabId>, the task that tab became", "is answered 307 and never 308", "falls back when ?tab= names a tab this project does not hold", "maps every tab of fixture %i onto the task page of its own id"; the importer half of that mapping in `packages/microtask-domain/src/import/legacy.test.ts` "keeps the project id and every tab id of a real legacy file, which is what the R3 redirect maps"; the gate in `proxy.test` "sends a navigation with no mt_admin to /login, keeping the legacy address as the deep link"; the handler set in `api/handlers.test` "has exactly these three, so a fourth cannot appear without a decision" |
 | R4 | `/share/:token` | CHANGED | 308 to `/s/<token>`, query kept, encoded, hardened (ADR 0037, 0022). `share/[token]/route.test` (all) |
 | R5 | `/healthz` | CHANGED | On `apps/api` (row 4) |
 | R6 | Static files | CHANGED | Row 69 |
@@ -845,21 +846,20 @@ contradictions of the code are corrected where each sentence lives, dated and le
 plan's one alongside them.
 
 **Gaps still open.** Each is code that does not exist, not a record that is missing; the decision
-each needs is named, and none is this unit's to take. A fifth entry stood here until 2026-09-12 —
-feature 71, no `SIGTERM`/`SIGINT` handler — and is closed: `apps/api/src/lifecycle.ts` drains and
-exits 0 (ADR 0006 amendment).
+each needs is named, and none is this unit's to take. **Three entries stood here and are closed.**
+Feature 71, no `SIGTERM`/`SIGINT` handler, closed 2026-09-12: `apps/api/src/lifecycle.ts` drains
+and exits 0 (ADR 0006 amendment). Feature 67, there is no importer, closed 2026-09-16 by the
+import/export plan: a legacy file is classified, converted, previewed and written, and the
+`permission`-less link rule of §7.6 has code (row 67). Route R3, the old admin addresses, closed
+2026-09-17 by Task 13 of that plan and [ADR 0046](../adr/0046-legacy-admin-address-redirect.md):
+closing it needed the importer's tab-to-task id rule, which is why it waited, and the decision it
+needed alongside ADR 0022 is taken (row R3). One consequence of the second is worth carrying here
+rather than only in the ADR: importing a legacy project as a **copy** remints its ids (ADR 0019), so
+that project's old admin address then names nothing — the continuity holds for the cutover's own
+import, which creates or replaces.
 
-- **Feature 67 — there is no importer.** Spec §7 and ADRs 0017 and 0019 decide it, and nothing
-  builds it, so no legacy project file can be read into the new store and the `permission`-less
-  link rule of §7.6 has no code. This is the largest gap in the audit and a cutover blocker (ADR
-  0022); it is API and domain work. ADR 0042 adds one thing for it to honour: an imported link with
-  no **name** must be accepted, because import is not minting.
 - **Feature 37 — Back and Forward.** Evaluated in ADR 0016: no approach under the App Router is
   reliable enough to build.
-- **Route R3 — `/admin/projects/:projectId`.** Old admin addresses lead nowhere. A redirect to
-  `/p/:projectId` is safe if the importer preserves project ids, as spec §7.6 says it will; mapping
-  a legacy `?tab=` needs the importer's tab-to-task id rule, which does not exist yet. Needs a
-  decision alongside ADR 0022, and it cannot be taken before the importer exists.
 - **One replica, and the lock that assumes it.** Not a numbered row, and carried here because it is
   the other scheduled code gap a reader looks for: `QueueLock` is per-process and the token index is
   an in-memory `Map`, so a second API replica against the same data loses updates and cannot resolve

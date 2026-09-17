@@ -66,3 +66,22 @@ describe('the link surface keeps its own twin of the one handler it needs, and n
     expect(underS.some((file) => file.includes('import'))).toBe(false)
   })
 })
+
+describe('the handlers outside those two trees are the legacy redirects and the icon, and no other', () => {
+  it('has exactly these three, so a fourth cannot appear without a decision (ADR 0015, 0046)', () => {
+    const gated = new Set([...routeFiles(API), ...routeFiles(join(APP, 's'))])
+    const rest = routeFiles(APP).filter((file) => !gated.has(file))
+    expect([...rest].sort()).toEqual([
+      'admin/projects/[projectId]/route.ts',
+      'favicon.ico/route.ts',
+      'share/[token]/route.ts',
+    ])
+  })
+
+  it.each(['share/[token]/route.ts', 'admin/projects/[projectId]/route.ts'])(
+    'answers %s with a GET, a bookmark from the app being replaced being a navigation',
+    (file) => {
+      expect(read(file)).toMatch(/export async function GET\(/)
+    },
+  )
+})
