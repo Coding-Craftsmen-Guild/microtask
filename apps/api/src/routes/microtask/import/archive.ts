@@ -57,8 +57,17 @@ export const MAX_ARCHIVE_BYTES = 20_000_000
  * 1.1 MB of one paragraph repeated twelve thousand times. A bomb needs far more than any of them —
  * a megabyte of one repeated character reaches 1,014:1 and ten megabytes of zeros 1,028:1, against
  * the 1,032:1 the deflate format itself permits — so it has to live in the last few percent of that
- * range to be worth building. `archive.test.ts` re-measures every one of these against this
- * constant, so the claim fails a test rather than ageing quietly.
+ * range to be worth building.
+ *
+ * `archive.test.ts` re-measures every one of these figures **two-sided, to within a tenth**, so a
+ * figure that drifts fails a test rather than ageing quietly — the 19:1 manifest could otherwise
+ * reach 240:1 with a one-sided `toBeGreaterThan` green, which is exactly the rot this paragraph is
+ * exposed to. A tenth rather than a tighter band because these are `node:zlib`'s numbers and not
+ * this repo's: the format is fixed but the match heuristics are not, so a patch release may move a
+ * figure by a per cent or two, where the drift worth catching is the order of magnitude. The
+ * 1,032:1 is deflate's own arithmetic rather than a measurement — 258 bytes per match at a
+ * two-bit minimum — so what the suite pins about it is that every figure above stays under it and
+ * that this cap sits inside it.
  *
  * It is a per-entry rule, not an archive-wide one, because the average is what a bomb hides in: one
  * entry at 1,000:1 beside a hundred ordinary files averages out to nothing remarkable.

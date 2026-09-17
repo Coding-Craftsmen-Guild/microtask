@@ -32,6 +32,10 @@ const zeros = (length: number): Uint8Array => new Uint8Array(length)
 
 const compressionOf = (data: Uint8Array): number => data.length / deflateRawSync(data).length
 
+const RATIO_TOLERANCE = 0.1
+
+const DEFLATE_CEILING = 1032
+
 const noise = (length: number): Uint8Array => {
   const bytes = new Uint8Array(length)
   for (let at = 0; at < length; at += 1) bytes[at] = (at * 31 + 7) % 251
@@ -415,20 +419,38 @@ describe('the ratio cap admits what this product own files compress at', () => {
     expect(ratio).toBeLessThan(MAX_ARCHIVE_RATIO / 50)
   })
 
-  it('measures the repetitive shapes far higher, so neither figure is read as the other', () => {
-    expect(ratioOf(proseTask())).toBeGreaterThan(100)
-    expect(ratioOf(JSON.stringify(document(12_000, 'The same sentence over and over again.')))).toBeGreaterThan(200)
+  const repeatedTab = (): string =>
+    JSON.stringify(document(12_000, 'The same sentence over and over again.'))
+
+  it.each([
+    ['a manifest carrying forty tasks', 19, () => ENCODER.encode(bigManifest())],
+    ['forty tabs of one paragraph repeated sixty times', 150, () => ENCODER.encode(proseTask())],
+    ['1.1 MB of one paragraph repeated twelve thousand times', 287, () => ENCODER.encode(repeatedTab())],
+    ['a megabyte of one repeated character', 1_014, () => ENCODER.encode('a'.repeat(1_000_000))],
+    ['ten megabytes of zeros', 1_028, () => zeros(10_000_000)],
+  ])('measures %s at %i:1 to within a tenth, so that figure cannot age quietly', (_what, figure, build) => {
+    const ratio = compressionOf(build())
+    expect(ratio).toBeGreaterThan(figure * (1 - RATIO_TOLERANCE))
+    expect(ratio).toBeLessThan(figure * (1 + RATIO_TOLERANCE))
+  })
+
+  it('measures every one of them under the 1,032:1 deflate itself permits, the cap sitting inside it', () => {
+    const every = [bigManifest(), proseTask(), repeatedTab(), 'a'.repeat(1_000_000)]
+    for (const ratio of [...every.map(ratioOf), compressionOf(zeros(10_000_000))]) {
+      expect(ratio).toBeLessThan(DEFLATE_CEILING)
+    }
+    expect(MAX_ARCHIVE_RATIO).toBeLessThan(DEFLATE_CEILING)
   })
 
   it.each([
     ['a manifest carrying forty tasks', bigManifest],
     ['a task file of forty tabs of prose', proseTask],
-    ['a 1 MB tab document of one paragraph repeated', () => JSON.stringify(document(12_000, 'The same sentence over and over again.'))],
+    ['a 1 MB tab document of one paragraph repeated', repeatedTab],
   ])('compresses %s under the cap, so the cap refuses no file of ours', (_what, build) => {
     expect(ratioOf(build())).toBeLessThan(MAX_ARCHIVE_RATIO)
   })
 
-  it('leaves at least sixty per cent of headroom over the most repetitive of them', () => {
+  it('leaves at least fifty per cent of headroom over the most repetitive of them', () => {
     const worst = Math.max(ratioOf(bigManifest()), ratioOf(proseTask()))
     expect(worst).toBeLessThan(MAX_ARCHIVE_RATIO / 2)
   })
