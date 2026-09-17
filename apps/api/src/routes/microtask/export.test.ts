@@ -260,11 +260,30 @@ describe('the one condition that decides whether a response may carry live crede
 })
 
 describe('both export handlers run that condition, and each body says so for itself', () => {
-  it('keeps the unreachable workspace call site from being dropped as the reachable one covers it', async () => {
+  const CALLS_BUNDLER = /bundle[A-Za-z]*\)?\(/u
+
+  const bundlerCall = (source: string): string =>
+    source.split('\n').find((line) => CALLS_BUNDLER.test(line)) ?? ''
+
+  const disposed = (source: string): boolean =>
+    bundlerCall(source).includes('clearedDisposition(principal, tokens)')
+
+  it('reads the condition’s own result off the line that calls the bundler, in both handlers', async () => {
     const ctx = await buildDeps()
     expect([
-      String(exportWorkspace(ctx)).includes('clearedDisposition('),
-      String(exportProject(ctx)).includes('clearedDisposition('),
+      disposed(String(exportWorkspace(ctx))),
+      disposed(String(exportProject(ctx))),
     ]).toEqual([true, true])
+  })
+
+  it('refuses a body that calls it and discards the answer, which a substring check cannot tell apart', () => {
+    const discarded = [
+      'async (c) => {',
+      '  clearedDisposition(principal, tokens);',
+      '  return c.json(await bundleWorkspace(ctx, PRODUCT, tokens), 200);',
+      '}',
+    ].join('\n')
+    expect(discarded.includes('clearedDisposition(')).toBe(true)
+    expect(disposed(discarded)).toBe(false)
   })
 })
