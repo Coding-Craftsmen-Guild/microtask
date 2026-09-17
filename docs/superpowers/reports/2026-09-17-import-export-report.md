@@ -116,3 +116,32 @@ Recorded because each read as coverage while proving nothing:
   unfalsifiable.
 - The `?offset=` guard caught a missing parameter but not an empty one, so `Number('')` addressed a
   chunk at 0.
+- `ImportConfirmResult.projects` declared `.max(500)` while its own producer emits one row per
+  previewed group, which ADR 0017 leaves unbounded — so a 501-row confirm handed the admin a
+  `ZodError` from the client's own parse *after* the writes had landed and the session was swept.
+  Reachable, not hypothetical: 498 importable projects plus 3 unreadable files. The cap is gone;
+  `projectsPerProduct` stays where it decides what may be written, and `capped()` still blocks any
+  project that would overflow the store. `ImportConfirmRequest.choices` keeps its 500, correctly — a
+  choice is only needed for a colliding project, and a collision requires one already in the store.
+
+## Recommended next, deliberately not done here
+
+**Validate share links where the token index is built, not in the store.** The measured table in the
+plan's final-audit section splits into two classes, and only one is dangerous. An unparseable
+`project.json` is a loud failure once anyone looks — the project is simply gone. But `token: "x"`,
+`role: "wizard"` and an `id` disagreeing with its directory all **boot clean and index a
+credential**, which is a live authorization decision taken on unvalidated bytes.
+
+The surgical fix is for `warmTokenIndex` to parse each manifest's `shareLinks` with the `ShareLink`
+schema and refuse to index a link that fails, logging the project and the reason. It is strictly
+additive, changes no read an operator performs, keeps a damaged volume serving everything else, and
+closes the only row in that table where malformed disk content becomes authority.
+
+Full `ProjectManifest` validation inside `FsProjectStore.#readJson` is **not** recommended: it turns
+a one-file problem into "the project is gone" for shapes that render fine today — a null `position`
+is a client bug, not a store one — and it would make the store's contract "valid or absent", which
+`publishProject`'s partial-failure regions cannot honour (ADR 0045).
+
+Not done now because it changes an authorization path, and doing that immediately before a
+production cutover, untested against the real volume, is the wrong trade. It is reachable only
+through a volume this product did not write.
