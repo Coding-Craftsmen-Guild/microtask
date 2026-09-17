@@ -16,10 +16,28 @@ export interface WholeProject {
 
 /** Persistence for projects, with the write ordering that keeps a crash recoverable. */
 export interface ProjectStore {
-  /** Reads every project manifest, newest update first. */
+  /**
+   * Reads every project manifest, newest update first.
+   *
+   * A project whose manifest {@link readManifest} answers `null` for is **left out**, which for an
+   * undecodable manifest means the project is absent from every listing rather than reported as
+   * damaged — and a share link on it therefore 401s, the token index being built from this. That
+   * is recorded rather than recommended: it is pinned by this port's contract suite so it cannot
+   * be discovered on a volume instead.
+   */
   listManifests(product: Product): Promise<readonly ProjectManifest[]>
 
-  /** Reads one project manifest, or null when the project does not exist. */
+  /**
+   * Reads one project manifest, or null when the project is absent or its content cannot be
+   * decoded — the same two branches {@link readTask} answers `null` for, and for the same reason:
+   * one damaged file is not grounds for failing a read the rest of the volume can serve.
+   *
+   * Neither branch is a schema check. An implementation promises only that what it answers came
+   * back from its own encoding; a manifest that decodes to the wrong *shape* is answered as it was
+   * stored. Nothing in the product writes one — `drop-checks.ts` parses every imported manifest
+   * and every service writes a value the entity types describe — so the shapes this admits arrive
+   * only by a hand on the volume.
+   */
   readManifest(product: Product, projectId: string): Promise<ProjectManifest | null>
 
   /** Reads one task's tabs, or null when the task is absent or its content cannot be decoded. */

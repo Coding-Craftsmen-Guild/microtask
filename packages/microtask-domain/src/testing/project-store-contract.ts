@@ -37,6 +37,13 @@ export interface StoreHarness {
    * that listManifests leaves it out rather than failing. Optional for the same reason.
    */
   addContainerWithoutManifest?(product: Product, name: string): Promise<void>
+
+  /**
+   * Stores content of the harness's choosing under a project's manifest key, bypassing whatever
+   * encoding the adapter uses, so the contract can pin what a manifest the store cannot decode
+   * does to a read and to a listing. Optional for {@link writeUndecodableTask}'s reason.
+   */
+  writeUndecodableManifest?(product: Product, projectId: string, raw: string): Promise<void>
 }
 
 function renameInPlace(target: { readonly name: string } | undefined, name: string): void {
@@ -220,6 +227,25 @@ export function describeProjectStore(name: string, makeHarness: () => StoreHarne
         await store.saveManifest('microtask', manifest(P1))
         await harness.addContainerWithoutManifest?.('microtask', P2)
         expect((await store.listManifests('microtask')).map((m) => m.id)).toEqual([P1])
+      },
+    )
+
+    it.skipIf(!harness.writeUndecodableManifest)(
+      'reads a manifest it cannot decode back as null rather than throwing, as it does a task',
+      async () => {
+        await fresh()
+        await harness.writeUndecodableManifest?.('microtask', P1, '{ "tasks": [ truncated')
+        expect(await store.readManifest('microtask', P1)).toBeNull()
+      },
+    )
+
+    it.skipIf(!harness.writeUndecodableManifest)(
+      'drops that project from the listing rather than raising, so it is absent and not damaged — which is what strands every share link on it',
+      async () => {
+        await fresh()
+        await store.saveManifest('microtask', manifest(P2))
+        await harness.writeUndecodableManifest?.('microtask', P1, '{ "tasks": [ truncated')
+        expect((await store.listManifests('microtask')).map((m) => m.id)).toEqual([P2])
       },
     )
 

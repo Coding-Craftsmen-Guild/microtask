@@ -5,7 +5,7 @@ import type { Product } from '@repo/kernel'
 import { NodeFileSystem } from '@repo/store'
 import { describeProjectStore } from '../testing/index.js'
 import { FsProjectStore } from './fs-project-store.js'
-import { projectsDir, taskFile } from './paths.js'
+import { manifestFile, projectsDir, taskFile } from './paths.js'
 
 describeProjectStore('FsProjectStore', () => {
   let root = ''
@@ -26,6 +26,11 @@ describeProjectStore('FsProjectStore', () => {
     },
     async addContainerWithoutManifest(product: Product, name: string) {
       await mkdir(path.join(projectsDir(root, product), name), { recursive: true })
+    },
+    async writeUndecodableManifest(product: Product, projectId: string, raw: string) {
+      const file = manifestFile(root, product, projectId)
+      await mkdir(path.dirname(file), { recursive: true })
+      await writeFile(file, raw)
     },
   }
 })
