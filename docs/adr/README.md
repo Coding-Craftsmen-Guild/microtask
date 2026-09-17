@@ -217,3 +217,50 @@ The fixtures under `packages/contracts/src/testing/` are derived from these same
 bounds what has been published to this public repository — but the derivation is written to be safe
 for the live volume too, because `fixture:derive` is a step the import runbook will eventually run
 on a machine that holds it.
+
+### Amendment, 2026-09-17 — the live dataset is now present, and has been inspected
+
+"Nothing in this repository has ever inspected the live dataset" stopped being true today. The
+product owner replaced `data/projects/` with the live Coolify backup, and the import/export phase's
+Task 14 measured against it. The section above is left standing because it is the correct account of
+every record written before this date; what follows is what changed.
+
+**What the live backup holds.** Four projects in the legacy shape — `{id,name,tabs[],shareLinks[]}`
+with no `format` key, so the importer reads them as they stand and the runbook's "convert locally"
+step is not needed. Seventeen tabs, five share links, three `href` values. Nothing about it is
+recorded here beyond shape and counts, and nothing derived from it is committed: the fixtures are
+still the derivations of the old local pair, which is why two `document-facts.test.ts` cases skip.
+The fixture leak check now runs against the live backup and passes, so no stored string of three
+characters or more from the real data appears in either committed fixture.
+
+**0029's claim is resolved, and the allowlist was load-bearing as assumed.** Three `href` values,
+two `https` and one `http`. Both schemes are in `SAFE_HREF_SCHEMES`, so nothing in the live data is
+refused — but the allowlist is reached rather than skipped, and removing `assertSafeDocument` from
+the import path reds three tests. 0029's own text is corrected in place.
+
+**0039's caveat is resolved, and the guess in it was half right.** A stored `link` mark does gain
+`"title": null` under Tiptap 3 — but only that, for most of the live links, because the legacy app
+already wrote `target`, `rel` and `class`. The live data carries **two** stored link shapes: two
+links with `{class,href,rel,target}` and one with `href` alone, which gains all four. Two of the
+four are this app's own configured `HTMLAttributes`, so an imported legacy link that carried no
+`rel` is stamped with the one that stops a tabnabbing link.
+
+A second normalisation was found that no synthetic case would have shown: the legacy app stored
+**adjacent text nodes with identical marks** separately, and ProseMirror merges them on mount. So
+"stored documents round-trip unchanged" holds under exactly two normalisations, each now pinned and
+each proven non-idle — rendered text and checked counts are untouched, and at least one live
+document is changed by the merge. The practical consequence is unchanged from what 0039 predicted:
+the first edit of such a tab rewrites the document, benignly.
+
+**0042 and 0043 lose their evidence, and keep their conclusion.** Their justification was that
+*production data already contains* a blank share-link name. That is true of the old local pair and
+**false of the live data**: all five live links carry a name, all five carry a `permission`, and
+none uses a `label` key. The section above already says the right thing for the right reason —
+accepting a blank on read and refusing to mint one is defensive against any stored blank, not
+evidence of one — so the behaviour stands and only the evidence is withdrawn.
+
+Worth carrying for the cutover: three legacy rules the importer implements are therefore **not**
+exercised by this volume — a link with no `permission` mapping to write-capable, a link carrying
+only a `label`, and a blank name. They are covered by unit tests in
+`packages/microtask-domain/src/import/legacy.test.ts` and by nothing else. If a second legacy volume
+is ever imported, those are the three to look for first.

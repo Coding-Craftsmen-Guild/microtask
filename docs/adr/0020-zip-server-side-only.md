@@ -27,6 +27,28 @@ The expander enforces, before writing anything:
 Expansion happens into a staging directory, and the result then goes through exactly the same
 directory-group sniffing as a dropped folder (ADR 0018).
 
+### Amendment, 2026-09-17 — two of those four are enforced *while* writing, not before it
+
+"Before writing anything" is true of the entry-name, symlink and entry-count rules, which are
+decided from the central directory before a byte is staged. It is **not** true of the
+uncompressed-size and compression-ratio caps, and Task 8 found that while building the expander.
+
+Both are enforced per chunk inside the inflate stream, so a bomb is refused only once it has
+declared itself — by which point earlier, innocent entries are already staged. The reason is that
+the alternative is worse rather than better: a size a zip's own header *claims* is attacker-chosen,
+so a cap checked against the header is a cap checked against a number the attacker wrote, and
+measuring the real expansion means expanding. Rolling back the entries already staged was
+considered and rejected — the session is swept on confirm and on the next session's sweep either
+way (ADR 0045), and a rollback path would be a second deletion route over a path the sweep already
+owns.
+
+What that costs is bounded and stated: at most `MAX_ARCHIVE_ENTRIES` entries and
+`MAX_SESSION_BYTES` of staged residue from a refused archive, inside a session that is swept and
+that no read path in the product can reach. What it buys is that the cap measures the bytes that
+actually arrived. The code says so at the enforcement site, and the tests measure that a refused
+bomb stages nothing while an earlier legitimate entry survives — so the honest guarantee is
+"refused before anything is **published**", not before anything is written.
+
 ## Consequences
 
 - One archive dependency, in the one process that is already trusted and already owns the disk —

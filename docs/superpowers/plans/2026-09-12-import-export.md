@@ -3,6 +3,15 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development to execute
 > this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status 2026-09-17: complete. The per-step boxes below were not maintained during execution** —
+> the practice lapsed one plan earlier, in `2026-09-11-microtask-app.md`. They are deliberately left
+> unticked rather than back-filled, because a tick asserts that step was verified and back-filling
+> 127 of them at the end would assert something nobody checked step by step. What *was* verified is
+> in [the completion report](../reports/2026-09-17-import-export-report.md): the gate, the live-data
+> migration, every deliberate difference from this plan with its reason, and the guards found dead or
+> vacuous along the way. The final-audit section at the foot of this file carries its own findings
+> inline, including one item where this plan's stated *reason* turned out to be wrong.
+
 **Goal:** Build the drop-in import/export capability specified in §7 of the design, which is both a
 product feature and the **only** path from the live one-file-per-project data on Coolify to the
 directory-per-project layout this repo now writes (ADR 0005, ADR 0017).
@@ -966,13 +975,19 @@ in this task's file list on purpose: the port grows once, in 6a.
 
 ### Task 8: zip expansion
 
-**Files:** create `apps/api/src/routes/microtask/import/zip.ts` + test, with fixture archives;
-modify `apps/api/package.json`.
+**Files:** create `apps/api/src/routes/microtask/import/archive.ts` + test, with fixture archives;
+modify `apps/api/package.json`. *(Built as `archive.ts`, not the `zip.ts` first written here: the
+module expands a staged archive rather than knowing a format, and `zip.ts` invited a second one
+beside it.)*
 **Depends on:** **Task 6a** — reading a staged archive's bytes needs `readBytes`, and enumerating
 what a session staged needs `listFiles`. Both arrive in 6a, not here.
 
-ADR 0020 names four hardening rules and the design names five. All are enforced **before anything is
-written**, and each has a fixture.
+ADR 0020 names four hardening rules and the design names five, and each has a fixture. **Three of
+them — entry name, symlink, entry count — are enforced before anything is written. The size and
+ratio caps are not, and cannot be**, which the bullet below states correctly and which this
+sentence used to contradict: a size a zip's own header claims is attacker-chosen, so measuring the
+real expansion means expanding. The honest guarantee is "refused before anything is **published**".
+Corrected here and amended in ADR 0020 on 2026-09-17.
 
 - [ ] Entry-name rejection: `..`, absolute, drive letter. Symlink entries refused outright, never
       followed. An entry-count cap.
@@ -1270,8 +1285,24 @@ Only after Tasks 1–13 are green. This is the task the whole plan exists for.
       alongside it.
 - [ ] No share token appears in any stripped export, or anywhere in a preview response, asserted on
       the serialised body.
-- [ ] A malformed imported manifest cannot reach disk — pinned by the schema-conformance check, whose
-      absence is a boot failure rather than a render failure.
+- [x] A malformed imported manifest cannot reach disk — pinned by the schema-conformance check in
+      `import/drop-checks.ts`, which runs `ProjectManifest.safeParse` before conversion and blocks
+      the row, so nothing reaches the store. Nine cases in `import/checks.test.ts`; short-circuiting
+      the parse reds all nine.
+      **The stated reason was wrong, and measured on 2026-09-17 it is wrong in the more dangerous
+      direction.** "Whose absence is a boot failure rather than a render failure" holds for exactly
+      one family of malformation — `shareLinks` missing or not an array, which `warmTokenIndex`
+      dereferences — and that family was already the one pinned twice. For the rest, measured
+      against the real `NodeFileSystem` + `FsProjectStore` on a temp data root, one malformation per
+      run: an **unparseable** `project.json` boots fine and `listManifests` silently returns **zero**
+      projects for it, so the project vanishes and every share link on it 401s forever; a
+      **parseable but schema-invalid** one is *trusted*, so `token: "x"` is indexed as a live bearer
+      credential and a bogus `role` 500s every request it makes; and `"position": null` is precisely
+      the **render** failure this line says it is not. `FsProjectStore` performs no schema validation
+      at all — `#readJson` is `JSON.parse(raw) as T` inside a catch returning `null`. That is
+      pre-existing and unreachable *through the product*, because the import path validates, so it
+      is recorded rather than changed here: the port contract now names the undecodable branch, and
+      a committed test pins the silent skip so it is documented rather than rediscovered.
 - [ ] Every ADR this plan required (0044, 0045) is committed, and the record of the R3 decision with
       them.
 - [ ] The report names every deliberate difference from the design with its reason.

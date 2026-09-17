@@ -54,6 +54,15 @@ Tiptap 2 wrote gains one attribute, `title: null`, the first time Tiptap 3 write
 the amendment below. Corrected 2026-09-12: that dataset is the local development copy, not the
 live volume — so re-run this round-trip against the real data during import, where it is cheap,
 because a live document carrying a link is rewritten by its first edit.)*
+*(Re-run 2026-09-17 against the live volume, as that correction asked. The equality holds, under
+exactly two normalisations that are now pinned and each shown to be non-idle. **One** is the
+`title` this ADR predicted — and only that for most live links, because the legacy app already
+wrote `target`, `rel` and `class`; the live data holds two link shapes, one full and one carrying
+`href` alone, and only the bare one gains all four. **The other was not predicted**: the legacy app
+stored adjacent text nodes with identical marks separately, and ProseMirror merges them on mount,
+so the stored JSON of at least one live document differs after mounting for a reason that has
+nothing to do with links. Neither normalisation changes rendered text or a progress count, which is
+what this paragraph's licence actually rests on, so the conclusion is unchanged.)*
 
 **`trailingNode: false` is required.** StarterKit 3 bundles `TrailingNode`, which v2 had no
 equivalent of. It appends an empty trailing paragraph on the **first transaction** against any

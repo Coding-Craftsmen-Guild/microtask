@@ -90,6 +90,12 @@ depth in one pass, but would reject a document for writing about prototype pollu
   *(Corrected 2026-09-12: that dataset is the local development copy in `data/projects/`, not the
   live volume, which nothing here has inspected — see the scoping note in the ADR index. Treat the
   allowlist as load-bearing from the first import rather than eventually.)*
+  *(Settled 2026-09-17, the live volume now being present: it holds three `href` values across two
+  projects, two `https` and one `http`. Both schemes are allowed, so nothing live is refused — but
+  the allowlist is reached rather than skipped, and it is load-bearing on the **import** path and
+  not only the editor's: removing `assertSafeDocument` from `import/project-checks.ts` reds three
+  tests, one of them the `javascript:` href naming all three of its coordinates. A committed test
+  now asserts those hrefs are present, so this bullet cannot go stale again without failing.)*
 
 ## Alternatives considered
 
