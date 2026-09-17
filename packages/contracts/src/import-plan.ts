@@ -260,7 +260,11 @@ export const ImportSession = z
  * client that assumed its own spelling survived would address the wrong file on the confirm, which
  * is why this is answered rather than implied.
  *
- * It is deliberately **not** bounded here, where every other path-shaped field in this module is.
+ * It is deliberately **not** bounded here, and neither is {@link ImportExpansion}'s `archive`,
+ * which is the same staged path answered by the route that removes it. The one path-shaped field
+ * in this module that *is* bounded is `previewGroupFields.path`, and it is bounded because a
+ * preview row's text is elided to fit rather than answered whole.
+ *
  * The normaliser is the one authority on what a path may be and it carries its own length bound; a
  * second, shorter bound restated here could only refuse a response describing bytes that are
  * already staged — a 500 after the write, which is the worst of both answers.

@@ -64,8 +64,16 @@ async function pathsUnder(
  * leaves the marker naming a file that is gone — and a preview built from it would have to either
  * skip that row silently, which is the failure ADR 0018 exists to close, or refuse the whole
  * session over debris. What is on disk is what is previewed, and what is previewed is what is
- * written. Recursion is bounded by `normaliseImportPath`, which caps a path at 1,024 characters
- * and therefore a nesting depth at 512.
+ * written.
+ *
+ * The recursion below is bounded by **what the writers normalised**, not by anything it checks
+ * itself: `pathsUnder` walks `fileSystem.listDirs` and never calls `normaliseImportPath`. Every
+ * path a session holds was staged through a route that did — an upload's `path` query and an
+ * archive's entry names both go through it, and it caps a path at 1,024 characters and therefore a
+ * nesting depth at 512 — so the depth here is 512 for the tree this product wrote, and is whatever
+ * the volume holds for a tree it did not. That is a weaker guarantee than the normaliser applied
+ * here would be, and it is the accurate one: a directory a hand or an unrelated process created
+ * under the staging root is walked to whatever depth it has.
  *
  * A file whose bytes are not JSON comes back as `json: null`, which classification reports as a
  * row rather than a throw: a drop of ten directories where one holds a truncated file still has

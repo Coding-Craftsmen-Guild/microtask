@@ -93,9 +93,11 @@ export type CapabilityAction = keyof typeof ROWS
  * so it is recorded as such; what a link holder may ask instead is `project:read` or
  * `task:read`, which have rows of their own.
  *
- * `export:run` and `workspace:import` both have routes now — two export addresses and two
- * import-session addresses — and the scan above confirms both targets against the `authorize()`
- * call each handler makes. `workspace:search` is the one row left that the scan cannot confirm,
+ * `export:run` and `workspace:import` both have routes now — two export addresses, and **five**
+ * import-session ones: open a session, upload a chunk, expand an archive, preview, confirm — and
+ * the scan above confirms both targets against the `authorize()` call each handler makes. That
+ * five is the count `authorize-targets.test.ts` asserts, gate by gate, rather than a number read
+ * off this comment. `workspace:search` is the one row left that the scan cannot confirm,
  * and for the reason the paragraph above gives rather than for want of a route: its gate names a
  * computed action and a computed target, so there is no literal in the source to read.
  *

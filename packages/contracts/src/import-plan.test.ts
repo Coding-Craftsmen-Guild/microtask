@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   ConflictChoice,
   ImportConfirmRequest,
+  ImportExpansion,
   ImportOutcome,
   ImportPreview,
   ImportPreviewGroup,
   ImportPreviewShareLink,
   ImportShape,
+  ImportStagedChunk,
   MAX_PREVIEW_REASONS,
   MAX_PREVIEW_TEXT_LENGTH,
 } from './import-plan.js'
@@ -288,5 +290,23 @@ describe('the three refined shapes are built on a base rather than derived from 
     expect(() => ImportPreviewGroup.omit({ path: true })).toThrow(/refinements/)
     expect(() => ImportPreview.partial()).toThrow(/refinements/)
     expect(() => ImportConfirmRequest.pick({ sessionId: true })).toThrow(/refinements/)
+  })
+})
+
+describe('the one path-shaped field this module bounds is a preview row’s, the rest being answers', () => {
+  const long = 'x'.repeat(MAX_PREVIEW_TEXT_LENGTH + 1)
+
+  it('refuses a row whose path is longer than a row may render, the builder eliding it first', () => {
+    expect(ImportPreviewGroup.safeParse(group({ path: long })).success).toBe(false)
+  })
+
+  it('takes a staged chunk at that length, the normaliser being the only authority on a path', () => {
+    const staged = { path: long, chunkBytes: 1, sessionBytes: 1 }
+    expect(ImportStagedChunk.safeParse(staged).error?.issues ?? []).toEqual([])
+  })
+
+  it('takes an expansion’s archive path too, that being the same staged path answered back', () => {
+    const expansion = { archive: long, files: 1, bytes: 2, sessionBytes: 3 }
+    expect(ImportExpansion.safeParse(expansion).error?.issues ?? []).toEqual([])
   })
 })
