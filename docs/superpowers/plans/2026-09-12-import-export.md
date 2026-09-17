@@ -3,7 +3,9 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development to execute
 > this plan task by task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **Status 2026-09-17: complete. The per-step boxes below were not maintained during execution** —
+> **Status 2026-09-17: Tasks 1–13 complete and pushed; Task 14 is the operator's and is partly
+> open — see its own section. The final-audit boxes are ticked with their evidence. The per-step
+> boxes inside Tasks 1–13 were not maintained during execution** —
 > the practice lapsed one plan earlier, in `2026-09-11-microtask-app.md`. They are deliberately left
 > unticked rather than back-filled, because a tick asserts that step was verified and back-filling
 > 127 of them at the end would assert something nobody checked step by step. What *was* verified is
@@ -1260,31 +1262,70 @@ exists"*. Task 3 creates that rule, so this is the task that closes it.
 
 Only after Tasks 1–13 are green. This is the task the whole plan exists for.
 
-- [ ] The operator takes a backup first. Stated in the report, not assumed.
-- [ ] **Re-run the Tiptap round-trip against data containing links.** The existing round-trip was
-      measured on demo data with **zero** `href` values, so a v2 `link` mark gaining `"title": null`
-      on mount is unproven. Cheap to run, expensive to miss.
-- [ ] **`SAFE_HREF_SCHEMES` is load-bearing from the first import.** The demo data exercised no href
-      at all; the real data will.
+**Status 2026-09-17: two of six done, four are the operator's and are open.** The live backup is
+present in `data/projects/` and everything testable about it has been measured; what remains needs a
+deployed instance and a browser, which no test here can stand in for.
+
+- [ ] The operator takes a backup first. Stated in the report, not assumed. — **stated**
+      ([report](../reports/2026-09-17-import-export-report.md), "What the operator still has to
+      do"), **not performed**: the backup is the rollback (ADR 0022) and taking it is the operator's
+      act.
+- [x] **Re-run the Tiptap round-trip against data containing links.** Done, `8dbba6d`. The guess in
+      this line was half right: a stored mark gains `"title": null` — and *only* that for two of the
+      three live links, because the legacy app already wrote `target`, `rel` and `class`; the third
+      carries `href` alone and gains all four. A second normalisation was found that no synthetic
+      case shows: the legacy app stored **adjacent same-mark text nodes** separately and ProseMirror
+      merges them. Rendered text and checked counts are untouched. ADR 0039 amended.
+- [x] **`SAFE_HREF_SCHEMES` is load-bearing from the first import.** Done. Three live hrefs, two
+      `https` and one `http` — both allowed, so nothing live is refused, but the allowlist is
+      reached. Load-bearing on the **import** path and not only the editor's: removing
+      `assertSafeDocument` from `import/project-checks.ts` reds 3. ADR 0029 settled.
 - [ ] Import the real volume through the UI. Read the preview: project and task counts, the
-      manifest/file cross-check by id, and every share link with its role and scope.
+      manifest/file cross-check by id, and every share link with its role and scope. — **the API
+      half is proven, the UI half is not.** `import-live-backup.test.ts` drives the real composed app
+      over the real four files (open session → chunked upload → preview → confirm): 4 projects under
+      their own ids, 17 tabs as tasks under the tabs' own ids, documents byte-identical, 3 hrefs
+      intact, cross-check agreeing per row, every link shown with role and scope and no token. What
+      no test replaces is a human in a browser: `DropZone` → chunked upload → panel → confirm has
+      component and route tests but has never been exercised end to end against this volume.
 - [ ] Assert against the live app that each pre-existing share URL still opens the same content with
       the same permission. A legacy link with no `permission` must still be write-capable, and a
-      legacy link carrying only a `label` must still show its name.
+      legacy link carrying only a `label` must still show its name. — **asserted against the composed
+      app, not a deployed one.** All 5 live tokens serve `GET /shares/current` 200 at `write` against
+      the right project, and resolve again from a cold `ShareIndex` as a restart would. **The two
+      sub-clauses cannot be checked against this volume at all**: all five live links carry a `name`
+      and a `permission`, and none uses `label`, so the no-`permission` and `label`-only rules are
+      covered by `import/legacy.test.ts` and by nothing else. They are what to look for first if a
+      second legacy volume is ever imported.
 - [ ] Coolify auto-deploy is disabled before any merge to `main`, and the compose service name is
       settled. Coolify keys domains by service name; merging with the service still named `microtask`
-      would point the production FQDN at an empty database.
+      would point the production FQDN at an empty database. — **open, and the one that can lose
+      production.**
 
 ---
 
 ## Final audit
 
-- [ ] Four gates cold: `Cached: 0`.
-- [ ] `node scripts/check-exports.mjs` exits 0.
-- [ ] The export round-trip passes from a **populated** data root, with the positive token assertion
-      alongside it.
-- [ ] No share token appears in any stripped export, or anywhere in a preview response, asserted on
-      the serialised body.
+- [x] Four gates cold: `Cached: 0`. Verified 2026-09-17 at `b7763ab`: 36 of 36 tasks, `Cached: 0`.
+- [x] `node scripts/check-exports.mjs` exits 0. 22 targets across 7 of 11 packages, 5 wildcards
+      resolving to 64 files.
+- [x] The export round-trip passes from a **populated** data root, with the positive token assertion
+      alongside it. `export/bundle.test.ts` seeds two projects *through the store port* rather than
+      building a literal, so it is populated — but the store is `MemoryProjectStore`, and **no export
+      test anywhere runs against a filesystem root**, so `bundleWorkspace`'s `EMFILE`-at-24×500
+      measurement stays unpinned; the committed guard is a counting wrapper that pins the per-project
+      *shape*. The positive assertion exists three times over and is what carries the criterion:
+      forcing `carried()` to strip unconditionally leaves the round-trip itself **green** — both legs
+      strip equally — and reds 7 elsewhere. A round-trip plus a negative would have passed an export
+      that carries no token under any setting.
+- [x] No share token appears in any stripped export, or anywhere in a preview response, asserted on
+      the serialised body. Export half: `export.test.ts` scans `JSON.stringify` of the body against
+      all five fixture tokens; inverting `carried()` reds 9. Preview half: pinned in the domain
+      (`plan.test.ts`) and, as of `cf4a4d8`, at the route on a body whose manifest carries a real
+      token — asserting one link *is* reported before asserting the token is not, so it cannot pass
+      vacuously. That route assertion was missing until the audit: the two mechanisms `preview.ts`
+      credited did neither job — the response-shape walk reads only top-level keys, and the
+      field-for-field check compared post-parse to post-parse, which zod makes unfalsifiable.
 - [x] A malformed imported manifest cannot reach disk — pinned by the schema-conformance check in
       `import/drop-checks.ts`, which runs `ProjectManifest.safeParse` before conversion and blocks
       the row, so nothing reaches the store. Nine cases in `import/checks.test.ts`; short-circuiting
@@ -1303,6 +1344,11 @@ Only after Tasks 1–13 are green. This is the task the whole plan exists for.
       pre-existing and unreachable *through the product*, because the import path validates, so it
       is recorded rather than changed here: the port contract now names the undecodable branch, and
       a committed test pins the silent skip so it is documented rather than rediscovered.
-- [ ] Every ADR this plan required (0044, 0045) is committed, and the record of the R3 decision with
-      them.
-- [ ] The report names every deliberate difference from the design with its reason.
+- [x] Every ADR this plan required (0044, 0045) is committed, and the record of the R3 decision with
+      them. 0044 and 0045 in `45b5956` (0045 amended in `cb5723e`), the R3 decision as **0046** in
+      `e1d3d7e`; all three indexed in `docs/adr/README.md`, and 0020 amended in `5c8a798` where this
+      phase found it stale.
+- [x] The report names every deliberate difference from the design with its reason.
+      [`docs/superpowers/reports/2026-09-17-import-export-report.md`](../reports/2026-09-17-import-export-report.md)
+      — eleven differences, the guards found dead or vacuous, and the one recommendation left
+      deliberately unbuilt.
