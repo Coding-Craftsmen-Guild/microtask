@@ -4,6 +4,7 @@ import {
   BUNDLE_VERSION,
   ImportPreview,
   ImportPreviewGroup,
+  ImportPreviewShareLink,
   MAX_PREVIEW_TEXT_LENGTH,
 } from '@repo/contracts'
 import type { ProjectManifest } from '../entities/manifest.js'
@@ -72,6 +73,9 @@ const rows = (files: readonly ImportFile[], at: ImportTarget = target()): readon
 const outcomes = (planned: readonly PlannedProject[]): readonly string[] =>
   planned.map((one) => one.row.outcome)
 
+const keysOf = (value: unknown): readonly string[] =>
+  value !== null && typeof value === 'object' ? Object.keys(value).sort() : []
+
 describe('the plan a preview renders and a confirm applies', () => {
   it('describes a v2 project directory as one importable row, counting its tasks both ways', async () => {
     const planned = rows(directory('drop/launch', P1, [T1, T2]))
@@ -91,13 +95,21 @@ describe('the plan a preview renders and a confirm applies', () => {
     ])
   })
 
-  it('satisfies the schema the route answers with, field for field', () => {
-    const planned = rows(directory('drop/launch', P1))
-    const preview = { sessionId: SESSION, groups: planned.map((one) => one.row) }
-    const parsed = ImportPreview.parse(preview)
-    expect(Object.keys(parsed.groups[0] ?? {}).sort()).toEqual(
-      Object.keys(ImportPreviewGroup.parse(planned[0]?.row) ?? {}).sort(),
-    )
+  it('satisfies the schema the route answers with, field for field, links included', () => {
+    const files = [
+      { path: 'drop/launch/project.json', json: { ...project(P1), shareLinks: [shareLink(token(4), P1)] } },
+      { path: `drop/launch/tasks/${T1}.json`, json: taskDocument(T1, B1) },
+    ]
+    const row = rows(files)[0]?.row
+    const parsed = ImportPreviewGroup.safeParse(row)
+    expect(parsed.error?.issues ?? []).toEqual([])
+    expect(keysOf(parsed.data)).toEqual(keysOf(row))
+    expect(row?.shareLinks.length).toBe(1)
+    for (const link of row?.shareLinks ?? []) {
+      const one = ImportPreviewShareLink.safeParse(link)
+      expect(one.error?.issues ?? []).toEqual([])
+      expect(keysOf(one.data)).toEqual(keysOf(link))
+    }
   })
 
   it('hands back the project a confirm would write, beside the row a preview renders', () => {

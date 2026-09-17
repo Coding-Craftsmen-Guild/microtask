@@ -249,6 +249,19 @@ describe('GET /v1/microtask/import/sessions/{sessionId}/preview', () => {
     const session = await opened(fix.app)
     expect(await groupsOf(await previewed(fix.app, session))).toEqual([])
   })
+
+  it('carries no share token in the bytes it sends, the response-shape walk never reaching a link', async () => {
+    const fix = await fixture()
+    const session = await opened(fix.app)
+    const secret = token(71)
+    const links = { shareLinks: [shareLink(secret, N1, { role: 'manage' as const })] }
+    await stageProject(fix.app, session, dropped(N1, [NT1], links))
+    const serialised = await (await previewed(fix.app, session)).text()
+    const groups = (JSON.parse(serialised) as Record<string, unknown>)['groups']
+    const shown = (groups as readonly Record<string, unknown>[])[0]?.['shareLinks']
+    expect((shown as readonly unknown[]).length).toBe(1)
+    expect(serialised).not.toContain(secret)
+  })
 })
 
 describe('POST /v1/microtask/import/sessions/{sessionId}/confirm', () => {
