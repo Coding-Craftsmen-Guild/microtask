@@ -114,8 +114,10 @@ describe('ImportConfirmResult', () => {
     expect(parsed.projects.map((one) => one.outcome)).toEqual(['created', 'failed'])
   })
 
-  it('bounds the rows at the most projects this product will hold', () => {
+  it('takes more rows than the product will hold, a drop of that many previewing as that many', () => {
     const many = Array.from({ length: LIMITS.projectsPerProduct + 1 }, () => result())
-    expect(ImportConfirmResult.safeParse({ sessionId: SESSION, projects: many }).success).toBe(false)
+    const parsed = ImportConfirmResult.safeParse({ sessionId: SESSION, projects: many })
+    expect(parsed.error?.issues ?? []).toEqual([])
+    expect(parsed.data?.projects.length).toBe(LIMITS.projectsPerProduct + 1)
   })
 })

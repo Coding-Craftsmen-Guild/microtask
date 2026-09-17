@@ -1047,8 +1047,7 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ImportProjectResult"
-            },
-            "maxItems": 500
+            }
           }
         },
         "required": [

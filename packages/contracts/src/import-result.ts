@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { EntityId } from './document.js'
 import { ConflictChoice, MAX_PREVIEW_REASONS, MAX_PREVIEW_TEXT_LENGTH } from './import-plan.js'
-import { LIMITS } from './limits.js'
 
 /**
  * What a confirm did with one project: it landed, it was passed over, or it did not land.
@@ -87,14 +86,29 @@ export const ImportProjectResult = projectResultFields
  * unknown session, a choice naming a project the session does not hold, a collision with no choice
  * — never reaches this shape and is refused with a problem document instead.
  *
- * `projects` is bounded by `projectsPerProduct`, which is the most this product will ever hold, so
- * a session that dropped more than that is refused by the preview's own bound before it is
- * confirmed.
+ * `projects` is **unbounded, for `ImportPreview`'s reason and to keep its promise.** There is
+ * one row here per group the preview described, so a count bounded here would be the preview's
+ * deliberate unboundedness refused one step later — and refused at the only moment nothing can be
+ * re-run, the session having been swept as the apply began (ADR 0045). It was bounded by
+ * `projectsPerProduct` until this was measured, on the claim that the preview refuses a bigger
+ * drop first. It does not: `capped()` blocks a project that would take the store over that number
+ * and still answers a row for it, so 501 groups preview as 501 rows (ADR 0017 — describe what was
+ * dropped rather than refuse to describe it) and confirm as 501 outcomes. The API validates no
+ * response, but `@repo/api-client`'s transport parses every one, so the bound turned an
+ * over-the-cap confirm into a `ZodError` in place of the outcome list — after the writes had
+ * landed, which the 501st row need not be one of: 498 importable projects and three unreadable
+ * files is 501 rows and 498 projects on disk.
+ *
+ * What bounds the count instead is the same thing that bounds the preview's: `MAX_SESSION_BYTES`
+ * and `MAX_ARCHIVE_ENTRIES` on what may be staged at all. Every row is bounded in each of its own
+ * dimensions, so the count is the one dimension left open rather than ten — and the store's own
+ * `projectsPerProduct` is enforced where it belongs, in the check that decides what may be
+ * written, rather than in the report of what was.
  */
 export const ImportConfirmResult = z
   .object({
     sessionId: EntityId,
-    projects: z.array(ImportProjectResult).max(LIMITS.projectsPerProduct).readonly(),
+    projects: z.array(ImportProjectResult).readonly(),
   })
   .meta({ id: 'ImportConfirmResult', description: 'What one confirm did, project by project' })
 

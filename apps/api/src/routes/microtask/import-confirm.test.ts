@@ -1,5 +1,5 @@
 import { sep } from 'node:path'
-import { LIMITS } from '@repo/contracts'
+import { ImportConfirmResult, LIMITS } from '@repo/contracts'
 import { Conflict } from '@repo/kernel'
 import type { Clock, FileSystem, IdGenerator, Lock } from '@repo/kernel'
 import { MemoryFileSystem } from '@repo/kernel/testing'
@@ -1456,5 +1456,57 @@ describe('a clear that died is told apart from a build that died, the live proje
     )
     expect(building).toContain('is untouched')
     expect(clearing).not.toBe(building)
+  })
+})
+
+describe('a drop of more projects than this product holds still gets its outcome list back', () => {
+  const OVER = LIMITS.projectsPerProduct + 1
+
+  const bundleOf = (count: number): string =>
+    JSON.stringify({
+      format: 'ccg.microtask',
+      version: 2,
+      exportedAt: STAMP,
+      bundleId: marked('01X', 2),
+      projects: Array.from({ length: count }, (_one, at) => {
+        const drop = dropped(marked('01Z9', at + 1), [NT1])
+        return { ...drop.manifest, taskDocuments: drop.documents }
+      }),
+    })
+
+  const staged = async (fix: Fixture, projects: number, junk: number): Promise<string> => {
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/workspace.json', bundleOf(projects))
+    for (let at = 0; at < junk; at += 1) {
+      await stage(fix.app, session, `drop/notes-${String(at)}.txt`, 'not JSON at all')
+    }
+    return session
+  }
+
+  it('answers a row per group past the cap, which is what the preview described (ADR 0017)', async () => {
+    const fix = await fixture()
+    const session = await staged(fix, OVER, 0)
+    expect((await groupsOf(await previewed(fix.app, session))).length).toBe(OVER)
+    expect((await projectsOf(await confirmed(fix.app, session))).length).toBe(OVER)
+  })
+
+  it('answers a body the client’s own schema parses, that parse being what lost the list', async () => {
+    const fix = await fixture()
+    const session = await staged(fix, OVER, 0)
+    const parsed = ImportConfirmResult.safeParse(await body(await confirmed(fix.app, session)))
+    expect(parsed.error?.issues ?? []).toEqual([])
+    expect(parsed.data?.projects.length).toBe(OVER)
+  })
+
+  it('parses it when the writes already landed too, which is the row an admin cannot lose', async () => {
+    const fix = await fixture()
+    const room = LIMITS.projectsPerProduct - (await storedIds(fix)).length
+    const session = await staged(fix, room, OVER - room)
+    const applied = await confirmed(fix.app, session)
+    const parsed = ImportConfirmResult.safeParse(await body(applied.clone()))
+    expect(parsed.error?.issues ?? []).toEqual([])
+    const landed = (await projectsOf(applied)).filter((one) => one['outcome'] === 'created')
+    expect([parsed.data?.projects.length, landed.length]).toEqual([OVER, room])
+    expect((await storedIds(fix)).length).toBe(LIMITS.projectsPerProduct)
   })
 })
