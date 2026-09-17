@@ -121,6 +121,60 @@ describe('a stored production document survives Tiptap 3', () => {
   })
 })
 
+describe('a stored link does not round-trip byte-identically, and what it gains is this app’s', () => {
+  const LEGACY_HREF = 'https://example.com/a'
+
+  const linkOnly = (): unknown => ({
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          { type: 'text', marks: [{ type: 'link', attrs: { href: LEGACY_HREF } }], text: 'here' },
+        ],
+      },
+    ],
+  })
+
+  interface Nested {
+    readonly content?: readonly Nested[]
+    readonly marks?: readonly { readonly attrs?: Record<string, unknown> }[]
+  }
+
+  const markAttrs = (document_: unknown): Record<string, unknown> => {
+    const editor = mount(document_)
+    const json = editor.getJSON() as unknown as Nested
+    editor.destroy()
+    return json.content?.[0]?.content?.[0]?.marks?.[0]?.attrs ?? {}
+  }
+
+  it('gains four attributes a legacy file never carried, so the round-trip is not byte-identical', () => {
+    const before = JSON.stringify(linkOnly())
+    expect(JSON.stringify(mount(linkOnly()).getJSON())).not.toBe(before)
+    expect(Object.keys(markAttrs(linkOnly())).sort()).toEqual([
+      'class',
+      'href',
+      'rel',
+      'target',
+      'title',
+    ])
+  })
+
+  it('takes rel and target from this app’s own Link options, not from Tiptap’s defaults', () => {
+    expect(markAttrs(linkOnly())['rel']).toBe('noopener noreferrer nofollow')
+    expect(markAttrs(linkOnly())['target']).toBe('_blank')
+  })
+
+  it('leaves the stored href exactly as it was, the gain being additive', () => {
+    expect(markAttrs(linkOnly())['href']).toBe(LEGACY_HREF)
+  })
+
+  it('fills the two it has no value for with null rather than dropping them', () => {
+    expect(markAttrs(linkOnly())['title']).toBeNull()
+    expect(markAttrs(linkOnly())['class']).toBeNull()
+  })
+})
+
 describe('trailingNode is off, so the first transaction is the users own', () => {
   const checklist = (): DocumentValue => {
     const tab = every().find((candidate) => endsInTaskList(candidate.document))

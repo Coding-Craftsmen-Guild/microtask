@@ -37,6 +37,58 @@ describe('assertSafeDocument', () => {
     expect(() => assertSafeDocument(doc(linkMark(`${scheme}:example`)))).not.toThrow()
   })
 
+  it('accepts the four attributes Tiptap 3 adds to an imported link, so the first save is not refused', () => {
+    const expanded = {
+      type: 'paragraph',
+      content: [
+        {
+          type: 'text',
+          text: 'x',
+          marks: [
+            {
+              type: 'link',
+              attrs: {
+                href: 'https://example.com/a',
+                target: '_blank',
+                rel: 'noopener noreferrer nofollow',
+                class: null,
+                title: null,
+              },
+            },
+          ],
+        },
+      ],
+    }
+    expect(() => assertSafeDocument(doc(expanded))).not.toThrow()
+  })
+
+  it('still refuses a hostile href once those four are present, the gain being no way past', () => {
+    const expanded = JSON.parse(
+      JSON.stringify({
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'x',
+            marks: [
+              {
+                type: 'link',
+                attrs: {
+                  href: 'javascript:alert(1)',
+                  target: '_blank',
+                  rel: 'noopener noreferrer nofollow',
+                  class: null,
+                  title: null,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ) as unknown
+    expect(() => assertSafeDocument(doc(expanded))).toThrow(/scheme/i)
+  })
+
   it.each(['javascript:alert(1)', 'data:text/html;base64,x', 'vbscript:x', 'file:///etc/passwd'])(
     'rejects a %s link',
     (href) => {
