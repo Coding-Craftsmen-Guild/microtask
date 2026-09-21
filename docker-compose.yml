@@ -1,11 +1,20 @@
 # CC Guild: the API and Microtask, one image each (ADR 0026). Read README.md "Deploy" first.
 #
-# THIS IS NOT THE CUTOVER, AND IT CANNOT READ PRODUCTION DATA. The API starts on its own, new,
-# empty volume (api-data). The live app's volume holds data/projects/<id>.json, a layout this API
-# cannot read; the only path from that layout to this one is the importer (ADR 0017), which is
-# scheduled last and does not exist yet. Until it does, cutover is blocked: never mount the live
-# volume here and never give this stack the production hostname (ADR 0022). The live volume is the
-# rollback, so nothing in this file may ever write to it.
+# THIS IS NOT THE CUTOVER, AND IT STILL CANNOT READ PRODUCTION DATA. The API starts on its own,
+# new, empty volume (api-data). The live app's volume holds data/projects/<id>.json, a layout this
+# API cannot read; the only path from that layout to this one is the importer (ADR 0017).
+#
+# The importer now exists (2026-09-17), and that changes which gate you are standing at, not
+# whether there is one. What is lifted is the code gate. What remains is the sequence, and it is
+# the half that can lose production: backup, deploy, import, and only then the hostname (ADR 0022).
+# So the rules are unchanged — never mount the live volume here, never give this stack the
+# production hostname before the import, never point it at this repository's data/ directory. The
+# live volume is the rollback, so nothing in this file may ever write to it.
+#
+# The service below is named `microtask`, which is the live app's service name too. Coolify keys
+# domains by service name, so a deploy of this file onto the production resource can carry the
+# production domain to this new, empty stack. Auto-deploy must be off on that resource before
+# `main` moves. See README "Deploy".
 #
 # Every secret comes from the environment and has no default: a missing one stops `docker compose`
 # before any container starts. MICROTASK_API_KEY is the one service key, handed to the API as

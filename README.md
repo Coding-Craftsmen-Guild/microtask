@@ -8,9 +8,14 @@ an admin edits and hands to clients through share links.
 > still the previous one, kept at the `legacy-prod` tag. Its data is one JSON file per project
 > (`data/projects/<id>.json`); the new API stores a directory per project and **cannot read the old
 > layout**. The only bridge between the two is the import/export panel
-> ([ADR 0017](docs/adr/0017-drop-in-import-export.md)), which is scheduled last and **does not exist
-> yet**. Until it does, cutover is blocked: never mount the live volume into this stack, never give
-> it the production hostname, and never point it at the `data/` directory in this repository. The
+> ([ADR 0017](docs/adr/0017-drop-in-import-export.md)), and **as of 2026-09-17 it exists**: the live
+> backup has been imported end to end through the real API and measured
+> ([report](docs/superpowers/reports/2026-09-17-import-export-report.md)). That lifts the **code**
+> gate and none of the operational one. Cutover is still ordered — backup, deploy, import, hostname
+> last — and the step that can lose production is now a Coolify setting, not missing code: never
+> mount the live volume into this stack, never give
+> it the production hostname before the import, and never point it at the `data/` directory in this
+> repository. The
 > cutover itself is a separate, ordered runbook — §15.1 of the
 > [design spec](docs/superpowers/specs/2026-09-10-monorepo-restructure-design.md) and
 > [ADR 0022](docs/adr/0022-hostname-continuity-gated-cutover.md).
