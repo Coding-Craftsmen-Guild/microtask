@@ -1,4 +1,4 @@
-import type { Clock, IdGenerator } from '@repo/kernel'
+import type { Clock } from '@repo/kernel'
 import type { DocumentJson } from '../entities/document.js'
 import type { ProjectManifest, TaskEntry } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
@@ -82,23 +82,39 @@ function legacyLink(link: Record<string, unknown>, projectId: string, now: strin
   }
 }
 
-function legacyTask(tab: Record<string, unknown>, tabId: string, now: string): Pairing {
-  const id = text(tab['id'])
-  const createdAt = stamped(tab['createdAt'], now)
-  const updatedAt = stamped(tab['updatedAt'], now)
-  const inner: Tab = {
-    id: tabId,
-    name: GENERAL_TAB,
-    position: 0,
-    document: tab['document'] as DocumentJson,
-    createdAt,
-    updatedAt,
-  }
-  const document: TaskDocument = { id, tabs: [inner], createdAt, updatedAt }
-  const entry: TaskEntry = {
-    id,
-    name: cleanName(tab['name'], TASK_FALLBACK),
+interface LegacyIdentity {
+  readonly id: string
+  readonly name: string
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+function legacyTab(tab: Record<string, unknown>, now: string): Tab {
+  return {
+    id: text(tab['id']),
+    name: cleanName(tab['name'], GENERAL_TAB),
     position: ordinal(tab['position']),
+    document: tab['document'] as DocumentJson,
+    createdAt: stamped(tab['createdAt'], now),
+    updatedAt: stamped(tab['updatedAt'], now),
+  }
+}
+
+function legacyTask(
+  source: Record<string, unknown>,
+  project: LegacyIdentity,
+  now: string,
+): Pairing {
+  const document: TaskDocument = {
+    id: project.id,
+    tabs: records(source['tabs']).map((tab) => legacyTab(tab, now)),
+    createdAt: project.createdAt,
+    updatedAt: project.updatedAt,
+  }
+  const entry: TaskEntry = {
+    id: project.id,
+    name: project.name,
+    position: 0,
     folderId: null,
     ...taskCache(document),
   }
@@ -106,14 +122,36 @@ function legacyTask(tab: Record<string, unknown>, tabId: string, now: string): P
 }
 
 /**
- * Converts one legacy project file into the project this repo stores (design §7.6).
+ * Converts one legacy project file into the project this repo stores (design §7.6, corrected
+ * 2026-09-21).
  *
- * Each legacy **tab** becomes a **task**, taking the tab's `name`, `position` and `id` verbatim
- * and holding that tab's document in a single inner tab named `General`. The inner tab, and only
- * the inner tab, is named that: a task named `General` is a task nobody can find, because search
- * matches names and tab names are deliberately outside its reach (ADR 0021). `folderId` is `null`
- * throughout, legacy having no folders. Positions are copied rather than densified, so two tabs
- * that disagreed in the file still disagree here and the preview is what says so.
+ * A legacy file becomes a **Project holding exactly one Task, whose tab strip is the legacy
+ * tabs**. The task's id is the legacy project's **own id** and its name is the project's name;
+ * each legacy tab becomes an inner {@link Tab} keeping its `id`, `name`, `position`, `document`
+ * and both stamps, a legacy tab's fields being exactly a `Tab`'s. `position` is `0` and
+ * `folderId` is `null`, legacy having no folders and there being one task to file.
+ *
+ * The superseded rule — each old tab becoming a task of its own, holding that one document in a
+ * single inner tab named `General` — is what the product owner reported as *"it imports the old
+ * files separated as tasks, while in old files, the file itself was a task / project and inside
+ * you had tabs"*. It flattened the tab strip into a task list and threw the strip away.
+ * `LIMITS.tabsPerTask` is 40, which is exactly the legacy per-project tab cap, so the task's tab
+ * strip is the shape the legacy project's tab strip was already designed to land in.
+ *
+ * **The task id is the project id and nothing is minted**, which buys three things. Two previews
+ * of one legacy file are byte-identical, because no value here comes from anywhere but the file
+ * except a stamp the file omitted. The R3 legacy redirect can compute its target from the segment
+ * it already holds rather than from a lookup table (ADR 0046). And the mapping is one sentence:
+ * the single task *is* the legacy project. A task id equal to its project id is structurally fine
+ * — the file lands at `projects/<id>/tasks/<id>.json`, two ids in two namespaces.
+ *
+ * An unnamed project is `Untitled project` in **both** places rather than a project and a task
+ * with different fallbacks, since the task takes the project's already-cleaned name. An unnamed
+ * *tab* is `General`, that being the name legacy seeded a new project's only tab with.
+ *
+ * A file carrying no tabs still answers one task, holding an empty strip. The alternative — no
+ * tabs, no task — would make the count depend on the file and leave `/p/<id>/t/<id>` naming
+ * nothing for a file that is otherwise importable.
  *
  * Share links become **project-scoped**, with tokens preserved, `createdBy` null — legacy has no
  * lineage to cascade — and the three rules `normalizeShareLinks` actually applies, which are
@@ -134,8 +172,11 @@ function legacyTask(tab: Record<string, unknown>, tabId: string, now: string): P
  * `NaN`, and as itself — and are refused by the preview's schema check with a reason that quotes
  * them. A converter that repaired them would import a file nobody could be warned about; one that
  * threw would end an upload that has nine other directories left to describe. Nothing is dropped
- * either: a member of `tabs` that is not an object still becomes a row, because a silent skip is
- * the failure ADR 0018 exists to close.
+ * either: a member of `tabs` that is not an object still becomes an inner tab, because a silent
+ * skip is the failure ADR 0018 exists to close. What refuses such a tab has moved with it: a tab
+ * id that is not a ULID is now refused by `TaskDocument` and by the preview's `Tab id` check
+ * rather than by `ProjectManifest`, and it reaches no path segment at all, the task file being
+ * named for the project.
  *
  * A **stamp** is the one stated exception to that, and the fallback is broader than "left out": a
  * project or tab `createdAt`/`updatedAt` that is missing, blank **or not a string** takes the
@@ -144,26 +185,27 @@ function legacyTask(tab: Record<string, unknown>, tabId: string, now: string): P
  * one, so carrying `updatedAt: 12345` through would put the text `"12345"` on disk, dated by
  * whatever a hand-edited file happened to hold and questioned by nothing downstream.
  */
-export function convertLegacyProject(
-  json: unknown,
-  clock: Clock,
-  ids: IdGenerator,
-): ConvertedProject {
+export function convertLegacyProject(json: unknown, clock: Clock): ConvertedProject {
   const source = isRecord(json) ? json : {}
   const now = clock.now()
-  const projectId = text(source['id'])
-  const pairings = records(source['tabs']).map((tab) => legacyTask(tab, ids.entityId(), now))
+  const project: LegacyIdentity = {
+    id: text(source['id']),
+    name: cleanName(source['name'], PROJECT_FALLBACK),
+    createdAt: stamped(source['createdAt'], now),
+    updatedAt: stamped(source['updatedAt'], now),
+  }
+  const { entry, document } = legacyTask(source, project, now)
   return {
     manifest: {
-      id: projectId,
-      name: cleanName(source['name'], PROJECT_FALLBACK),
+      id: project.id,
+      name: project.name,
       folders: [],
-      tasks: pairings.map((pairing) => pairing.entry),
-      shareLinks: records(source['shareLinks']).map((link) => legacyLink(link, projectId, now)),
-      createdAt: stamped(source['createdAt'], now),
-      updatedAt: stamped(source['updatedAt'], now),
+      tasks: [entry],
+      shareLinks: records(source['shareLinks']).map((link) => legacyLink(link, project.id, now)),
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
     },
-    documents: pairings.map((pairing) => pairing.document),
+    documents: [document],
   }
 }
 

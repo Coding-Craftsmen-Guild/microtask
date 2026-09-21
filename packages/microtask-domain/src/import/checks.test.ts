@@ -19,7 +19,7 @@ import type { TokenIndex } from '../ports/token-index.js'
 import { cleanName } from '../limits.js'
 import { ShareIndex } from '../storage/share-index.js'
 import { projectListItem, projectView } from '../views/project-view.js'
-import { fixedClock, sequentialIds } from '../testing/doubles.js'
+import { fixedClock } from '../testing/doubles.js'
 import {
   folder,
   manifest,
@@ -133,7 +133,7 @@ const legacyJson = (overrides: Record<string, unknown> = {}): Record<string, unk
 const legacy = (overrides: Record<string, unknown> = {}): DroppedProject => ({
   shape: 'converted',
   path: 'legacy.json',
-  converted: convertLegacyProject(legacyJson(overrides), fixedClock(NOW), sequentialIds()),
+  converted: convertLegacyProject(legacyJson(overrides), fixedClock(NOW)),
 })
 
 const built = (value: ConvertedProject): DroppedProject => ({
@@ -229,10 +229,10 @@ describe('schema conformance, which runs before anything else', () => {
     expect(said(checked)).toContain('tabs')
   })
 
-  it('blocks a legacy position that is not a number, which serialises to null on disk', () => {
+  it('blocks a legacy tab position that is not a number, which serialises to null on disk', () => {
     const checked = only(legacy({ tabs: [legacyTab(T1), legacyTab(T2, { position: '3' })] }))
     expect(checked.outcome).toBe('blocked')
-    expect(said(checked)).toContain('tasks.1.position')
+    expect(said(checked)).toContain('tabs.1.position')
     expect(JSON.stringify({ position: Number.NaN })).toBe('{"position":null}')
   })
 
@@ -336,16 +336,17 @@ describe('token uniqueness, in the drop set and against disk', () => {
 })
 
 describe('id, token and role validity, which nothing downstream of import repeats', () => {
-  it('blocks a legacy tab id that is a path, before taskFile() throws at write time', () => {
+  it('blocks a legacy tab id that is a path, which is now a tab id and no longer a task id', () => {
     const checked = only(legacy({ tabs: [legacyTab(T1), legacyTab('../etc/passwd')] }))
     expect(checked.outcome).toBe('blocked')
-    expect(checked.reasons).toContain('Task id "../etc/passwd" is not a ULID')
+    expect(checked.reasons).toContain('Tab id "../etc/passwd" is not a ULID')
   })
 
-  it('blocks a legacy project id that is not a ULID', () => {
+  it('blocks a legacy project id that is not a ULID, as a task id and as a project id both', () => {
     const checked = only(legacy({ id: 'not-a-ulid' }))
     expect(checked.outcome).toBe('blocked')
     expect(checked.reasons).toContain('Project id "not-a-ulid" is not a ULID')
+    expect(checked.reasons).toContain('Task id "not-a-ulid" is not a ULID')
   })
 
   it.each([
@@ -450,11 +451,17 @@ describe('folder reference integrity, which assertFolder treats as an invariant'
 })
 
 describe('collection bounds, because import never reaches assertWithin', () => {
-  it('blocks a legacy project carrying more tasks than a project may hold', () => {
-    const tabs = taskIds(LIMITS.tasksPerProject + 1).map((id) => legacyTab(id))
+  it('blocks a legacy project carrying more tabs than its one task may hold, which is legacy’s own cap', () => {
+    const tabs = taskIds(LIMITS.tabsPerTask + 1).map((id, at) => legacyTab(id, { position: at }))
     const checked = only(legacy({ tabs }))
     expect(checked.outcome).toBe('blocked')
-    expect(said(checked)).toContain(String(LIMITS.tasksPerProject))
+    expect(said(checked)).toContain(`holds ${String(LIMITS.tabsPerTask + 1)} tabs`)
+    expect(said(checked)).toContain(`the limit is ${String(LIMITS.tabsPerTask)}`)
+  })
+
+  it('imports a legacy project of exactly the legacy tab cap, that cap being tabsPerTask', () => {
+    const tabs = taskIds(LIMITS.tabsPerTask).map((id, at) => legacyTab(id, { position: at }))
+    expect(only(legacy({ tabs })).outcome).toBe('importable')
   })
 
   it('blocks a legacy project carrying more share links than a project may hold', () => {

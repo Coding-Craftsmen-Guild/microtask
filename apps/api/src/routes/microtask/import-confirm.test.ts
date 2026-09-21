@@ -1241,18 +1241,37 @@ describe('a legacy project and a bundle reach disk too, not only a project direc
       }),
     })
 
-  it('lands a legacy file as a project whose tasks keep the file’s own ids and stamps', async () => {
+  it('lands a legacy file as one task under the file’s own id, named after the project', async () => {
     const fix = await fixture(tickingClock())
     const session = await opened(fix.app)
     await stage(fix.app, session, 'drop/old-workspace.json', legacyFile(N1))
     const applied = await confirmed(fix.app, session)
     expect(await outcomesOf(applied)).toEqual([[N1, 'created']])
     const live = await fix.deps.store.readManifest('microtask', N1)
-    expect(live?.tasks.map((one) => [one.id, one.name])).toEqual([
-      [LT1, 'Kitchen'],
-      [LT2, 'Garden'],
-    ])
+    expect(live?.tasks.map((one) => [one.id, one.name])).toEqual([[N1, 'The old workspace']])
     expect([live?.createdAt, live?.updatedAt]).toEqual([LEGACY_STAMP, LEGACY_STAMP])
+  })
+
+  it('hangs every legacy tab off that one task, which is the strip the old file had', async () => {
+    const fix = await fixture(tickingClock())
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/old-workspace.json', legacyFile(N1))
+    await confirmed(fix.app, session)
+    const task = await fix.deps.store.readTask('microtask', N1, N1)
+    expect(task?.tabs.map((one) => [one.id, one.name, one.position])).toEqual([
+      [LT1, 'Kitchen', 0],
+      [LT2, 'Garden', 1],
+    ])
+    expect(await fix.deps.store.readTask('microtask', N1, LT1)).toBeNull()
+  })
+
+  it('records the whole strip in the manifest entry, so a list row counts two tabs and not one', async () => {
+    const fix = await fixture(tickingClock())
+    const session = await opened(fix.app)
+    await stage(fix.app, session, 'drop/old-workspace.json', legacyFile(N1))
+    await confirmed(fix.app, session)
+    const live = await fix.deps.store.readManifest('microtask', N1)
+    expect(live?.tasks[0]).toMatchObject({ tabCount: 2, tabNames: ['Kitchen', 'Garden'] })
   })
 
   it('converts its read permission to a project-scoped view link that serves at once', async () => {
@@ -1270,7 +1289,7 @@ describe('a legacy project and a bundle reach disk too, not only a project direc
     expect(read.status).toBe(200)
   })
 
-  it('previews a legacy file identically twice, a tab id reaching no field a row carries', async () => {
+  it('previews a legacy file identically twice, the conversion minting nothing at all', async () => {
     const fix = await fixture(tickingClock())
     const session = await opened(fix.app)
     await stage(fix.app, session, 'drop/old-workspace.json', legacyFile(N1))

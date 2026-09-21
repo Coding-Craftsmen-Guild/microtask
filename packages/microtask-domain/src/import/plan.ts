@@ -3,14 +3,12 @@ import {
   type ImportOutcomeValue,
   type ImportShapeValue,
 } from '@repo/contracts'
-import type { Role, Scope } from '@repo/kernel'
+import type { Clock, Role, Scope } from '@repo/kernel'
 import { checkImport, type CheckedProject, type ImportTarget } from './checks.js'
-import { explodeGroup, type ExplodedProject, type ImportMint } from './exploded.js'
+import { explodeGroup, type ExplodedProject } from './exploded.js'
 import type { ConvertedProject } from './legacy.js'
 import { fitted } from './refusal.js'
 import { elideMiddle, sniffImportFiles, type ImportFile } from './sniff.js'
-
-export type { ImportMint } from './exploded.js'
 
 /**
  * One share link a preview row reports, named by its index and never by its token.
@@ -138,9 +136,9 @@ function judged(one: ExplodedProject, checked: CheckedProject): PlannedProject {
 export function planImport(
   files: readonly ImportFile[],
   target: ImportTarget,
-  mint: ImportMint,
+  clock: Clock,
 ): readonly PlannedProject[] {
-  const exploded = sniffImportFiles(files).flatMap((group) => explodeGroup(group, mint))
+  const exploded = sniffImportFiles(files).flatMap((group) => explodeGroup(group, clock))
   const drops = exploded.flatMap((one) => (one.drop === null ? [] : [one.drop]))
   const checked = checkImport(drops, target)
   let at = 0

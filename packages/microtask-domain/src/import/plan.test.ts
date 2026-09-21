@@ -10,7 +10,7 @@ import {
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { TaskDocument } from '../entities/task.js'
 import { ShareIndex } from '../storage/share-index.js'
-import { fixedClock, sequentialIds } from '../testing/doubles.js'
+import { fixedClock } from '../testing/doubles.js'
 import { manifest, marked, shareLink, STAMP, taskDocument, taskEntry, token } from '../testing/fixtures.js'
 import type { ImportTarget } from './checks.js'
 import type { ImportFile } from './sniff.js'
@@ -24,7 +24,7 @@ const B1 = marked('01B', 1)
 const B2 = marked('01B', 2)
 const SESSION = marked('01S', 1)
 
-const mint = { clock: fixedClock(STAMP), ids: sequentialIds() }
+const clock = fixedClock(STAMP)
 
 const target = (projectIds: readonly string[] = [], tokens = new ShareIndex()): ImportTarget => ({
   product: 'microtask',
@@ -68,7 +68,7 @@ const legacyFile = (path: string, id: string): ImportFile => ({
 })
 
 const rows = (files: readonly ImportFile[], at: ImportTarget = target()): readonly PlannedProject[] =>
-  planImport(files, at, mint)
+  planImport(files, at, clock)
 
 const outcomes = (planned: readonly PlannedProject[]): readonly string[] =>
   planned.map((one) => one.row.outcome)
@@ -138,14 +138,30 @@ describe('the plan a preview renders and a confirm applies', () => {
     expect([planned[0]?.row.manifestTaskCount, planned[0]?.row.taskFilesFound]).toEqual([1, 1])
   })
 
-  it('converts a legacy project, each tab becoming a task, and reports it importable', () => {
+  it('converts a legacy project into the one task its tabs hang off, and reports it importable', () => {
     const planned = rows([legacyFile('old.json', P1)])
     expect([planned[0]?.row.shape, planned[0]?.row.outcome, planned[0]?.row.name]).toEqual([
       'legacy-project',
       'importable',
       'Legacy launch',
     ])
-    expect(planned[0]?.row.taskFilesFound).toBe(1)
+    expect([planned[0]?.row.manifestTaskCount, planned[0]?.row.taskFilesFound]).toEqual([1, 1])
+  })
+
+  it('counts a legacy file of many tabs as one task all the same, the tabs being inside it', () => {
+    const many = ['Notes', 'Risks', 'Go-live'].map((name, at) => ({
+      id: marked('01T', at + 1),
+      name,
+      position: at,
+      document: { type: 'doc', content: [] },
+    }))
+    const planned = rows([{ path: 'old.json', json: { id: P1, name: 'Legacy launch', tabs: many, shareLinks: [] } }])
+    expect([planned[0]?.row.manifestTaskCount, planned[0]?.row.taskFilesFound]).toEqual([1, 1])
+    expect(planned[0]?.project?.documents[0]?.tabs.map((tab) => tab.name)).toEqual([
+      'Notes',
+      'Risks',
+      'Go-live',
+    ])
   })
 
   it('reports a group it cannot read as an error row that says why, rather than skipping it', () => {
@@ -245,33 +261,26 @@ describe('the two rules a preview row has to obey however hostile the drop is', 
   })
 })
 
-describe('what a legacy conversion mints, which is tab ids and not task ids', () => {
+describe('what a legacy conversion mints, which is nothing at all', () => {
   const twice = (): readonly [readonly PlannedProject[], readonly PlannedProject[]] => {
-    const ids = sequentialIds()
-    const shared = { clock: fixedClock(STAMP), ids }
     const file = legacyFile('old.json', P1)
-    return [planImport([file], target(), shared), planImport([file], target(), shared)]
+    return [planImport([file], target(), clock), planImport([file], target(), clock)]
   }
 
-  it('keeps the file’s own id for the project and for every task it converts', () => {
+  it('keeps the file’s own id for the project and for the one task it converts', () => {
     const [planned] = twice()
     expect(planned[0]?.project?.manifest.id).toBe(P1)
-    expect(planned[0]?.project?.manifest.tasks.map((one) => one.id)).toEqual([T1])
-    expect(planned[0]?.project?.documents.map((one) => one.id)).toEqual([T1])
+    expect(planned[0]?.project?.manifest.tasks.map((one) => one.id)).toEqual([P1])
+    expect(planned[0]?.project?.documents.map((one) => one.id)).toEqual([P1])
   })
 
-  it('mints the inner tab id instead, which is the one thing two conversions disagree about', () => {
-    const [first, second] = twice()
-    const tabOf = (one: readonly PlannedProject[]): string | undefined =>
-      one[0]?.project?.documents[0]?.tabs[0]?.id
-    expect(tabOf(first)).not.toBe(tabOf(second))
-    expect(tabOf(first)).toBeDefined()
+  it('keeps the file’s own tab id inside that task, rather than minting one', () => {
+    const [planned] = twice()
+    expect(planned[0]?.project?.documents[0]?.tabs.map((one) => one.id)).toEqual([T1])
   })
 
-  it('answers the identical row both times, a tab id reaching no field a row carries', () => {
+  it('answers the identical plan both times, project and row alike, nothing having been minted', () => {
     const [first, second] = twice()
-    expect(JSON.stringify(second.map((one) => one.row))).toBe(
-      JSON.stringify(first.map((one) => one.row)),
-    )
+    expect(JSON.stringify(second)).toBe(JSON.stringify(first))
   })
 })

@@ -134,7 +134,7 @@ export async function applyImport(
 ): Promise<AppliedImport> {
   return deps.lock.run(async () => {
     const files = await readStagedFiles(deps, sessionId)
-    const planned = planImport(files, await importTarget(deps), deps)
+    const planned = planImport(files, await importTarget(deps), deps.clock)
     const chosen = resolveChoices(planned, choices)
     try {
       const projects: ProjectOutcome[] = []

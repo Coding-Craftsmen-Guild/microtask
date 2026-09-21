@@ -1,5 +1,5 @@
 import type { ImportShapeValue } from '@repo/contracts'
-import type { Clock, IdGenerator } from '@repo/kernel'
+import type { Clock } from '@repo/kernel'
 import { convertLegacyProject } from './legacy.js'
 import type { DroppedDocument, DroppedProject } from './drop-checks.js'
 import { SEPARATOR } from './harvested-path.js'
@@ -11,24 +11,6 @@ const JSON_SUFFIX = '.json'
 const BUNDLE_PROJECTS = 'projects'
 
 const BUNDLE_DOCUMENTS = 'taskDocuments'
-
-/**
- * The two ports a plan reaches outside itself for, and the whole of what it is not pure about.
- *
- * A legacy file's stamps may be missing and it carries no **tab** ids, so `convertLegacyProject`
- * falls back to the import's clock and mints one tab id per task — which is why it takes both
- * rather than reading either. It does **not** mint task ids: each legacy tab becomes a task under
- * that tab's own `id`, taken from the file verbatim (`legacy.ts`), so a project id and every task
- * id in a converted legacy project are the file's. Two conversions of one file therefore differ
- * only in their tab ids.
- *
- * Nothing else in planning touches a port: the disk is read by whoever hands the files over, and
- * §7.3's *nothing touches disk until confirmed* is that caller's to keep.
- */
-export interface ImportMint {
-  readonly clock: Clock
-  readonly ids: IdGenerator
-}
 
 /**
  * One project a group turned out to hold, as the preview's checks and its row both need it.
@@ -109,8 +91,8 @@ const fromBundle = (file: ImportFile, single: boolean): readonly ExplodedProject
     return single ? { ...exploded, shape: 'v2-single-project' as const } : exploded
   })
 
-function fromLegacy(file: ImportFile, mint: ImportMint): ExplodedProject {
-  const converted = convertLegacyProject(file.json, mint.clock, mint.ids)
+function fromLegacy(file: ImportFile, clock: Clock): ExplodedProject {
+  const converted = convertLegacyProject(file.json, clock)
   return {
     path: file.path,
     shape: 'legacy-project',
@@ -144,10 +126,16 @@ function fromLegacy(file: ImportFile, mint: ImportMint): ExplodedProject {
  * A **group of no projects** is a group holding an empty `projects[]`, which is the one case this
  * returns nothing for. Such a file is a well-formed export of an empty workspace, and a row saying
  * nothing about no project would be a refusal an admin cannot act on.
+ *
+ * The **clock is the only port a plan reaches outside itself for**, and it is only read when a
+ * legacy file omits a stamp. Nothing anywhere in planning mints an id any more: a legacy file's
+ * project id, task id and every tab id are the file's own (`legacy.ts`), so two conversions of one
+ * file agree in every byte. The disk is read by whoever hands the files over, and §7.3's *nothing
+ * touches disk until confirmed* is that caller's to keep.
  */
 export function explodeGroup(
   sniffed: SniffedGroup,
-  mint: ImportMint,
+  clock: Clock,
 ): readonly ExplodedProject[] {
   if (sniffed.shape === 'unrecognised') {
     const { group, error } = sniffed
@@ -159,6 +147,6 @@ export function explodeGroup(
     const drop = { shape: 'raw', path: group.path, manifest: manifest.json, documents } as const
     return [{ path: group.path, shape: sniffed.shape, taskFilesFound: documents.length, drop, error: null }]
   }
-  if (sniffed.shape === 'legacy-project') return [fromLegacy(sniffed.file, mint)]
+  if (sniffed.shape === 'legacy-project') return [fromLegacy(sniffed.file, clock)]
   return fromBundle(sniffed.file, sniffed.shape === 'v2-single-project')
 }

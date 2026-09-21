@@ -54,6 +54,6 @@ export async function previewImport(
   sessionId: string,
 ): Promise<ImportPreviewBody> {
   const files = await readStagedFiles(deps, sessionId)
-  const planned = planImport(files, await importTarget(deps), deps)
+  const planned = planImport(files, await importTarget(deps), deps.clock)
   return { sessionId, groups: planned.map((one) => one.row) } as ImportPreviewBody
 }

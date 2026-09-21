@@ -5,6 +5,7 @@ import { QueueLock } from '@repo/store'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import type { TaskDocument } from '../entities/task.js'
+import { emptyDocument } from '../entities/document.js'
 import { assertContained } from '../services/share-link-mapper.js'
 import { ShareLinkService } from '../services/share-link-service.js'
 import { taskFile } from '../storage/paths.js'
@@ -22,7 +23,7 @@ import {
 } from '../testing/fixtures.js'
 import { MemoryProjectStore } from '../testing/memory-project-store.js'
 import { checkImport, type CheckedProject, type ImportTarget } from './checks.js'
-import type { ConvertedProject } from './legacy.js'
+import { convertLegacyProject, type ConvertedProject } from './legacy.js'
 import { remintProject } from './remint.js'
 
 const ROOT = path.resolve('/data')
@@ -404,5 +405,42 @@ describe('a reminted project re-checked against the store the original is still 
     expect(() => {
       clashing.add('microtask', withTokensOf(out, before).manifest)
     }).toThrow(Conflict)
+  })
+})
+
+describe('a legacy project imported as a copy, whose task id was its project id (§7.6)', () => {
+  const legacy = (): ConvertedProject =>
+    convertLegacyProject(
+      {
+        id: P1,
+        name: 'The old workspace',
+        tabs: [
+          { id: B1, name: 'Kitchen', position: 0, document: emptyDocument(), createdAt: STAMP, updatedAt: STAMP },
+          { id: B2, name: 'Garden', position: 1, document: emptyDocument(), createdAt: STAMP, updatedAt: STAMP },
+        ],
+        shareLinks: [],
+      },
+      fixedClock(NOW),
+    )
+
+  it('starts out holding one task filed under the project’s own id', () => {
+    const before = legacy()
+    expect(before.manifest.tasks.map((entry) => entry.id)).toEqual([P1])
+    expect(before.manifest.tasks[0]?.id).toBe(before.manifest.id)
+  })
+
+  it('mints a task id that is no longer the project id, which is why the old address stops resolving', () => {
+    const out = remintProject(legacy(), sequentialIds())
+    expect(out.manifest.id).not.toBe(P1)
+    expect(out.manifest.tasks[0]?.id).not.toBe(out.manifest.id)
+    expect(out.documents[0]?.id).toBe(out.manifest.tasks[0]?.id)
+  })
+
+  it('keeps the legacy tab strip whole inside the copy, no tab id being named from outside it', () => {
+    const out = remintProject(legacy(), sequentialIds())
+    expect(out.documents[0]?.tabs.map((tab) => [tab.id, tab.name])).toEqual([
+      [B1, 'Kitchen'],
+      [B2, 'Garden'],
+    ])
   })
 })

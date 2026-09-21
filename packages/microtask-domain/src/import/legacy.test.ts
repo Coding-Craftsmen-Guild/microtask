@@ -62,7 +62,7 @@ const derived = (fixture: URL): StoredProject =>
 
 const each = FIXTURES.map((fixture, index) => [index, fixture] as const)
 
-const convert = (json: unknown) => convertLegacyProject(json, fixedClock(NOW), sequentialIds())
+const convert = (json: unknown) => convertLegacyProject(json, fixedClock(NOW))
 
 const legacyTab = (id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
   id,
@@ -123,27 +123,36 @@ const counted: TaskDocument = {
   ],
 }
 
-describe('convertLegacyProject maps a legacy project onto design §7.6', () => {
-  it('turns each legacy tab into one task holding that document in a single tab named General', () => {
+describe('convertLegacyProject maps a legacy file onto one task (design §7.6, corrected)', () => {
+  it('turns the whole file into one task whose tab strip is the legacy tabs, not one task per tab', () => {
     const body = checklist([true, false])
-    const converted = convert(legacyProject({ tabs: [legacyTab(T1, { document: body })] }))
+    const tabs = [
+      legacyTab(T1, { name: 'Go-live', document: body }),
+      legacyTab(T2, { name: 'Content review', position: 1 }),
+    ]
+    const converted = convert(legacyProject({ tabs }))
+    expect(converted.manifest.tasks).toHaveLength(1)
     expect(converted.documents).toHaveLength(1)
     const document = converted.documents[0]
-    expect(document?.tabs).toHaveLength(1)
-    expect(document?.tabs[0]?.name).toBe('General')
-    expect(document?.tabs[0]?.position).toBe(0)
+    expect(document?.tabs.map((tab) => tab.name)).toEqual(['Go-live', 'Content review'])
     expect(document?.tabs[0]?.document).toEqual(body)
   })
 
-  it('names every imported task after the legacy tab it came from, in source order', () => {
+  it('names the one task after the project, there being no tab left to take a name from', () => {
     const tabs = [legacyTab(T1, { name: 'Go-live' }), legacyTab(T2, { name: 'Content review' })]
-    const converted = convert(legacyProject({ tabs }))
-    expect(converted.manifest.tasks.map((task) => task.name)).toEqual(['Go-live', 'Content review'])
+    const converted = convert(legacyProject({ name: 'ACME Website', tabs }))
+    expect(converted.manifest.tasks.map((task) => task.name)).toEqual(['ACME Website'])
   })
 
-  it('does not name the tasks General, which would hide every imported task from search', () => {
-    const converted = convert(legacyProject({ tabs: [legacyTab(T1, { name: 'Go-live' })] }))
-    expect(converted.manifest.tasks[0]?.name).not.toBe('General')
+  it('calls an unnamed project Untitled project in both places, never Untitled task', () => {
+    const converted = convert(legacyProject({ name: '   ' }))
+    expect(converted.manifest.name).toBe('Untitled project')
+    expect(converted.manifest.tasks[0]?.name).toBe('Untitled project')
+  })
+
+  it('falls back to General for a tab with no name, that being the name legacy seeded', () => {
+    const converted = convert(legacyProject({ tabs: [legacyTab(T1, { name: '  ' })] }))
+    expect(converted.documents[0]?.tabs[0]?.name).toBe('General')
   })
 
   it('keeps each legacy tab position verbatim rather than renumbering it into array order', () => {
@@ -152,14 +161,17 @@ describe('convertLegacyProject maps a legacy project onto design §7.6', () => {
       legacyTab(T2, { name: 'Second', position: 2 }),
     ]
     const converted = convert(legacyProject({ tabs }))
-    expect(converted.manifest.tasks.map((task) => task.position)).toEqual([5, 2])
-    expect(converted.manifest.tasks.map((task) => task.name)).toEqual(['Fifth', 'Second'])
+    const tab = converted.documents[0]?.tabs
+    expect(tab?.map((one) => one.position)).toEqual([5, 2])
+    expect(tab?.map((one) => one.name)).toEqual(['Fifth', 'Second'])
   })
 
-  it('files every imported task at the project root, because legacy has no folders', () => {
+  it('files the one task at the project root at position 0, because legacy has no folders', () => {
     const converted = convert(legacyProject({ tabs: [legacyTab(T1), legacyTab(T2)] }))
     expect(converted.manifest.folders).toEqual([])
-    expect(converted.manifest.tasks.map((task) => task.folderId)).toEqual([null, null])
+    expect(converted.manifest.tasks.map((task) => [task.position, task.folderId])).toEqual([
+      [0, null],
+    ])
   })
 
   it('preserves the project id and both project stamps', () => {
@@ -169,27 +181,56 @@ describe('convertLegacyProject maps a legacy project onto design §7.6', () => {
     expect(converted.manifest.updatedAt).toBe(TAB_STAMP)
   })
 
+  it('gives the task the project’s own stamps, the legacy project being what the task is', () => {
+    const tabs = [legacyTab(T1, { createdAt: TAB_STAMP, updatedAt: TAB_STAMP })]
+    const converted = convert(legacyProject({ createdAt: STAMP, updatedAt: STAMP, tabs }))
+    expect([converted.documents[0]?.createdAt, converted.documents[0]?.updatedAt]).toEqual([
+      STAMP,
+      STAMP,
+    ])
+  })
+
   it('takes the import clock for a project stamp a hand-edited file left out', () => {
     const converted = convert({ id: P1, name: 'ACME', tabs: [], shareLinks: [] })
     expect(converted.manifest.createdAt).toBe(NOW)
     expect(converted.manifest.updatedAt).toBe(NOW)
   })
 
+  it('still answers one task for a file carrying no tabs at all, rather than a project of none', () => {
+    const converted = convert({ id: P1, name: 'ACME', tabs: [], shareLinks: [] })
+    expect(converted.manifest.tasks.map((task) => task.id)).toEqual([P1])
+    expect(converted.documents[0]?.tabs).toEqual([])
+    expect(contracts.ProjectManifest.safeParse(converted.manifest).error?.issues ?? []).toEqual([])
+  })
+
   it('takes the import clock for a stamp that is not a string, rather than stringifying it', () => {
     const tabs = [legacyTab(T1, { createdAt: 12345, updatedAt: null })]
-    const converted = convert(legacyProject({ updatedAt: 12345, tabs }))
+    const converted = convert(legacyProject({ createdAt: 12345, updatedAt: 12345, tabs }))
     expect(converted.manifest.updatedAt).toBe(NOW)
     expect(converted.documents[0]?.createdAt).toBe(NOW)
+    expect(converted.documents[0]?.tabs[0]?.createdAt).toBe(NOW)
     expect(converted.documents[0]?.tabs[0]?.updatedAt).toBe(NOW)
     expect(contracts.ProjectManifest.safeParse(converted.manifest).error?.issues ?? []).toEqual([])
   })
 })
 
-describe('convertLegacyProject preserves ids', () => {
-  it('takes the old tab id as the task id, for the task and its document alike', () => {
+describe('convertLegacyProject preserves ids and mints none', () => {
+  it('takes the legacy project id as the task id too, the single task being the project', () => {
     const converted = convert(legacyProject({ tabs: [legacyTab(T1), legacyTab(T2)] }))
-    expect(converted.manifest.tasks.map((task) => task.id)).toEqual([T1, T2])
-    expect(converted.documents.map((document) => document.id)).toEqual([T1, T2])
+    expect(converted.manifest.tasks.map((task) => task.id)).toEqual([P1])
+    expect(converted.documents.map((document) => document.id)).toEqual([P1])
+  })
+
+  it('keeps every legacy tab id as an inner tab id, in source order', () => {
+    const converted = convert(legacyProject({ tabs: [legacyTab(T1), legacyTab(T2)] }))
+    expect(converted.documents[0]?.tabs.map((tab) => tab.id)).toEqual([T1, T2])
+  })
+
+  it('lands the task file at projects/<id>/tasks/<id>.json, two ids in two namespaces', () => {
+    const converted = convert(legacyProject())
+    const at = taskFile('/data', 'microtask', converted.manifest.id, String(converted.manifest.tasks[0]?.id))
+    expect(at.endsWith(`${P1}.json`)).toBe(true)
+    expect(at.split(P1)).toHaveLength(3)
   })
 
   it('keeps the project id and every tab id of a real legacy file, which is what the R3 redirect maps', () => {
@@ -198,21 +239,29 @@ describe('convertLegacyProject preserves ids', () => {
       const converted = convert(file)
       expect(file.tabs).not.toHaveLength(0)
       expect(converted.manifest.id).toBe(file.id)
-      expect(converted.manifest.tasks.map((task) => task.id)).toEqual(file.tabs.map((tab) => tab.id))
-      expect(converted.documents.map((document) => document.id)).toEqual(file.tabs.map((tab) => tab.id))
+      expect(converted.manifest.tasks.map((task) => task.id)).toEqual([file.id])
+      expect(converted.documents.map((document) => document.id)).toEqual([file.id])
+      expect(converted.documents[0]?.tabs.map((tab) => tab.id)).toEqual(file.tabs.map((tab) => tab.id))
     }
   })
 
-  it('produces task ids that are ULIDs, which is what a task file can be named for', () => {
+  it('produces a task id that is a ULID, which is what a task file can be named for', () => {
     for (const [, fixture] of each) {
       const converted = convert(derived(fixture))
-      expect(converted.manifest.tasks).not.toHaveLength(0)
+      expect(converted.manifest.tasks).toHaveLength(1)
       for (const task of converted.manifest.tasks) expect(isUlid(task.id)).toBe(true)
     }
   })
 
-  it('carries a tab id that is no ULID through, so the preview refuses it and not the write', () => {
+  it('carries a tab id that is no ULID through to the task document, for the preview to refuse', () => {
     const converted = convert(legacyProject({ tabs: [legacyTab('../etc/passwd')] }))
+    expect(converted.documents[0]?.tabs[0]?.id).toBe('../etc/passwd')
+    expect(contracts.TaskDocument.safeParse(converted.documents[0]).success).toBe(false)
+    expect(contracts.ProjectManifest.safeParse(converted.manifest).error?.issues ?? []).toEqual([])
+  })
+
+  it('refuses a project id that is no ULID as the task id as well, the two now being one', () => {
+    const converted = convert(legacyProject({ id: '../etc/passwd' }))
     expect(converted.manifest.tasks[0]?.id).toBe('../etc/passwd')
     expect(contracts.ProjectManifest.safeParse(converted.manifest).success).toBe(false)
     expect(() => taskFile('/data', 'microtask', P1, '../etc/passwd')).toThrow(Invalid)
@@ -224,34 +273,29 @@ describe('convertLegacyProject preserves ids', () => {
     expect(contracts.ProjectManifest.safeParse(converted.manifest).success).toBe(false)
   })
 
-  it('gives the inner tab the exact next id of the injected generator, minting nothing itself', () => {
-    const twin = sequentialIds()
-    const want = [twin.entityId(), twin.entityId()]
-    const converted = convert(legacyProject({ tabs: [legacyTab(T1), legacyTab(T2)] }))
-    const ids = converted.documents.flatMap((document) => document.tabs.map((tab) => tab.id))
-    expect(ids).toEqual(want)
-    for (const id of ids) expect(isUlid(id)).toBe(true)
+  it('mints nothing, so two conversions of one file are byte-identical', () => {
+    const file = legacyProject({ tabs: [legacyTab(T1), legacyTab(T2)] })
+    expect(JSON.stringify(convert(file))).toBe(JSON.stringify(convert(file)))
   })
 })
 
 describe('convertLegacyProject describes a broken file rather than refusing to read it', () => {
   it.each([[null], ['nope'], [42], [[1, 2]]])('reads %o into a manifest the preview refuses', (json) => {
-    const converted = convertLegacyProject(json, fixedClock(NOW), sequentialIds())
-    expect(converted.documents).toEqual([])
+    const converted = convertLegacyProject(json, fixedClock(NOW))
+    expect(converted.documents[0]?.tabs).toEqual([])
     expect(contracts.ProjectManifest.safeParse(converted.manifest).success).toBe(false)
   })
 
-  it('gives a tab that is not an object a row of its own, rather than dropping it silently', () => {
+  it('gives a tab that is not an object an inner tab of its own, rather than dropping it silently', () => {
     const converted = convert(legacyProject({ tabs: ['nope', legacyTab(T1)] }))
-    expect(converted.manifest.tasks).toHaveLength(2)
-    expect(converted.documents).toHaveLength(2)
-    expect(contracts.ProjectManifest.safeParse(converted.manifest).success).toBe(false)
+    expect(converted.documents[0]?.tabs).toHaveLength(2)
+    expect(contracts.TaskDocument.safeParse(converted.documents[0]).success).toBe(false)
   })
 
   it('reports a position that is not a number rather than inventing one', () => {
     const converted = convert(legacyProject({ tabs: [legacyTab(T1, { position: '3' })] }))
-    const parsed = contracts.ProjectManifest.safeParse(converted.manifest)
-    expect(parsed.error?.issues.map((issue) => issue.path.join('.'))).toContain('tasks.0.position')
+    const parsed = contracts.TaskDocument.safeParse(converted.documents[0])
+    expect(parsed.error?.issues.map((issue) => issue.path.join('.'))).toContain('tabs.0.position')
   })
 })
 
@@ -313,23 +357,35 @@ describe('convertLegacyProject maps share links', () => {
 })
 
 describe('convertLegacyProject normalises the names the contracts will not accept', () => {
-  it('produces a manifest and a task document that parse clean from names that would not', () => {
+  const overLong = (): ReturnType<typeof convert> => {
     const tabs = [legacyTab(T1, { name: '' }), legacyTab(T2, { name: 'x'.repeat(200) })]
-    const converted = convert(legacyProject({ name: '   ', tabs }))
+    return convert(legacyProject({ name: 'x'.repeat(200), tabs }))
+  }
+
+  it('produces a manifest and a task document that parse clean from names that would not', () => {
+    const converted = overLong()
     expect(contracts.ProjectManifest.safeParse(converted.manifest).error?.issues ?? []).toEqual([])
     for (const document of converted.documents) {
       expect(contracts.TaskDocument.safeParse(document).error?.issues ?? []).toEqual([])
     }
-    expect(converted.manifest.name).not.toBe('')
-    expect(converted.manifest.tasks[0]?.name).not.toBe('')
-    expect(converted.manifest.tasks[1]?.name).toHaveLength(contracts.LIMITS.nameLength)
+  })
+
+  it('bounds the project name, the task name it becomes, and every tab name beside it', () => {
+    const converted = overLong()
+    expect(converted.manifest.name).toHaveLength(contracts.LIMITS.nameLength)
+    expect(converted.manifest.tasks[0]?.name).toHaveLength(contracts.LIMITS.nameLength)
+    expect(converted.documents[0]?.tabs[0]?.name).toBe('General')
+    expect(converted.documents[0]?.tabs[1]?.name).toHaveLength(contracts.LIMITS.nameLength)
   })
 })
 
-describe('convertLegacyProject caches every manifest entry from its document', () => {
-  it('writes all four cache fields from taskCache, not the three that are easy', () => {
-    const body = checklist([true, false, false])
-    const converted = convert(legacyProject({ tabs: [legacyTab(T1, { document: body })] }))
+describe('convertLegacyProject caches the one manifest entry from its whole tab strip', () => {
+  it('sums progress over every tab and lists every tab name, not just the first tab’s', () => {
+    const tabs = [
+      legacyTab(T1, { name: 'Alpha', document: checklist([true, false]) }),
+      legacyTab(T2, { name: 'Beta', position: 1, document: checklist([true]) }),
+    ]
+    const converted = convert(legacyProject({ tabs }))
     const document = converted.documents[0] as TaskDocument
     const cached = taskCache(document)
     expect(converted.manifest.tasks[0]).toMatchObject({
@@ -338,14 +394,25 @@ describe('convertLegacyProject caches every manifest entry from its document', (
       tabCount: cached.tabCount,
       tabNames: cached.tabNames,
     })
-    expect(cached.progress).toEqual({ done: 1, total: 3 })
-    expect(cached.tabNames).toEqual(['General'])
+    expect(cached.progress).toEqual({ done: 2, total: 3 })
+    expect(cached.tabCount).toBe(2)
+    expect(cached.tabNames).toEqual(['Alpha', 'Beta'])
   })
 
-  it('stamps each entry with its own task document, never with the project stamp', () => {
-    const converted = convert(legacyProject({ updatedAt: STAMP, tabs: [legacyTab(T1)] }))
-    expect(converted.manifest.tasks[0]?.updatedAt).toBe(TAB_STAMP)
-    expect(converted.manifest.tasks[0]?.updatedAt).not.toBe(converted.manifest.updatedAt)
+  it('lists the tab names in position order, which is the strip order the legacy file had', () => {
+    const tabs = [
+      legacyTab(T1, { name: 'Second', position: 1 }),
+      legacyTab(T2, { name: 'First', position: 0 }),
+    ]
+    const converted = convert(legacyProject({ tabs }))
+    expect(converted.manifest.tasks[0]?.tabNames).toEqual(['First', 'Second'])
+  })
+
+  it('stamps the entry with the project’s own stamp, that stamp now being the task’s', () => {
+    const tabs = [legacyTab(T1, { updatedAt: TAB_STAMP })]
+    const converted = convert(legacyProject({ updatedAt: STAMP, tabs }))
+    expect(converted.manifest.tasks[0]?.updatedAt).toBe(STAMP)
+    expect(converted.manifest.tasks[0]?.updatedAt).toBe(converted.manifest.updatedAt)
   })
 })
 
@@ -458,13 +525,12 @@ describe('convertLegacyProject over the projects data/ actually holds', () => {
       expect(contracts.TaskDocument.safeParse(document).error?.issues ?? []).toEqual([])
     }
     expect(converted.manifest.id).toBe(source.id)
-    expect(converted.documents).toHaveLength(source.tabs.length)
-    const tabs = source.tabs
-    expect(converted.manifest.tasks.map((task) => task.id)).toEqual(tabs.map((tab) => tab.id))
-    expect(converted.manifest.tasks.map((task) => task.position)).toEqual(
-      tabs.map((tab) => tab.position),
-    )
-    expect(converted.manifest.tasks.map((task) => task.name)).toEqual(tabs.map((tab) => tab.name))
+    expect(converted.documents).toHaveLength(1)
+    const tabs = converted.documents[0]?.tabs ?? []
+    expect(converted.manifest.tasks.map((task) => task.id)).toEqual([source.id])
+    expect(tabs.map((tab) => tab.id)).toEqual(source.tabs.map((tab) => tab.id))
+    expect(tabs.map((tab) => tab.position)).toEqual(source.tabs.map((tab) => tab.position))
+    expect(tabs.map((tab) => tab.name)).toEqual(source.tabs.map((tab) => tab.name))
   })
 
   it.each(each)('preserves every token and permission of derived project %i', (_index, fixture) => {
@@ -490,14 +556,14 @@ describe('convertLegacyProject over the projects data/ actually holds', () => {
   it('carries every tab document through unchanged, since import copies rather than edits', () => {
     const source = derived(FIXTURES[0])
     const converted = convert(source)
-    expect(converted.documents.map((document) => document.tabs[0]?.document)).toEqual(
+    expect(converted.documents[0]?.tabs.map((tab) => tab.document)).toEqual(
       source.tabs.map((tab) => tab.document),
     )
   })
 })
 
-describe('an imported legacy project is findable', () => {
-  it('finds an imported task by the name its legacy tab carried, which General would hide', async () => {
+describe('what search can still reach of an imported legacy project (ADR 0021)', () => {
+  const found = async (query: string, json: Record<string, unknown>) => {
     const store = new MemoryProjectStore()
     const service = new SearchService({
       store,
@@ -506,9 +572,17 @@ describe('an imported legacy project is findable', () => {
       clock: fixedClock(NOW),
       ids: sequentialIds(),
     })
-    const converted = convert(legacyProject({ tabs: [legacyTab(T1, { name: 'Zephyrine audit' })] }))
-    await store.saveManifest('microtask', converted.manifest)
-    const results = await service.search('microtask', { kind: 'admin' }, 'zephyrine')
-    expect(results).toEqual([{ kind: 'task', projectId: P1, taskId: T1, name: 'Zephyrine audit' }])
+    await store.saveManifest('microtask', convert(json).manifest)
+    return service.search('microtask', { kind: 'admin' }, query)
+  }
+
+  it('finds the one imported task by the project name it took, which General would hide', async () => {
+    const results = await found('zephyrine', legacyProject({ name: 'Zephyrine audit' }))
+    expect(results).toContainEqual({ kind: 'task', projectId: P1, taskId: P1, name: 'Zephyrine audit' })
+  })
+
+  it('cannot find it by a legacy tab name, tab names being outside search’s reach', async () => {
+    const tabs = [legacyTab(T1, { name: 'Zephyrine audit' })]
+    expect(await found('zephyrine', legacyProject({ name: 'ACME Website', tabs }))).toEqual([])
   })
 })

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { MAX_LISTED_TAB_NAMES } from '@repo/contracts'
 import {
   FsProjectStore,
   ShareIndex,
@@ -26,6 +27,7 @@ const ROOT = testConfig.dataDir
 interface LegacyTab {
   readonly id: string
   readonly name: string
+  readonly position: number
   readonly document: unknown
 }
 
@@ -135,14 +137,16 @@ describe.skipIf(!hasBackup)('the live backup under data/projects imports as it s
     expect(rows.every((one) => (one['reasons'] as readonly string[]).length === 0)).toBe(true)
   })
 
-  it('counts each project’s tabs as its tasks, the cross-check agreeing on every row', async () => {
+  it('counts each file as exactly one task however many tabs it holds, the cross-check agreeing', async () => {
     const { app, session } = await dropped()
     const rows = await previewRows(app, session)
     const byId = new Map(rows.map((one) => [String(one['projectId']), one]))
+    const many = backup().filter((project) => project.tabs.length > 1)
+    expect(many.length).toBeGreaterThan(0)
     for (const project of backup()) {
       const row = byId.get(project.id)
-      expect([project.id, row?.['manifestTaskCount']]).toEqual([project.id, project.tabs.length])
-      expect([project.id, row?.['taskFilesFound']]).toEqual([project.id, project.tabs.length])
+      expect([project.id, row?.['manifestTaskCount']]).toEqual([project.id, 1])
+      expect([project.id, row?.['taskFilesFound']]).toEqual([project.id, 1])
     }
   })
 
@@ -174,7 +178,7 @@ describe.skipIf(!hasBackup)('the live backup under data/projects imports as it s
     )
   })
 
-  it('lands every tab as a task under the tab’s own id, which is what a legacy ?tab= maps onto', async () => {
+  it('lands one task under the project’s own id, which is what a legacy address maps onto', async () => {
     const { app, deps, session } = await dropped()
     await confirm(app, session)
     for (const project of backup()) {
@@ -183,18 +187,69 @@ describe.skipIf(!hasBackup)('the live backup under data/projects imports as it s
       )
       expect([project.id, manifest?.tasks.map((task) => task.id)]).toEqual([
         project.id,
-        project.tabs.map((tab) => tab.id),
+        [project.id],
+      ])
+      expect([project.id, manifest?.tasks[0]?.name]).toEqual([project.id, project.name])
+    }
+  })
+
+  it('gives that task the tab strip the file had, every tab keeping its id, name and position', async () => {
+    const { app, deps, session } = await dropped()
+    await confirm(app, session)
+    for (const project of backup()) {
+      const task = await deps.store.readTask('microtask', project.id, project.id)
+      expect([project.id, task?.tabs.map((tab) => [tab.id, tab.name, tab.position])]).toEqual([
+        project.id,
+        project.tabs.map((tab, at) => [tab.id, tab.name, at]),
       ])
     }
   })
 
-  it('keeps every task document byte-identical to the tab it came from', async () => {
+  it('files no task under a legacy tab id, the flattening §7.6 used to do being gone', async () => {
     const { app, deps, session } = await dropped()
     await confirm(app, session)
     for (const project of backup()) {
-      for (const tab of project.tabs) {
-        const task = await deps.store.readTask('microtask', project.id, tab.id)
-        expect([tab.id, JSON.stringify(task?.tabs[0]?.document)]).toEqual([
+      for (const tab of project.tabs.filter((one) => one.id !== project.id)) {
+        expect([tab.id, await deps.store.readTask('microtask', project.id, tab.id)]).toEqual([
+          tab.id,
+          null,
+        ])
+      }
+    }
+  })
+
+  it('preserves every tab the backup held, none dropped into a task nobody opens', async () => {
+    const { app, deps, session } = await dropped()
+    await confirm(app, session)
+    const held = backup().reduce((total, project) => total + project.tabs.length, 0)
+    let landed = 0
+    for (const project of backup()) {
+      landed += (await deps.store.readTask('microtask', project.id, project.id))?.tabs.length ?? 0
+    }
+    expect(held).toBeGreaterThan(backup().length)
+    expect(landed).toBe(held)
+  })
+
+  it('caches the whole strip on the manifest entry, up to the eight names a list row draws', async () => {
+    const { app, deps, session } = await dropped()
+    await confirm(app, session)
+    for (const project of backup()) {
+      const manifest = await deps.store.readManifest('microtask', project.id)
+      expect([project.id, manifest?.tasks[0]?.tabCount]).toEqual([project.id, project.tabs.length])
+      expect([project.id, manifest?.tasks[0]?.tabNames]).toEqual([
+        project.id,
+        project.tabs.slice(0, MAX_LISTED_TAB_NAMES).map((tab) => tab.name),
+      ])
+    }
+  })
+
+  it('keeps every tab document byte-identical to the tab it came from', async () => {
+    const { app, deps, session } = await dropped()
+    await confirm(app, session)
+    for (const project of backup()) {
+      const task = await deps.store.readTask('microtask', project.id, project.id)
+      for (const [at, tab] of project.tabs.entries()) {
+        expect([tab.id, JSON.stringify(task?.tabs[at]?.document)]).toEqual([
           tab.id,
           JSON.stringify(tab.document),
         ])
@@ -208,9 +263,7 @@ describe.skipIf(!hasBackup)('the live backup under data/projects imports as it s
     const before = hrefsIn(backup().map((project) => project.tabs.map((tab) => tab.document)))
     const after: string[] = []
     for (const project of backup()) {
-      for (const tab of project.tabs) {
-        after.push(...hrefsIn(await deps.store.readTask('microtask', project.id, tab.id)))
-      }
+      after.push(...hrefsIn(await deps.store.readTask('microtask', project.id, project.id)))
     }
     expect(before.length).toBeGreaterThan(0)
     expect([...after].sort()).toEqual([...before].sort())

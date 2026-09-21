@@ -51,7 +51,6 @@ export {
 } from './import/checks.js'
 export {
   planImport,
-  type ImportMint,
   type PlannedProject,
   type PreviewRow,
   type PreviewShareLink,

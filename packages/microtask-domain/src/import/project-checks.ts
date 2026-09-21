@@ -149,8 +149,11 @@ const safetyReasons = (manifest: Manifest, documents: readonly Document[]): read
  * collections too. What each still contributes is its **own sentence**, a zod issue path naming a
  * field where these name the problem — `tasksPerProject` and `shareLinksPerProject` are the two
  * that can still say something `tasks` or `shareLinks` alone does not. The one check that is
- * load-bearing rather than merely legible is the id: nothing else refuses a non-ULID legacy task id
- * before `taskFile()` throws at write time with half a bundle already on disk.
+ * load-bearing rather than merely legible is the id: nothing else refuses a non-ULID **task** id
+ * before `taskFile()` throws at write time with half a bundle already on disk. That reaches a
+ * legacy file through its *project* id now rather than through a tab id — the single task a legacy
+ * file converts to takes the project's own id (§7.6 as corrected 2026-09-21), so a legacy tab id
+ * is checked here under `Tab` and becomes no path segment at all.
  *
  * `assertSafeDocument` is called rather than reimplemented, §7.5 being already built: depth, banned
  * keys, the href and src scheme allowlist and the 2 MB bound, walked iteratively. It throws, so the
