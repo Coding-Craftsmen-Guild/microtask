@@ -47,6 +47,17 @@ describe('the admin layout', () => {
     expect(signOut).toHaveBeenCalledTimes(2)
   })
 
+  it('offers a way into the import and export panel, which otherwise has no route into it', () => {
+    render(<AdminLayout>page</AdminLayout>)
+    const link = screen.getByRole('link', { name: 'Import / Export' })
+    expect(link.getAttribute('href')).toBe('/transfer')
+  })
+
+  it('offers it on every admin page, not only the index, as Sign out is', () => {
+    const { container } = render(<AdminLayout>a task page</AdminLayout>)
+    expect(container.querySelectorAll('a[href="/transfer"]').length).toBe(1)
+  })
+
   it('renders no link to /login anywhere', () => {
     const { container } = render(<AdminLayout>page</AdminLayout>)
     expect(container.querySelector('a[href^="/login"]')).toBeNull()
