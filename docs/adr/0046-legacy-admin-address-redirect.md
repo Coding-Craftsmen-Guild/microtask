@@ -139,3 +139,49 @@ shape is written down. Two spellings of a path is a worse drift risk than the on
 **Import the converter from the app test by relative source path**, bypassing `package.json`.
 Rejected: it hides a real dependency from the manifest, from `scripts/check-exports.mjs` and from
 the lint rule that exists to forbid exactly it.
+
+## Amended · 2026-09-21 — one 307 to `/p/:id/t/:id`, the `?tab=` carried through
+
+Design §7.6 was corrected on this date: a legacy file now imports as a project holding **exactly one
+task**, under the project's own id, whose tab strip is the legacy tabs. The premise this ADR rested
+on — *"a legacy tab id is now a task id"* — is therefore no longer true, and both halves of the
+decision above are restated.
+
+**A legacy `?tab=<tabId>` names an inner tab again.** The target is
+`/p/:projectId/t/:projectId?tab=<tabId>`: the task id is the project id, so it is still computable
+from the one segment the handler already has, with no lookup table.
+
+**The tab half needs no guard of its own any more.** The task page already validates `?tab=` against
+the tabs its task holds and falls back to the first (parity feature 39, `t/[taskId]/page.test`
+"opens on the first tab when ?tab= names a tab this task does not hold"). A tab deleted since the
+bookmark was taken therefore opens the task at its first tab — which is precisely what the legacy
+page did with a stale `?tab=`. The 404 hazard this ADR was written around is gone from that half.
+
+**What still needs the read is the task half**, and the criterion is unchanged: a project that holds
+no task of its own id falls back to `/p/:projectId` rather than 404ing. That is any project not
+imported from legacy, and any legacy project imported as a **copy** — `remint.ts` mints a fresh
+project id *and* a fresh task id (ADR 0019), so a copy's task id is no longer its project id, which
+this ADR already recorded as breaking the old address on purpose. Every failure of the read is the
+project page too, as before.
+
+**The parameterless form is no longer a `308` to `/p/:projectId`.** Three things decided that.
+
+- **It was the wrong page.** The legacy address served `project.html` — the document with its tab
+  strip — and with no `?tab=` it opened the *first tab* (parity route table, feature 39). It never
+  showed a list of tasks. The page that content lives on now is `/p/:id/t/:id`.
+- **The 308's permanence bought nothing.** Both answers carry `Cache-Control: private, no-store`,
+  which forbids the browser to keep the redirect at all, so "permanent" was semantics and not a
+  saved round trip.
+- **The read it saved was on the rare form.** This ADR's own first fact is that a real bookmark
+  almost always carries `?tab=`, so the parameterless shape is the uncommon one — and the read is
+  the same one the page it lands on is about to make.
+
+So there is now **one status, 307**, honest for both shapes because both targets are chosen from
+data that can change, and one rule: *the legacy project address is the task page of the same id,
+falling back to the project page*. The "two statuses from one route" consequence below is spent.
+
+**The cross-file pin still holds, on the same fixture.** `legacy.test` "keeps the project id and
+every tab id of a real legacy file, which is what the R3 redirect maps" now asserts the task id is
+the project id and the tab ids are the file's; `route.test` "maps every tab of fixture %i onto that
+one task page, as its ?tab=" reads the same two files and asserts the redirect targets those ids.
+No id in either test is written by hand, and the drift still cannot be silent.

@@ -590,6 +590,13 @@ The source of truth for every rule here is `legacy-prod:lib/store.js`, not a par
       are explicitly out of its reach (ADR 0021), that is an entire imported workspace nobody can
       find. A test asserts imported task names equal the source tab names in source order, and a
       second asserts search finds an imported task by the name its legacy tab carried.
+- [ ] **Superseded 2026-09-21.** The two criteria above were built exactly as written and were both
+      wrong, because §7.6 was. A legacy file now becomes one Project holding **one Task** under the
+      project's own id and name, whose tab strip is the legacy tabs; the tab-per-task flattening
+      they describe is what the product owner reported. The `General` reasoning survives in a
+      narrower place — it is the fallback name for an *unnamed tab*, never a task's. Search: a
+      legacy tab name is no longer findable at all, which is recorded as a loss in ADR 0021's
+      2026-09-21 amendment rather than papered over. See design §7.6 as corrected.
 - [ ] **A legacy link with no `permission` maps to `write`, not `view`.** **[audited] The real rule
       is broader than "missing"**: `PERMISSIONS.includes(link.permission) ? link.permission : 'write'`
       — *any* value outside `['read', 'write']` becomes `write`. Pinned by two tests: a link with no
@@ -1253,6 +1260,11 @@ exists"*. Task 3 creates that rule, so this is the task that closes it.
 - [ ] A legacy `?tab=<tabId>` maps to `/p/:projectId/t/<tabId>`, because Task 3 makes an old tab id
       the new task id. A test pins the mapping against a converted legacy project rather than a
       hand-written id, so it fails if Task 3's id rule ever changes.
+- [ ] **Superseded 2026-09-21**, with Task 3. An old tab id is an inner **tab** id again, so the
+      address is `/p/:projectId/t/:projectId?tab=<tabId>` — one 307, no 308, and the parameterless
+      form goes to the same task page rather than to `/p/:projectId`, the legacy address having
+      served the document with its tab strip. The cross-file fixture pin the two criteria above ask
+      for is unchanged. ADR 0046's 2026-09-21 amendment carries the reasoning.
 - [ ] A `?tab=` naming a tab the project does not have falls back to the project page rather than
       404ing. An address in a client's browser history must not become a dead end.
 - [ ] Record the decision — the parity audit says it needs one taken alongside ADR 0022.

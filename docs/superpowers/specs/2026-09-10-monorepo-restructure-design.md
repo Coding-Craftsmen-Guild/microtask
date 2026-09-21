@@ -326,13 +326,35 @@ depth, so the recursive `countTasks` walk cannot blow the stack; rejection of `_
 
 ### 7.6 Legacy mapping
 
+> **Corrected 2026-09-21.** The second bullet used to read *"each old **tab** → a **Task** holding
+> that document in a single `General` tab"*. That was wrong, and the code implementing it faithfully
+> is what the product owner reported: *"the import doesn't work correctly, it imports the old files
+> separated as tasks, while in old files, the file itself was a task / project and inside you had
+> tabs."* It flattened the legacy tab strip into a task list — a project of 11 tabs became 11 tasks
+> of one tab each, all of them called `General`, and the strip the user actually had disappeared.
+> The rule below replaces it. Corroboration that the new shape is the one the model was already
+> built for: `LIMITS.tabsPerTask` is **40**, exactly the legacy per-project tab cap
+> (`docs/parity/legacy-microtask.md`: a 41st tab was refused with "Too many tabs"), so a Task's tab
+> strip has the capacity of a legacy project's tab strip and nothing else does.
+
 - old project → **Project**
-- each old **tab** → a **Task** holding that document in a single `General` tab
+- the whole old file → **exactly one Task** of that Project, taking the project's **own id** and
+  the project's **name**, at `position: 0` with `folderId: null`
+- each old **tab** → an inner **Tab** of that one Task, keeping its `id`, `name`, `position`,
+  `document` and both stamps — a legacy tab's fields are exactly a `Tab`'s
 - old `shareLinks` → **project-scoped** links, `write → write`, `read → view`
 - **a legacy link with no `permission` field maps to `write`, not `view`.** Today's
   `normalizeShareLinks` treats a missing permission as `write`, so the oldest links in circulation
   are write-capable. Mapping them to `view` would silently take away access clients currently have.
-- tokens preserved; ids preserved
+- tokens preserved; ids preserved; **nothing is minted**, the task id being the project's own and
+  every tab id the file's. Two conversions of one file are therefore byte-identical, and the R3
+  redirect can compute `/p/<id>/t/<id>` from the one segment it already holds (ADR 0046).
+- a task id equal to its project id is not a clash: the file lands at
+  `projects/<id>/tasks/<id>.json`, two ids in two namespaces.
+- a file carrying no tabs still becomes one Task, holding an empty strip, so the count never
+  depends on the file.
+- **what this costs:** a legacy *tab* name is no longer a task name, and search matches names but
+  not tab names (ADR 0021), so a legacy tab is no longer findable by name. The project name is.
 
 ## 8. API
 

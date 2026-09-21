@@ -49,3 +49,30 @@ live is a consistency problem, which is a decision of its own.
 
 **Names plus filters** (has-open-tasks, updated-recently, by role). More useful and more UI.
 Deferred; nothing here blocks adding it later.
+
+## Amended · 2026-09-21 — the stated reason is out of date, and the legacy import now pays for it
+
+Two things above are no longer true of this repo, and both are recorded here rather than acted on,
+because acting on either is a decision of its own.
+
+**"A tab name lives only inside its task file" is false.** [ADR 0034](0034-task-entry-carries-list-row.md)
+put `tabCount` and `tabNames` on the manifest entry afterwards, so up to `MAX_LISTED_TAB_NAMES` (8)
+tab names per task are already in the one file a search reads. The cost argument this decision rests
+on — *"opening every task file in every project on every query"* — therefore does not apply to those
+eight. It still applies to the ninth and beyond, and to document text.
+
+**The legacy import now depends on it.** Design §7.6 was corrected on this date: a legacy file
+becomes one Task whose tab strip is the legacy tabs, rather than one Task per tab. Under the old
+mapping a legacy tab name *was* a task name, so search found it; under the new one it is a tab name
+and search does not. For the live backup that is 17 tab names — "Critical", "Security", "i18n",
+"Test suite" and the rest — which were findable as task names and are not any more, against the 4
+project names, now the 4 task names, which still are.
+`legacy.test` "cannot find it by a legacy tab name, tab names being outside search's reach" pins the
+behaviour so it is a recorded loss and not a surprise.
+
+**Not fixed here**, deliberately. Searching `tabNames` off the manifest would be cheap but
+**incomplete**: the field stops at eight names, so the eleven-tab project in the live backup would
+match on its first eight tabs and silently not on its last three — a search that is right most of
+the time is worse than one that is honestly narrow. Making it complete means either raising the cap,
+which grows every manifest, or reading task files, which is the cost this ADR exists to avoid. That
+trade wants its own decision.

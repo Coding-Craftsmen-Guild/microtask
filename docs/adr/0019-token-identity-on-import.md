@@ -49,7 +49,18 @@ writes the timestamps the bundle carries.
 
 ## Legacy mapping
 
-- old project → **Project**; each old **tab** → a **Task** holding that document in one `General` tab
+> **Corrected 2026-09-21**, with design §7.6, which this section restated. The first bullet used to
+> read *"each old **tab** → a **Task** holding that document in one `General` tab"*; that flattened
+> the legacy tab strip into a task list and is what the product owner reported as broken. Nothing
+> about **tokens** changes. One thing about **ids** does, and it bears on this ADR's own subject:
+> a legacy project now converts to exactly one task whose id **is the project id**, so `import as
+> new` mints two ids where it used to mint one per tab, and the copy's task id is no longer its
+> project id. That is the mechanism by which a copy breaks the old `/admin/projects/<id>` address,
+> which ADR 0046 already recorded as deliberate. Inner tab ids are still not minted, and still
+> named from nowhere outside their own task file — a legacy tab id is now one of those.
+
+- old project → **Project**; the whole old file → **one Task** under the project's own id, whose tab
+  strip is the old tabs, each keeping its own id
 - old `shareLinks` → **project-scoped** links, `write → write`, `read → view`
 - **a legacy link with no `permission` field maps to `write`, not `view`.** Today's
   `normalizeShareLinks` treats a missing permission as `write`, so the oldest links in circulation
