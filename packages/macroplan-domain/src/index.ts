@@ -25,6 +25,12 @@ export type { ItemRef, PlanRef } from './services/refs.js'
 export { PlanService, type NewPlan, type PlanChanges } from './services/plan-service.js'
 export { EpicService, type EpicChanges, type NewEpic } from './services/epic-service.js'
 export {
+  FeatureService,
+  type FeatureChanges,
+  type FeaturePlacement,
+  type NewFeature,
+} from './services/feature-service.js'
+export {
   ItemService,
   type ItemChanges,
   type ItemPlacement,
