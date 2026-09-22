@@ -481,7 +481,7 @@ are `'admin'`.
 > false in the authorization path. Two other guards still refuse such a request — a plan scope cannot
 > parse into a project manifest, and `inScope` refuses a `project` target to a `plan` scope — so this
 > is not a hole before and will not be one after. But the cast has to become a narrowing that the
->
+> resolver or the mount actually proves, rather than an assertion nothing does.
 
 `TokenIndex` and `ShareIndex` live in `@repo/microtask-domain` and are typed to `ProjectManifest`. A
 Macroplan bearer has to resolve too, and two indexes would mean `PrincipalResolver` trying both —
