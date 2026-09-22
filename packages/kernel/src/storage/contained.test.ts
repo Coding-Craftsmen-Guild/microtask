@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { Invalid } from '@repo/kernel'
+import { Invalid } from '../errors.js'
 import { contained } from './contained.js'
 
 const PARENT = path.resolve('/data/microtask/projects')

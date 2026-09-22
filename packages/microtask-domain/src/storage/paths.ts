@@ -1,7 +1,6 @@
 import path from 'node:path'
-import { Invalid, isProduct, isUlid, type Product } from '@repo/kernel'
+import { contained, Invalid, isProduct, isUlid, type Product } from '@repo/kernel'
 import { normaliseImportPath } from '../import/harvested-path.js'
-import { contained } from './contained.js'
 
 const MANIFEST = 'project.json'
 const TASKS = 'tasks'
@@ -80,9 +79,9 @@ export function stagingRoot(root: string, product: Product): string {
  * Resolves the directory holding one import session.
  *
  * The session id is checked with the same `isUlid` guard a project id gets, before it is joined
- * onto anything. That check is the reason `contained()` stays package-private: a caller handed the
- * raw containment primitive would have a resolved-prefix test and no id guard, and would then have
- * to restate the ULID rule at its own call site.
+ * onto anything. That check still belongs here rather than inside `contained()`: the containment
+ * primitive is only a resolved-prefix test — a backstop, not the defence — so a caller reaching for
+ * it directly would still have to restate the ULID rule at its own call site.
  */
 export function stagingDir(root: string, product: Product, sessionId: string): string {
   if (!isUlid(sessionId)) throw new Invalid('Import session id must be a ULID')
