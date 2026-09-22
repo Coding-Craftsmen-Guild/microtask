@@ -57,7 +57,7 @@ describe('findCycles is invariant under a permutation of the feature array', () 
   })
 })
 
-describe('every reported cycle is sound', () => {
+describe('each member of a reported cycle has an edge to another member — necessary for one strongly connected component, not sufficient', () => {
   it('gives each member of a cycle of size > 1 an edge to another member of the same cycle', () => {
     for (const seed of seeds) {
       const plan = plans[seed]

@@ -114,15 +114,19 @@ describe('findCycles reports every dependsOn cycle among features', () => {
     expect(graph.map((one) => one.id)).toEqual(['x', 'y', 'a'])
   })
 
-  it('stays linear and does not overflow the stack on a single cycle at the 200-feature cap', () => {
+  it('walks one 200-feature cycle to the end without overflowing the stack', () => {
+    /**
+     * The 1s wall-clock ceiling that stood here is gone with the word "linear" it was offered as
+     * proof of: a clock cannot tell linear from quadratic at one input size, and vitest's own
+     * timeout already fails a walk that does not return. `findCycles`'s TSDoc argues the asymptotics
+     * from Tarjan, which is where an asymptotic claim can actually be checked.
+     */
     const size = 200
     const chain = Array.from({ length: size }, (_unused, at) =>
       feature(String(at).padStart(3, '0'), String((at + 1) % size).padStart(3, '0')),
     )
-    const started = Date.now()
     const found = findCycles(chain)
     expect(found).toHaveLength(1)
     expect(found[0]?.featureIds).toHaveLength(size)
-    expect(Date.now() - started).toBeLessThan(1000)
   })
 })

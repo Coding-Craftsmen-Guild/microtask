@@ -84,10 +84,12 @@ function byFirstId(left: Cycle, right: Cycle): number {
  * could see or fix, and answering with a cycle nobody can find in the timeline would be worse
  * than ignoring it.
  *
- * `visit` and `lowOfEdge` are mutually recursive, one JS frame per unvisited node reached along the
- * walk, so recursion depth is bounded by the number of features rather than by input size in
- * general. That is safe only because a plan is capped at 200 features — well under any stack
- * limit — and that bound is part of why the cap exists, not an incidental fact about it.
+ * `visit` and `lowOfEdge` are mutually recursive — `visit` calls `lowOfEdge` for each edge, which
+ * calls `visit` again for an unvisited target — so every step down the walk costs **two** JS
+ * frames, and recursion depth is about twice the number of features rather than equal to it, though
+ * still bounded by the features of one plan rather than by input size in general. That is safe only
+ * because a plan is capped at 200 features — 400 frames is well under any stack limit — and that
+ * bound is part of why the cap exists, not an incidental fact about it.
  *
  * Discovery order depends on the order features arrive in, so it is sorted out of the answer:
  * ids ascending within each cycle, cycles ascending by first id. Components are disjoint, so no

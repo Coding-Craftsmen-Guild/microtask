@@ -224,6 +224,12 @@ describe('ItemDocument', () => {
   })
 
   it('counts UTF-16 units and not bytes, which is the backstop its TSDoc says it is', () => {
+    /**
+     * The real 8 192-byte cap is `cleanDescription` in `@repo/macroplan-domain`, which truncates in
+     * UTF-8 bytes without splitting a code point. This `.max()` is the backstop behind it and must
+     * not be tightened towards bytes: it would then refuse descriptions the domain had already
+     * trimmed to spec, since 8 192 units of astral text is 16 KB encoded and still valid.
+     */
     const astral = '\u{1F600}'.repeat(MAX_ITEM_DESCRIPTION_BYTES / 2)
     expect(astral.length).toBe(MAX_ITEM_DESCRIPTION_BYTES)
     expect(Buffer.byteLength(astral, 'utf8')).toBeGreaterThan(MAX_ITEM_DESCRIPTION_BYTES)
