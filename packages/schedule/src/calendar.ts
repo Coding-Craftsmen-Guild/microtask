@@ -31,19 +31,19 @@ function firstWorkingDayFrom(epochDay: number): number {
   return epochDay
 }
 
-function workingIndex(epochDay: number): number {
+function epochDayToWorkingIndex(epochDay: number): number {
   const week = Math.floor((epochDay - MONDAY_BEFORE_EPOCH) / DAYS_PER_WEEK)
   return week * WORKING_DAYS_PER_WEEK + (weekday(epochDay) - 1)
 }
 
-function workingEpochDay(index: number): number {
+function workingIndexToEpochDay(index: number): number {
   const week = Math.floor(index / WORKING_DAYS_PER_WEEK)
   const withinWeek = index - week * WORKING_DAYS_PER_WEEK
   return MONDAY_BEFORE_EPOCH + week * DAYS_PER_WEEK + withinWeek
 }
 
 function anchorIndex(calendar: PlanCalendar): number {
-  return workingIndex(firstWorkingDayFrom(toEpochDay(calendar.startDate)))
+  return epochDayToWorkingIndex(firstWorkingDayFrom(toEpochDay(calendar.startDate)))
 }
 
 /** Whether a calendar date is a working day. Saturday and Sunday are not; holidays do not exist. */
@@ -65,10 +65,17 @@ export function isWorkingDay(date: string): boolean {
  *
  * Five working days are exactly seven calendar days, which makes the conversion a division rather
  * than a walk: offset 2 000 costs what offset 1 costs, and this is called once per feature and per
- * item on every read of a plan.
+ * item on every read of a plan. Concretely both directions are `floor(x / 7) * 5 + remainder` and
+ * its inverse, anchored at the Monday before the epoch — dividing by the week turns five working
+ * days into whole weeks, and the leftover 0–4 is the day within that week. Never a scan.
+ *
+ * This only ever returns a working day, so composing it **after** {@link dateToDay} silently turns
+ * any weekend date that function was given into the following Monday. That is the one direction
+ * which never round-trips, and it is a property of the offset space rather than a defect: three
+ * calendar dates share each weekend-adjacent offset, and only one of them can come back.
  */
 export function dayToDate(day: number, calendar: PlanCalendar): string {
-  return toDate(workingEpochDay(anchorIndex(calendar) + day))
+  return toDate(workingIndexToEpochDay(anchorIndex(calendar) + day))
 }
 
 /**
@@ -84,7 +91,7 @@ export function dayToDate(day: number, calendar: PlanCalendar): string {
  * cannot hold — three calendar dates share each weekend-adjacent offset, and only one comes back.
  */
 export function dateToDay(date: string, calendar: PlanCalendar): number {
-  return workingIndex(firstWorkingDayFrom(toEpochDay(date))) - anchorIndex(calendar)
+  return epochDayToWorkingIndex(firstWorkingDayFrom(toEpochDay(date))) - anchorIndex(calendar)
 }
 
 /**

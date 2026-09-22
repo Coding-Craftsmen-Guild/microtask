@@ -45,6 +45,19 @@ describe('a working day is Monday through Friday, because holidays do not exist 
     expect(isWorkingDay('2027-12-31')).toBe(true)
     expect(isWorkingDay('2028-01-01')).toBe(false)
   })
+
+  it('anchors the week on 1969-12-29, the Monday before an epoch that itself fell on a Thursday', () => {
+    expect(isWorkingDay('1969-12-29')).toBe(true)
+    expect(isWorkingDay('1969-12-28')).toBe(false)
+    expect(isWorkingDay('1970-01-01')).toBe(true)
+  })
+
+  it('gives a Saturday the index its own following Monday holds, so rounding a Saturday start forward is unobservable from outside this module and its branch must not be read as dead', () => {
+    const saturday = plan('2026-09-26')
+    const monday = plan('2026-09-28')
+    expect(dayToDate(0, saturday)).toBe('2026-09-28')
+    expect(run(saturday, 12)).toEqual(run(monday, 12))
+  })
 })
 
 describe('day 0 is the start date, or the first working day after it', () => {
