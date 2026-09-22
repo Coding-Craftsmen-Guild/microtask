@@ -748,12 +748,22 @@ export const ScheduleSpan = z.object({ id: EntityId, startDay: z.number().int(),
 export const ScheduleCycle = z.object({ featureIds: z.array(EntityId).readonly() })
 export const UnscheduledEntry = z.object({ id: EntityId, reason: z.enum(['no-estimate', 'in-cycle']) })
 
+export const IgnoredEdge = z.object({ featureId: EntityId, dependsOnId: EntityId })
+
 export const ScheduleView = z.object({
   spans: z.array(ScheduleSpan).readonly(),
   cycles: z.array(ScheduleCycle).readonly(),
   unscheduled: z.array(UnscheduledEntry).readonly(),
+  ignoredEdges: z.array(IgnoredEdge).readonly(),
 })
 ```
+
+`ignoredEdges` carries the dependencies the forward pass could not honour because they contradict
+rail order (see Task 10). It is a **fourth** conflict channel beside `cycles` and `unscheduled`, not
+a variant of either: a cycle is mutual, an unscheduled feature has no span, and an ignored edge is a
+feature that *did* get placed while one of its stated dependencies was set aside. The canvas has to
+say which — "this bar ignores a dependency" is a different sentence from "this bar could not be
+placed", and a client that could not tell them apart would have to guess.
 
 The views:
 
@@ -1188,8 +1198,24 @@ export function schedule(plan: PlanStructure): ScheduleResult
      unschedulable feature does not break the chain; and
    - every feature in its `dependsOn` that is itself schedulable. An edge to an unknown id, to a
      cycle member, or to an unestimated feature is **ignored**.
-   This graph is acyclic by construction: rail edges run forward in `position`, and every
-   `dependsOn` cycle has already been removed.
+   **This graph is NOT acyclic by construction** — an earlier draft of this plan claimed it was,
+   and that claim is false. Rail edges and dependency edges together close cycles `findCycles`
+   cannot see, because the `dependsOn` graph alone is acyclic in every one of them: a feature at
+   position 0 that depends on the feature at position 1 says both `f1 → f2` (rail) and
+   `f2 → f1` (dependency). Measured on the seeded generator, **679 of 1000 plans contain one**, so
+   it is the ordinary case, and it is user-reachable — reordering features without updating their
+   dependencies produces exactly it.
+
+   **Rail order wins, and the dropped edge is named.** When relaxation stalls, release the stalled
+   feature earliest in derived order and ignore what it still waits on; because that feature is the
+   earliest unplaced one, no rail-predecessor edge is ever dropped and every dependency running
+   forward through the derived order is always honoured. Rail order wins rather than the dependency
+   because a bar out of sequence on its own rail reads as a broken canvas, not as a conflict.
+
+   Every edge dropped this way is reported in `ScheduleResult.ignoredEdges`. Silently resolving it
+   is what spec §6 forbids — *"a solver that silently moves an executive's committed plan is a worse
+   failure than a visible contradiction"* — and reporting it is also what keeps "dependencies hold"
+   a universal property rather than one qualified by a forward-only projection.
 5. Relax in topological order:
    `start = max(0, every predecessor's end, pinSprint * sprintLengthDays)`, then
    `end = start + effectiveEstimate`. `pinSprint` joins the `max` as one more lower bound and never
