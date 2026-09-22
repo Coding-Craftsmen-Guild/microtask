@@ -2030,9 +2030,20 @@ holder that is the same plan, so the check is `{kind:'plan', planId}` — but it
 caller's own scope so the rule stays true if an epic variant is ever added.
 
 `/shares/current` is the route a client calls to learn what it may do before drawing anything. It
-returns the caller's role, scope and the `capabilities()` projection, and it is the one route here that
-calls no `authorize` — refusing a caller the right to ask about their own credential would make the
-bootstrap unreachable. Mirror `microtask/shares/handlers.ts` exactly.
+returns the caller's role, scope and the `capabilities()` projection. **Mirror
+`microtask/shares/handlers.ts` exactly — including its `authorize` call**, which is
+`authorize(c, 'plan:read', { kind: 'plan', planId })` against the caller's own scope root.
+
+An earlier draft of this plan said this route calls no `authorize`, on the reasoning that refusing a
+caller the right to ask about their own credential would make the bootstrap unreachable. **That is
+wrong, and Task 2c is what makes it wrong.** Once `PrincipalResolver` resolves tokens for both
+products, a *Microtask* token presented here resolves to a principal whose scope has no `planId` —
+so an unguarded handler would read `undefined`, look up a plan by it, and answer 404 or worse.
+Microtask's own `/shares/current` has always guarded exactly this way, and its TSDoc says why: the
+gate is what holds the line on the day the other product's links resolve too, because `plan:read` on
+a plan target is refused to a project scope by the policy rather than by anything written in the
+handler. The bootstrap stays reachable — a holder asking about *its own* scope is cleared by
+`plan:read`, which every plan role has.
 
 - [ ] **Step 1: write the failing tests:**
       - `POST` as a plan `manage` holder mints a link whose `scope` is `{kind:'plan', planId}` and
