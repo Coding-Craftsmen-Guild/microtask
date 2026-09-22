@@ -1,4 +1,4 @@
-/** Where the CC Guild mark is served: `public/img/logo.webp`, the path the app being replaced used. */
+/** Where the CC Guild mark is served by every app: `public/img/logo.webp`, as legacy served it. */
 export const LOGO_PATH = '/img/logo.webp'
 
 /** Props for {@link Logo}. */
@@ -11,9 +11,13 @@ export interface LogoProps {
  * The CC Guild mark, at the two sizes the app being replaced drew it: rounded 8px in the brand
  * bar and 16px on the sign-in page.
  *
- * A plain `<img>`, because the file is a 10 KB asset the app serves as it is: the image optimiser
- * would add a route and a dependency for nothing. It is served outside the proxy's matcher, since
- * the sign-in page shows it to a browser with no session.
+ * It lives here rather than in an app because both products carry the same mark under the same
+ * brand bar, and the bar is already shared. The file it names is not: each app serves its own
+ * copy from `public/img/`, which is what keeps this a component and not an asset pipeline.
+ *
+ * A plain `<img>`, because the file is a 10 KB asset an app serves as it is: the image optimiser
+ * would add a route and a dependency for nothing. It is served outside each app's proxy matcher,
+ * since the sign-in page shows it to a browser with no session.
  */
 export function Logo({ size }: LogoProps) {
   return size === 'bar' ? (

@@ -1,8 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
-import { signOut } from '../../actions/auth'
 import { orNoAnswer } from '@repo/app-session/no-answer'
+import { SignOutForm as Shell } from '@repo/ui/shell/sign-out-form'
+import { signOut } from '../../actions/auth'
 
 const guarded = orNoAnswer(signOut)
 
@@ -12,26 +12,12 @@ const signOutOrNoAnswer = async (): Promise<string> => {
 }
 
 /**
- * Sign out: a form posting the `signOut` action, never a link, with a line for a sign-out that
- * got no answer.
+ * This app's Sign out: the shared form bound to this app's `signOut` action.
  *
- * A form rather than a link because ending a session changes state, a `GET` must not, and Next
- * prefetches every `<Link>` it renders — the reason `proxy.ts` stopped clearing a cookie on a
- * `GET` of `/login` (ADR 0032). The action is called through `orNoAnswer`, as the sign-in form's
- * is, so a sign-out the server never answers — the connection drops, or a deploy retired the
- * action's id — says so beside the button rather than falling to an error boundary, and the admin
- * can press it again. The redirect a successful sign-out answers with is let through.
+ * The binding is the whole file. Why it is a form and not a link, and why the action is guarded,
+ * are recorded on `@repo/ui/shell/sign-out-form`; what is this app's is which action it posts and
+ * which session that action ends (ADR 0032).
  */
 export function SignOutForm() {
-  const [message, action, pending] = useActionState(signOutOrNoAnswer, '')
-  return (
-    <form action={action} className="flex items-center gap-3">
-      <span className="text-[12.5px] text-white/90" role="alert">
-        {message}
-      </span>
-      <button className="cursor-pointer text-[13px] text-white/80 hover:text-white" disabled={pending} type="submit">
-        Sign out
-      </button>
-    </form>
-  )
+  return <Shell action={signOutOrNoAnswer} />
 }

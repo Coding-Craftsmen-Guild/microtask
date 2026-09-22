@@ -5,16 +5,19 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppBar } from '@repo/ui/shell/app-bar'
 import { ConfirmDialog } from '@repo/ui/shell/confirm-dialog'
 import { EmptyState } from '@repo/ui/shell/empty-state'
+import { LoginForm } from '@repo/ui/shell/login-form'
+import { Logo } from '@repo/ui/shell/logo'
 import { Page } from '@repo/ui/shell/page'
 import { ProgressBar } from '@repo/ui/shell/progress-bar'
 import { PromptDialog } from '@repo/ui/shell/prompt-dialog'
 import { RelativeTime } from '@repo/ui/shell/relative-time'
+import { SignOutForm } from '@repo/ui/shell/sign-out-form'
 import { relativeTime } from '@repo/ui/lib/time'
 
 const SRC = resolve(process.cwd(), 'src')
 
-const SERVER_SAFE = ['app-bar', 'empty-state', 'page', 'progress-bar', 'relative-time']
-const CLIENT_ONLY = ['confirm-dialog', 'prompt-dialog']
+const SERVER_SAFE = ['app-bar', 'empty-state', 'logo', 'page', 'progress-bar', 'relative-time']
+const CLIENT_ONLY = ['confirm-dialog', 'login-form', 'prompt-dialog', 'sign-out-form']
 
 const read = (file: string) => readFileSync(file, 'utf8')
 
@@ -74,10 +77,13 @@ describe('shell module boundaries', () => {
       AppBar,
       ConfirmDialog,
       EmptyState,
+      LoginForm,
+      Logo,
       Page,
       ProgressBar,
       PromptDialog,
       RelativeTime,
+      SignOutForm,
       relativeTime,
     ]) {
       expect(typeof exported).toBe('function')
@@ -130,11 +136,15 @@ describe('shell module boundaries', () => {
       <AppBar key="a" product="Microtask" />,
       <ConfirmDialog danger key="c" message="m" onCancel={noop} onConfirm={noop} open title="t" />,
       <EmptyState key="e">No projects yet</EmptyState>,
+      <LoginForm action={() => Promise.resolve({ message: 'refused' })} key="l" next="/" />,
+      <Logo key="o" size="bar" />,
+      <Logo key="i" size="login" />,
       <Page key="p">body</Page>,
       <ProgressBar done={4} key="g" total={4} />,
       <ProgressBar done={0} key="h" total={0} />,
       <PromptDialog key="r" label="Tab name" onCancel={noop} onSubmit={noop} open title="t" />,
       <RelativeTime from="2026-09-11T09:00:00.000Z" key="t" now={Date.parse('2026-09-11T12:00:00Z')} />,
+      <SignOutForm action={() => Promise.resolve('')} key="s" />,
     ]
     expect(SCANNED_SOURCE).not.toContain('bg-not-a-real-utility')
     for (const tree of trees) {

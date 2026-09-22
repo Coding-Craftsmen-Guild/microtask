@@ -1,7 +1,7 @@
 import { AppBar } from '@repo/ui/shell/app-bar'
 import { Page } from '@repo/ui/shell/page'
 import type { ReactNode } from 'react'
-import { Logo } from '../shared/logo'
+import { Logo } from '@repo/ui/shell/logo'
 
 /** Props for {@link LinkFrame}. */
 export interface LinkFrameProps {

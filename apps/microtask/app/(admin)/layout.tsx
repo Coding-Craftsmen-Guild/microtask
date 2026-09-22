@@ -2,7 +2,7 @@ import { AppBar } from '@repo/ui/shell/app-bar'
 import { Page } from '@repo/ui/shell/page'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { Logo } from '../../components/shared/logo'
+import { Logo } from '@repo/ui/shell/logo'
 import { SignOutForm } from '../../components/shared/sign-out-form'
 
 const BAR_LINK = 'text-[13px] text-white/80 hover:text-white'

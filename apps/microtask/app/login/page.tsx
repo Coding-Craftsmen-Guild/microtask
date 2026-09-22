@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Logo } from '../../components/shared/logo'
+import { Logo } from '@repo/ui/shell/logo'
 import { safeNextPath } from '@repo/app-session/next-path'
 import { LoginForm } from './login-form'
 

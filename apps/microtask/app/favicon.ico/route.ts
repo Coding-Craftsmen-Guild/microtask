@@ -1,4 +1,4 @@
-import { LOGO_PATH } from '../../components/shared/logo'
+import { LOGO_PATH } from '@repo/ui/shell/logo'
 
 const MAX_AGE_SECONDS = 3600
 
