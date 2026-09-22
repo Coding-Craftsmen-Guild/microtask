@@ -37,6 +37,20 @@ export {
   UpdateShareLinkPayload,
 } from './share-link.js'
 export { ProjectManifest } from './project.js'
+export {
+  EpicBinding,
+  EstimateDays,
+  IsoDate,
+  ItemDocument,
+  PlanEpic,
+  PlanFeature,
+  PlanItem,
+  PlanManifest,
+  Position,
+  RailColour,
+  SprintIndex,
+  Timezone,
+} from './plan.js'
 export { SearchResult, SearchResults } from './search.js'
 export {
   FolderList,
