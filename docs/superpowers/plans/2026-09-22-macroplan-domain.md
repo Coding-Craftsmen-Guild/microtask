@@ -576,9 +576,9 @@ resolves to nothing.
 **Files:**
 - Modify: `packages/contracts/src/limits.ts`
 - Modify: `packages/contracts/src/limits.test.ts`
-- Modify: `packages/microtask-domain/src/limits.ts` — the `LABEL` map gains the five new keys
+- Modify: `packages/microtask-domain/src/limits.ts` — the `LABEL` map is narrowed to Microtask's own keys
 
-`LIMITS` gains five **collection counts**, so `assertWithin` and `CountLimitKey` need no change:
+`LIMITS` gains six **collection counts**:
 
 ```ts
 plansPerProduct: 200,
@@ -613,10 +613,10 @@ compiling until the five new keys are given sentences: `'plans'`, `'epics in thi
 `'features in this plan'`, `'items in this plan'`, `'dependencies in this plan'`.
 
 - [ ] **Step 1: write the failing test.** `limits.test.ts` asserts the exact numeric value of each of
-      the five new keys and of the three new constants. A cap is a promise to a client and the
+      the six new keys and of the three new constants. A cap is a promise to a client and the
       canvas is sized from it; a silent change must fail a test, not a screenshot.
 - [ ] **Step 2: run it and watch it fail.** `pnpm --filter @repo/contracts test`.
-- [ ] **Step 3: add the constants** and the five `LABEL` sentences.
+- [ ] **Step 3: add the constants**, then narrow `LABEL` and `assertWithin`.
 - [ ] **Step 4: run the contracts and domain suites.** Both green.
 - [ ] **Step 5: the gate**, then commit `"Bound every collection a plan can grow"`.
 
@@ -1074,8 +1074,10 @@ there is not going to be one.
 
 - [ ] **Step 1: write the failing tests.**
       - with `sprintLengthDays: 10`, days 0–9 are sprint 0 and day 10 is sprint 1
-      - `sprintOf(-1, …)` is `-1`, not `0` — a pinned feature before the start must not fold onto
-        sprint 0 silently
+      - `sprintOf(-1, …)` is `-1`, not `0`. Not because a feature can be pinned before the start — it
+        cannot, `SprintIndex` is `.min(0)` and the forward pass floors at 0 — but because `sprintOf`
+        is a general axis utility and phase 2's today line can fall before a plan's `startDate`. A
+        day before the axis begins must not fold onto sprint 0 silently
       - `rangeOfSprint(0, …)` for a Monday start is that Monday through the Friday of the week after
       - `rangeOfSprint(n).to` is always a working day, for `n` in `0..40`
       - `sprintOf(dateToDay(rangeOfSprint(n).from, c), c) === n` for `n` in `0..40`
@@ -1334,12 +1336,12 @@ export function cleanName(value: unknown, fallback?: string): string
 export function cleanDescription(value: unknown): string
 
 /** Throws Invalid when adding one more would exceed a bound. */
-export function assertWithin(key: CountLimitKey, current: number): void
+export function assertWithin(key: PlanCountKey, current: number): void
 ```
 
 `cleanName` and `assertWithin` are **re-implemented here over the same `@repo/contracts` constants**,
 not imported from `@repo/microtask-domain`: a `*-domain` package must not import another one
-(ADR 0014, and `noProductImports` enforces it). The `LABEL` map here names only the five plan keys.
+(ADR 0014, and `noProductImports` enforces it). The `LABEL` map here names only the six plan keys.
 The duplication is four lines; the alternative is a dependency edge between two products, and the
 constants both copies read from are shared already.
 
