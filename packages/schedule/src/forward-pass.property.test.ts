@@ -3,10 +3,10 @@ import type {
   IgnoredEdge,
   PlanStructure,
   ScheduleFeature,
-  ScheduleItem,
   ScheduleResult,
   Span,
 } from './structure.js'
+import { itemsByFeature, railsOf } from './derived-order.js'
 import { effectiveEstimate } from './estimate.js'
 import { schedule } from './forward-pass.js'
 import { arbitraryPlan, randomSource } from './testing/arbitrary.js'
@@ -34,19 +34,6 @@ function derivedOrder(plan: PlanStructure): ReadonlyMap<string, number> {
     ].join('|')
   const line = [...plan.features].sort((left, right) => (key(left) < key(right) ? -1 : 1))
   return new Map(line.map((feature, index) => [feature.id, index]))
-}
-
-function itemsByFeature(plan: PlanStructure): ReadonlyMap<string, readonly ScheduleItem[]> {
-  const grouped = new Map<string, ScheduleItem[]>()
-  for (const item of plan.items) {
-    const under = grouped.get(item.featureId) ?? []
-    under.push(item)
-    grouped.set(item.featureId, under)
-  }
-  for (const under of grouped.values()) {
-    under.sort((left, right) => left.position - right.position || (left.id < right.id ? -1 : 1))
-  }
-  return grouped
 }
 
 function shuffled<T>(of: readonly T[], draw: (bound: number) => number): readonly T[] {
@@ -104,19 +91,6 @@ function withOneMoreEdge(plan: PlanStructure, seed: number): PlanStructure {
         : feature,
     ),
   }
-}
-
-function railsOf(plan: PlanStructure): readonly (readonly ScheduleFeature[])[] {
-  const order = derivedOrder(plan)
-  const grouped = new Map<string, ScheduleFeature[]>()
-  for (const feature of plan.features) {
-    const rail = grouped.get(feature.epicId) ?? []
-    rail.push(feature)
-    grouped.set(feature.epicId, rail)
-  }
-  return [...grouped.values()].map((rail) =>
-    [...rail].sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0)),
-  )
 }
 
 const spanOf = (days: ReadonlyMap<string, Span>, id: string): Span | undefined => days.get(id)

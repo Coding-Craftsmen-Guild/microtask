@@ -93,8 +93,11 @@ function byId(left: Unscheduled, right: Unscheduled): number {
  * cursor.
  *
  * Rail order and a dependency can contradict each other, and such a plan has no arrangement that
- * satisfies both. Rail order wins — `relax` states why, and which edge it drops — and every
- * dependency dropped to get there comes back in `ignoredEdges` instead of disappearing.
+ * satisfies both. Rail order wins, and what it drops to get there is never a rail predecessor and
+ * never a dependency running forward through derived order — only ever one running backward
+ * through it, since the edge dropped is always the one from the earliest unplaced feature to
+ * something derived order has not placed yet either. That dependency comes back in `ignoredEdges`
+ * instead of disappearing; `relax` is where the mechanics live.
  *
  * Items flow inside their feature from its start, each after the last; an unestimated item is
  * unscheduled, contributes nothing and does not interrupt the flow. A feature's span is therefore

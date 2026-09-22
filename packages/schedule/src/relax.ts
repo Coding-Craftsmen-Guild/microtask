@@ -44,20 +44,20 @@ function ready(node: Node, nodes: ReadonlyMap<string, Node>): boolean {
   return node.waitsFor.every((id) => nodes.get(id)?.placed !== false)
 }
 
-function abandoned(node: Node, nodes: ReadonlyMap<string, Node>): readonly IgnoredEdge[] {
+function unmetWaitsOf(node: Node, nodes: ReadonlyMap<string, Node>): readonly IgnoredEdge[] {
   return node.waitsFor
     .filter((id) => nodes.get(id)?.placed === false)
     .map((id) => ({ featureId: node.feature.id, dependsOnId: id }))
 }
 
-function released(
+function breakStall(
   ordered: readonly Node[],
   nodes: ReadonlyMap<string, Node>,
   sprintLengthDays: number,
 ): readonly IgnoredEdge[] {
   const stalled = ordered.find((node) => !node.placed)
   if (stalled === undefined) return []
-  const dropped = abandoned(stalled, nodes)
+  const dropped = unmetWaitsOf(stalled, nodes)
   place(stalled, nodes, sprintLengthDays)
   return dropped
 }
@@ -68,7 +68,7 @@ function byEdge(left: IgnoredEdge, right: IgnoredEdge): number {
   return left.dependsOnId < right.dependsOnId ? -1 : 1
 }
 
-function once(edges: readonly IgnoredEdge[]): readonly IgnoredEdge[] {
+function sortedUnique(edges: readonly IgnoredEdge[]): readonly IgnoredEdge[] {
   return [...edges]
     .sort(byEdge)
     .filter((edge, index, all) => index === 0 || byEdge(edge, all[index - 1] ?? edge) !== 0)
@@ -100,6 +100,18 @@ export interface Relaxation {
  *
  * `estimates` decides who is schedulable: a feature absent from it is not placed and is not a
  * predecessor of anything, so an unestimated or in-cycle feature never cuts a rail in two.
+ *
+ * Every outer sweep either places at least one node through `ready()`, or, finding none ready,
+ * forces exactly one placement through the stall release — so the count of unplaced nodes strictly
+ * decreases on every iteration of the outer loop, and the loop cannot outlast the number of
+ * schedulable nodes it started with.
+ *
+ * A sweep that places everything it can before forcing one more is Bellman-Ford shaped: each outer
+ * iteration walks every node and every edge it carries, and there are at most as many iterations as
+ * nodes, for O(n·(n+e)) overall. At the caps this package is built for — 200 features and 400
+ * edges per plan — that is on the order of 10^5 operations, sub-millisecond in practice, which is
+ * the trade-off phase 3 is relying on: a per-pointer-move recompute can afford to re-run this in
+ * full rather than incrementally patch it.
  */
 export function relax(
   rails: readonly (readonly ScheduleFeature[])[],
@@ -118,12 +130,12 @@ export function relax(
       unplaced -= 1
     }
     if (unplaced !== before) continue
-    ignored.push(...released(ordered, nodes, sprintLengthDays))
+    ignored.push(...breakStall(ordered, nodes, sprintLengthDays))
     unplaced -= 1
   }
   const spans = ordered.map((node): [string, Span] => [
     node.feature.id,
     { startDay: node.startDay, endDay: node.endDay },
   ])
-  return { spans: new Map(spans), ignoredEdges: once(ignored) }
+  return { spans: new Map(spans), ignoredEdges: sortedUnique(ignored) }
 }
