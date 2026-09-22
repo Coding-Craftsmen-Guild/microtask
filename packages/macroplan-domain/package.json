@@ -8,13 +8,22 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "lint": "eslint src"
   },
-  "dependencies": { "@repo/kernel": "workspace:*" },
+  "dependencies": {
+    "@repo/kernel": "workspace:*",
+    "@repo/contracts": "workspace:*",
+    "@repo/schedule": "workspace:*"
+  },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@repo/eslint-config": "workspace:*",
+    "@repo/store": "workspace:*",
+    "@types/node": "catalog:",
     "typescript": "catalog:",
-    "eslint": "catalog:"
+    "vitest": "catalog:",
+    "eslint": "catalog:",
+    "vite": "catalog:"
   }
 }
