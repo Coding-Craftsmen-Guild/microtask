@@ -15,3 +15,7 @@ export type {
 export { dateToDay, dayToDate, isWorkingDay, todayIn } from './calendar.js'
 
 export { rangeOfSprint, sprintOf } from './sprints.js'
+
+export { findCycles } from './cycles.js'
+
+export { breakdown, effectiveEstimate } from './estimate.js'
