@@ -17,4 +17,6 @@ export {
   type CountLimitKey,
   type LimitKey,
 } from './limits.js'
+export type { PlanStore } from './ports/plan-store.js'
+export { FsPlanStore, type FsPlanStoreOptions } from './storage/fs-plan-store.js'
 export { itemFile, itemsDir, manifestFile, planDir, plansDir } from './storage/paths.js'
