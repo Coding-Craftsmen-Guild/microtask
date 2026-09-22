@@ -4,6 +4,7 @@ import {
   ACTIONS,
   ADMIN_ONLY_ACTIONS,
   ROLES,
+  TARGET_KINDS,
   can,
   type Action,
   type PlanScope,
@@ -22,18 +23,26 @@ import {
   type CapabilityTarget,
 } from './capabilities.js'
 
-const TARGETS: readonly CapabilityTarget[] = [
-  'workspace',
-  'project',
-  'folder',
-  'task',
-  'tab',
-  'plan',
-  'epic',
-  'feature',
-  'item',
-  'own-scope',
-]
+/**
+ * Derived from the kernel's own kinds so a new target kind enters this cross-product by itself.
+ *
+ * Hand-written, it did not: the kernel could gain a kind and every agreement test below would
+ * keep passing without ever asking a question about it.
+ */
+const TARGETS: readonly CapabilityTarget[] = [...TARGET_KINDS, 'own-scope']
+
+type KernelKind = (typeof TARGET_KINDS)[number]
+
+type BeyondKernelKinds = Exclude<CapabilityTarget, KernelKind | 'own-scope'>
+
+/**
+ * Empty exactly while `CapabilityTarget` names nothing the kernel does not, plus `own-scope`.
+ *
+ * `Record<never, never>` is `{}`, so this compiles while the two agree and fails the moment the
+ * hand-written union in `capabilities.ts` grows a member. The spread above covers the opposite
+ * drift — a kernel kind missing from the union — so between them the two lists cannot part.
+ */
+const BEYOND_KERNEL_KINDS: Readonly<Record<BeyondKernelKinds, never>> = {}
 
 const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const T = '01M240FB4GD6PF6V0PKZVF6FD9'
@@ -58,18 +67,26 @@ const projectIdOf = (scope: Scope): string => (scope.kind === 'plan' ? P : scope
 
 const planIdOf = (scope: Scope): string => (scope.kind === 'plan' ? scope.planId : PL)
 
-const targetIn = (scope: Scope, kind: CapabilityTarget): Target => {
-  if (kind === 'workspace') return { kind: 'workspace' }
-  if (kind === 'project') return { kind: 'project', projectId: projectIdOf(scope) }
-  if (kind === 'folder') return { kind: 'folder', projectId: projectIdOf(scope) }
-  if (kind === 'task') return { kind: 'task', projectId: projectIdOf(scope), taskId: taskOf(scope) }
-  if (kind === 'tab') return { kind: 'tab', projectId: projectIdOf(scope), taskId: taskOf(scope) }
-  if (kind === 'plan') return { kind: 'plan', planId: planIdOf(scope) }
-  if (kind === 'epic') return { kind: 'epic', planId: planIdOf(scope) }
-  if (kind === 'feature') return { kind: 'feature', planId: planIdOf(scope) }
-  if (kind === 'item') return { kind: 'item', planId: planIdOf(scope) }
-  return scope
+/**
+ * One builder per kernel kind, so a tenth kind is a missing key rather than a tenth `if`.
+ *
+ * The chain this replaces sat at cyclomatic complexity 10, exactly on the lint cap, which made
+ * the next target kind a lint failure in a file whose whole job is to absorb new kinds.
+ */
+const TARGET_BY_KIND: Readonly<Record<KernelKind, (scope: Scope) => Target>> = {
+  workspace: () => ({ kind: 'workspace' }),
+  project: (scope) => ({ kind: 'project', projectId: projectIdOf(scope) }),
+  folder: (scope) => ({ kind: 'folder', projectId: projectIdOf(scope) }),
+  task: (scope) => ({ kind: 'task', projectId: projectIdOf(scope), taskId: taskOf(scope) }),
+  tab: (scope) => ({ kind: 'tab', projectId: projectIdOf(scope), taskId: taskOf(scope) }),
+  plan: (scope) => ({ kind: 'plan', planId: planIdOf(scope) }),
+  epic: (scope) => ({ kind: 'epic', planId: planIdOf(scope) }),
+  feature: (scope) => ({ kind: 'feature', planId: planIdOf(scope) }),
+  item: (scope) => ({ kind: 'item', planId: planIdOf(scope) }),
 }
+
+const targetIn = (scope: Scope, kind: CapabilityTarget): Target =>
+  kind === 'own-scope' ? scope : TARGET_BY_KIND[kind](scope)
 
 const kernelAnswer = (role: Role, scope: Scope, action: Action, target: CapabilityTarget): boolean =>
   can(holder(role, scope), action, targetIn(scope, target))
@@ -89,6 +106,11 @@ describe('capabilities answers for exactly the actions the kernel names (ADR 003
     for (const action of ACTIONS) {
       expect(TARGETS).toContain(ACTION_DECISIONS[action].target)
     }
+  })
+
+  it('asks about every kernel target kind and about nothing the kernel does not name', () => {
+    expect(TARGETS).toEqual([...TARGET_KINDS, 'own-scope'])
+    expect(Object.keys(BEYOND_KERNEL_KINDS)).toEqual([])
   })
 
   it('answers each action against its own target, capabilities being the record over mayReach', () => {

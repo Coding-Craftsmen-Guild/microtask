@@ -20,6 +20,11 @@ import { ACTIONS, type Action } from '@repo/kernel'
  * It is not a hole for the product it was not written for. The assertion below subtracts this set
  * and nothing else, so a **Microtask** action losing its gate still fails; and an action named
  * here that has since acquired a gate fails too, rather than sitting on the list forever.
+ *
+ * That self-clearing holds only for a gate whose action is a **literal**. The scan records a
+ * variable gate as `<action>`, not as the action it resolves to, so a Macroplan handler that
+ * passes its action through a variable leaves its row here green and unremoved. Gate the new
+ * routes on literals, or remove their rows by hand when you do not.
  */
 const PENDING_ROUTES: ReadonlySet<Action> = new Set([
   'plan:read',
@@ -48,7 +53,7 @@ const PENDING_ROUTES: ReadonlySet<Action> = new Set([
   'workspace:create-plan',
 ])
 
-const ROUTES = join(dirname(fileURLToPath(import.meta.url)), 'microtask')
+const ROUTES = dirname(fileURLToPath(import.meta.url))
 
 const handlers = (directory: string): readonly string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
