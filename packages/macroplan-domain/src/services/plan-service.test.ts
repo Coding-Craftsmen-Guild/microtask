@@ -3,7 +3,14 @@ import type { Lock } from '@repo/kernel'
 import { Invalid, NotFound, ShareIndex } from '@repo/kernel'
 import { QueueLock } from '@repo/store'
 import { LIMITS } from '../limits.js'
-import { MemoryPlanStore, fixedClock, marked, planManifest, sequentialIds } from '../testing/index.js'
+import {
+  MemoryPlanStore,
+  countingLock,
+  fixedClock,
+  marked,
+  planManifest,
+  sequentialIds,
+} from '../testing/index.js'
 import type { PlanRef } from './refs.js'
 import { PlanService } from './plan-service.js'
 
@@ -13,18 +20,6 @@ const TOKEN = 'tok_launchlaunchlau'
 const ABSENT = marked('PN', 999)
 
 const ref = (planId: string): PlanRef => ({ product: 'macroplan', planId })
-
-/** Wraps a lock so a test can assert it was taken exactly once per mutation (ADR 0006). */
-const countingLock = (inner: Lock): { lock: Lock; runs: () => number } => {
-  let runs = 0
-  const lock: Lock = {
-    run: (work) => {
-      runs += 1
-      return inner.run(work)
-    },
-  }
-  return { lock, runs: () => runs }
-}
 
 const build = (lock: Lock = new QueueLock()) => {
   const store = new MemoryPlanStore()

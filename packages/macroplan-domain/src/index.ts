@@ -23,3 +23,10 @@ export { itemFile, itemsDir, manifestFile, planDir, plansDir } from './storage/p
 export type { PlanContext } from './services/context.js'
 export type { ItemRef, PlanRef } from './services/refs.js'
 export { PlanService, type NewPlan, type PlanChanges } from './services/plan-service.js'
+export { EpicService, type EpicChanges, type NewEpic } from './services/epic-service.js'
+export {
+  ItemService,
+  type ItemChanges,
+  type ItemPlacement,
+  type NewItem,
+} from './services/item-service.js'
