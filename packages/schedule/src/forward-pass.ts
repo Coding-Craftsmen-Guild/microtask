@@ -1,6 +1,7 @@
 import { findCycles } from './cycles.js'
 import { itemsByFeature, railsOf } from './derived-order.js'
 import { effectiveEstimate } from './estimate.js'
+import { relax } from './relax.js'
 import type {
   PlanStructure,
   ScheduleFeature,
@@ -11,15 +12,6 @@ import type {
   UnscheduledReason,
 } from './structure.js'
 
-interface Node {
-  readonly feature: ScheduleFeature
-  readonly estimate: number
-  readonly waitsFor: readonly string[]
-  startDay: number
-  endDay: number
-  placed: boolean
-}
-
 interface Sheet {
   readonly days: Map<string, Span>
   readonly unscheduled: Unscheduled[]
@@ -27,7 +19,7 @@ interface Sheet {
 
 interface Pass {
   readonly items: ReadonlyMap<string, readonly ScheduleItem[]>
-  readonly placed: ReadonlyMap<string, Node>
+  readonly placed: ReadonlyMap<string, Span>
   readonly inCycle: ReadonlySet<string>
 }
 
@@ -48,67 +40,6 @@ function estimatesOf(
   return estimates
 }
 
-function nodesOf(
-  rails: readonly (readonly ScheduleFeature[])[],
-  estimates: ReadonlyMap<string, number>,
-): readonly Node[] {
-  const nodes: Node[] = []
-  for (const rail of rails) {
-    let behind: string | null = null
-    for (const feature of rail) {
-      const estimate = estimates.get(feature.id)
-      if (estimate === undefined) continue
-      const waits = feature.dependsOn.filter((id) => estimates.has(id))
-      const waitsFor = behind === null ? waits : [behind, ...waits]
-      nodes.push({ feature, estimate, waitsFor, startDay: 0, endDay: 0, placed: false })
-      behind = feature.id
-    }
-  }
-  return nodes
-}
-
-function place(node: Node, nodes: ReadonlyMap<string, Node>, sprintLengthDays: number): void {
-  const pin = node.feature.pinSprint
-  const bounds = [0, pin === null ? 0 : pin * sprintLengthDays]
-  for (const id of node.waitsFor) {
-    const waited = nodes.get(id)
-    if (waited?.placed === true) bounds.push(waited.endDay)
-  }
-  node.startDay = Math.max(...bounds)
-  node.endDay = node.startDay + node.estimate
-  node.placed = true
-}
-
-function ready(node: Node, nodes: ReadonlyMap<string, Node>): boolean {
-  return node.waitsFor.every((id) => nodes.get(id)?.placed !== false)
-}
-
-function placeAll(ordered: readonly Node[], sprintLengthDays: number): ReadonlyMap<string, Node> {
-  const nodes = new Map(ordered.map((node) => [node.feature.id, node]))
-  let unplaced = ordered.length
-  while (unplaced > 0) {
-    const before = unplaced
-    for (const node of ordered) {
-      if (node.placed || !ready(node, nodes)) continue
-      place(node, nodes, sprintLengthDays)
-      unplaced -= 1
-    }
-    if (unplaced === before) unplaced -= released(ordered, nodes, sprintLengthDays)
-  }
-  return nodes
-}
-
-function released(
-  ordered: readonly Node[],
-  nodes: ReadonlyMap<string, Node>,
-  sprintLengthDays: number,
-): number {
-  const stalled = ordered.find((node) => !node.placed)
-  if (stalled === undefined) return 0
-  place(stalled, nodes, sprintLengthDays)
-  return 1
-}
-
 function writeItems(sheet: Sheet, from: number, items: readonly ScheduleItem[]): void {
   let cursor = from
   for (const item of items) {
@@ -123,15 +54,15 @@ function writeItems(sheet: Sheet, from: number, items: readonly ScheduleItem[]):
 
 function writeFeature(sheet: Sheet, pass: Pass, feature: ScheduleFeature): void {
   const items = pass.items.get(feature.id) ?? []
-  const node = pass.placed.get(feature.id)
-  if (node === undefined) {
+  const span = pass.placed.get(feature.id)
+  if (span === undefined) {
     const reason: UnscheduledReason = pass.inCycle.has(feature.id) ? 'in-cycle' : 'no-estimate'
     sheet.unscheduled.push({ id: feature.id, reason })
     for (const item of items) sheet.unscheduled.push({ id: item.id, reason })
     return
   }
-  sheet.days.set(feature.id, { startDay: node.startDay, endDay: node.endDay })
-  writeItems(sheet, node.startDay, items)
+  sheet.days.set(feature.id, span)
+  writeItems(sheet, span.startDay, items)
 }
 
 function byId(left: Unscheduled, right: Unscheduled): number {
@@ -154,19 +85,21 @@ function byId(left: Unscheduled, right: Unscheduled): number {
  * Each schedulable feature waits on the nearest **earlier schedulable** feature of its rail, so an
  * unestimated or in-cycle feature does not cut the chain between its neighbours, and on every
  * `dependsOn` it names that is schedulable too. An edge to an unknown id, a cycle member or an
- * unestimated feature is ignored: it cannot contribute a date, and refusing the whole plan over it
- * would leave the canvas blank. `start` is the greatest of 0, every predecessor's `end` and
- * `pinSprint * sprintLengthDays`; a pin is one more lower bound and can only ever delay. `end` is
- * `start + effectiveEstimate` and is **exclusive**, so a zero-day milestone has `start === end`,
- * belongs in `days` rather than `unscheduled`, and moves no rail cursor.
+ * unestimated feature is ignored and is not reported in `ignoredEdges`: it could contribute no
+ * date, and `cycles` and `unscheduled` already say why. `start` is the greatest of 0, every
+ * predecessor's `end` and `pinSprint * sprintLengthDays`; a pin is one more lower bound and can
+ * only ever delay. `end` is `start + effectiveEstimate` and is **exclusive**, so a zero-day
+ * milestone has `start === end`, belongs in `days` rather than `unscheduled`, and moves no rail
+ * cursor.
  *
- * Rail order and dependencies can contradict each other — a feature depending on one that sits
- * later on its own rail, or two rails waiting on each other's tails — and such a plan has no
- * arrangement that satisfies both. Rather than refuse it, the pass keeps rail order, which is what
- * the drawing is made of, and drops the dependency edges that close the deadlock: it releases the
- * stalled feature earliest in derived order, ignoring what it still waits on. Every edge that runs
- * **forward** through that same derived order is therefore always honoured, and only an edge
- * pointing backwards through a plan that already disagrees with itself is ever lost.
+ * Rail order and a dependency can contradict each other, and such a plan has no arrangement that
+ * satisfies both. Rail order wins — `relax` states why, and which edge it drops — and every
+ * dependency dropped to get there comes back in `ignoredEdges` instead of disappearing.
+ *
+ * Items flow inside their feature from its start, each after the last; an unestimated item is
+ * unscheduled, contributes nothing and does not interrupt the flow. A feature's span is therefore
+ * always exactly its estimated items laid end to end, which is what lets an edge between two
+ * features mean something at the year rung.
  *
  * Ids are assumed unique and the assumption is not defended: like `findCycles`, this indexes
  * features into a `Map`, so a repeated id keeps the last one's edges and both copies read the same
@@ -181,11 +114,15 @@ export function schedule(plan: PlanStructure): ScheduleResult {
   const rails = railsOf(plan)
   const items = itemsByFeature(plan)
   const inCycle = new Set(cycles.flatMap((cycle) => [...cycle.featureIds]))
-  const ordered = nodesOf(rails, estimatesOf(rails, items, inCycle))
-  const pass: Pass = { items, inCycle, placed: placeAll(ordered, plan.sprintLengthDays) }
+  const { spans, ignoredEdges } = relax(
+    rails,
+    estimatesOf(rails, items, inCycle),
+    plan.sprintLengthDays,
+  )
   const sheet: Sheet = { days: new Map(), unscheduled: [] }
+  const pass: Pass = { items, inCycle, placed: spans }
   for (const rail of rails) {
     for (const feature of rail) writeFeature(sheet, pass, feature)
   }
-  return { days: sheet.days, cycles, unscheduled: sheet.unscheduled.sort(byId) }
+  return { days: sheet.days, cycles, unscheduled: sheet.unscheduled.sort(byId), ignoredEdges }
 }

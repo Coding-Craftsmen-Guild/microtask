@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { PlanStructure, ScheduleFeature, ScheduleItem, Span } from './structure.js'
+import type {
+  IgnoredEdge,
+  PlanStructure,
+  ScheduleFeature,
+  ScheduleItem,
+  ScheduleResult,
+  Span,
+} from './structure.js'
 import { effectiveEstimate } from './estimate.js'
 import { schedule } from './forward-pass.js'
 import { arbitraryPlan, randomSource } from './testing/arbitrary.js'
@@ -290,46 +297,93 @@ function tiles(span: Span, under: readonly Span[]): boolean {
   return cursor === span.endDay
 }
 
+function broken(plan: PlanStructure, result: ScheduleResult): readonly string[] {
+  const dropped = new Set(
+    result.ignoredEdges.map((edge) => `${edge.featureId}<-${edge.dependsOnId}`),
+  )
+  return plan.features.flatMap((feature) => {
+    const span = spanOf(result.days, feature.id)
+    if (span === undefined) return []
+    return feature.dependsOn
+      .filter((id) => !dropped.has(`${feature.id}<-${id}`))
+      .filter((id) => {
+        const waited = spanOf(result.days, id)
+        return waited !== undefined && span.startDay < waited.endDay
+      })
+      .map((id) => `${feature.id}<-${id}`)
+  })
+}
+
 describe('dependencies hold: a feature starts no earlier than what it waits on has ended', () => {
   const violations = (seed: number): readonly string[] => {
     const plan = plans[seed]
     const result = results[seed]
     if (plan === undefined || result === undefined) return []
-    return plan.features.flatMap((feature) => {
-      const span = spanOf(result.days, feature.id)
-      if (span === undefined) return []
-      return feature.dependsOn.filter((id) => {
-        const waited = spanOf(result.days, id)
-        return waited !== undefined && span.startDay < waited.endDay
-      }).map((id) => `${id}->${feature.id}`)
-    })
+    return broken(plan, result)
   }
 
-  it('honours every edge that runs forward through the plan, over a thousand seeds', () => {
+  it('honours every edge it did not report as dropped, over a thousand seeds', () => {
     for (const seed of seeds) {
-      const order = derivedOrder(plans[seed] ?? arbitraryPlan(seed))
-      const forward = violations(seed).filter((edge) => {
-        const [from = '', to = ''] = edge.split('->')
-        return (order.get(from) ?? 0) < (order.get(to) ?? 0)
-      })
-      expect(forward, `${at(seed)}: a forward edge was not honoured`).toEqual([])
+      expect(violations(seed), `${at(seed)}: an edge was broken without being named`).toEqual([])
     }
   })
 
-  it('honours every edge at all once the plan no longer contradicts its own order', () => {
+  it('drops nothing at all from a plan that no longer contradicts its own order', () => {
     for (const seed of seeds) {
       const plan = forwardOnly(plans[seed] ?? arbitraryPlan(seed))
       const result = schedule(plan)
-      const broken = plan.features.flatMap((feature) => {
-        const span = spanOf(result.days, feature.id)
-        if (span === undefined) return []
-        return feature.dependsOn.filter((id) => {
-          const waited = spanOf(result.days, id)
-          return waited !== undefined && span.startDay < waited.endDay
-        })
-      })
-      expect(broken, at(seed)).toEqual([])
+      expect(result.ignoredEdges, at(seed)).toEqual([])
+      expect(broken(plan, result), at(seed)).toEqual([])
     }
+  })
+})
+
+describe('an ignored edge names a real contradiction, and only ever a backward one', () => {
+  it('names a feature that is on the axis, and an edge that feature really declares', () => {
+    for (const seed of seeds) {
+      const plan = plans[seed]
+      const result = results[seed]
+      if (plan === undefined || result === undefined) continue
+      const declared = new Map(plan.features.map((feature) => [feature.id, feature.dependsOn]))
+      const invented = result.ignoredEdges.filter(
+        (edge) =>
+          !result.days.has(edge.featureId) ||
+          !result.days.has(edge.dependsOnId) ||
+          !(declared.get(edge.featureId) ?? []).includes(edge.dependsOnId),
+      )
+      expect(invented, `${at(seed)}: an ignored edge nobody declared`).toEqual([])
+    }
+  })
+
+  it('sorts them by feature then by dependency, naming each dropped edge once', () => {
+    const before = (left: IgnoredEdge, right: IgnoredEdge): number => {
+      if (left.featureId !== right.featureId) return left.featureId < right.featureId ? -1 : 1
+      return left.dependsOnId < right.dependsOnId ? -1 : 1
+    }
+    for (const seed of seeds) {
+      const edges = results[seed]?.ignoredEdges ?? []
+      expect([...edges].sort(before), at(seed)).toEqual(edges)
+      const named = edges.map((edge) => JSON.stringify([edge.featureId, edge.dependsOnId]))
+      expect(new Set(named).size, at(seed)).toBe(edges.length)
+    }
+  })
+
+  it('drops only edges pointing backwards through the plan, never a rail predecessor', () => {
+    for (const seed of seeds) {
+      const plan = plans[seed]
+      const result = results[seed]
+      if (plan === undefined || result === undefined) continue
+      const order = derivedOrder(plan)
+      const forward = result.ignoredEdges.filter(
+        (edge) => (order.get(edge.dependsOnId) ?? 0) < (order.get(edge.featureId) ?? 0),
+      )
+      expect(forward, `${at(seed)}: a forward edge was dropped`).toEqual([])
+    }
+  })
+
+  it('finds at least one deadlock across the seed range, so the report is not vacuous', () => {
+    const withDrops = seeds.filter((seed) => (results[seed]?.ignoredEdges.length ?? 0) > 0)
+    expect(withDrops.length).toBeGreaterThan(100)
   })
 })
 

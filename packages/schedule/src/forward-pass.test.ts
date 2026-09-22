@@ -306,39 +306,71 @@ describe('a cycle takes its features off the axis and leaves the rest of the pla
   })
 })
 
-describe('a plan that contradicts itself still comes back whole', () => {
+describe('a plan that contradicts itself comes back whole, and says what it could not keep', () => {
+  const sameRail = schedule(
+    plan({
+      features: [
+        feature({ id: 'f1', position: 0, estimateDays: 4, dependsOn: ['f2'] }),
+        feature({ id: 'f2', position: 1, estimateDays: 3 }),
+      ],
+    }),
+  )
+
+  const acrossRails = schedule(
+    plan({
+      epics: [
+        { id: 'alpha', railOrder: 0 },
+        { id: 'beta', railOrder: 1 },
+      ],
+      features: [
+        feature({ id: 'a0', position: 0, estimateDays: 4, dependsOn: ['b0'] }),
+        feature({ id: 'a1', position: 1, estimateDays: 3 }),
+        feature({ id: 'b0', epicId: 'beta', estimateDays: 5, dependsOn: ['a1'] }),
+      ],
+    }),
+  )
+
   it('keeps rail order when a feature depends on one that sits later on its own rail', () => {
-    const result = schedule(
-      plan({
-        features: [
-          feature({ id: 'f1', position: 0, estimateDays: 4, dependsOn: ['f2'] }),
-          feature({ id: 'f2', position: 1, estimateDays: 3 }),
-        ],
-      }),
-    )
-    expect(spanOf(result, 'f1')).toEqual(span(0, 4))
-    expect(spanOf(result, 'f2')).toEqual(span(4, 7))
-    expect(result.unscheduled).toEqual([])
+    expect(spanOf(sameRail, 'f1')).toEqual(span(0, 4))
+    expect(spanOf(sameRail, 'f2')).toEqual(span(4, 7))
+    expect(sameRail.unscheduled).toEqual([])
+  })
+
+  it('names the dependency it dropped to get there, rather than placing the bar in silence', () => {
+    expect(sameRail.ignoredEdges).toEqual([{ featureId: 'f1', dependsOnId: 'f2' }])
   })
 
   it('places every feature of a deadlock that rail order and dependencies form together', () => {
-    const result = schedule(
+    expect(spanOf(acrossRails, 'a0')).toEqual(span(0, 4))
+    expect(spanOf(acrossRails, 'a1')).toEqual(span(4, 7))
+    expect(spanOf(acrossRails, 'b0')).toEqual(span(7, 12))
+    expect(acrossRails.unscheduled).toEqual([])
+  })
+
+  it('names the one edge of that deadlock it dropped, and honours the other ordering', () => {
+    expect(acrossRails.ignoredEdges).toEqual([{ featureId: 'a0', dependsOnId: 'b0' }])
+    expect(acrossRails.days.get('b0')?.startDay).toBe(acrossRails.days.get('a1')?.endDay)
+  })
+
+  it('drops nothing from a plan whose dependency agrees with its rail order', () => {
+    const agreeing = schedule(
       plan({
-        epics: [
-          { id: 'alpha', railOrder: 0 },
-          { id: 'beta', railOrder: 1 },
-        ],
         features: [
-          feature({ id: 'a0', position: 0, estimateDays: 4, dependsOn: ['b0'] }),
-          feature({ id: 'a1', position: 1, estimateDays: 3 }),
-          feature({ id: 'b0', epicId: 'beta', estimateDays: 5, dependsOn: ['a1'] }),
+          feature({ id: 'f1', position: 0, estimateDays: 4 }),
+          feature({ id: 'f2', position: 1, estimateDays: 3, dependsOn: ['f1'] }),
         ],
       }),
     )
-    expect(spanOf(result, 'a0')).toEqual(span(0, 4))
-    expect(spanOf(result, 'a1')).toEqual(span(4, 7))
-    expect(spanOf(result, 'b0')).toEqual(span(7, 12))
-    expect(result.unscheduled).toEqual([])
+    expect(agreeing.ignoredEdges).toEqual([])
+  })
+
+  it('leaves a self-edge to the cycle report, which already explains it', () => {
+    const result = schedule(
+      plan({ features: [feature({ id: 'f1', estimateDays: 4, dependsOn: ['f1'] })] }),
+    )
+    expect(result.cycles).toEqual([{ featureIds: ['f1'] }])
+    expect(result.unscheduled).toEqual([{ id: 'f1', reason: 'in-cycle' }])
+    expect(result.ignoredEdges).toEqual([])
   })
 })
 

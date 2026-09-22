@@ -76,6 +76,12 @@ export interface Unscheduled {
   readonly reason: UnscheduledReason
 }
 
+/** A dependency the pass could not honour, and the feature that declared it. */
+export interface IgnoredEdge {
+  readonly featureId: string
+  readonly dependsOnId: string
+}
+
 /** The result of a forward pass over a `PlanStructure`. */
 export interface ScheduleResult {
   /**
@@ -86,6 +92,18 @@ export interface ScheduleResult {
 
   readonly cycles: readonly Cycle[]
   readonly unscheduled: readonly Unscheduled[]
+
+  /**
+   * Dependencies dropped to break a rail-versus-dependency deadlock, ascending by
+   * `(featureId, dependsOnId)`.
+   *
+   * A feature earlier on its rail that depends on a later one states two orderings that cannot
+   * both hold. Rail order wins, because a bar out of sequence on its own rail reads as a broken
+   * canvas rather than as a conflict — but the dropped edge is named here rather than discarded,
+   * so the contradiction stays visible and fixable. `findCycles` cannot see these: the
+   * `dependsOn` graph alone is acyclic in every one of them.
+   */
+  readonly ignoredEdges: readonly IgnoredEdge[]
 }
 
 /** An authored estimate beside what its children add up to. */

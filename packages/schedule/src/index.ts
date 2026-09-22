@@ -1,6 +1,7 @@
 export type {
   Breakdown,
   Cycle,
+  IgnoredEdge,
   PlanCalendar,
   PlanStructure,
   ScheduleEpic,
