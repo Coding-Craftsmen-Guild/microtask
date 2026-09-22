@@ -178,3 +178,15 @@ pinned exact. Any future `add` needs the same check.
 `./hooks/*` subpath has no backing directory in git. `check-exports` reports it as an unresolved
 wildcard and exits 0 — so it is latent, not a failure, and it resolves itself the first time a
 shared hook is written.
+
+## Amended · 2026-09-22 — the `apps/macroplan` scan root is in
+
+The line this record said would be added "when that app exists" is added:
+`@source "../../../../apps/macroplan/**/*.{ts,tsx}";` sits beside Microtask's in
+`packages/ui/src/styles/globals.css`. Without it, every utility used only in the new app would be
+absent from the built stylesheet — a page that renders with no styling and no error anywhere.
+
+`packages/ui` also gained three shell components in the same change — `Logo`, `LoginForm` and
+`SignOutForm` (ADR 0047) — and the literal-class sweep in `module-boundaries.test.tsx` now renders
+all three, so a class name composed rather than written out is caught here rather than in a
+browser.

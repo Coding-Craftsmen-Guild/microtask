@@ -20,18 +20,35 @@ const read = (name: string): string => readFileSync(new URL(`../../../../${name}
 
 const TEXT = read('docker-compose.yml')
 const COMPOSE = parse(TEXT) as Compose
-const { api, microtask } = COMPOSE.services as Record<'api' | 'microtask', Service>
-const SECRETS = ['ADMIN_PASSWORD', 'SESSION_SECRET', 'MICROTASK_API_KEY', 'COOKIE_SECRET', 'NEXT_SERVER_ACTIONS_ENCRYPTION_KEY']
+const { api, microtask, macroplan } = COMPOSE.services as Record<'api' | 'microtask' | 'macroplan', Service>
+
+const APPS: readonly (readonly [string, Service, string])[] = [
+  ['microtask', microtask, 'MICROTASK'],
+  ['macroplan', macroplan, 'MACROPLAN'],
+]
+
+const SECRETS = [
+  'ADMIN_PASSWORD',
+  'SESSION_SECRET',
+  'MICROTASK_API_KEY',
+  'COOKIE_SECRET',
+  'NEXT_SERVER_ACTIONS_ENCRYPTION_KEY',
+  'MACROPLAN_API_KEY',
+  'MACROPLAN_COOKIE_SECRET',
+  'MACROPLAN_SERVER_ACTIONS_ENCRYPTION_KEY',
+]
 
 const interpolations = (text: string): string[] => [...text.matchAll(/\$\{[^}]*\}|\$[A-Za-z_]\w*/g)].map((m) => m[0])
 const variablesIn = (value: string | undefined): string[] =>
   [...(value ?? '').matchAll(/\$\{([A-Za-z_]\w*)/g)].map((m) => m[1] ?? '')
 
 describe('docker-compose.yml', () => {
-  it('runs exactly the api and microtask, each from its own Dockerfile with the repository root as context', () => {
-    expect(Object.keys(COMPOSE.services).sort()).toEqual(['api', 'microtask'])
+  it('runs the api and both apps, each from its own Dockerfile with the repository root as context', () => {
+    expect(Object.keys(COMPOSE.services).sort()).toEqual(['api', 'macroplan', 'microtask'])
     expect(api.build).toEqual({ context: '.', dockerfile: 'apps/api/Dockerfile' })
-    expect(microtask.build).toEqual({ context: '.', dockerfile: 'apps/microtask/Dockerfile' })
+    for (const [name, service] of APPS) {
+      expect(service.build, name).toEqual({ context: '.', dockerfile: `apps/${name}/Dockerfile` })
+    }
   })
 
   it('publishes no port on any service: the API is internal-only (ADR 0041) and Coolify routes by domain', () => {
@@ -41,7 +58,7 @@ describe('docker-compose.yml', () => {
   it('gives the API a new named volume at DATA_DIR, and nothing else a volume', () => {
     expect(api.volumes).toEqual(['api-data:/data'])
     expect(api.environment?.DATA_DIR).toBe('/data')
-    expect(microtask.volumes).toBeUndefined()
+    for (const [name, service] of APPS) expect(service.volumes, name).toBeUndefined()
   })
 
   it('never references the live volume: api-data is not external, not renamed, and the legacy name is absent', () => {
@@ -50,8 +67,10 @@ describe('docker-compose.yml', () => {
     expect(TEXT).not.toContain('microtask-data')
   })
 
-  it('starts microtask only once the api reports healthy, on the probe its image carries', () => {
-    expect(microtask.depends_on).toEqual({ api: { condition: 'service_healthy' } })
+  it('starts each app only once the api reports healthy, on the probe its image carries', () => {
+    for (const [name, service] of APPS) {
+      expect(service.depends_on, name).toEqual({ api: { condition: 'service_healthy' } })
+    }
     expect(api.healthcheck).toBeUndefined()
   })
 
@@ -63,15 +82,29 @@ describe('docker-compose.yml', () => {
   })
 
   it('takes every credential from the environment, never a literal in the file', () => {
-    const credentials = { api: ['ADMIN_PASSWORD', 'SESSION_SECRET', 'SERVICE_KEYS'], microtask: ['API_KEY', 'COOKIE_SECRET', 'NEXT_SERVER_ACTIONS_ENCRYPTION_KEY'] }
-    for (const key of credentials.api) expect(variablesIn(api.environment?.[key])).toHaveLength(1)
-    for (const key of credentials.microtask) expect(variablesIn(microtask.environment?.[key])).toHaveLength(1)
+    expect(variablesIn(api.environment?.ADMIN_PASSWORD)).toHaveLength(1)
+    expect(variablesIn(api.environment?.SESSION_SECRET)).toHaveLength(1)
+    expect(variablesIn(api.environment?.SERVICE_KEYS)).toEqual(['MICROTASK_API_KEY', 'MACROPLAN_API_KEY'])
+    for (const [name, service] of APPS) {
+      for (const key of ['API_KEY', 'COOKIE_SECRET', 'NEXT_SERVER_ACTIONS_ENCRYPTION_KEY']) {
+        expect(variablesIn(service.environment?.[key]), `${name}.${key}`).toHaveLength(1)
+      }
+    }
   })
 
-  it('feeds the API its service key and the app its API_KEY from one variable, so they cannot drift', () => {
-    expect(api.environment?.SERVICE_KEYS).toMatch(/^microtask=\$\{MICROTASK_API_KEY:\?/)
-    expect(variablesIn(microtask.environment?.API_KEY)).toEqual(['MICROTASK_API_KEY'])
-    expect(microtask.environment?.API_BASE_URL).toBe('http://api:4321')
+  it('feeds the API each service key and that app its API_KEY from one variable, so they cannot drift', () => {
+    expect(api.environment?.SERVICE_KEYS).toMatch(/^microtask=\$\{MICROTASK_API_KEY:\?[^}]+\},macroplan=\$\{MACROPLAN_API_KEY:\?/)
+    for (const [name, service, prefix] of APPS) {
+      expect(variablesIn(service.environment?.API_KEY), name).toEqual([`${prefix}_API_KEY`])
+      expect(service.environment?.API_BASE_URL, name).toBe('http://api:4321')
+    }
+  })
+
+  it('gives the two apps different keys, cookie secrets and action keys, so neither can read the other (ADR 0014)', () => {
+    const named = (service: Service, key: string): string => variablesIn(service.environment?.[key])[0] ?? ''
+    for (const key of ['API_KEY', 'COOKIE_SECRET', 'NEXT_SERVER_ACTIONS_ENCRYPTION_KEY']) {
+      expect(named(microtask, key), key).not.toBe(named(macroplan, key))
+    }
   })
 })
 

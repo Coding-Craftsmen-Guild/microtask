@@ -288,3 +288,19 @@ PID 1, and at 1.0 s and exit 143 with tini as PID 1, which is what `init: true` 
 now drains and exits 0 in 0.9 s — ADR 0006's 2026-09-12 amendment, which carries the three
 measurements. `init: true` is what gets the signal to node at all, and the `CMD` exec form is what
 keeps node the direct child.
+
+## Amended · 2026-09-22 — the third image
+
+`apps/macroplan/Dockerfile` joins the other two, built the same way: one `turbo prune macroplan
+--docker` from the repository root, `output: 'standalone'` with `outputFileTracingRoot` at the
+monorepo root, started from its nested path (`node apps/macroplan/server.js`), running as `node`,
+with a `HEALTHCHECK` probing the dynamic `GET /login` rather than a static file that would stay up
+through a failed boot. `apps/macroplan/dockerfile.test.ts` holds it to every one of those, as
+Microtask's does.
+
+Compose is three services now. Macroplan takes its own `MACROPLAN_API_KEY`,
+`MACROPLAN_COOKIE_SECRET` and `MACROPLAN_SERVER_ACTIONS_ENCRYPTION_KEY`, and the API's
+`SERVICE_KEYS` becomes `microtask=…,macroplan=…` from those same variables, so a key cannot drift
+between the two sides. Three more variables with no default also means three more reasons
+`docker compose` refuses to start on a resource where they are unset — which is the accidental-
+deploy guard the README leans on, made slightly stronger rather than weaker.

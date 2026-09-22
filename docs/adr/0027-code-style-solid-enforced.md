@@ -218,3 +218,23 @@ the global `process` rather than importing it, and measures the secret with `Tex
 than `Buffer`. The build is clean, and `lib/env.test.ts` fails if either module in that bundle
 imports a Node built-in or calls `Buffer` again. The generalisation: **a module `instrumentation.ts`
 reaches is compiled for two runtimes**, so it may use only what both provide.
+
+## Amended · 2026-09-22 — a fourth package an app may import
+
+The rule above reads "`apps/microtask` and `apps/macroplan` may import `contracts`, `api-client`,
+`ui` — **nothing else**". It is now `contracts`, `api-client`, `ui` and **`app-session`**.
+
+`@repo/app-session` holds the admin session both apps sign in through — the environment reader, the
+sealed cookie, the sign-in refusal rules, the `?next=` sanitiser and the shape a Server Action
+answers with (ADR 0047). It exists because the alternative was a second copy of the code that seals
+a live admin bearer.
+
+The boundary it opens is closed on its own side: `packages/app-session/eslint.config.js` bans
+`@repo/store`, `@repo/kernel` and every `*-domain` package by name. Both apps import this package,
+so a reach into the store from here would be their way around the API — the single-writer
+assumption ADR 0002 relies on — and the ban is what stops the new edge becoming a tunnel.
+
+One consequence for this record's own rules: `process.env` is now read in exactly one file in the
+workspace, `packages/app-session/src/env.ts`, and in no app at all. Each app carries an
+`environment.test.ts` that fails if a file in it reads the environment, or if its lint config ever
+lifts `n/no-process-env`.

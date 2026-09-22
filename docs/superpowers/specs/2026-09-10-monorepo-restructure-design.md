@@ -736,7 +736,8 @@ turbo.json              build · lint · test · openapi
 apps/
   api/                  Hono on @hono/node-server; wiring only. Owns the data volume.
   microtask/            Next 16 App Router. Takes over the live FQDN.
-  macroplan/            Next 16 App Router. Working shell.
+  macroplan/            Next 16 App Router. Working shell — BUILT 2026-09-22, see
+                        2026-09-22-macroplan-shell-design.md
 packages/
   kernel/               roles, AccessPolicy, ids, errors, repository ports, transfer framework
   microtask-domain/     Project, Folder, Task, Tab + their services
@@ -746,6 +747,8 @@ packages/
                         for the contract test only.
   store/                filesystem adapters implementing kernel's ports
   api-client/           typed HTTP client; two non-interchangeable constructors
+  app-session/          the admin session both apps sign in through: environment, sealed
+                        cookie, sign-in refusals, ?next= (ADR 0047). No build step.
   ui/                   shadcn/ui + Tailwind v4 + app shell, dialogs, theming
                         (no editor — ADR 0001 puts the unshared thing in the app)
   typescript-config/ · eslint-config/
@@ -780,7 +783,7 @@ The dependency graph needs mechanical enforcement rather than good intentions:
 ```
 apps/api      ──> packages/{kernel, microtask-domain, macroplan-domain, contracts, store}
 apps/microtask
-apps/macroplan ──> packages/{contracts, api-client, ui}        and NOTHING else
+apps/macroplan ──> packages/{contracts, api-client, ui, app-session}   and NOTHING else
 ```
 
 **A Next app must not be able to import `packages/store`.** If it can, it can bypass the API and

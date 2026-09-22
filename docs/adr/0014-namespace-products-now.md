@@ -67,3 +67,40 @@ live client links exist is far more expensive than doing it now.
 three describe the process rather than an API version, and they are registered before the `/v1`
 mount because mounting copies an already-complete child (ADR 0024). The path list above said
 `/v1/openapi.json`; it is `/openapi.json`.
+
+## Amended · 2026-09-22 — the shell exists, and the seam is documented rather than enforced
+
+`apps/macroplan` is built: a Next 16 app an admin signs into against the product-agnostic
+`/v1/auth/login`, sealing its own `mp_admin` cookie under its own `COOKIE_SECRET`, holding its own
+service key, deployed as a third compose service on its own hostname. It has no entities and no
+screens beyond an empty dashboard, which is what this ADR meant by a working shell.
+
+Building it turned up one thing this record had implied and nothing enforced. **A service key is
+not scoped to its product's route subtree.** `requirePrincipal` resolves `x-api-key` to a service
+name, records it on the context, and never compares it with the `/v1/<product>/` segment — so the
+`macroplan=…` key plus any valid admin bearer reaches `/v1/microtask/*`. The sentence above,
+"Macroplan holds **no** credentials for Microtask's data until it has a screen that needs them", is
+therefore a statement about what is configured, not about what is possible.
+
+**That is deliberate, and it is not merely tolerated — it is the direction.** The intended shape is
+that Macroplan will reach Microtask's entities through the **share-link system**: a Macroplan plan
+or milestone reflecting into Microtask through a token, held the way any client holds one, in a URL
+and never in a cookie (ADR 0040), carrying exactly the role and scope that token names (ADR 0038).
+A guard refusing every cross-product call would have to be taken back out to build that.
+
+So no guard is added, and the exposure is recorded instead of hidden:
+
+- The key is server-side only. `@repo/api-client` reads no environment variable and takes the key
+  as an argument precisely so it can never reach a browser bundle (ADR 0012), and no page in either
+  app ships it.
+- It confers no authority on its own: a service key with no bearer is a 401 (ADR 0012).
+- There is one admin. A key that could reach the other product's routes reaches data that admin
+  already has a password for.
+
+What the seam does still hold, mechanically: two data subtrees, two route prefixes, two domain
+packages with a lint rule keeping `kernel` and `store` out of both, one service key per product so
+the API records which product made a call, and — from ADR 0047 — **two cookie names**, so signing
+into one product does not sign the other out and neither app's server can open the other's bearer.
+
+If Macroplan ever reaches Microtask's data by any route other than a share token, that is the point
+at which the guard becomes worth building, and it needs its own record.

@@ -45,11 +45,18 @@ const scanned = (path: string) =>
   SCAN_ROOTS.some((root) => toRegExp(root).test(posix(resolve(PACKAGE, path))))
 
 describe('globals.css scan roots', () => {
-  it('declares exactly the two roots ADR 0025 settled on, with the four-../ app arithmetic', () => {
+  it('declares exactly one root per app plus its own src, with the four-../ arithmetic', () => {
     expect(SCAN_ROOTS).toEqual([
       posix(resolve(PACKAGE, 'src')) + '/**/*.{ts,tsx}',
       posix(resolve(PACKAGE, '../../apps/microtask')) + '/**/*.{ts,tsx}',
+      posix(resolve(PACKAGE, '../../apps/macroplan')) + '/**/*.{ts,tsx}',
     ])
+  })
+
+  it('covers each app, so a utility used only in one of them survives the build', () => {
+    expect(scanned('../../apps/microtask/app/login/page.tsx')).toBe(true)
+    expect(scanned('../../apps/macroplan/app/login/page.tsx')).toBe(true)
+    expect(scanned('../../apps/macroplan/app/(admin)/page.tsx')).toBe(true)
   })
 
   it('already covers src/shell and src/lib, so hand-written shared code needs no new @source', () => {

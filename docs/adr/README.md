@@ -62,6 +62,7 @@ in the working tree.
 | [0044](0044-uploads-are-chunked.md) | Every import upload is chunked, and the global body limit stands | Accepted |
 | [0045](0045-staging-and-build-roots.md) | Staging and build roots live beside `projects/`, never inside it | Accepted |
 | [0046](0046-legacy-admin-address-redirect.md) | The legacy admin address redirects, and a stale `?tab=` degrades instead of 404ing | Accepted |
+| [0047](0047-one-admin-session-two-cookies.md) | One admin session package, one cookie name per product | Accepted |
 
 ## Amendments
 

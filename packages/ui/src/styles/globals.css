@@ -4,6 +4,7 @@
 
 @source "../**/*.{ts,tsx}";
 @source "../../../../apps/microtask/**/*.{ts,tsx}";
+@source "../../../../apps/macroplan/**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));
 

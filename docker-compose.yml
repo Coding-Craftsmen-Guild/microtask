@@ -1,4 +1,4 @@
-# CC Guild: the API and Microtask, one image each (ADR 0026). Read README.md "Deploy" first.
+# CC Guild: the API, Microtask and Macroplan, one image each (ADR 0026). Read README.md "Deploy" first.
 #
 # THIS IS NOT THE CUTOVER, AND IT STILL CANNOT READ PRODUCTION DATA. The API starts on its own,
 # new, empty volume (api-data). The live app's volume holds data/projects/<id>.json, a layout this
@@ -16,12 +16,17 @@
 # production domain to this new, empty stack. Auto-deploy must be off on that resource before
 # `main` moves. See README "Deploy".
 #
-# Every secret comes from the environment and has no default: a missing one stops `docker compose`
-# before any container starts. MICROTASK_API_KEY is the one service key, handed to the API as
-# SERVICE_KEYS and to the app as API_KEY, so the two cannot drift apart.
+# Macroplan is a third service on its own hostname, never the production one (ADR 0022). It holds
+# its own service key and its own cookie secret: one key per product is what lets the API record
+# which product made a call, and two cookie names are what let both apps be signed into from one
+# browser without each clearing the other's session (ADR 0014).
 #
-# The API is internal-only (ADR 0041): `expose`, never `ports`, and no domain. The app reaches it by
-# service name. Neither service publishes a port; Coolify routes by domain (ADR 0026).
+# Every secret comes from the environment and has no default: a missing one stops `docker compose`
+# before any container starts. Each app's API key is handed to the API as part of SERVICE_KEYS and
+# to that app as its own API_KEY, so the two cannot drift apart.
+#
+# The API is internal-only (ADR 0041): `expose`, never `ports`, and no domain. The apps reach it by
+# service name. No service publishes a port; Coolify routes by domain (ADR 0026).
 
 services:
   api:
@@ -34,7 +39,7 @@ services:
       DATA_DIR: /data
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set, at least 32 characters}
-      SERVICE_KEYS: microtask=${MICROTASK_API_KEY:?MICROTASK_API_KEY must be set}
+      SERVICE_KEYS: microtask=${MICROTASK_API_KEY:?MICROTASK_API_KEY must be set},macroplan=${MACROPLAN_API_KEY:?MACROPLAN_API_KEY must be set}
     volumes:
       - api-data:/data
     expose:
@@ -54,6 +59,23 @@ services:
       API_KEY: ${MICROTASK_API_KEY:?MICROTASK_API_KEY must be set}
       COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET must be set, at least 32 bytes}
       NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?NEXT_SERVER_ACTIONS_ENCRYPTION_KEY must be set, a base64 AES-256 key kept stable across deploys}
+    expose:
+      - '3000'
+
+  macroplan:
+    build:
+      context: .
+      dockerfile: apps/macroplan/Dockerfile
+    restart: unless-stopped
+    init: true
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_BASE_URL: http://api:4321
+      API_KEY: ${MACROPLAN_API_KEY:?MACROPLAN_API_KEY must be set}
+      COOKIE_SECRET: ${MACROPLAN_COOKIE_SECRET:?MACROPLAN_COOKIE_SECRET must be set, at least 32 bytes and not Microtask's}
+      NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${MACROPLAN_SERVER_ACTIONS_ENCRYPTION_KEY:?MACROPLAN_SERVER_ACTIONS_ENCRYPTION_KEY must be set, a base64 AES-256 key kept stable across deploys}
     expose:
       - '3000'
 
