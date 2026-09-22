@@ -389,9 +389,6 @@
           "role": {
             "$ref": "#/components/schemas/Role"
           },
-          "scope": {
-            "$ref": "#/components/schemas/ProjectScope"
-          },
           "createdBy": {
             "allOf": [
               {
@@ -407,15 +404,18 @@
           },
           "createdAt": {
             "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ProjectScope"
           }
         },
         "required": [
           "token",
           "name",
           "role",
-          "scope",
           "createdBy",
-          "createdAt"
+          "createdAt",
+          "scope"
         ],
         "description": "One person’s access, and who granted it"
       },

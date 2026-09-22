@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { LIMITS, MAX_ESTIMATE_DAYS, MAX_ITEM_DESCRIPTION_BYTES, MAX_SPRINT_LENGTH_DAYS } from './limits.js'
 import { EntityId, EntityName } from './document.js'
-import { ShareLink } from './share-link.js'
+import { PlanShareLink } from './share-link.js'
 
 /**
  * A calendar date with no time and no zone: the one date a plan carries.
@@ -168,7 +168,7 @@ export const PlanManifest = z
     epics: z.array(PlanEpic).max(LIMITS.epicsPerPlan),
     features: z.array(PlanFeature).max(LIMITS.featuresPerPlan),
     items: z.array(PlanItem).max(LIMITS.itemsPerPlan),
-    shareLinks: z.array(ShareLink).max(LIMITS.shareLinksPerPlan),
+    shareLinks: z.array(PlanShareLink).max(LIMITS.shareLinksPerPlan),
     createdAt: z.string(),
     updatedAt: z.string(),
   })

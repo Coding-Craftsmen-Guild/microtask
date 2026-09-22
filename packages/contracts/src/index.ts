@@ -30,6 +30,8 @@ export { Folder } from './folder.js'
 export { MAX_LISTED_TAB_NAMES, TaskEntry, TaskDocument } from './task.js'
 export {
   CreateShareLinkPayload,
+  PlanScope,
+  PlanShareLink,
   ProjectScope,
   Role,
   Scope,

@@ -56,7 +56,7 @@ const shareLink = (over: Record<string, unknown> = {}): Record<string, unknown> 
   token: 'yjKq3Zc1vHt8Lm0Pw5Rb2Nd7',
   name: 'Client',
   role: 'view',
-  scope: { kind: 'project', projectId: ID },
+  scope: { kind: 'plan', planId: ID },
   createdBy: null,
   createdAt: STAMP,
   ...over,

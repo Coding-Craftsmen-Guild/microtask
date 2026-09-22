@@ -31,17 +31,43 @@ export const ProjectScope = z
   ])
   .meta({ id: 'ProjectScope', description: 'What a Microtask share link may reach' })
 
+/**
+ * A {@link Scope} rooted at a Macroplan plan, which is the whole plan and never part of one.
+ *
+ * The symmetric half of {@link ProjectScope}, and narrow for the same reason: a plan's links are
+ * stored in its own manifest, and a project-shaped scope arriving there would be data the schema
+ * should never have accepted. A plan has exactly one shareable scope — spec §7.1 defers epic scope
+ * rather than foreclosing it, and because this is a discriminated union, adding that variant later
+ * invalidates no token already issued.
+ */
+export const PlanScope = z
+  .discriminatedUnion('kind', [z.object({ kind: z.literal('plan'), planId: EntityId })])
+  .meta({ id: 'PlanScope', description: 'What a Macroplan share link may reach' })
+
+const seat = {
+  token: ShareToken,
+  name: EntityName.or(z.literal('')),
+  role: Role,
+  createdBy: ShareToken.nullable(),
+  createdAt: z.string(),
+} as const
+
 /** One person's access to a project or a single task. */
 export const ShareLink = z
-  .object({
-    token: ShareToken,
-    name: EntityName.or(z.literal('')),
-    role: Role,
-    scope: ProjectScope,
-    createdBy: ShareToken.nullable(),
-    createdAt: z.string(),
-  })
+  .object({ ...seat, scope: ProjectScope })
   .meta({ id: 'ShareLink', description: 'One person’s access, and who granted it' })
+
+/**
+ * One person's access to a plan.
+ *
+ * Every field of {@link ShareLink} but the scope, because a seat is a seat: the same token shape,
+ * the same three roles, the same `createdBy` chain that makes revocation cascade (ADR 0010). Only
+ * what it reaches differs, so only that is restated — the rest is shared rather than copied, which
+ * is what stops the two drifting into two different notions of a seat.
+ */
+export const PlanShareLink = z
+  .object({ ...seat, scope: PlanScope })
+  .meta({ id: 'PlanShareLink', description: 'One person’s access to a plan, and who granted it' })
 
 /**
  * What a caller sends to mint a share link.
