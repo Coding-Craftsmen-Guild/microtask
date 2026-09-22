@@ -13,3 +13,5 @@ export type {
 } from './structure.js'
 
 export { dateToDay, dayToDate, isWorkingDay, todayIn } from './calendar.js'
+
+export { rangeOfSprint, sprintOf } from './sprints.js'
