@@ -105,7 +105,12 @@ export function todayIn(timezone: string, at: Date): string {
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(at)
-  const field = (type: Intl.DateTimeFormatPartTypes): string =>
-    parts.find((part) => part.type === type)?.value ?? ''
+  const field = (type: Intl.DateTimeFormatPartTypes): string => {
+    const value = parts.find((part) => part.type === type)?.value
+    if (value === undefined) {
+      throw new RangeError(`Intl produced no "${type}" part for timezone "${timezone}"`)
+    }
+    return value
+  }
   return `${field('year').padStart(4, '0')}-${field('month')}-${field('day')}`
 }

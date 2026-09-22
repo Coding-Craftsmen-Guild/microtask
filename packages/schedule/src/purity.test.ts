@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 
 const SRC = dirname(fileURLToPath(import.meta.url))
 const PACKAGE_ROOT = join(SRC, '..')
-const SELF = fileURLToPath(import.meta.url)
 
 function sources(directory: string): readonly string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -15,9 +14,7 @@ function sources(directory: string): readonly string[] {
   })
 }
 
-const shipped = sources(SRC).filter(
-  (file) => file !== SELF && !file.endsWith('.test.ts'),
-)
+const shipped = sources(SRC).filter((file) => !file.endsWith('.test.ts'))
 
 describe('the package declares no dependencies at all', () => {
   it('has an empty or absent "dependencies" key in package.json', () => {
@@ -33,13 +30,8 @@ describe('shipped source never reaches a node builtin (this package is bundled f
     expect(shipped.length).toBeGreaterThan(0)
   })
 
-  it('contains no `from \'node:` import', () => {
-    const offenders = shipped.filter((file) => readFileSync(file, 'utf8').includes("from 'node:"))
-    expect(offenders).toEqual([])
-  })
-
-  it('contains no `require(\'node:` call', () => {
-    const offenders = shipped.filter((file) => readFileSync(file, 'utf8').includes("require('node:"))
+  it('contains no reference to a `node:` specifier, in any quote style or import form', () => {
+    const offenders = shipped.filter((file) => /['"]node:/.test(readFileSync(file, 'utf8')))
     expect(offenders).toEqual([])
   })
 })
