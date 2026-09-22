@@ -605,6 +605,30 @@ importers:
         specifier: 'catalog:'
         version: 5.0.0(@types/node@22.20.2)(happy-dom@20.14.3)(vite@8.2.2(@types/node@22.20.2)(jiti@2.7.0)(yaml@2.9.0))
 
+  packages/schedule:
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.20.2
+      eslint:
+        specifier: 'catalog:'
+        version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.2.2(@types/node@22.20.2)(jiti@2.7.0)(yaml@2.9.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.0(@types/node@22.20.2)(happy-dom@20.14.3)(vite@8.2.2(@types/node@22.20.2)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/store:
     dependencies:
       '@repo/kernel':
