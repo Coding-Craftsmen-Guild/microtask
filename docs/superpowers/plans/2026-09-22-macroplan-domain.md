@@ -1118,7 +1118,11 @@ fault, not a plan the user can see or fix.
         reading gets wrong: summing over zero estimated children would answer `0` and turn a
         40-day feature into a milestone the moment its first item is named
       - one item estimated at 5 among three unestimated, authored `40` → `5`, and `breakdown` is
-        `{ planned: 40, brokenDown: 5, delta: -5 }` — a negative delta is a real and reportable state
+        `{ planned: 40, brokenDown: 5, delta: -35 }` — a negative delta is a real and reportable
+        state. **`delta` is `brokenDown - planned`**, which is what spec §3.2 renders as
+        *planned 40d · broken down to 62d · +22d*. An earlier draft of this plan wrote `-5` here,
+        which no single formula can produce alongside the `+22` above; the `+22` example is the
+        one the spec pins, so it wins
       - a zero estimate is an estimate: authored `0` → `0`, not `null`
 - [ ] **Step 2: write the failing tests** for `findCycles`:
       - an acyclic graph returns `[]`
@@ -1158,6 +1162,12 @@ export function schedule(plan: PlanStructure): ScheduleResult
 1. Order is total and derived, never array order: epics by `(railOrder, id)`, features by
    `(position, id)` within their epic, items by `(position, id)` within their feature. This is what
    makes the output independent of input ordering.
+1b. **Ids are assumed unique and the assumption is not defended here.** Task 9's `findCycles`
+   indexes features into a `Map`, so a repeated id silently keeps the last one's edges; build your
+   own index the same way and state it, rather than inventing a merge nobody asked for. A manifest
+   with duplicate ids is corrupt — the store mints ULIDs and no service writes one twice — and
+   `schedule()` must stay total, so it is not the place to refuse. If that refusal is wanted it
+   belongs at the schema or service boundary (Tasks 4 and 14), where there is a caller to tell.
 2. `cycles = findCycles(plan.features)`. Every feature in a cycle is **unscheduled**
    (`reason: 'in-cycle'`), and so is every item of one.
 3. A feature is **schedulable** when it is not in a cycle and `effectiveEstimate` is not `null`;
