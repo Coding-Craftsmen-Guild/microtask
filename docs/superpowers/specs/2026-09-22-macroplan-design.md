@@ -1,0 +1,360 @@
+# Macroplan: the timeline of record
+
+**Status:** designed, not built
+**Date:** 2026-09-22
+**Branch:** `feat/macroplan-timeline`
+**Follows:** [the shell design](2026-09-22-macroplan-shell-design.md), whose §6 left this undesigned
+**Decisions this spec creates:** ADRs 0048–0052 (§11)
+
+---
+
+## 1. What Macroplan is
+
+Macroplan is **the timeline of record**. It owns structure, estimates, order and dependencies. It
+owns no content, no checklists and no second editor. A bar is green because a linked Microtask task
+said so.
+
+That last clause is the product. Every planning tool can draw a bar; the ones that rot are the ones
+where a human types the percentage. Microtask already computes real `{ done, total }` from checklist
+documents ([ADR 0007](../../adr/0007-progress-derived-then-cached.md)), and the shell design's §6
+already named the mechanism for reaching it — a share-link token, never an admin credential. This
+spec is what that mechanism is *for*.
+
+## 2. The one idea that makes it work
+
+**No date is ever typed.**
+
+A plan has exactly one date: its `startDate`. Everything else is an estimate in days. Calendar
+position, quarter bands, sprint ticks, the today line and lateness are all *derived* from the start
+date plus a running total of estimates.
+
+This was not the first design. The first design had authored start/end dates on every level, a
+baseline captured at a "commit the plan" ceremony, and a slip computed against it. It was rejected
+in one sentence — *"managing dates would be hell"* — and the sentence is right. Authored dates on a
+three-level hierarchy mean every estimate change is a manual reschedule of everything downstream,
+and the tool becomes a drawing that is wrong by the second week.
+
+Removing dates removes the baseline problem too. With derived positions, **"late" is not a date
+comparison**: an item whose sprint has ended and whose progress is under 100% is a **carry-over**,
+and the count of carry-overs is the slip signal — free, honest, and impossible to clear by dragging
+something to the right.
+
+## 3. The model
+
+```
+Plan        id · name · startDate · sprintLengthDays (default 10 working days) · timezone
+ └ Epic     id · name · colour · railOrder · binding?
+    └ Feature  id · name · estimateDays? · pinSprint? · dependsOn: FeatureId[]
+       └ Item  id · name · estimateDays? · linkedTaskId? · description
+```
+
+Three levels, named **Epic / Feature / Item**. The third is not called Task: Microtask owns that
+word, the types would compile fine under [ADR 0014](../../adr/0014-namespace-products-now.md)'s
+namespacing, and every human conversation in this repository afterwards would need a disambiguating
+adjective. "A Macroplan **item** links to a Microtask **task**" is a sentence that stays readable.
+
+A **milestone** is an item or feature with an estimate of zero. It renders as a diamond on the rail
+and occupies no time. There is no separate entity.
+
+### 3.1 The scheduling rule
+
+One forward pass over the graph, per rail:
+
+```
+start(x) = max( end of the previous sibling on x's rail,
+                end of every feature x depends on,
+                first day of x.pinSprint )
+
+end(x)   = start(x) + effectiveEstimate(x)
+```
+
+`x.railOrder` makes "previous sibling" well defined. Each epic advances **independently** — three
+epics are three teams working in parallel, and the plan's length is its critical path, not the sum
+of all work. Dependency edges are the only thing that couples one rail to another, which is exactly
+what makes the result look like a git graph: lanes advancing on their own, arcs where they actually
+meet.
+
+The rule above schedules **features on their epic's rail**. Inside a feature, items simply flow in
+their own order, starting at the feature's start — so **a feature is a contiguous block**: it has no
+internal gaps, and its span equals the sum of its items. Contiguity is what makes an edge between
+two features mean something at the year rung, and it is why edges exist at the feature level and
+nowhere else (§8).
+
+`pinSprint` is the escape hatch for work that waits on something outside the plan — a conference, an
+audit, a contract date. It is one nullable integer, it exists on features only, and it joins `max()`
+as one more lower bound, so the forward pass is unchanged. It is the *only* way a fixed point in
+time enters the model.
+
+An estimate is a **non-negative integer number of working days**. Zero means a milestone. Days are
+working days throughout — the forward pass counts in them, and only the final day-offset→calendar
+mapping skips weekends, using the plan's `timezone` rather than the server's.
+
+### 3.2 Estimates, and the number that matters
+
+`effectiveEstimate(x)` is the sum of `x`'s children when it has any, and its own authored estimate
+when it has none.
+
+Both may exist at once. An executive sketching a year types *"Checkout: 40d"* before a single item
+exists; a team later breaks it into items totalling 62 days. The authored 40 is **kept, not
+overwritten**, and the pair is rendered as a discrepancy: *planned 40d · broken down to 62d · +22d*.
+
+That gap is the most useful number in the application. It is where a macro plan is wrong, stated in
+days, before anything is late.
+
+An item with no estimate and no children cannot be scheduled. It sits on an **unscheduled rail**
+below the canvas rather than being given a fabricated duration.
+
+### 3.3 Sprints are gridlines, not containers
+
+A sprint is `sprintLengthDays` of working days measured from `startDate`. Nothing is ever *assigned*
+to a sprint; sprint 5 is simply where the arithmetic lands. An item therefore **may straddle a sprint
+boundary**, and does so silently.
+
+There is no capacity, no over-commitment warning, and nothing blocks a drop. This was decided
+explicitly against the alternative — *"it's just a track of time, we try to follow it, but if
+something takes more, we're doing wrong planning somehow"*. Capacity would have required a notion of
+people or teams to be meaningful, and neither exists in this product.
+
+### 3.4 The schedule is derived on read and never stored
+
+[ADR 0007](../../adr/0007-progress-derived-then-cached.md) caches progress in the manifest because
+deriving it requires reading every task *file*. The schedule derives from the manifest **alone** — a
+plan's entire structure is one read — so caching it would buy nothing and would create a class of
+staleness bugs that cannot otherwise exist. The forward pass is `O(n)` over at most 2 000 items.
+
+This is a deliberate departure from 0007's shape, recorded so that nobody later "fixes" the
+inconsistency by adding a cache.
+
+## 4. Architecture
+
+| Where | What | Why there |
+| --- | --- | --- |
+| `@repo/contracts` | plan/epic/feature/item/edge schemas, limits, problem codes | [ADR 0036](../../adr/0036-wire-facts-live-in-contracts.md) — wire facts live here |
+| **`@repo/schedule`** *(new)* | the forward pass, cycle detection, day→sprint→calendar arithmetic, layout maths | pure, no node builtins |
+| `@repo/macroplan-domain` | entities, `PlanStore` port, fs + memory implementations, its contract suite, services | mirrors `microtask-domain` |
+| `apps/api` | `/v1/macroplan/plans/**` under the existing service-key and principal guards | [ADR 0013](../../adr/0013-one-route-tree-two-principals.md) |
+| `apps/macroplan` | plan list, canvas, drawer | the shell already exists |
+
+### 4.1 Why `@repo/schedule` is its own package
+
+The API derives the schedule to answer a read; the browser derives it to show a drag before the
+round trip completes. If those are two implementations they will disagree, and the disagreement will
+present as a bar that jumps when you let go of it.
+
+It cannot live in `@repo/macroplan-domain`: an app may never import a `*-domain` package, because the
+domain barrel reaches `node:path` and `node:crypto` (ADR 0001, [0027](../../adr/0027-code-style-solid-enforced.md)).
+It could live in `@repo/contracts`, and there is precedent — `capabilities()`, `countTasks()` and
+`emptyDocument()` all sit there. It gets its own package anyway because it is the one piece of real
+algorithm in this product, it has no dependency on Zod or on the wire at all, and a package boundary
+is what keeps it testable as pure input→output with no HTTP and no React anywhere near it.
+
+Its public surface is small and total:
+
+```ts
+schedule(plan: PlanStructure): ScheduleResult
+// { days: Map<id, { startDay, endDay }>, cycles: readonly Cycle[], unscheduled: readonly Id[] }
+
+sprintOf(day: number, plan: PlanCalendar): number
+rangeOfSprint(n: number, plan: PlanCalendar): { from: IsoDate, to: IsoDate }
+```
+
+`schedule` never throws and never partially fails. A graph containing a cycle returns the cycle in
+`cycles` and schedules everything not in it, so the canvas still renders and the conflict is shown
+rather than the page being lost.
+
+### 4.2 Storage
+
+Mirrors [ADR 0005](../../adr/0005-manifest-plus-task-files.md): a `plan.json` manifest holds **all**
+structure — names, colours, rail order, estimates, pins, edges, links — and one small file per item
+holds its description. The canvas is therefore one read, and a description is loaded only when the
+drawer opens it. Write ordering per [ADR 0006](../../adr/0006-write-ordering-not-transactions.md):
+item file first, manifest second.
+
+**Edges never cross a plan boundary.** A plan directory is wholly present or wholly absent, the same
+invariant [ADR 0004](../../adr/0004-project-task-folder-hierarchy.md) gives a project; a cross-plan
+dependency would break it, and there is no user need for one.
+
+There are **many plans**, one directory each, so next year can be drafted without disturbing this
+one.
+
+### 4.3 Caps
+
+Stated, and tested *at* the cap rather than near it:
+
+| Limit | Value |
+| --- | --- |
+| epics per plan | 40 |
+| features per plan | 200 |
+| items per plan | 2 000 |
+| dependency edges per plan | 400 |
+| description bytes per item | 8 192 |
+
+The canvas renders 2 000 items as SVG. That is fine; 20 000 is not, which is why the cap is a
+refusal at the API and not a guideline.
+
+## 5. The canvas
+
+Detail level is **derived from the time scale**, not controlled separately. Fusing the two into one
+gesture was the original proposal and produces unpredictable re-layout; splitting them into two
+controls asks the user to maintain a combination that is only ever wrong.
+
+| Scale on screen | Rung | Marks |
+| --- | --- | --- |
+| ~1–2 years | Epic | epic rails, feature nodes, dependency arcs, milestones as diamonds |
+| ~1 quarter | Feature | feature bars sized by estimate, progress fill, items inside where they fit |
+| ~1–2 sprints | Item | item bars with labels and the linked Microtask task |
+
+Quarter bands carry sprint ticks labelled `W1–2`, `W3–4`; real calendar dates appear on hover, never
+as permanent chrome.
+
+**Epic owns hue. Status owns treatment.** Both point 6 (per-epic colours) and point 10 (red/green
+status) wanted hue, and hue cannot carry two meanings. An item is always its epic's colour; status
+changes how it is drawn — solid fill for done, hollow for not started, dashed red outline for a
+carry-over. The result survives greyscale and colour blindness, and an epic stays traceable across a
+crowded year.
+
+Layout is **pure functions** — `railLayout`, `dayToX`, `itemsToMarks` — unit-tested with no DOM, with
+the React component a thin renderer over their output. An SVG canvas is otherwise untestable except
+through screenshots.
+
+A **table view** is a first-class second rendering of the same data, not an afterthought: epic,
+feature, item, estimate, sprint, progress, blocked-by. An SVG-only plan is unreadable to a screen
+reader, and the table is also the fastest way to audit a plan someone else drew.
+
+## 6. Editing
+
+The drawer carries **name, estimate, pin, dependencies, epic, linked task, progress readout, and one
+plain-text description** — capped and sanitised at the boundary
+([ADR 0029](../../adr/0029-document-sanitised-at-the-boundary.md)). It carries no tabs and no rich
+text.
+
+Rebuilding Microtask's tabbed editor here was the original point 5. Microtask *is* that editor, with
+a sanitiser, byte caps, an autosave cap ([ADR 0028](../../adr/0028-autosave-under-keepalive-cap.md))
+and XSS hardening behind it. A second one means two document schemas, two sanitisers, and every
+future content fix applied twice or — worse — once. Anything longer than a note opens the linked
+Microtask task.
+
+New things **append after the last sibling**: a new item after the last item in its feature, a new
+feature after the last feature on its epic's rail. Work is usually added in the order it will be
+done, so the common case requires no placement at all. Dragging reorders an item within its feature
+or a feature within its rail, moves a feature to another rail, or sets a pin; there is no packing
+algorithm and nothing is ever auto-moved.
+
+A write that would create a **cycle is refused**, with the cycle named. A cycle that arrives some
+other way — a hand-edited volume — is reported by `schedule()` and shown in the conflict list rather
+than breaking the page. Nothing in this product ever rewrites a date to resolve a conflict: a
+solver that silently moves an executive's committed plan is a worse failure than a visible
+contradiction.
+
+Destructive drags get an undo. Dragging is high-velocity editing and the existing Server Action
+round trip has no natural "put it back".
+
+## 7. The bridge to Microtask
+
+An **epic binds to one Microtask project** by holding a share-link token. Not an admin credential:
+the service key already fails to distinguish products (shell design §3), and the bridge must not
+rest on that hole.
+
+Why the epic and not the item: a project-scoped token is one token per epic rather than one per
+item, revoking it unlinks exactly one epic, and the scope matches what the token system already
+expresses ([ADR 0038](../../adr/0038-capabilities-role-and-scope.md)). An item then references a task
+id *within* the bound project.
+
+**Progress**: an item's percentage is the linked task's `{ done, total }`. An unlinked item has a
+manual status only — not a manual percentage — so a number on screen is always a counted number.
+
+**Role is chosen per epic**, `view` or `manage`:
+
+- `view` — Macroplan reads names and progress and can never alter Microtask data.
+- `manage` — naming an item in Macroplan **creates the real task** in the bound project.
+
+The `manage` case is a genuine exposure: a token sitting in Macroplan's data can mutate the
+client-facing product. It is bounded rather than avoided:
+
+- the token is sealed at rest with the same AES-256-GCM the session cookie uses, and never leaves the
+  server;
+- the write path permits **exactly one operation** — create a task in the bound project. No delete,
+  no rename of anything Macroplan did not create, no share-link management;
+- the role is per epic, so a read-only epic stays read-only regardless of what any other epic holds.
+
+A **revoked or dead token renders the epic unlinked** — a stated state with its own appearance — never
+an error page and never an empty canvas.
+
+## 8. What was challenged and rejected
+
+Recorded because a later reader will otherwise re-propose them.
+
+| Proposed | Outcome |
+| --- | --- |
+| A true git-graph layout (x = topological order) | **Rejected.** Topology and calendar cannot share an axis. Points 2, 3 and 10 all need dates; nothing in a git graph has duration, so no estimate can be drawn and nothing can be late. The git *look* is achieved by mark style over a calendar layout. |
+| A sequence diagram at feature zoom | **Rejected.** A sequence diagram maps actors × messages and has nowhere to put an Epic/Feature/Item with a duration. What was meant is a swimlane bar view, which is what the quarter rung is. |
+| Baseline dates + a "commit the plan" ceremony | **Rejected by the user.** Carry-over count is the slip signal instead. Consequence accepted: nothing records that a feature was pushed. An optional append-only date-change log per item is offered as a late, optional task rather than pressed. |
+| Binary red/green past today | **Rejected.** It cannot distinguish one day late from one quarter late, and it collides with per-epic hue. Replaced by carry-over plus treatment-not-hue. |
+| Sprint capacity and over-commitment warnings | **Rejected by the user.** Work spans the boundary silently. Capacity needs people or teams to mean anything and neither exists here. |
+| Auto-scheduling / a constraint solver | **Rejected.** Validation only. Dates are derived, never repaired. |
+| A tabbed rich-text editor in the drawer | **Rejected.** One editor in the monorepo. |
+| Cross-plan dependencies | **Rejected.** Breaks the plan-directory invariant for no stated need. |
+
+## 9. Phases
+
+Four, mirroring Microtask's four plan files. Each has its own plan document under
+`docs/superpowers/plans/` and ends at a green gate.
+
+| Phase | Ships | The gate that matters |
+| --- | --- | --- |
+| **1 — Domain and API** | contracts, `@repo/schedule`, `macroplan-domain`, `/v1/macroplan/*`. No UI at all. | `schedule()` property-tested; `PlanStore` contract suite green against fs and memory |
+| **2 — Canvas, read-only** | plan list, the three rungs, quarter and sprint gridlines, today line, hover, table view | layout functions tested with no DOM; the canvas renders at the 2 000-item cap |
+| **3 — Editing** | drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo | cycle refusal pinned by test; a test asserts nothing auto-moves |
+| **4 — The bridge** | epic↔project token, item↔task link, derived progress, the bounded create-task write | a revoked token renders unlinked; a `manage` token provably cannot delete |
+
+Phase 1 reserves `binding` and `linkedTaskId` in the model from the start, so phase 4 adds behaviour
+rather than a migration.
+
+### 9.1 Rules carried from the Microtask plans
+
+- Plans fix **interfaces, decisions and acceptance criteria** — never function bodies. The previous
+  generation of dictated-code plans shipped a live XSS hole past two clean review gates.
+- Every task ends with `npx turbo run build typecheck lint test --force` green and `Cached: 0`.
+  Without `--force`, turbo reports `FULL TURBO` and a clean run proves nothing.
+- Delete `.next` before a repeat `--force` build, or the second run fails with a bogus `EPERM`
+  symlink error.
+- `apps/api` loads `@repo/*` from `dist/`. A change to a package's `src` is invisible to the API
+  suite until the package is rebuilt.
+- ADR 0027 limits throughout: `.tsx` at 80 lines, functions at 50, complexity at 10, params at 4,
+  TSDoc only.
+- An app imports `@repo/contracts`, `@repo/api-client`, `@repo/ui` and now `@repo/schedule` — never
+  `@repo/store`, `@repo/kernel`, or either `*-domain`.
+
+## 10. Verification targets
+
+| Thing | How it is held honest |
+| --- | --- |
+| `schedule()` | property tests: adding an edge never moves anything earlier; a pin is never violated; every cycle is reported and everything outside it still schedules; output is independent of input ordering |
+| calendar arithmetic | a plan starting on each of the seven weekdays; a sprint spanning a year boundary; a DST transition inside a sprint; the stated timezone, not the server's |
+| feature contiguity | a feature's span always equals the sum of its items, for every arrangement of pins and edges the model admits |
+| `PlanStore` | the existing port-contract pattern, run against both fs and memory implementations |
+| caps | a plan built *at* 2 000 items is accepted; 2 001 is refused with a named problem code |
+| layout | pure functions, no DOM, including the node↔bar crossover between rungs |
+| the bridge | a revoked token, a deleted project, and a `manage` token attempting a delete |
+
+## 11. ADRs this spec creates
+
+| ADR | Title |
+| --- | --- |
+| 0048 | Macroplan schedules, it does not store dates |
+| 0049 | Per-rail forward pass, in one pure package both sides import |
+| 0050 | The plan directory is the unit; edges never cross it |
+| 0051 | Estimate is authored at any level; children win, and the gap is shown |
+| 0052 | An epic binds to a Microtask project by a sealed share token |
+
+## 12. What this spec does not decide
+
+- **Who mints the epic's token.** Pasted by hand from Microtask's share manager, or minted through a
+  Microtask admin call from Macroplan. Phase 4 decides it and ADR 0052 records it.
+- **Whether the plan list needs search.** Microtask's names-only search
+  ([ADR 0021](../../adr/0021-names-only-search.md)) is the obvious precedent if it does.
+- **Export/import of a plan.** Nothing here needs it; Microtask's drop-in import exists for a
+  migration Macroplan has no equivalent of.
+- **Anything about the cutover.** Macroplan keeps a new hostname and never the production FQDN
+  ([ADR 0022](../../adr/0022-hostname-continuity-gated-cutover.md)). This spec changes no part of the
+  runbook.
