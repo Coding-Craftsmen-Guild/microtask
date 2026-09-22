@@ -2,7 +2,7 @@ import {
   LIMITS,
   MAX_PREVIEW_REASONS,
   MAX_PREVIEW_TEXT_LENGTH,
-  type CountLimitKey,
+  type ImportCountKey,
 } from '@repo/contracts'
 import { elideMiddle, LONGEST_QUOTED_PATH } from './sniff.js'
 
@@ -14,18 +14,12 @@ const LOCATED_ISSUES = 3
 
 const THE_FILE = 'the file itself'
 
-const BOUNDS: Readonly<Record<CountLimitKey, string>> = {
+const BOUNDS: Readonly<Record<ImportCountKey, string>> = {
   tasksPerProject: 'tasks',
   foldersPerProject: 'folders',
   shareLinksPerProject: 'share links',
   tabsPerTask: 'tabs',
   projectsPerProduct: 'projects',
-  plansPerProduct: 'plans',
-  epicsPerPlan: 'epics',
-  featuresPerPlan: 'features',
-  itemsPerPlan: 'items',
-  edgesPerPlan: 'dependencies',
-  shareLinksPerPlan: 'share links',
 }
 
 /**
@@ -107,7 +101,7 @@ export const when = (broken: boolean, reason: string): readonly string[] => (bro
  * left to describe. The numbers come from the same place either way, so the bound import refuses at
  * and the bound `ProjectService.create` compares against cannot drift.
  */
-export const overBound = (key: CountLimitKey, count: number, whose: string): readonly string[] =>
+export const overBound = (key: ImportCountKey, count: number, whose: string): readonly string[] =>
   when(
     count > LIMITS[key],
     `${whose} holds ${String(count)} ${BOUNDS[key]} — the limit is ${String(LIMITS[key])}`,

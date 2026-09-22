@@ -46,3 +46,28 @@ export type LimitKey = keyof typeof LIMITS
 
 /** A bound on a collection. Name length is enforced by truncation, never by `assertWithin`. */
 export type CountLimitKey = Exclude<LimitKey, 'nameLength'>
+
+/**
+ * A bound belonging to a plan rather than a project.
+ *
+ * Named so that a consumer serving only one product can say which half it means. It is written
+ * out rather than derived from a `Plan` prefix, because a key is a name and a name is not a
+ * type: `plansPerProduct` belongs here and does not begin with one.
+ */
+export type PlanCountKey =
+  | 'plansPerProduct'
+  | 'epicsPerPlan'
+  | 'featuresPerPlan'
+  | 'itemsPerPlan'
+  | 'edgesPerPlan'
+  | 'shareLinksPerPlan'
+
+/**
+ * A bound a Microtask archive can exceed, which is every bound that is not a plan's.
+ *
+ * `Exclude` rather than a written list, so a **new** Microtask cap still breaks every exhaustive
+ * map over this type until it is given a meaning — which is the property the import refusals rely
+ * on — while a new *plan* cap does not, because no import can reach one. Macroplan has no import
+ * and the design spec records that it needs none.
+ */
+export type ImportCountKey = Exclude<CountLimitKey, PlanCountKey>
