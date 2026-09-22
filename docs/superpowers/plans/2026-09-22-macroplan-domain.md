@@ -495,8 +495,13 @@ what *tells* you which product it belongs to, so it cannot be per-product withou
 - Delete: `packages/microtask-domain/src/ports/token-index.ts`,
   `src/storage/share-index.ts`, `src/storage/share-index.test.ts`
 - Modify: `packages/microtask-domain/src/index.ts`, `src/services/context.ts`, and the call sites in
-  `src/services/share-link-service.ts` and `src/import/remint.ts`
+  `src/services/share-link-service.ts` (the one `.map()` lift), `src/services/project-service.ts`,
+  `src/import/link-checks.ts` (which uses both `collisions` and `find`) and `src/import/checks.ts`
+  (an import repoint only). **Not** `src/import/remint.ts` — it never touches the index; its
+  `Minted.tokens` is an old-to-new token map, and its only mention of the index is in a TSDoc.
 - Modify: `apps/api/src/auth/principal-resolver.ts`, `src/runtime.ts`, `src/testing/harness.ts`
+- Modify: `apps/api/package.json` — `@repo/macroplan-domain` joins `dependencies`, and `ApiDeps`
+  gains a `PlanStore`. Both are required by the `PlanStore` adapter and by warming a plan's tokens.
 
 The generalisation is smaller than it looks. `ShareIndex.add` already begins
 `manifest.shareLinks.map((link) => link.token)`; lifting that one line to the caller makes the whole
@@ -574,9 +579,18 @@ resolves to nothing.
 - [ ] **Step 6: write `link-directory.ts`** and rework `PrincipalResolver` and its test. Add a case:
       a bearer whose index entry names a container that no longer exists resolves to `null`, not a
       throw — a deleted plan must read as a dead link.
-- [ ] **Step 7: rework `warmTokenIndex`** to walk both stores. Its TSDoc already warns that without
-      it *every share link minted before this process started answers 401*; that failure is now
-      possible in two products, and the test asserts a plan's tokens are warmed too.
+- [ ] **Step 7: rework `warmTokenIndex`** to read **each product through the one store it uses** — and
+      *not* `PRODUCTS` × both stores, which is a silent data-loss bug. It was measured: a
+      `data/microtask/plans/` directory is loadable by `PlanStore`, `TokenOwner` keys on
+      `(product, containerId)`, and `add` **replaces** an owner's tokens — so a stray plan directory
+      sharing a project's ULID evicts that project's tokens with **no `Conflict` raised**. Every one of
+      that project's links then answers 401, with nothing anywhere to notice. A
+      `Record<Product, () => Promise<…>>` keeps a third product a compile error. The standing
+      constraint this exposes: **if `TokenOwner` is ever asked to span two container kinds under one
+      product tag, it needs a third field.** `warmTokenIndex`'s TSDoc already warns that without it
+      *every share link minted before this process started answers 401*; that failure is now possible
+      in two products, so the test asserts a plan's tokens are warmed **and** that a stray plan cannot
+      evict a project's.
 - [ ] **Step 8: rebuild the packages, run the API suite.** Green, unchanged.
 - [ ] **Step 9: the gate**, then commit `"One token index, because a bearer names its own owner"`.
 
@@ -2187,6 +2201,11 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
 - Create: `docs/adr/0051-estimate-authored-at-any-level-children-win.md`
 - Create: `docs/adr/0053-a-plan-is-shared-at-plan-scope.md`
 - Create: `docs/adr/0054-one-token-index-identity-stays-a-capability.md`
+- Modify: `docs/adr/0014-namespace-products-now.md` — an amendment retracting its consequence that
+  "share tokens stay globally unique across products, so the token index needs no product dimension".
+  The index now **must** carry one: `TokenOwner`'s `product` is what selects the store the live link
+  is read from, so the dimension is load-bearing rather than absent. Tokens are still globally unique;
+  it is the *resolution* that needs to know the product, which is not what that sentence claimed.
 - Modify: `docs/adr/0038-capabilities-role-and-scope.md` — an amendment noting the plan scope and the
   widened cross product, since that ADR's agreement argument is what now covers twenty-four more actions
 - Modify: `docs/superpowers/specs/2026-09-22-macroplan-design.md` — §11's table marks 0048–0051, 0053
@@ -2301,3 +2320,13 @@ Spec §10's table, resolved to tasks. A row with no task is a gap; there are non
 | the bridge — revoked token, deleted project, a `view` holder denied a task name, `effectiveBridgeRole` | **Phase 4.** Phase 1 proves the fields stay `null` (Task 16) and that `epic:bind` is admin-only (Task 2) |
 
 Two rows are deferred by design and named in "What phase 1 does not ship". Everything else is met.
+
+## Out of scope, found during phase 1 and worth its own task
+
+The `Conflict` an index write raises **echoes the colliding share token**, and `failedOutcome` puts an
+`AppError`\s message into the import response body. Both predate Macroplan and both sit behind
+`workspace:import`, which is admin-only — so this is not a link-holder disclosure. But it is exactly
+the leak [ADR 0033](../../adr/0033-list-ships-no-share-tokens.md) is about, and `link-checks.ts` goes
+out of its way to avoid echoing a token for that reason. Phase 1 does not touch it: the consolidation
+moved the message, it did not widen who can read it. Fixing it means deciding what an import refusal
+may say about a token it will not name, which is a decision, not a rename.
