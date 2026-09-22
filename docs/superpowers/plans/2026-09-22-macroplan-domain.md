@@ -380,10 +380,65 @@ is the exhaustive agreement test, which already enumerates from the kernel's own
 fail the moment Task 2 lands, and that failure is the design working.
 
 **Files:**
+- Modify: `packages/kernel/src/access/target.ts` — add `TARGET_KINDS`, derive `Target['kind']` from it
+- Modify: `packages/kernel/src/access/action.ts` — split the flat list into two composed halves
+- Modify: `packages/kernel/src/access/policy.test.ts` — the exhaustiveness test below
+- Modify: `packages/kernel/src/index.ts` — export `TARGET_KINDS`
 - Modify: `packages/contracts/src/share-link.ts` — `Scope` gains the `plan` variant
 - Modify: `packages/contracts/src/capabilities.ts` — `ROWS` gains twenty-four, `CapabilityTarget` gains
   `'plan' | 'epic' | 'feature' | 'item'`
 - Modify: `packages/contracts/src/capabilities.test.ts` — `TARGETS` and `SCOPES` widen
+
+**First, close a gap Task 2's quality review found.** `SCOPE_TARGETS` is total over `Scope['kind']`
+— a new scope variant fails the build — but **not** over `Target['kind']`. A fifth target kind left
+out of both `PROJECT_TARGETS` and `PLAN_TARGETS` compiles clean, and at runtime becomes reachable by
+the admin alone, because `can()` short-circuits on admin before `inScope` runs. That is the safe
+direction, but it is safe by accident of `can()`'s ordering rather than by anything the table
+enforces, and it would ship as "share links cannot reach the new resource" — a support ticket, not a
+red build.
+
+The reason no test catches it is that nothing enumerates `Target['kind']` the way `ACTIONS`
+enumerates `Action`, so `capabilities.test.ts` hand-derives its target list today. Add the missing
+array, and derive the union from it rather than the other way round:
+
+```ts
+/** Every kind of thing a request can act on. The list `Target` is derived from. */
+export const TARGET_KINDS = [
+  'workspace', 'project', 'folder', 'task', 'tab', 'plan', 'epic', 'feature', 'item',
+] as const
+```
+
+Then the exhaustiveness test in `policy.test.ts`:
+
+```ts
+it('places every target kind in exactly one scope family, so a kind added and left out is unreachable rather than silently open', () => {
+  const placed = [...PROJECT_TARGETS, ...PLAN_TARGETS, 'workspace' as const]
+  expect([...placed].sort()).toEqual([...TARGET_KINDS].sort())
+})
+```
+
+`'workspace'` is added explicitly because it is deliberately in no scope; listing it here is what
+makes its absence from both families a stated decision rather than an oversight that reads the same.
+Sorting both sides also catches a kind placed in **two** families, which would be the more dangerous
+direction.
+
+**Second, split `ACTIONS` into two composed halves.** The list is 52 entries and
+`workspace:list-plans` / `workspace:create-plan` sit orphaned at the end, far from the three other
+`workspace:*` entries a reader scanning for "gated the same way" would expect them beside. A comment
+header is not an option — `local/tsdoc-comments-only` bans it. Compose instead, the way
+`policy.ts`'s own `WRITE = [...VIEW, …]` already does:
+
+```ts
+const MICROTASK_ACTIONS = [...] as const
+const PLAN_ACTIONS = [...] as const
+
+/** Every action the policy can decide. Adding one requires a policy decision. */
+export const ACTIONS = [...MICROTASK_ACTIONS, ...PLAN_ACTIONS] as const
+```
+
+Both halves stay private; only `ACTIONS` is exported, so no consumer gains a way to ask about one
+product's actions and accidentally treat that as the whole set. The existing suite must pass
+unchanged — this is a reordering of one array literal and nothing else.
 
 Each new row is a `{ minimum, target }` pair, and `minimum` is the **weakest** role that holds the
 action — an ordering, not three sets, exactly as the file's existing TSDoc explains. Read the minimum
@@ -2073,7 +2128,13 @@ alternative it rejects. The content each must carry:
   value is kept and never overwritten; children win when **at least one** carries an estimate; the
   discrepancy is the product's most useful number and is rendered rather than resolved.
 
-- **0053 — A plan is shared at plan scope, by the share-link system that already exists.** One `Scope`
+- **0053 — A plan is shared at plan scope, by the share-link system that already exists.** Record
+  first the invariant the whole scope rewrite exists to protect, because it matters outside
+  `policy.ts` — to whoever writes Macroplan's id generator, and to whoever adds the next target kind:
+  **the two products' ids are drawn from separate ULID sequences and may collide, so a scope or
+  target that named both roots would turn a collision into a grant.** Today that fact lives only in
+  a TSDoc block in `packages/kernel/src/access/scope.ts`, which is not where a package outside the
+  kernel will look. Then: one `Scope`
   variant, the three roles spec §7.1 defines, and the line between `write` and `manage`: `write`
   changes what the work is and what it costs, `manage` changes where it sits and what the plan is.
   Record why epic scope is **deferred and not foreclosed** — `Scope` is a discriminated union, so the
