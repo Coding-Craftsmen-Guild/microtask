@@ -11,3 +11,5 @@ export type {
   Unscheduled,
   UnscheduledReason,
 } from './structure.js'
+
+export { dateToDay, dayToDate, isWorkingDay, todayIn } from './calendar.js'
