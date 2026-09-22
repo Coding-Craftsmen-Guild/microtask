@@ -56,22 +56,19 @@ const targetFor = (action: Action): Target => {
   return PROJECT
 }
 
-const PROJECT_TARGET_KINDS: readonly string[] = ['project', 'folder', 'task', 'tab']
-const PLAN_TARGET_KINDS: readonly string[] = ['plan', 'epic', 'feature', 'item']
-
 const reachableByTaskScope = (action: Action): boolean => {
   const { kind } = targetFor(action)
   return kind === 'task' || kind === 'tab' || action === 'project:read'
 }
 
 const reachableByProjectScope = (action: Action): boolean =>
-  PROJECT_TARGET_KINDS.includes(targetFor(action).kind)
+  PROJECT_TARGETS.includes(targetFor(action).kind)
 
 const planTargetFor = (action: Action): Target =>
   action.startsWith('share:') ? PLAN : targetFor(action)
 
 const reachableByPlanScope = (action: Action): boolean =>
-  PLAN_TARGET_KINDS.includes(planTargetFor(action).kind)
+  PLAN_TARGETS.includes(planTargetFor(action).kind)
 
 const byPrefix = (...prefixes: readonly string[]): readonly Action[] =>
   ACTIONS.filter((action) => prefixes.some((prefix) => action.startsWith(prefix)))
@@ -155,8 +152,8 @@ const MANAGE: readonly Action[] = [
 
 const ALLOWED: Record<Role, readonly Action[]> = { view: VIEW, write: WRITE, manage: MANAGE }
 
-describe('can — every target kind is placed', () => {
-  it('places every target kind in exactly one scope family, so a kind added and left out is unreachable rather than silently open', () => {
+describe('the scope-family table — its own invariants, exercising no path through can()', () => {
+  it('fails the build for a target kind added to neither scope family', () => {
     const placed = [...PROJECT_TARGETS, ...PLAN_TARGETS, 'workspace' as const]
     expect([...placed].sort()).toEqual([...TARGET_KINDS].sort())
   })
@@ -291,7 +288,7 @@ describe('can — scope containment', () => {
 })
 
 describe('can — a plan is not a project that happens to carry the same id', () => {
-  it('enumerates both families from ACTIONS, so an action added later joins these tests itself', () => {
+  it('finds actions under each family prefix, so neither filter below matches nothing', () => {
     expect(PLAN_FAMILY_ACTIONS.length).toBeGreaterThan(0)
     expect(MICROTASK_FAMILY_ACTIONS.length).toBeGreaterThan(0)
   })

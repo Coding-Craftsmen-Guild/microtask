@@ -25,9 +25,9 @@ export type ProjectScope = Extract<Scope, { kind: 'project' | 'task' }>
 /**
  * A scope rooted at a Macroplan plan.
  *
- * The symmetric half of {@link ProjectScope}, and deliberately present before Macroplan has a
- * consumer for it: the narrowing is the pair, and a half-written pair is what makes the next
- * author reach for the inline `Extract` these two exist to replace. A plan scope carries a plan id
- * and no project id, which is the whole reason the Microtask half had to be named at all.
+ * The symmetric half of {@link ProjectScope}: the narrowing is the pair, and a half-written pair is
+ * what makes the next author reach for the inline `Extract` these two exist to replace. A plan
+ * scope carries a plan id and no project id, which is the whole reason the Microtask half had to be
+ * named at all.
  */
 export type PlanScope = Extract<Scope, { kind: 'plan' }>

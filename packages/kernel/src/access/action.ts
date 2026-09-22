@@ -1,4 +1,4 @@
-const MICROTASK_ACTIONS = [
+const MICROTASK_AND_WORKSPACE_ACTIONS = [
   'project:read',
   'project:rename',
   'project:delete',
@@ -30,7 +30,7 @@ const MICROTASK_ACTIONS = [
   'workspace:create-plan',
 ] as const
 
-const PLAN_ACTIONS = [
+const PLAN_FAMILY_ACTIONS = [
   'plan:read',
   'plan:rename',
   'plan:retime',
@@ -55,8 +55,19 @@ const PLAN_ACTIONS = [
   'item:link',
 ] as const
 
-/** Every action the policy can decide. Adding one requires a policy decision. */
-export const ACTIONS = [...MICROTASK_ACTIONS, ...PLAN_ACTIONS] as const
+/**
+ * Every action the policy can decide. Adding one requires a policy decision.
+ *
+ * Built from two private lists grouped by **action family**, not by product. `workspace:list-plans`
+ * and `workspace:create-plan` are Macroplan's, and they sit with the workspace family beside their
+ * three `workspace:` siblings, because what they have in common with those — a workspace target and
+ * admin-only authority — is what the policy turns on.
+ *
+ * So the two groups are not a product split, and neither length is a product's action count. There
+ * are **24** Macroplan actions: the 22 in the plan-family list plus those two. Counting
+ * `PLAN_FAMILY_ACTIONS` alone answers 22 and is the mistake this note exists to stop.
+ */
+export const ACTIONS = [...MICROTASK_AND_WORKSPACE_ACTIONS, ...PLAN_FAMILY_ACTIONS] as const
 
 /** Something a principal may attempt. */
 export type Action = (typeof ACTIONS)[number]

@@ -134,9 +134,15 @@ export type CapabilityAction = keyof typeof ROWS
  * import-session ones: open a session, upload a chunk, expand an archive, preview, confirm — and
  * the scan above confirms both targets against the `authorize()` call each handler makes. That
  * five is the count `authorize-targets.test.ts` asserts, gate by gate, rather than a number read
- * off this comment. `workspace:search` is the one row left that the scan cannot confirm,
- * and for the reason the paragraph above gives rather than for want of a route: its gate names a
- * computed action and a computed target, so there is no literal in the source to read.
+ * off this comment.
+ *
+ * Twenty-five rows are left that the scan cannot confirm, for two different reasons.
+ * `workspace:search` has a route and will never be confirmable from it: its gate names a computed
+ * action and a computed target, so there is no literal in the source to read. The other
+ * twenty-four are the Macroplan rows, which have no route yet at all —
+ * `authorize-targets.test.ts` records those by name in `PENDING_ROUTES` and fails the moment one
+ * of them is gated without being struck off, so that set shrinks to empty as the routes land
+ * while `workspace:search` stays outside the scan for good.
  *
  * Declared at the widened type rather than left as the literal the rows infer, so a caller may
  * read `alsoGatedOn` off any row instead of off the one row that happens to carry it.

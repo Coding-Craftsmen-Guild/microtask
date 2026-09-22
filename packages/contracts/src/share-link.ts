@@ -6,7 +6,13 @@ export const Role = z
   .enum(['view', 'write', 'manage'])
   .meta({ id: 'Role', description: 'The authority a share link carries' })
 
-/** What a share link may reach. */
+/**
+ * What a share link may reach.
+ *
+ * The union `capabilities()` decides over, rather than a shape any route parses: every route
+ * schema takes {@link ProjectScope} or {@link PlanScope}, and this one survives to derive
+ * `ScopeValue` from.
+ */
 export const Scope = z
   .discriminatedUnion('kind', [
     z.object({ kind: z.literal('project'), projectId: EntityId }),
@@ -21,8 +27,7 @@ export const Scope = z
  * Microtask's own share links are minted, stored and rendered through this narrower schema, never
  * through {@link Scope} directly: a project's manifest is parsed from a bundle a caller uploads,
  * and a plan-shaped scope arriving inside it is not a wider grant to reject at authorization time,
- * it is data the schema itself should never have accepted (ADR 0038's product ids are drawn from
- * separate sequences and may collide).
+ * it is data the schema itself should never have accepted.
  */
 export const ProjectScope = z
   .discriminatedUnion('kind', [
