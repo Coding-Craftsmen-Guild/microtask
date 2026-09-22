@@ -108,7 +108,15 @@ export interface ScheduleResult {
 
 /** An authored estimate beside what its children add up to. */
 export interface Breakdown {
+  /** The feature's own authored estimate, in working days. */
   readonly planned: number
+
+  /** The sum of its estimated items' working days. */
   readonly brokenDown: number
+
+  /**
+   * `brokenDown - planned`: positive when the items overrun what was authored, negative when
+   * they fall short of it, and never edited to force it back to zero.
+   */
   readonly delta: number
 }

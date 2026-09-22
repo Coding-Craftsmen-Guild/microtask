@@ -17,7 +17,7 @@ describe('sprintOf groups working-day offsets into fixed-width bands', () => {
     expect(sprintOf(10, TEN)).toBe(1)
   })
 
-  it('answers -1 for day -1, never folding a pre-start pin onto sprint 0', () => {
+  it('answers -1 for day -1, never folding an offset before the plan start onto sprint 0', () => {
     expect(sprintOf(-1, TEN)).toBe(-1)
   })
 
@@ -39,7 +39,7 @@ describe('rangeOfSprint spans the working days of one sprint, both ends inclusiv
   })
 
   it('round trips: the offset of a sprint’s own start date maps back to that sprint', () => {
-    for (let sprint = 0; sprint <= 40; sprint += 1) {
+    for (let sprint = -5; sprint <= 40; sprint += 1) {
       const { from } = rangeOfSprint(sprint, TEN)
       expect(sprintOf(dateToDay(from, TEN), TEN), `sprint ${sprint}`).toBe(sprint)
     }

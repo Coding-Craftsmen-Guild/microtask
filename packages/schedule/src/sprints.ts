@@ -4,10 +4,12 @@ import { dayToDate } from './calendar.js'
 /**
  * Which sprint a working-day offset falls in. 0-based; a UI adds one to label it.
  *
- * `Math.floor`, not truncation: a feature pinned before the plan's own start (a negative offset)
- * must land in a negative sprint of its own, never fold onto sprint 0 just because a division
- * toward zero would round it there. Sprints are gridlines drawn under the axis, not a container
- * anything is placed into or counted against — there is no capacity function here, on purpose.
+ * `Math.floor`, not truncation: this is a general axis utility, not one that only ever sees a
+ * feature's own start. Phase 2's "today line" can legitimately fall before a plan's `startDate`,
+ * giving a real negative offset, and that must land in a negative sprint of its own rather than
+ * fold onto sprint 0 just because a division toward zero would round it there. Sprints are
+ * gridlines drawn under the axis, not a container anything is placed into or counted against —
+ * there is no capacity function here, on purpose.
  */
 export function sprintOf(day: number, calendar: PlanCalendar): number {
   return Math.floor(day / calendar.sprintLengthDays)

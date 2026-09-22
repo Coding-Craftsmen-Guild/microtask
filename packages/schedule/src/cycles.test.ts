@@ -114,7 +114,7 @@ describe('findCycles reports every dependsOn cycle among features', () => {
     expect(graph.map((one) => one.id)).toEqual(['x', 'y', 'a'])
   })
 
-  it('stays linear on a dense graph a naive path walk would take exponential time over', () => {
+  it('stays linear and does not overflow the stack on a single cycle at the 200-feature cap', () => {
     const size = 200
     const chain = Array.from({ length: size }, (_unused, at) =>
       feature(String(at).padStart(3, '0'), String((at + 1) % size).padStart(3, '0')),
