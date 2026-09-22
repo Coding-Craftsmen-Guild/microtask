@@ -4,7 +4,10 @@
 **Date:** 2026-09-22
 **Branch:** `feat/macroplan-timeline`
 **Follows:** [the shell design](2026-09-22-macroplan-shell-design.md), whose §6 left this undesigned
-**Decisions this spec creates:** ADRs 0048–0052 (§11)
+**Decisions this spec creates:** ADRs 0048–0054 (§11)
+**Amended:** 2026-09-22 — §7 split into the outward link and the inward one. The first draft had no
+notion of sharing a plan at all, and the phase 1 plan had written "every Macroplan action is
+admin-only" on the strength of that silence.
 
 ---
 
@@ -249,7 +252,51 @@ contradiction.
 Destructive drags get an undo. Dragging is high-velocity editing and the existing Server Action
 round trip has no natural "put it back".
 
-## 7. The bridge to Microtask
+## 7. The two links
+
+Two different things in this product are called a link, they point in opposite directions, and
+confusing them is the fastest way to build a credential leak. §7.1 is a link handed **outward**, so
+somebody can see this plan. §7.2 is a credential held **inward**, so this plan can read Microtask.
+§7.3 is the one rule governing what happens where they meet.
+
+### 7.1 Sharing a plan
+
+A plan is shared the way a project is: a token in a URL, never in a cookie
+([ADR 0040](../../adr/0040-share-token-in-url-never-a-cookie.md)), carrying exactly the role and
+scope it names ([ADR 0038](../../adr/0038-capabilities-role-and-scope.md)). The machinery already
+exists and is not rebuilt — the same `ShareLink`, the same three roles, the same `can()`, the same
+revocation cascade ([ADR 0010](../../adr/0010-revocation-cascade.md)).
+
+**Scope is the whole plan, and only the whole plan.** `Scope` gains one variant,
+`{ kind: 'plan', planId }`. Microtask's second level exists because a task is a self-contained
+document; a Macroplan epic is not self-contained — dependency arcs cross rails by design (§3.1), so
+an epic-scoped holder would see arrows pointing at features they are refused, and every cross-rail
+edge would need a stub renderer and a decision about whether the far feature's name leaks. `Scope`
+is a discriminated union, so adding an epic variant later is **additive**: no migration, no token
+invalidated. It is deferred, not foreclosed.
+
+**What the three roles mean here**, which is the decision that cannot be taken back once tokens are
+in clients' hands:
+
+| Role | May |
+| --- | --- |
+| `view` | read the plan and its derived schedule. Nothing else. |
+| `write` | that, plus create and rename features and items, and set their estimates |
+| `manage` | that, plus delete, reorder, re-pin, rewire dependencies, change plan settings, and mint, rename, re-role and revoke links over this plan |
+
+The line between `write` and `manage` is deliberate and is the spec's own principle applied to
+people: **`write` changes what the work is and what it costs; `manage` changes where it sits and what
+the plan is.** A team lead fills in their own estimates; the executive who owns the timeline decides
+what moves. It is also the only split under which §6's "nothing ever auto-moves" survives contact
+with a second person.
+
+`manage` is **everything an admin can do inside one plan** and nothing outside it. Listing every plan
+and creating a plan stay in `ADMIN_ONLY_ACTIONS`, exactly as `workspace:list-projects` does
+([ADR 0009](../../adr/0009-collection-routes-are-admin-only.md)): there is no scope in which "every
+plan" is a question a seat may ask. Binding an epic to a Microtask project is admin-only too, for the
+reason §7.3 gives.
+
+### 7.2 The bridge to Microtask
 
 An **epic binds to one Microtask project** by holding a share-link token. Not an admin credential:
 the service key already fails to distinguish products (shell design §3), and the bridge must not
@@ -280,6 +327,45 @@ client-facing product. It is bounded rather than avoided:
 A **revoked or dead token renders the epic unlinked** — a stated state with its own appearance — never
 an error page and never an empty canvas.
 
+### 7.3 Where the two meet
+
+A link holder opens a shared plan. An item on it is linked to a Microtask task through its epic's
+bound token. What they are shown is **the weaker of their plan role and the epic's binding role** —
+one function, applied at one seam:
+
+```
+effectiveBridgeRole(planRole, bindingRole) = the weaker of the two
+```
+
+| Effective role | The holder sees |
+| --- | --- |
+| `view` | the derived `{ done, total }` and a filled bar — **never** the linked task's name, and never that a link exists |
+| `write` | that, plus the linked task's name and a way through to it in Microtask |
+| `manage` | that, plus `manage` on the bound project: the Macroplan role and the Microtask role are one to one |
+
+A count leaks far less than a title does, which is why `view` stops at the number. The bar still
+fills, so the product's central claim — *a bar is green because a linked Microtask task said so* —
+stays visible to the audience the plan is **for**, which is the whole reason the plan is shared.
+
+**This is a credential amplifier, and the bound on it is structural.** A plan `manage` link confers
+`manage` across every project the plan's epics are bound to, which is a larger exposure than §7.2's
+"exactly one operation" contemplated. What contains it is that `effectiveBridgeRole` can only ever
+attenuate: **the binding's own role is the ceiling, and only an admin sets it.** An epic bound `view`
+can never leak `manage` to anybody, no matter what links exist over the plan. So `epic:bind` is in
+`ADMIN_ONLY_ACTIONS` — a link holder who could re-role a binding could raise their own ceiling, which
+would make every sentence above decoration.
+
+**Why not SSO, asked and answered here so it is not re-litigated.** The obvious reading of a role that
+composes across two products is that identity has outgrown bearer tokens and wants real claims. It
+has not. There is no identity in this system to federate: one `ADMIN_PASSWORD`, and tokens that carry
+a capability and no person. What looks like an identity problem is capability **attenuation** across a
+trust boundary, which `can()` over role-and-scope already expresses and which the table above resolves
+in one `min`. An IdP would invalidate ADRs 0012, 0013, 0040 and 0047 and buy nothing until there is
+more than one human. **The trigger that reverses this:** the day this product has named users rather
+than one admin password. Until then, the thing that genuinely gets late is not SSO — it is the action
+set and the scope union, because a stored token encodes a role and changing what a role means
+invalidates links already issued. That is settled in §7.1 and it is settled now.
+
 ## 8. What was challenged and rejected
 
 Recorded because a later reader will otherwise re-propose them.
@@ -302,13 +388,15 @@ Four, mirroring Microtask's four plan files. Each has its own plan document unde
 
 | Phase | Ships | The gate that matters |
 | --- | --- | --- |
-| **1 — Domain and API** | contracts, `@repo/schedule`, `macroplan-domain`, `/v1/macroplan/*`. No UI at all. | `schedule()` property-tested; `PlanStore` contract suite green against fs and memory |
-| **2 — Canvas, read-only** | plan list, the three rungs, quarter and sprint gridlines, today line, hover, table view | layout functions tested with no DOM; the canvas renders at the 2 000-item cap |
-| **3 — Editing** | drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo | cycle refusal pinned by test; a test asserts nothing auto-moves |
-| **4 — The bridge** | epic↔project token, item↔task link, derived progress, the bounded create-task write | a revoked token renders unlinked; a `manage` token provably cannot delete |
+| **1 — Domain and API** | contracts, `@repo/schedule`, `macroplan-domain`, `/v1/macroplan/*`, **the plan-scope role model and share-link routes**, one shared token index. No UI at all. | `schedule()` property-tested; `PlanStore` contract suite green against fs and memory; `capabilities()` agrees with `can()` across the widened cross product |
+| **2 — Canvas, read-only** | plan list, the three rungs, quarter and sprint gridlines, today line, hover, table view, **`/s/[token]` landing** | layout functions tested with no DOM; the canvas renders at the 2 000-item cap |
+| **3 — Editing** | drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo, **the share manager** | cycle refusal pinned by test; a test asserts nothing auto-moves |
+| **4 — The bridge** | epic↔project token, item↔task link, derived progress, the bounded create-task write, **`effectiveBridgeRole`** | a revoked token renders unlinked; a `view` holder provably never receives a linked task's name |
 
 Phase 1 reserves `binding` and `linkedTaskId` in the model from the start, so phase 4 adds behaviour
-rather than a migration.
+rather than a migration. **The role model is not reserved that way and cannot be** — a role is stored
+in every token a client holds, so §7.1's grants are decided in phase 1 or they are decided against
+links already issued. §7.3's behaviour is phase 4; the actions and scopes it decides over are phase 1.
 
 ### 9.1 Rules carried from the Microtask plans
 
@@ -335,7 +423,11 @@ rather than a migration.
 | `PlanStore` | the existing port-contract pattern, run against both fs and memory implementations |
 | caps | a plan built *at* 2 000 items is accepted; 2 001 is refused with a named problem code |
 | layout | pure functions, no DOM, including the node↔bar crossover between rungs |
-| the bridge | a revoked token, a deleted project, and a `manage` token attempting a delete |
+| the role model | `capabilities()` agrees with `can()` across **every** `role × scope × action × target` tuple, plan scope included, enumerated from the kernel's own action list rather than sampled |
+| cross-product isolation | a Microtask token — `manage` included — is refused every Macroplan action, **including on a `planId` equal to its own `projectId`**; and the reverse |
+| the token index | one token is owned by one container across both products; a collision is refused rather than silently reassigned |
+| `write` cannot become `manage` | a plan `write` holder is refused delete, reorder, re-pin, dependency rewiring, plan settings and every `share:*` action, each asserted by name |
+| the bridge | a revoked token, a deleted project, a `view` holder denied a linked task's name, and `effectiveBridgeRole` never returning a role stronger than either input |
 
 ## 11. ADRs this spec creates
 
@@ -346,6 +438,8 @@ rather than a migration.
 | 0050 | The plan directory is the unit; edges never cross it |
 | 0051 | Estimate is authored at any level; children win, and the gap is shown |
 | 0052 | An epic binds to a Microtask project by a sealed share token |
+| 0053 | A plan is shared at plan scope, by the share-link system that already exists |
+| 0054 | One token index for both products, and identity stays a capability until there are users |
 
 ## 12. What this spec does not decide
 

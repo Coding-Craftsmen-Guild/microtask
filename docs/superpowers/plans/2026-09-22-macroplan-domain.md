@@ -11,8 +11,11 @@ canvas over interfaces that are already real.
 item's description (ADR 0005). The schedule is **derived on every read and never stored** (spec §3.4)
 by `@repo/schedule`, a new package with no dependencies at all, so the API and — from phase 2 — the
 browser run the same forward pass. Routes hang under the existing service-key and principal guards
-(ADR 0013), and every Macroplan action is admin-only, which is what keeps a Microtask share token
-from reaching a plan that happens to share its id.
+(ADR 0013). A plan is shared at **plan scope** through the share-link system that already exists
+(spec §7.1) — one new `Scope` variant, one widened action set, and **one token index serving both
+products** rather than one each. What keeps a Microtask token out of a plan is the scope check, not a
+blanket admin-only rule: ids are per-product, so a `manage` token scoped to project `X` must be
+refused on plan `X`, and that refusal is a named test.
 
 **Tech stack:** TypeScript 5.9, Zod 4.6 (`@repo/contracts` only), Hono 4.13 + `@hono/zod-openapi`
 1.6, vitest 5. No UI, no React, no new runtime dependency anywhere.
@@ -62,8 +65,14 @@ Stated so a reviewer does not read an absence as an omission.
   no phase-1 route can set either.
 - **No deploy change.** Compose already carries `MACROPLAN_API_KEY` and `SERVICE_KEYS` already reads
   `macroplan=…` (shell design §5). Nothing here touches the Dockerfile, compose, or the cutover.
-- **No share links into Macroplan.** Every action is admin-only; `PlanManifest` has no `shareLinks`
-  field and the store has no token index.
+- **No `/s/[token]` surface.** Phase 1 serves share links over the API and mints them; the landing
+  page a holder actually opens is phase 2, and the share manager that mints them from a screen is
+  phase 3. Until then a link is minted by an API call and pasted by hand.
+- **No epic-scoped links.** `Scope` gains `{kind:'plan'}` and nothing else (spec §7.1). Because
+  `Scope` is a discriminated union this is additive later — no migration, no token invalidated.
+- **No bridge role composition.** `effectiveBridgeRole` (spec §7.3) is phase 4 behaviour. Phase 1
+  decides the actions and scopes it will compose over, and asserts `epic:bind` is admin-only so a
+  link holder can never raise their own ceiling.
 
 ---
 
@@ -72,12 +81,18 @@ Stated so a reviewer does not read an absence as an omission.
 ```
 packages/kernel/src/
   storage/contained.ts          MOVED here from microtask-domain; both domains build paths
-  access/action.ts              + 5 macroplan actions
-  access/target.ts              + { kind: 'plan', planId }
-  access/policy.ts              the 5 join ADMIN_ONLY_ACTIONS; a plan target is never in a scope
+  access/action.ts              + 19 macroplan actions
+  access/scope.ts               + { kind: 'plan', planId }
+  access/target.ts              + plan · epic · feature · item, each carrying planId alone
+  access/policy.ts              grants widened; inScope rewritten scope-first;
+                                3 join ADMIN_ONLY_ACTIONS (2 collections + epic:bind)
+  access/token-index.ts         MOVED from microtask-domain, keyed { product, containerId }
+  access/share-index.ts         MOVED from microtask-domain, now indexing plain tokens
 
 packages/contracts/src/
-  limits.ts                     + 5 collection caps, + 3 value caps
+  limits.ts                     + 6 collection caps, + 3 value caps
+  share-link.ts                 Scope gains the plan variant
+  capabilities.ts               ROWS gains 19; CapabilityTarget gains 4
   plan.ts                       IsoDate · Timezone · EstimateDays · EpicBinding
                                 PlanEpic · PlanFeature · PlanItem · PlanManifest · ItemDocument
   schedule-view.ts              the wire form of a ScheduleResult
@@ -105,6 +120,7 @@ packages/macroplan-domain/src/
   services/context.ts           PlanContext
   services/refs.ts              PlanRef · ItemRef
   services/plan-service.ts      list · create · read · update · remove
+  services/share-link-service.ts  create · update · revoke, with ADR 0010's cascade
   services/epic-service.ts      add · update · place · remove
   services/feature-service.ts   add · update · place · setDependencies · remove
   services/item-service.ts      add · update · place · remove · readOne · writeDescription
@@ -115,18 +131,23 @@ packages/macroplan-domain/src/
 
 apps/api/src/
   deps.ts                       + planStore
-  runtime.ts                    + FsPlanStore construction
+  runtime.ts                    + FsPlanStore; warmTokenIndex walks both stores
+  auth/link-directory.ts        LinkDirectory + one adapter per product
+  auth/principal-resolver.ts    takes a directory per product, indexed by owner.product
   routes/v1.ts                  + app.route('/macroplan', createMacroplan(deps))
   routes/macroplan/
     index.ts                    the product mount and its guard
     product.ts                  PRODUCT = 'macroplan'
     params.ts                   planParams · epicParams · featureParams · itemParams
+                                planShareLinkParams
     plan-scoped.ts              mounted at /plans/:planId
     plans/{routes,handlers}.ts
     epics/{routes,handlers,app}.ts
     features/{routes,handlers,app}.ts
     items/{routes,handlers,app}.ts
-  testing/macroplan-harness.ts  the fixture plan every route suite runs against
+    share-links/{routes,handlers,app}.ts
+    shares/{routes,handlers}.ts   GET /shares/current, the bootstrap call
+  testing/macroplan-harness.ts  the fixture plan, plus one token per role
 ```
 
 ---
@@ -134,7 +155,7 @@ apps/api/src/
 ## Decisions this plan makes that the spec left open
 
 Each one is a place the spec is silent or admits two readings. They are listed together so a reviewer
-can disagree with them in one place rather than hunting them through eighteen tasks.
+can disagree with them in one place rather than hunting them through twenty-two tasks.
 
 | Question | Decision | Why |
 | --- | --- | --- |
@@ -149,6 +170,12 @@ can disagree with them in one place rather than hunting them through eighteen ta
 | §10 wants a "named problem code" for exceeding a cap | `invalid` (422), with a message naming the limit — the code `assertWithin` already produces | A new problem code for a refusal that is already `invalid` would give one failure two names depending on which product produced it |
 | Property tests with no `fast-check` in the workspace | A seeded generator in `packages/schedule/src/testing/arbitrary.ts` | No new dependency, and a failing seed is printed so the case can be pinned as a literal regression test. The cost is no shrinking; state it in the file's TSDoc |
 | One `QueueLock` for both products | Yes — a Macroplan write serialises behind a Microtask write | Every write in this API is already serial (ADR 0006), and a second lock would be a second place for the ordering rules to be got wrong |
+| Are the kernel's `GRANTS` and `capabilities()`'s `ROWS` collapsed into one table? | **No.** Both gain the nineteen actions, and the existing exhaustive agreement test is what keeps them identical | It is not a choice: `@repo/contracts` holds `@repo/kernel` as a **devDependency only**, so `node:crypto` never reaches a browser bundle, and neither package can import the other at runtime. The duplication is forced by the bundle boundary; the test — full cross product, enumerated from the kernel's own `ACTIONS` — is the consolidation |
+| One `plan:write` action, or nineteen fine-grained ones? | **Nineteen.** An earlier draft of this plan collapsed them, on the reasoning that nothing sliced the set | A role slices it. The collapse was correct only while every action was admin-only, and it stopped being correct the moment a plan could be shared — which is exactly the kind of decision that cannot be revisited once tokens encoding a role are in clients' hands |
+| Is `plan:retime` separate from `plan:rename`? | **Yes** | Changing `startDate` or `sprintLengthDays` moves every derived date on the canvas; a rename moves nothing. They do not belong at the same authority |
+| Who may bind an epic to a Microtask project? | **The admin only.** `epic:bind` is in `ADMIN_ONLY_ACTIONS` | Spec §7.3 makes the binding's role the ceiling on everything a link holder reaches in Microtask. A holder who could re-role a binding could raise their own ceiling, and every bound in that section would be decoration |
+| Does the token index move, or does Macroplan get its own? | **Moves to `@repo/kernel`, generalised to `{product, containerId}`** | A bearer is an opaque string: the index is what *tells* you which product owns it. Two indexes would mean asking both on every request, which is the drift that consolidating exists to prevent — and a token held by a project and a plan at once would be undetectable |
+| Does `ShareLink` move to the kernel too? | **No.** The port indexes **strings** | `ShareIndex.add` already begins `manifest.shareLinks.map(l => l.token)`; lifting that one line to the caller makes the port a matter of strings and a `Product`, both already in the kernel. Zero type moves, and a 96-file refactor avoided |
 
 ---
 
@@ -176,55 +203,245 @@ twice.
 - [ ] **Step 4: the gate.** `npx turbo run build typecheck lint test --force`, green, `Cached: 0`.
 - [ ] **Step 5: commit.** `git commit -m "Move path containment to the kernel, for a second domain"`
 
-### Task 2: the kernel learns about plans
+### Task 2: the kernel learns about plans, and about who may reach one
+
+The single most consequential task in the plan. A role is stored in every token a client holds, so
+these grants are decided here or they are decided against links already issued (spec §10).
 
 **Files:**
 - Modify: `packages/kernel/src/access/action.ts`
+- Modify: `packages/kernel/src/access/scope.ts`
 - Modify: `packages/kernel/src/access/target.ts`
 - Modify: `packages/kernel/src/access/policy.ts`
 - Modify: `packages/kernel/src/access/policy.test.ts`
 
-The five actions, added to `ACTIONS`:
-
-```ts
-'plan:read'
-'plan:write'
-'plan:delete'
-'workspace:list-plans'
-'workspace:create-plan'
-```
-
-`plan:write` is deliberately **one** action covering every structural mutation inside a plan —
-settings, epics, features, items, estimates, pins, placements, dependencies, descriptions. Microtask's
-fine-grained set exists because share-link roles slice it; nothing slices this one, and fifteen
-admin-only actions would be fifteen entries to keep in step for no decision.
-
-The new target kind:
+`Scope` gains one variant and **only** one (spec §7.1):
 
 ```ts
 | { readonly kind: 'plan'; readonly planId: string }
 ```
 
-The policy change, in two parts:
+`Target` gains four, so an action can be decided against the thing it actually touches:
 
-1. All five actions join `ADMIN_ONLY_ACTIONS`.
-2. `withinProjectScope` narrows explicitly rather than by elimination: a `workspace` **or `plan`**
-   target is never inside a share-link scope.
+```ts
+| { readonly kind: 'plan'; readonly planId: string }
+| { readonly kind: 'epic'; readonly planId: string }
+| { readonly kind: 'feature'; readonly planId: string }
+| { readonly kind: 'item'; readonly planId: string }
+```
+
+Only `planId` on each — a scope is plan-wide, so no rule can turn on an `epicId`, and a field no rule
+reads is a field that will one day be compared wrongly.
+
+`ACTIONS` gains nineteen. An earlier draft of this plan had **one** `plan:write` covering every
+mutation, on the reasoning that nothing sliced it. A role slices it, so it is un-collapsed:
+
+```ts
+'plan:read'
+'plan:rename'          'plan:retime'          'plan:delete'
+'epic:create'          'epic:rename'          'epic:delete'      'epic:reorder'
+'epic:bind'
+'feature:create'       'feature:rename'       'feature:estimate'
+'feature:delete'       'feature:place'        'feature:depend'
+'item:create'          'item:rename'          'item:estimate'    'item:describe'
+'item:delete'          'item:place'           'item:link'
+'workspace:list-plans' 'workspace:create-plan'
+```
+
+`plan:retime` is separate from `plan:rename` because changing `startDate` or `sprintLengthDays` moves
+every derived date on the canvas while a rename moves nothing — one is a cosmetic edit and the other
+reshapes the plan, and they do not belong at the same authority.
+
+`share:read`, `share:create`, `share:revoke` and `share:update` are **reused unchanged**. They are not
+Microtask's actions; they are the share system's, and `GRANTS` is keyed by role rather than by product,
+so one entry serves both. What separates the products is the scope check, never the grant table.
+
+The grants, per spec §7.1's table — appended to the existing `VIEW`, `WRITE` and `MANAGE` arrays,
+which already compose (`WRITE = [...VIEW, …]`), so inheritance stays structural:
+
+| Array | Gains |
+| --- | --- |
+| `VIEW` | `plan:read` |
+| `WRITE` | `feature:create`, `feature:rename`, `feature:estimate`, `item:create`, `item:rename`, `item:estimate`, `item:describe`, `item:link` |
+| `MANAGE` | `plan:rename`, `plan:retime`, `plan:delete`, `epic:create`, `epic:rename`, `epic:delete`, `epic:reorder`, `feature:delete`, `feature:place`, `feature:depend`, `item:delete`, `item:place` |
+
+`ADMIN_ONLY_ACTIONS` gains **three**: `workspace:list-plans`, `workspace:create-plan`, and
+`epic:bind`. The third is the load-bearing one. Spec §7.3 makes the epic's binding role the ceiling on
+everything a link holder can reach in Microtask; a holder who could re-role a binding could raise
+their own ceiling, and every sentence in that section would be decoration.
+
+The scope rule, rewritten so it narrows explicitly rather than by elimination. Today
+`withinProjectScope` reads `target.kind !== 'workspace' && target.projectId === scope.projectId`,
+which does not compile once a target has no `projectId`. Replace it with a scope-first shape:
+
+```
+inScope(scope, action, target):
+  scope.kind === 'plan'     -> target is one of plan|epic|feature|item AND target.planId === scope.planId
+  scope.kind === 'project'  -> target is one of project|folder|task|tab AND target.projectId === scope.projectId
+  scope.kind === 'task'     -> the project rule, plus the existing task narrowing
+  a 'workspace' target      -> never in any scope
+```
+
+The cross-product refusal falls out of this and is not a special case: a `project` scope reaches no
+`plan` target because the two branches do not overlap, whatever the ids are.
 
 - [ ] **Step 1: write the failing tests** in `policy.test.ts`:
-      - for every `role × scope.kind` a share principal can hold, `can(principal, action, target)` is
-        `false` for all five plan actions — enumerated from `ACTIONS` by prefix, not listed by hand,
-        so an action added later fails this test until it is decided
-      - a `manage` link scoped to `{kind:'project', projectId: X}` is refused `plan:read` on
-        `{kind:'plan', planId: X}` — the same id, which is the whole point: ids are per-product and
-        a collision must not be a grant
-      - an admin is cleared for all five
-- [ ] **Step 2: run them and watch them fail.** `pnpm --filter @repo/kernel test` — failing because
-      the actions and the target kind do not exist.
-- [ ] **Step 3: make the three edits.**
-- [ ] **Step 4: run the kernel suite.** Green, including every pre-existing policy case.
+      - **the cross-product probe, by id collision.** A `manage` link scoped to
+        `{kind:'project', projectId: X}` is refused **every** plan action on
+        `{kind:'plan', planId: X}` — the *same* id. Ids are per-product; a collision must not be a
+        grant. Enumerate the actions from `ACTIONS` by prefix, never by hand
+      - **and the reverse**: a `manage` link scoped to `{kind:'plan', planId: X}` is refused every
+        `project:*`, `folder:*`, `task:*` and `tab:*` action on the matching project target
+      - **`write` cannot become `manage`** (spec §10): a plan-scoped `write` holder is cleared for
+        each of the eight `WRITE` additions by name, and refused each of the twelve `MANAGE`
+        additions by name, and refused all four `share:*`
+      - a plan-scoped `view` holder is cleared for `plan:read` and refused everything else
+      - a plan-scoped `manage` holder is cleared for all four `share:*` actions
+      - **no link role reaches `epic:bind`**, at any scope — the ceiling test
+      - `workspace:list-plans` and `workspace:create-plan` are refused to every link role at every
+        scope, and an admin is cleared for all nineteen
+- [ ] **Step 2: run them and watch them fail.** `pnpm --filter @repo/kernel test`.
+- [ ] **Step 3: make the four edits.** Watch `max-lines-per-function` on `inScope` — four branches is
+      a table, not a chain of `if`s.
+- [ ] **Step 4: run the kernel suite.** Green, and **every pre-existing policy case passes
+      unchanged** — that is the evidence the scope rewrite preserved Microtask's behaviour rather
+      than re-deriving it.
 - [ ] **Step 5: the gate**, then commit
       `"Teach the policy that a plan is not a project with the same id"`.
+
+### Task 2b: `capabilities()` learns the same nineteen
+
+The kernel's grants and the UI's projection are two encodings of one fact. They cannot be collapsed —
+`@repo/contracts` holds `@repo/kernel` as a **devDependency only**, so that `node:crypto` never
+reaches a browser bundle, and neither package can import the other at runtime. What keeps them honest
+is the exhaustive agreement test, which already enumerates from the kernel's own `ACTIONS`. It will
+fail the moment Task 2 lands, and that failure is the design working.
+
+**Files:**
+- Modify: `packages/contracts/src/share-link.ts` — `Scope` gains the `plan` variant
+- Modify: `packages/contracts/src/capabilities.ts` — `ROWS` gains nineteen, `CapabilityTarget` gains
+  `'plan' | 'epic' | 'feature' | 'item'`
+- Modify: `packages/contracts/src/capabilities.test.ts` — `TARGETS` and `SCOPES` widen
+
+Each new row is a `{ minimum, target }` pair, and `minimum` is the **weakest** role that holds the
+action — an ordering, not three sets, exactly as the file's existing TSDoc explains. Read the minimum
+straight off Task 2's grants table: `VIEW` additions are `'view'`, `WRITE` additions `'write'`,
+`MANAGE` additions `'manage'`, and `epic:bind`, `workspace:list-plans` and `workspace:create-plan`
+are `'admin'`.
+
+- [ ] **Step 1: run the existing agreement test and watch it fail.**
+      `pnpm --filter @repo/kernel build && pnpm --filter @repo/contracts test`
+      Expected: a failure naming the nineteen actions the kernel declares and `ROWS` does not. **Do
+      not skip this step** — seeing the test catch them unaided is the only proof it would catch the
+      twentieth.
+- [ ] **Step 2: widen `TARGETS` and `SCOPES`** in the test, and extend `targetIn` to build a plan,
+      epic, feature and item target from a plan scope. The cross product grows from
+      `3 roles × 2 scopes × 28 actions × 6 targets` to `3 × 3 × 47 × 10`; it is still a loop.
+- [ ] **Step 3: add the `plan` variant to the contracts `Scope`** and the nineteen `ROWS`.
+- [ ] **Step 4: run the suite.** Green — `capabilities()` and `can()` now agree on every tuple,
+      plan scope included. Spec §10 names this as the phase gate's third half.
+- [ ] **Step 5: assert `@repo/kernel` is still absent from `dependencies`** — the existing test does
+      this; confirm it still passes. A runtime edge here puts `node:crypto` in a browser bundle.
+- [ ] **Step 6: the gate**, then commit `"Project the new grants where a browser can read them"`.
+
+### Task 2c: one token index, for both products
+
+`TokenIndex` and `ShareIndex` live in `@repo/microtask-domain` and are typed to `ProjectManifest`. A
+Macroplan bearer has to resolve too, and two indexes would mean `PrincipalResolver` trying both —
+which is precisely the drift that consolidating avoids. A bearer is an opaque string; the index is
+what *tells* you which product it belongs to, so it cannot be per-product without being asked twice.
+
+**Files:**
+- Create: `packages/kernel/src/access/token-index.ts` (the port, generalised)
+- Create: `packages/kernel/src/access/share-index.ts` + `share-index.test.ts` (moved)
+- Modify: `packages/kernel/src/index.ts`
+- Delete: `packages/microtask-domain/src/ports/token-index.ts`,
+  `src/storage/share-index.ts`, `src/storage/share-index.test.ts`
+- Modify: `packages/microtask-domain/src/index.ts`, `src/services/context.ts`, and the call sites in
+  `src/services/share-link-service.ts` and `src/import/remint.ts`
+- Modify: `apps/api/src/auth/principal-resolver.ts`, `src/runtime.ts`, `src/testing/harness.ts`
+
+The generalisation is smaller than it looks. `ShareIndex.add` already begins
+`manifest.shareLinks.map((link) => link.token)`; lifting that one line to the caller makes the whole
+port a matter of **strings and a product**, both of which the kernel already has. **No type moves**,
+and `ShareLink` stays where it is:
+
+```ts
+/** Which container — a project or a plan — a share token belongs to. */
+export interface TokenOwner {
+  readonly product: Product
+  readonly containerId: string
+}
+
+/** Resolution of a share token to the one container that owns it. */
+export interface TokenIndex {
+  /** Resolves a token to its owning container, or null when nothing owns it. */
+  find(token: string): TokenOwner | null
+
+  /** Reports which of `tokens` are already owned by a container other than the one named. */
+  collisions(owner: TokenOwner, tokens: readonly string[]): readonly string[]
+
+  /**
+   * Replaces the tokens recorded for one container, throwing `Conflict` — and recording
+   * nothing — if any belongs to another.
+   */
+  add(owner: TokenOwner, tokens: readonly string[]): void
+
+  /** Drops every token belonging to one container, leaving others alone. */
+  remove(owner: TokenOwner): void
+}
+```
+
+Grouping `product` and `containerId` into `TokenOwner` also brings `collisions` from three parameters
+to two, which is the direction ADR 0027 wants.
+
+`PrincipalResolver` then needs to read the live link from **whichever** product owns it. Its TSDoc
+already records why it re-reads on every request rather than caching beside the token — a revocation
+or a downgrade must take effect on the next call — and that stays true for both products:
+
+```ts
+/** Reads one token's live role and scope from whichever manifest holds it. */
+export interface LinkDirectory {
+  readLink(containerId: string, token: string): Promise<LiveLink | null>
+}
+
+/** The two facts a principal is built from, read fresh on every request. */
+export interface LiveLink {
+  readonly role: Role
+  readonly scope: Scope
+}
+```
+
+The resolver takes `directories: Readonly<Record<Product, LinkDirectory>>` and indexes it by
+`owner.product`. Two four-line adapters in `apps/api/src/auth/link-directory.ts` — one over
+`ProjectStore`, one over `PlanStore` — satisfy it. A `Record` keyed by `Product` rather than a lookup
+chain means adding a third product is a compile error until it is wired, not a token that silently
+resolves to nothing.
+
+- [ ] **Step 1: move `share-index.test.ts` into the kernel first** and rewrite its calls to the new
+      signatures, **before** touching the implementation. It must fail to compile.
+- [ ] **Step 2: add two cases it does not have**, which are the point of the consolidation:
+      - a token owned by `{product:'microtask', containerId: X}` and then added under
+        `{product:'macroplan', containerId: X}` is a **`Conflict`**, and the index still resolves it
+        to the original owner — nothing is recorded. The same id under two products is two
+        containers, and a bearer belongs to exactly one
+      - `remove({product:'macroplan', containerId: X})` leaves the Microtask container's tokens
+        untouched
+- [ ] **Step 3: move the port and the implementation**, generalise both, and export from the kernel.
+- [ ] **Step 4: update the four domain call sites**, lifting `.map((link) => link.token)` to each.
+- [ ] **Step 5: rebuild the kernel, then run the domain suite.**
+      `pnpm --filter @repo/kernel build && pnpm --filter @repo/microtask-domain test`
+      Expected: **the whole existing suite passes unchanged.** That is the evidence this was a
+      generalisation and not a rewrite. `share-link-service.test.ts` and `remint.test.ts` are the two
+      that would catch a mistake.
+- [ ] **Step 6: write `link-directory.ts`** and rework `PrincipalResolver` and its test. Add a case:
+      a bearer whose index entry names a container that no longer exists resolves to `null`, not a
+      throw — a deleted plan must read as a dead link.
+- [ ] **Step 7: rework `warmTokenIndex`** to walk both stores. Its TSDoc already warns that without
+      it *every share link minted before this process started answers 401*; that failure is now
+      possible in two products, and the test asserts a plan's tokens are warmed too.
+- [ ] **Step 8: rebuild the packages, run the API suite.** Green, unchanged.
+- [ ] **Step 9: the gate**, then commit `"One token index, because a bearer names its own owner"`.
 
 ### Task 3: the limits
 
@@ -241,7 +458,12 @@ epicsPerPlan: 40,
 featuresPerPlan: 200,
 itemsPerPlan: 2_000,
 edgesPerPlan: 400,
+shareLinksPerPlan: 50,
 ```
+
+`shareLinksPerPlan` matches `shareLinksPerProject` exactly. The two bound the same thing — how many
+live bearer credentials one container may hold — and a plan is not a place where more seats make sense
+than a project.
 
 Three **value bounds** are added as siblings of `MAX_DOCUMENT_BYTES`, *not* inside `LIMITS`, because
 `CountLimitKey` is `Exclude<LimitKey, 'nameLength'>` and a value bound there would be offered to
@@ -346,6 +568,7 @@ export const PlanManifest = z.object({
   epics: z.array(PlanEpic).max(LIMITS.epicsPerPlan),
   features: z.array(PlanFeature).max(LIMITS.featuresPerPlan),
   items: z.array(PlanItem).max(LIMITS.itemsPerPlan),
+  shareLinks: z.array(ShareLink).max(LIMITS.shareLinksPerPlan),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -412,6 +635,7 @@ export const PlanView = PlanManifest.extend({
   epics: PlanManifest.shape.epics.readonly(),
   features: PlanManifest.shape.features.readonly(),
   items: PlanManifest.shape.items.readonly(),
+  shareLinks: PlanManifest.shape.shareLinks.readonly().optional(),
   schedule: ScheduleView,
 })
 
@@ -425,6 +649,7 @@ export const PlanListItem = z.object({
   epicCount: z.number().int().min(0),
   featureCount: z.number().int().min(0),
   itemCount: z.number().int().min(0),
+  shareLinkCount: z.number().int().min(0).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -1129,6 +1354,7 @@ export interface PlanContext {
   readonly lock: Lock
   readonly clock: Clock
   readonly ids: IdGenerator
+  readonly tokens: TokenIndex
 }
 
 /** Names one plan. */
@@ -1158,7 +1384,7 @@ export class PlanService {
   /** Changes a plan's name or its calendar settings, leaving its contents alone. */
   update(at: PlanRef, changes: PlanChanges): Promise<PlanManifest>
 
-  /** Removes a plan and everything under it. */
+  /** Removes a plan, everything under it, and the share tokens that pointed at it. */
   remove(at: PlanRef): Promise<void>
 }
 
@@ -1204,6 +1430,9 @@ before sprint 5", and sprint 5 is wherever sprint 5 now is.
         `epics`, `features` and `items` byte-identical
       - `update` with `{ startDate }` changes only that
       - `remove` of an absent plan throws `NotFound`
+      - `remove` drops every one of the plan's tokens from the index, so a link to a deleted plan
+        resolves to nothing rather than to a container that is gone. `ProjectService.remove` does the
+        same; a plan that skipped it would leave live-looking credentials in a process-wide map
       - every mutating method runs inside `lock.run` — assert with a `Lock` double that counts calls,
         because ADR 0006 is a correctness requirement on win32 and not a convention
 - [ ] **Step 2: run them and watch them fail.**
@@ -1303,10 +1532,10 @@ The views:
 
 ```ts
 /** A plan with the schedule derived from it. Derived here, stored nowhere (spec §3.4). */
-export function planView(manifest: PlanManifest): PlanView
+export function planView(manifest: PlanManifest, principal: Principal): PlanView
 
 /** A plan as a list describes it: settings and counts, never contents. */
-export function planListItem(manifest: PlanManifest): PlanListItem
+export function planListItem(manifest: PlanManifest, principal: Principal): PlanListItem
 
 /** One item with the description its own file holds. */
 export function itemView(item: PlanItem, description: string): ItemView
@@ -1314,8 +1543,16 @@ export function itemView(item: PlanItem, description: string): ItemView
 
 `planView` calls `schedule(manifest)` and flattens the result: `days` becomes `spans` sorted by
 `(startDay, id)`, `unscheduled` sorted by id, `cycles` as `findCycles` gave them. None of these takes
-a principal, because every Macroplan action is admin-only in phase 1 and a parameter no branch reads
-is a parameter that will one day be passed wrong.
+a principal, because a plan's contents are the same for every role that may read them at all — `view`
+and `manage` see identical structure, estimates and schedule.
+
+`planView` takes one **because of `shareLinks`**, and for that alone. The block is present for a
+caller the policy clears for `share:read` and **absent — not empty —** for one it does not
+(ADR 0013), exactly as `ProjectView.shareLinks` is optional for the same reason. That is not
+cosmetic: a `view` holder receiving `shareLinks: []` learns a plan has no links, and one receiving the
+array learns every other holder's token, which is a credential dump to a reader who needs none of
+them. `planListItem` carries `shareLinkCount` under the same `share:read` gate, so a caller refused
+the links is refused the number too.
 
 - [ ] **Step 1: write `positions.test.ts` first** — `placeAmong` renumbers densely from zero, moving
       an id forward, backward, to 0, to the end, past the end (clamped), and to where it already is
@@ -1362,6 +1599,82 @@ is a parameter that will one day be passed wrong.
 - [ ] **Step 7: run the whole domain suite.** Green.
 - [ ] **Step 8: the gate**, then commit `"Edit a plan's structure without ever moving what was not asked for"`.
 
+### Task 14b: `PlanShareLinkService`
+
+**Files:**
+- Create: `packages/macroplan-domain/src/services/share-link-service.ts`
+- Create: `packages/macroplan-domain/src/services/share-link-service.test.ts`
+- Modify: `packages/macroplan-domain/src/index.ts`
+
+`PlanContext` already carries `tokens` from Task 13, where `PlanService.remove` needed it. It is the
+kernel's `TokenIndex` from Task 2c, and it is the **same instance** Microtask's services hold — which
+is what makes a token collision across the two products detectable at all.
+
+```ts
+export class PlanShareLinkService {
+  constructor(ctx: PlanContext)
+
+  /** Mints a link over one plan, recording who granted it. */
+  create(at: PlanRef, seat: NewSeat): Promise<{ manifest: PlanManifest; link: ShareLink }>
+
+  /** Renames a link or changes its role, keeping its token. */
+  update(at: PlanRef, token: string, changes: SeatChanges): Promise<PlanManifest>
+
+  /** Revokes a link and every link minted through it. */
+  revoke(at: PlanRef, token: string): Promise<{ manifest: PlanManifest; revoked: readonly string[] }>
+}
+
+/** A seat to mint. `createdBy` is the presenting credential, never the caller's claim. */
+export interface NewSeat {
+  readonly name: string
+  readonly role: Role
+  readonly createdBy: string | null
+}
+
+/** A new name, a new role, or both. Scope is immutable. */
+export interface SeatChanges {
+  readonly name?: string
+  readonly role?: Role
+}
+```
+
+Five rules, each carried over from Microtask rather than re-decided, because a second set of share
+semantics in one monorepo is how one of them ends up wrong:
+
+- **Scope is always `{ kind: 'plan', planId }`** and is not a parameter. There is one scope a plan link
+  can hold (spec §7.1), so `NewSeat` cannot express a wrong one. `update` cannot change it —
+  re-scoping is revoke-and-reissue (ADR 0011).
+- **`createdBy` comes from the presenting credential**, never from the payload, so a link cannot claim
+  a parent it was not minted through (ADR 0010). The route supplies it; the service does not read it
+  from anywhere else.
+- **Revocation cascades** (ADR 0010): revoking a link revokes every link whose `createdBy` chain
+  reaches it, transitively, in one manifest write. The returned `revoked` list is every token dropped.
+- **The token index is updated inside the same lock** as the manifest write, and `add` is what refuses
+  a collision — so a mint that would clash with a Microtask token fails before the manifest lands.
+- **The token is minted by `ctx.ids.token()`**, never by anything in this service.
+
+- [ ] **Step 1: write the failing tests:**
+      - `create` mints a `{kind:'plan', planId}` scope for a plan-scoped caller and stores
+        `createdBy` as given
+      - `create` at `LIMITS.shareLinksPerPlan` throws `Invalid` naming the limit, tested at the cap
+      - `create` registers the token in the index, and a `find` on it resolves to
+        `{ product, containerId: planId }`
+      - `create` whose minted token collides with one a **Microtask project** already holds throws
+        `Conflict`, and **the manifest is unchanged** — read it back and compare. This is the case one
+        index exists to make possible; with two indexes it is undetectable
+      - `update` changes name and role and **keeps the token**; a `scope` or `token` key on the
+        changes object does not exist to be sent
+      - `update` accepts `''` as a name where `create` refuses it — production data already holds an
+        unnamed link and a rename that refused one could not save a link it had just loaded
+      - `revoke` of a link that minted two children drops all three, returns all three tokens, and
+        removes all three from the index
+      - `revoke` of an unknown token throws `NotFound`
+      - every method runs inside `lock.run`, asserted with a counting `Lock` double
+- [ ] **Step 2: run them and watch them fail.**
+- [ ] **Step 3: implement the service** and widen `PlanContext`.
+- [ ] **Step 4: run the domain suite.** Green.
+- [ ] **Step 5: the gate**, then commit `"Mint seats over a plan, with the cascade already decided"`.
+
 ---
 
 # Group D — `/v1/macroplan/plans/**`
@@ -1387,8 +1700,10 @@ request still answers 200 — no warning, no failing route, only an open endpoin
 
 `PrincipalResolver` needs a `ProjectStore` for token resolution; Macroplan has no tokens. It is
 constructed with `deps.store` (the Microtask one) exactly as `createMicrotask` does, because its job
-here is only to resolve the **admin** bearer — and a share principal it resolves is then refused by
-the policy at every one of the five plan actions, which is Task 2's test.
+here is only to resolve a bearer to a principal. Since Task 2c it is constructed with a
+`LinkDirectory` per product, so a Macroplan token resolves against `deps.planStore` and a Microtask
+one against `deps.store` — and a Microtask principal reaching a plan target is then refused by the
+scope rule, which is Task 2's id-collision test.
 
 The four services are constructed once in `createMacroplan` from a `PlanContext` assembled at the
 mount, which is the one place the two domains' differing `store` members are told apart:
@@ -1413,7 +1728,7 @@ The routes:
 | `GET` | `/plans` | `workspace:list-plans` | `{kind:'workspace'}` |
 | `POST` | `/plans` | `workspace:create-plan` | `{kind:'workspace'}` |
 | `GET` | `/plans/{planId}` | `plan:read` | `{kind:'plan', planId}` |
-| `PATCH` | `/plans/{planId}` | `plan:write` | `{kind:'plan', planId}` |
+| `PATCH` | `/plans/{planId}` | `plan:rename` and/or `plan:retime` | `{kind:'plan', planId}` |
 | `DELETE` | `/plans/{planId}` | `plan:delete` | `{kind:'plan', planId}` |
 
 `POST /plans` answers **201** with a `PlanView` body — the numeric `201`, never the string `'201'`,
@@ -1466,6 +1781,14 @@ checked against spans a unit test already pinned.
         `GET /plans/{planId}`, `POST /plans` and `DELETE /plans/{planId}` — including
         `TOKENS.p1Manage`, and including a request whose `planId` **equals** `IDS.p1`. Ids are
         per-product; a collision must not be a grant
+      - **and the reverse**: a plan `manage` token is refused with 403 on
+        `GET /v1/microtask/projects/{IDS.p1}`, on a `projectId` equal to its own `planId`
+      - the two collection routes refuse **every** plan link role, `manage` included — there is no
+        scope in which "every plan" is a question a seat may ask (ADR 0009)
+      - a plan `view` token is cleared on `GET /plans/{planId}` and refused on `PATCH` and `DELETE`
+      - a plan `write` token is cleared on `POST /features` and refused on `DELETE /features/{id}`
+        and on every `share-links` route — spec §10's "`write` cannot become `manage`", asserted over
+        the wire as well as in the kernel
       - the admin is cleared on all five
 - [ ] **Step 2: run it and watch it fail** — `pnpm --filter api test` cannot even resolve the mount.
 - [ ] **Step 3: rebuild the packages first.**
@@ -1501,21 +1824,28 @@ checked against spans a unit test already pinned.
 
 | Method | Path under `/plans/{planId}` | Body | Action |
 | --- | --- | --- | --- |
-| `POST` | `/epics` | `CreateEpicPayload` | `plan:write` |
-| `PATCH` | `/epics/{epicId}` | `UpdateEpicPayload` | `plan:write` |
-| `PATCH` | `/epics/{epicId}/placement` | `EpicPlacementPayload` | `plan:write` |
-| `DELETE` | `/epics/{epicId}` | — | `plan:write` |
-| `POST` | `/features` | `CreateFeaturePayload` | `plan:write` |
-| `PATCH` | `/features/{featureId}` | `UpdateFeaturePayload` | `plan:write` |
-| `PATCH` | `/features/{featureId}/placement` | `FeaturePlacementPayload` | `plan:write` |
-| `PUT` | `/features/{featureId}/dependencies` | `DependenciesPayload` | `plan:write` |
-| `DELETE` | `/features/{featureId}` | — | `plan:write` |
-| `POST` | `/items` | `CreateItemPayload` | `plan:write` |
+| `POST` | `/epics` | `CreateEpicPayload` | `epic:create` |
+| `PATCH` | `/epics/{epicId}` | `UpdateEpicPayload` | `epic:rename` |
+| `PATCH` | `/epics/{epicId}/placement` | `EpicPlacementPayload` | `epic:reorder` |
+| `DELETE` | `/epics/{epicId}` | — | `epic:delete` |
+| `POST` | `/features` | `CreateFeaturePayload` | `feature:create` |
+| `PATCH` | `/features/{featureId}` | `UpdateFeaturePayload` | `feature:rename` **and** `feature:estimate` |
+| `PATCH` | `/features/{featureId}/placement` | `FeaturePlacementPayload` | `feature:place` |
+| `PUT` | `/features/{featureId}/dependencies` | `DependenciesPayload` | `feature:depend` |
+| `DELETE` | `/features/{featureId}` | — | `feature:delete` |
+| `POST` | `/items` | `CreateItemPayload` | `item:create` |
 | `GET` | `/items/{itemId}` | — | `plan:read` |
-| `PATCH` | `/items/{itemId}` | `UpdateItemPayload` | `plan:write` |
-| `PATCH` | `/items/{itemId}/placement` | `ItemPlacementPayload` | `plan:write` |
-| `PUT` | `/items/{itemId}/description` | `DescriptionPayload` | `plan:write` |
-| `DELETE` | `/items/{itemId}` | — | `plan:write` |
+| `PATCH` | `/items/{itemId}` | `UpdateItemPayload` | `item:rename` **and** `item:estimate` |
+| `PATCH` | `/items/{itemId}/placement` | `ItemPlacementPayload` | `item:place` |
+| `PUT` | `/items/{itemId}/description` | `DescriptionPayload` | `item:describe` |
+| `DELETE` | `/items/{itemId}` | — | `item:delete` |
+
+Two routes gate on **two** actions because their payload carries two authorities: a `PATCH` that
+changes only `name` needs `feature:rename`, and one that touches `estimateDays` needs
+`feature:estimate` as well. Both are `write` today, so the distinction buys nothing yet — it is
+declared because the pair is the obvious first place a later role split would land, and a handler that
+authorizes on the union of what its body actually touches cannot be wrong later. The handler asks for
+each action a present key implies, and never for one the body omitted.
 
 Every mutating route returns the whole `PlanView`, **200**, including its freshly derived schedule.
 That is deliberate: every structural edit can move every bar on the canvas, so a response carrying
@@ -1553,6 +1883,64 @@ Each subtree is its own `OpenAPIHono<ApiEnv>` mounted by `plan-scoped.ts`, mirro
 - [ ] **Step 3: rebuild the packages**, then write the nine files and mount them.
 - [ ] **Step 4: run the API suite.** Green.
 - [ ] **Step 5: the gate**, then commit `"Edit a plan over HTTP, and answer with the whole timeline"`.
+
+### Task 16b: the share-link routes, and the bootstrap call
+
+**Files:**
+- Create: `apps/api/src/routes/macroplan/share-links/{routes,handlers,app}.ts`
+- Create: `apps/api/src/routes/macroplan/shares/{routes,handlers}.ts`
+- Create: `apps/api/src/routes/macroplan/share-links/share-links.test.ts`
+- Create: `apps/api/src/routes/macroplan/shares/shares.test.ts`
+- Modify: `apps/api/src/routes/macroplan/{index,plan-scoped,params}.ts`
+
+| Method | Path under `/v1/macroplan` | Body | Action |
+| --- | --- | --- | --- |
+| `GET` | `/shares/current` | — | none — it describes the caller's own credential |
+| `POST` | `/plans/{planId}/share-links` | `CreateShareLinkPayload` | `share:create`, against **`own-scope`** |
+| `PATCH` | `/plans/{planId}/share-links/{token}` | `UpdateShareLinkPayload` | `share:update` |
+| `DELETE` | `/plans/{planId}/share-links/{token}` | — | `share:revoke` |
+
+There is no `GET /share-links`: a plan's links arrive inside `PlanView.shareLinks`, present only for a
+caller cleared for `share:read`, so there is one gate and one shape rather than two of each.
+
+`params.ts` gains `planShareLinkParams = planParams.extend({ token: ShareToken })`. The token is a path
+segment because it names the **link being acted on**, never the caller — whose own credential stays in
+the `Authorization` header, which is what keeps it out of server logs and `Referer` (ADR 0013).
+
+`share:create` is authorized against `'own-scope'`, not against the plan. `capabilities.ts` already
+records why: the narrowest scope a holder can mint over is the one it already holds. For a plan-scoped
+holder that is the same plan, so the check is `{kind:'plan', planId}` — but it is written as the
+caller's own scope so the rule stays true if an epic variant is ever added.
+
+`/shares/current` is the route a client calls to learn what it may do before drawing anything. It
+returns the caller's role, scope and the `capabilities()` projection, and it is the one route here that
+calls no `authorize` — refusing a caller the right to ask about their own credential would make the
+bootstrap unreachable. Mirror `microtask/shares/handlers.ts` exactly.
+
+- [ ] **Step 1: write the failing tests:**
+      - `POST` as a plan `manage` holder mints a link whose `scope` is `{kind:'plan', planId}` and
+        whose `createdBy` is **the presenting token** — assert it equals the caller's own, not `null`
+      - `POST` as a plan `write` holder → **403**. This is the `write`-cannot-become-`manage` boundary
+        at its most dangerous point: a `write` holder who could mint would mint themselves `manage`
+      - `POST` as the admin mints with `createdBy: null`
+      - `POST` with a `scope` in the body naming a **different** plan has it **stripped**, not
+        honoured — the minted link's scope is the caller's plan. A payload that could re-scope a mint
+        is a privilege escalation with a JSON body
+      - `PATCH` changes name and role, keeps the token, and a `scope` key in the body is stripped
+      - `DELETE` revokes, cascades to children, answers 204, and every revoked token then 401s on
+        `GET /plans/{planId}` — asserted by actually presenting one
+      - `DELETE` of a token belonging to **another plan** → 404, not 403: a 404 confirms nothing about
+        whether that link exists
+      - `GET /plans/{planId}` as a `manage` holder **carries** `shareLinks`; as `view` and as `write`
+        the key is **absent**, not `[]` — `expect('shareLinks' in body).toBe(false)`
+      - `GET /plans` as the admin carries `shareLinkCount`; there is no non-admin case, the route
+        being admin-only
+      - `GET /shares/current` answers for a plan token with its role, scope and capabilities, and
+        **401s** for no credential
+- [ ] **Step 2: run them and watch them fail.**
+- [ ] **Step 3: rebuild the packages**, then write the five files and mount them.
+- [ ] **Step 4: run the API suite.** Green.
+- [ ] **Step 5: the gate**, then commit `"Hand out a plan, and let a holder ask what they hold"`.
 
 ### Task 17: the document, and the cross-checks
 
@@ -1594,8 +1982,12 @@ Each subtree is its own `OpenAPIHono<ApiEnv>` mounted by `plan-scoped.ts`, mirro
 - Create: `docs/adr/0049-per-rail-forward-pass-in-one-pure-package.md`
 - Create: `docs/adr/0050-the-plan-directory-is-the-unit.md`
 - Create: `docs/adr/0051-estimate-authored-at-any-level-children-win.md`
-- Modify: `docs/superpowers/specs/2026-09-22-macroplan-design.md` — §11's table marks 0048–0051
-  written and leaves 0052 to phase 4
+- Create: `docs/adr/0053-a-plan-is-shared-at-plan-scope.md`
+- Create: `docs/adr/0054-one-token-index-identity-stays-a-capability.md`
+- Modify: `docs/adr/0038-capabilities-role-and-scope.md` — an amendment noting the plan scope and the
+  widened cross product, since that ADR's agreement argument is what now covers nineteen more actions
+- Modify: `docs/superpowers/specs/2026-09-22-macroplan-design.md` — §11's table marks 0048–0051, 0053
+  and 0054 written and leaves 0052 to phase 4
 
 Each ADR follows the form of the forty-seven before it: context, decision, consequences, and the
 alternative it rejects. The content each must carry:
@@ -1618,6 +2010,27 @@ alternative it rejects. The content each must carry:
 - **0051 — Estimate is authored at any level; children win, and the gap is shown.** The authored
   value is kept and never overwritten; children win when **at least one** carries an estimate; the
   discrepancy is the product's most useful number and is rendered rather than resolved.
+
+- **0053 — A plan is shared at plan scope, by the share-link system that already exists.** One `Scope`
+  variant, the three roles spec §7.1 defines, and the line between `write` and `manage`: `write`
+  changes what the work is and what it costs, `manage` changes where it sits and what the plan is.
+  Record why epic scope is **deferred and not foreclosed** — `Scope` is a discriminated union, so the
+  variant is additive, while the cross-rail dependency arcs an epic-scoped holder would see pointing at
+  refused features are a phase-2 rendering problem nobody has a use case for yet. Record that
+  `epic:bind` is admin-only and why: the binding role is the ceiling on everything §7.3 composes, and a
+  holder who could re-role it could raise their own ceiling.
+- **0054 — One token index for both products, and identity stays a capability until there are users.**
+  Why the index is keyed by token and answers `{product, containerId}`: a bearer is an opaque string,
+  so the index is what *tells* you which product owns it, and a per-product index would have to be
+  asked twice. Then the SSO question, answered rather than left open — there is no identity here to
+  federate (one `ADMIN_PASSWORD`, and tokens carrying a capability and no person); what looks like an
+  identity problem is capability **attenuation** across a trust boundary, which `can()` already
+  expresses and §7.3 resolves in one `min`; an IdP would invalidate ADRs 0012, 0013, 0040 and 0047 and
+  buy nothing until there is more than one human. **State the trigger that reverses it:** the day this
+  product has named users rather than one admin password. Also record why the kernel's `GRANTS` and
+  `capabilities()`'s `ROWS` are **not** collapsed into one table — `@repo/contracts` holds
+  `@repo/kernel` as a devDependency only so `node:crypto` never reaches a browser bundle, so neither
+  can import the other at runtime, and the exhaustive agreement test is the consolidation.
 
 ADR **0052** (an epic binds to a Microtask project by a sealed share token) is **not** written here.
 Phase 1 reserves the fields and decides nothing about the bridge; spec §12 leaves who mints the token
@@ -1660,7 +2073,11 @@ Spec §10's table, resolved to tasks. A row with no task is a gap; there are non
 | feature contiguity, for every arrangement of pins and edges | Task 10, property "contiguity" |
 | `PlanStore` — the port-contract pattern against fs and memory | Task 12 |
 | caps — 2 000 items accepted, 2 001 refused with a named code | Task 4 (schema), Task 11 (`assertWithin`), Task 16 (over the wire) |
+| the role model — `capabilities()` agrees with `can()` across every tuple, plan scope included | Task 2b, by the existing exhaustive agreement test |
+| cross-product isolation — a Microtask token refused on a `planId` equal to its `projectId`, and the reverse | Task 2 (kernel), Task 15 step 1 (over the wire) |
+| the token index — one token, one container, across both products | Task 2c step 2, the collision case |
+| `write` cannot become `manage` | Task 2 (each action by name), Task 15 step 1 and Task 16b step 1 (the mint refusal) |
 | layout — pure functions, no DOM | **Phase 2.** Not in scope here |
-| the bridge — revoked token, deleted project, `manage` attempting a delete | **Phase 4.** Phase 1 only proves the fields stay `null` (Task 16) |
+| the bridge — revoked token, deleted project, a `view` holder denied a task name, `effectiveBridgeRole` | **Phase 4.** Phase 1 proves the fields stay `null` (Task 16) and that `epic:bind` is admin-only (Task 2) |
 
 Two rows are deferred by design and named in "What phase 1 does not ship". Everything else is met.
