@@ -2074,12 +2074,20 @@ Each subtree is its own `OpenAPIHono<ApiEnv>` mounted by `plan-scoped.ts`, mirro
 | Method | Path under `/v1/macroplan` | Body | Action |
 | --- | --- | --- | --- |
 | `GET` | `/shares/current` | — | none — it describes the caller's own credential |
-| `POST` | `/plans/{planId}/share-links` | `CreateShareLinkPayload` | `share:create`, against **`own-scope`** |
+| `POST` | `/plans/{planId}/share-links` | `CreatePlanShareLinkPayload` | `share:create`, against **`own-scope`** |
 | `PATCH` | `/plans/{planId}/share-links/{token}` | `UpdateShareLinkPayload` | `share:update` |
 | `DELETE` | `/plans/{planId}/share-links/{token}` | — | `share:revoke` |
 
 There is no `GET /share-links`: a plan's links arrive inside `PlanView.shareLinks`, present only for a
 caller cleared for `share:read`, so there is one gate and one shape rather than two of each.
+
+`CreatePlanShareLinkPayload`, **not** Microtask's `CreateShareLinkPayload`. They differ in the one field
+that decides this route's behaviour: Microtask's carries an optional `ProjectScope`, so a body naming
+`{kind:'plan', planId}` fails that discriminated union and the route answers **422** — where Step 1
+below requires the key be **stripped**. A plan has exactly one shareable scope and its id is already in
+the path, so the Macroplan payload takes `{name, role}` and nothing else, and an unrecognised `scope`
+key is dropped rather than refused. `UpdateShareLinkPayload` **is** reused as it stands: it is already
+closed to name and role, and it carries no refinement, so nothing in it is Microtask-specific.
 
 `params.ts` gains `planShareLinkParams = planParams.extend({ token: ShareToken })`. The token is a path
 segment because it names the **link being acted on**, never the caller — whose own credential stays in
