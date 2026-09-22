@@ -463,6 +463,17 @@ are `'admin'`.
 
 ### Task 2c: one token index, for both products
 
+> **DEFERRED — this task runs after Task 12, not here.** It is written in this position because it
+> belongs to the same argument as Tasks 2, 2a and 2b: one policy, one scope union, one index. But it
+> cannot be executed yet. `PrincipalResolver` needs a `LinkDirectory` per product, and the Macroplan
+> adapter is written over `PlanStore` — a port **Task 12 creates**. Running this before then means
+> either inventing a port Task 12 will then have to reconcile, or shipping a
+> `Record<Product, LinkDirectory>` with one key missing, which does not typecheck.
+>
+> **Execution order is therefore: 3 → 4 → 5 → 11 → 12 → 2c → 13 → 14 → 14b → 15 → …** Task 2c must
+> still land **before Task 15**, which mounts the routes the resolver guards, and before Task 14b,
+> which mints tokens the index has to refuse collisions for.
+
 `TokenIndex` and `ShareIndex` live in `@repo/microtask-domain` and are typed to `ProjectManifest`. A
 Macroplan bearer has to resolve too, and two indexes would mean `PrincipalResolver` trying both —
 which is precisely the drift that consolidating avoids. A bearer is an opaque string; the index is
@@ -1357,6 +1368,9 @@ so the two must not overlap.
 - [ ] **Step 5: the gate**, then commit `"Give the plan domain its entities, its bounds and its paths"`.
 
 ### Task 12: the `PlanStore` port, its contract suite, and two adapters
+
+> **Task 2c runs immediately after this one.** It is written earlier in this document, beside the
+> other access-control tasks, but it needs the `PlanStore` port this task defines. Do 2c next.
 
 This task is the phase gate the spec names: *"`PlanStore` contract suite green against fs and
 memory"*.
