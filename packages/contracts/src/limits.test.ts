@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as contracts from './index.js'
-import { LIMITS, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_DEPTH } from './limits.js'
+import { LIMITS, MAX_DOCUMENT_BYTES, MAX_DOCUMENT_DEPTH, MAX_ESTIMATE_DAYS, MAX_SPRINT_LENGTH_DAYS, MAX_ITEM_DESCRIPTION_BYTES } from './limits.js'
 
 const ID = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const STAMP = '2026-09-10T00:00:00.000Z'
@@ -51,6 +51,12 @@ describe('the caps a form enforces before a request is worth sending (ADR 0036)'
       foldersPerProject: 100,
       shareLinksPerProject: 50,
       projectsPerProduct: 500,
+      plansPerProduct: 200,
+      epicsPerPlan: 40,
+      featuresPerPlan: 200,
+      itemsPerPlan: 2_000,
+      edgesPerPlan: 400,
+      shareLinksPerPlan: 50,
     })
   })
 
@@ -59,10 +65,19 @@ describe('the caps a form enforces before a request is worth sending (ADR 0036)'
     expect(MAX_DOCUMENT_DEPTH).toBe(100)
   })
 
+  it('bounds estimates, sprints, and item descriptions', () => {
+    expect(MAX_ESTIMATE_DAYS).toBe(1_000)
+    expect(MAX_SPRINT_LENGTH_DAYS).toBe(60)
+    expect(MAX_ITEM_DESCRIPTION_BYTES).toBe(8_192)
+  })
+
   it('is reachable from the barrel, because an app may import nothing else', () => {
     expect(contracts.LIMITS).toBe(LIMITS)
     expect(contracts.MAX_DOCUMENT_BYTES).toBe(MAX_DOCUMENT_BYTES)
     expect(contracts.MAX_DOCUMENT_DEPTH).toBe(MAX_DOCUMENT_DEPTH)
+    expect(contracts.MAX_ESTIMATE_DAYS).toBe(MAX_ESTIMATE_DAYS)
+    expect(contracts.MAX_SPRINT_LENGTH_DAYS).toBe(MAX_SPRINT_LENGTH_DAYS)
+    expect(contracts.MAX_ITEM_DESCRIPTION_BYTES).toBe(MAX_ITEM_DESCRIPTION_BYTES)
   })
 })
 

@@ -20,6 +20,12 @@ const BOUNDS: Readonly<Record<CountLimitKey, string>> = {
   shareLinksPerProject: 'share links',
   tabsPerTask: 'tabs',
   projectsPerProduct: 'projects',
+  plansPerProduct: 'plans',
+  epicsPerPlan: 'epics',
+  featuresPerPlan: 'features',
+  itemsPerPlan: 'items',
+  edgesPerPlan: 'dependencies',
+  shareLinksPerPlan: 'share links',
 }
 
 /**

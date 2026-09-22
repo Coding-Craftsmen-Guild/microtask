@@ -16,6 +16,12 @@ const LABEL: Readonly<Record<LimitKey, string>> = {
   foldersPerProject: 'folders in this project',
   shareLinksPerProject: 'share links for this project',
   projectsPerProduct: 'projects',
+  plansPerProduct: 'plans',
+  epicsPerPlan: 'epics in this plan',
+  featuresPerPlan: 'features in this plan',
+  itemsPerPlan: 'items in this plan',
+  edgesPerPlan: 'dependencies in this plan',
+  shareLinksPerPlan: 'share links for this plan',
 }
 
 /** Collapses whitespace, trims, and caps a display name. */
