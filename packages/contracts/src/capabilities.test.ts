@@ -108,7 +108,13 @@ describe('capabilities answers for exactly the actions the kernel names (ADR 003
     }
   })
 
-  it('asks about every kernel target kind and about nothing the kernel does not name', () => {
+  /**
+   * Kept rather than deleted, and renamed to stop claiming otherwise: both assertions compare a
+   * value to the definition three dozen lines above it and neither can fail. What earns the `it` is
+   * `BEYOND_KERNEL_KINDS`, whose whole job is to be compiled — nothing else reads it, and an unused
+   * const is a lint error, so deleting this would delete the guard along with the false claim.
+   */
+  it('restates the two type-level guards above it, which typecheck enforces and vitest cannot', () => {
     expect(TARGETS).toEqual([...TARGET_KINDS, 'own-scope'])
     expect(Object.keys(BEYOND_KERNEL_KINDS)).toEqual([])
   })

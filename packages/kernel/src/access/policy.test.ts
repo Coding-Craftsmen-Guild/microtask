@@ -73,6 +73,12 @@ const reachableByPlanScope = (action: Action): boolean =>
 const byPrefix = (...prefixes: readonly string[]): readonly Action[] =>
   ACTIONS.filter((action) => prefixes.some((prefix) => action.startsWith(prefix)))
 
+/**
+ * The same 22 actions as `action.ts`'s private constant of this name, and deliberately not that
+ * constant: it is filtered out of the exported `ACTIONS` by prefix, so it would still group
+ * `plan:archive` with the plan family on the day someone typed that into the workspace list in
+ * `action.ts` — which is the drift an import of the kernel's own grouping could never see.
+ */
 const PLAN_FAMILY_ACTIONS = byPrefix('plan:', 'epic:', 'feature:', 'item:')
 const MICROTASK_FAMILY_ACTIONS = byPrefix('project:', 'folder:', 'task:', 'tab:')
 
@@ -153,7 +159,7 @@ const MANAGE: readonly Action[] = [
 const ALLOWED: Record<Role, readonly Action[]> = { view: VIEW, write: WRITE, manage: MANAGE }
 
 describe('the scope-family table — its own invariants, exercising no path through can()', () => {
-  it('fails the build for a target kind added to neither scope family', () => {
+  it('fails the build for a target kind added to neither scope family, or added to both', () => {
     const placed = [...PROJECT_TARGETS, ...PLAN_TARGETS, 'workspace' as const]
     expect([...placed].sort()).toEqual([...TARGET_KINDS].sort())
   })
