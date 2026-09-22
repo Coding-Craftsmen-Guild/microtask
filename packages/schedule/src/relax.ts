@@ -94,9 +94,11 @@ export interface Relaxation {
  * feature **earliest in derived order**, placing it on what has already landed. That feature is by
  * definition the first unplaced one, so everything it still waits on comes later in the derived
  * order: a rail predecessor is never dropped, and every dependency that runs forward through the
- * plan is always honoured. What is dropped is named in `ignoredEdges`, deduplicated and sorted,
- * because a pass that silently ignored a stated dependency would be a solver quietly rewriting an
- * executive's plan.
+ * plan is always honoured — with one exception: `dependsOn` is not filtered for a feature's own
+ * id, so `X dependsOn X` makes `X` wait on itself, `X` is the stalled feature released, and the
+ * edge reported for it points neither earlier nor later. What is dropped is named in
+ * `ignoredEdges`, deduplicated and sorted, because a pass that silently ignored a stated
+ * dependency would be a solver quietly rewriting an executive's plan.
  *
  * `estimates` decides who is schedulable: a feature absent from it is not placed and is not a
  * predecessor of anything, so an unestimated or in-cycle feature never cuts a rail in two.
