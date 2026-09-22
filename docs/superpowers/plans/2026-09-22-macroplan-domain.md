@@ -422,7 +422,7 @@ makes its absence from both families a stated decision rather than an oversight 
 Sorting both sides also catches a kind placed in **two** families, which would be the more dangerous
 direction.
 
-**Second, split `ACTIONS` into two composed halves.** The list is 52 entries and
+**Second, split `ACTIONS` into two composed halves.** The list is 51 entries and
 `workspace:list-plans` / `workspace:create-plan` sit orphaned at the end, far from the three other
 `workspace:*` entries a reader scanning for "gated the same way" would expect them beside. A comment
 header is not an option — `local/tsdoc-comments-only` bans it. Compose instead, the way
@@ -473,6 +473,15 @@ are `'admin'`.
 > **Execution order is therefore: 3 → 4 → 5 → 11 → 12 → 2c → 13 → 14 → 14b → 15 → …** Task 2c must
 > still land **before Task 15**, which mounts the routes the resolver guards, and before Task 14b,
 > which mints tokens the index has to refuse collisions for.
+>
+> **One more thing this task must fix.** `apps/api/src/routes/microtask/shares/handlers.ts` casts
+> `principal as MicrotaskLink`, justified by `PrincipalResolver` only ever resolving a project-rooted
+> scope. That is true today and **stops being true here**: once one index serves both products,
+> `resolve()` can legitimately return a plan-scoped principal, and the cast then asserts something
+> false in the authorization path. Two other guards still refuse such a request — a plan scope cannot
+> parse into a project manifest, and `inScope` refuses a `project` target to a `plan` scope — so this
+> is not a hole before and will not be one after. But the cast has to become a narrowing that the
+>
 
 `TokenIndex` and `ShareIndex` live in `@repo/microtask-domain` and are typed to `ProjectManifest`. A
 Macroplan bearer has to resolve too, and two indexes would mean `PrincipalResolver` trying both —
@@ -2148,6 +2157,12 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
       - **`ProblemCode` still covers every code these routes emit.** The existing contract test
         enumerates `MEANINGS` plus the three 401s; assert the macroplan routes introduce no code
         outside `PROBLEM_CODES`
+      - **`PENDING_ROUTES` is empty, and the set is deleted.** `authorize-targets.test.ts` carries a
+        set of actions that have no route yet, so its target-table cross-check passes while 24
+        Macroplan rows are unconfirmed. Every one of those routes exists by the end of Task 16b. The
+        scan reads the whole `routes/` tree, so a handler gating on a **literal** action clears its
+        own entry — but a handler gating on a computed one does not, and nothing else retires the
+        remainder. An allowance that outlives its debt is indistinguishable from a hole.
 - [ ] **Step 4: run the API suite.** Green.
 - [ ] **Step 5: the gate**, then commit `"Publish the document, and prove both schedules agree"`.
 

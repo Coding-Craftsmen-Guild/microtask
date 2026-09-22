@@ -262,10 +262,10 @@ somebody can see this plan. §7.2 is a credential held **inward**, so this plan 
 ### 7.1 Sharing a plan
 
 A plan is shared the way a project is: a token in a URL, never in a cookie
-([ADR 0040](../../adr/0040-share-token-in-url-never-a-cookie.md)), carrying exactly the role and
+([ADR 0040](../../adr/0040-link-surface-url-token-authority.md)), carrying exactly the role and
 scope it names ([ADR 0038](../../adr/0038-capabilities-role-and-scope.md)). The machinery already
 exists and is not rebuilt — the same `ShareLink`, the same three roles, the same `can()`, the same
-revocation cascade ([ADR 0010](../../adr/0010-revocation-cascade.md)).
+revocation cascade ([ADR 0010](../../adr/0010-revocation-cascade-lineage.md)).
 
 **Scope is the whole plan, and only the whole plan.** `Scope` gains one variant,
 `{ kind: 'plan', planId }`. Microtask's second level exists because a task is a self-contained
@@ -292,7 +292,7 @@ with a second person.
 
 `manage` is **everything an admin can do inside one plan** and nothing outside it. Listing every plan
 and creating a plan stay in `ADMIN_ONLY_ACTIONS`, exactly as `workspace:list-projects` does
-([ADR 0009](../../adr/0009-collection-routes-are-admin-only.md)): there is no scope in which "every
+([ADR 0009](../../adr/0009-deny-by-default-collections.md)): there is no scope in which "every
 plan" is a question a seat may ask. Binding an epic to a Microtask project is admin-only too, for the
 reason §7.3 gives.
 
