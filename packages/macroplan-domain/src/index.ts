@@ -20,3 +20,6 @@ export {
 export type { PlanStore } from './ports/plan-store.js'
 export { FsPlanStore, type FsPlanStoreOptions } from './storage/fs-plan-store.js'
 export { itemFile, itemsDir, manifestFile, planDir, plansDir } from './storage/paths.js'
+export type { PlanContext } from './services/context.js'
+export type { ItemRef, PlanRef } from './services/refs.js'
+export { PlanService, type NewPlan, type PlanChanges } from './services/plan-service.js'
