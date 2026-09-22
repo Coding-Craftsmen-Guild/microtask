@@ -69,7 +69,7 @@ describe('the glob-to-regexp reader this guard is built on', () => {
 describe('every test file this app holds is claimed by exactly one project', () => {
   it('walks a real set of test files, so the sweep below is not empty', () => {
     expect(ON_DISK.length).toBeGreaterThan(100)
-    expect(ON_DISK).toContain('lib/env.test.ts')
+    expect(ON_DISK).toContain('environment.test.ts')
     expect(ON_DISK).toContain('components/transfer/upload.test.tsx')
   })
 

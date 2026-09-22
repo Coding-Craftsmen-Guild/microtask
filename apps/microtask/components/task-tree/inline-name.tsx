@@ -4,7 +4,7 @@ import { LIMITS } from '@repo/contracts'
 import { cn } from '@repo/ui/lib/utils'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ActionResult } from '../../actions/result'
-import { orNoAnswer } from '../shared/no-answer'
+import { orNoAnswer } from '@repo/app-session/no-answer'
 
 /** Props for {@link InlineName}. */
 export interface InlineNameProps {

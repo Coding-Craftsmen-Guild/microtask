@@ -1,7 +1,8 @@
 import { ApiError } from '@repo/api-client'
-import { loginPathFor } from './next-path'
+import { adminRemedyFor, adminRemedyForNoSession, type AdminRemedy } from '@repo/app-session/admin-remedy'
+import { plainRefusal } from '@repo/app-session/refusal'
+import { ACTION_REFUSALS } from './refusal'
 import type { PrincipalKind } from './principal'
-import { ACTION_REFUSALS, plainRefusal } from './refusal'
 import { LINK_UNAVAILABLE_PATH } from './routes'
 
 /** What the UI says when the API could not be reached or answered something unusable. */
@@ -11,16 +12,12 @@ export const SERVICE_UNAVAILABLE = 'Microtask could not reach its API. Try again
  * What a caller should do about a failed call, decided from the status and the audience.
  *
  * Three outcomes and not two, because a 401 means something different to each audience and the
- * spec's blanket "any 401 sends the browser to `/login`" is wrong for one of them.
+ * spec's blanket "any 401 sends the browser to `/login`" is wrong for one of them. The admin two
+ * are `AdminRemedy` from `@repo/app-session`, shared with Macroplan; the third is this app's,
+ * because only this app has a surface whose credential is a URL (ADR 0040).
  */
 export type Remedy =
-  | {
-      /** An admin has no live session: send them to sign in, keeping where they were going. */
-      readonly kind: 'login'
-
-      /** `/login?next=<sanitised pathname>`. */
-      readonly location: string
-    }
+  | AdminRemedy
   | {
       /** A link holder's token names nobody: the link is gone and there is nothing to sign in to. */
       readonly kind: 'unavailable'
@@ -28,18 +25,18 @@ export type Remedy =
       /** {@link LINK_UNAVAILABLE_PATH}. */
       readonly location: string
     }
-  | {
-      /** Anything else: show it. */
-      readonly kind: 'problem'
-
-      /** The HTTP status, or `0` when the API could not be reached at all. */
-      readonly status: number
-
-      /** The sentence to put in front of the user: this surface's plain copy, never the API's. */
-      readonly detail: string
-    }
 
 const UNAUTHORIZED = 401
+
+const ADMIN_COPY = { unavailable: SERVICE_UNAVAILABLE, refusals: ACTION_REFUSALS.admin }
+
+const unavailable = (): Remedy => ({ kind: 'unavailable', location: LINK_UNAVAILABLE_PATH })
+
+const linkRemedyFor = (error: unknown): Remedy => {
+  if (!(error instanceof ApiError)) return { kind: 'problem', status: 0, detail: SERVICE_UNAVAILABLE }
+  if (error.status === UNAUTHORIZED) return unavailable()
+  return { kind: 'problem', status: error.status, detail: plainRefusal(error.status, ACTION_REFUSALS.link) }
+}
 
 /**
  * Turns a failed call into the one thing the app should do about it.
@@ -66,15 +63,7 @@ const UNAUTHORIZED = 401
  * outage into a login loop.
  */
 export function remedyFor(error: unknown, audience: PrincipalKind, pathname: string): Remedy {
-  if (!(error instanceof ApiError)) {
-    return { kind: 'problem', status: 0, detail: SERVICE_UNAVAILABLE }
-  }
-  if (error.status !== UNAUTHORIZED) {
-    return { kind: 'problem', status: error.status, detail: plainRefusal(error.status, ACTION_REFUSALS[audience]) }
-  }
-  return audience === 'admin'
-    ? { kind: 'login', location: loginPathFor(pathname) }
-    : { kind: 'unavailable', location: LINK_UNAVAILABLE_PATH }
+  return audience === 'admin' ? adminRemedyFor(error, pathname, ADMIN_COPY) : linkRemedyFor(error)
 }
 
 /**
@@ -87,7 +76,5 @@ export function remedyFor(error: unknown, audience: PrincipalKind, pathname: str
  * `ApiError` built to be read back.
  */
 export function remedyForNoSession(audience: PrincipalKind, pathname: string): Remedy {
-  return audience === 'admin'
-    ? { kind: 'login', location: loginPathFor(pathname) }
-    : { kind: 'unavailable', location: LINK_UNAVAILABLE_PATH }
+  return audience === 'admin' ? adminRemedyForNoSession(pathname) : unavailable()
 }

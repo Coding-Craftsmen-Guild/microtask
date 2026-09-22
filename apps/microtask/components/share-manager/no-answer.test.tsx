@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { NO_ANSWER } from '../shared/no-answer'
+import { NO_ANSWER } from '@repo/app-session/no-answer'
 import { links, renderManager } from './testing/share-fixture'
 
 const dropped = new TypeError('Failed to fetch')

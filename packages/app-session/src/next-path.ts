@@ -1,17 +1,18 @@
-import { LOGIN_PATH } from './routes'
+/** Where an admin signs in, and where every admin 401 and every sign-out lands, in both apps. */
+export const LOGIN_PATH = '/login'
 
 const FALLBACK = '/'
 const BASE = 'http://next-path.invalid'
 
 /**
- * The longest `?next=` this app will honour, measured on what it receives **and** on what it
+ * The longest `?next=` an app will honour, measured on what it receives **and** on what it
  * emits.
  *
  * A bound rather than a rule about content: the value ends up in a `Location` header, and an
  * unbounded one is a way to make this app emit a header a proxy in front of it has to decide
  * what to do with. Both ends are measured because percent-encoding expands: a 512-unit input of
  * `日` normalises to 4,600 characters, so a cap on the input alone bounds nothing about the
- * header. Nothing legitimate here is close — the deepest route is `/p/<ulid>/t/<ulid>?tab=<ulid>`.
+ * header. Nothing legitimate is close — Microtask's deepest route is `/p/<ulid>/t/<ulid>?tab=<ulid>`.
  */
 export const MAX_NEXT_LENGTH = 512
 

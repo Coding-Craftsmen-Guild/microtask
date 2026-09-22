@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { seal } from '../../../../../../../../../lib/crypto'
+import { seal } from '@repo/app-session/crypto'
 import { payloadOf } from '../../../../../../../../../lib/principal'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'

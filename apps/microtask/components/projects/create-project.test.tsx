@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionFailure } from '../../actions/result'
-import { NO_ANSWER } from '../shared/no-answer'
+import { NO_ANSWER } from '@repo/app-session/no-answer'
 import { CreateProject } from './create-project'
 
 const setup = (answer: ActionFailure | undefined = undefined) => {

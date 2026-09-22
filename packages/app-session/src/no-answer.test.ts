@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { describe, expect, it, vi } from 'vitest'
-import type { ActionResult } from '../../actions/result'
+import type { ActionResult } from './action-result'
 import { eachOrNoAnswer, NO_ANSWER, orNoAnswer } from './no-answer'
 
 const dropped = () => Promise.reject(new TypeError('Failed to fetch'))

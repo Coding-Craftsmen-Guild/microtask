@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { open } from './lib/crypto'
-import { appEnv } from './lib/env'
-import { loginPathFor } from './lib/next-path'
+import { open } from '@repo/app-session/crypto'
+import { appEnv } from '@repo/app-session/env'
+import { LOGIN_PATH, loginPathFor } from '@repo/app-session/next-path'
 import { ADMIN_COOKIE, adminFrom } from './lib/principal'
-import { LOGIN_PATH, isLinkSurface } from './lib/routes'
+import { isLinkSurface } from './lib/routes'
 
 const NAVIGATIONS = new Set(['GET', 'HEAD'])
 

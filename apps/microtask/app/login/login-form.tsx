@@ -4,7 +4,7 @@ import { Button } from '@repo/ui/components/button'
 import { Input } from '@repo/ui/components/input'
 import { useActionState } from 'react'
 import { signIn } from '../../actions/auth'
-import { orNoAnswer } from '../../components/shared/no-answer'
+import { orNoAnswer } from '@repo/app-session/no-answer'
 import type { SignInState } from '../../lib/login'
 
 const INITIAL: SignInState = { message: null }

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { vi } from 'vitest'
-import { seal } from './lib/crypto'
+import { seal } from '@repo/app-session/crypto'
 import { ADMIN_COOKIE, payloadOf } from './lib/principal'
 import { LINK_UNAVAILABLE_PATH } from './lib/routes'
 import { config, proxy } from './proxy'

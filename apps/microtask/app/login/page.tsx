@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Logo } from '../../components/shared/logo'
-import { safeNextPath } from '../../lib/next-path'
+import { safeNextPath } from '@repo/app-session/next-path'
 import { LoginForm } from './login-form'
 
 /** The tab title the app being replaced used, and no index entry for a password form. */

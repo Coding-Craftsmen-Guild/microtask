@@ -36,11 +36,4 @@ export default [
       }],
     },
   },
-  {
-    // The one file allowed to read the environment. Scoped here rather than disabled
-    // inline, so "which file reads process.env" is answered by the config (ADR 0012),
-    // and because an inline directive would itself be a non-TSDoc comment.
-    files: ['lib/env.ts'],
-    rules: { 'n/no-process-env': 'off' },
-  },
 ]

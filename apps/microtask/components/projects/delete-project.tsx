@@ -4,7 +4,7 @@ import { Button } from '@repo/ui/components/button'
 import { ConfirmDialog } from '@repo/ui/shell/confirm-dialog'
 import { useState } from 'react'
 import type { ActionResult } from '../../actions/result'
-import { orNoAnswer } from '../shared/no-answer'
+import { orNoAnswer } from '@repo/app-session/no-answer'
 
 /** Props for {@link DeleteProject}. */
 export interface DeleteProjectProps {

@@ -10,7 +10,7 @@ import { ExportPanel } from '../../../components/transfer/export-panel'
 import { TransferConsole } from '../../../components/transfer/transfer-console'
 import { TRANSFER_PAGE_PATH } from '../../../components/transfer/paths'
 import { apiForSession } from '../../../lib/api'
-import { loginPathFor } from '../../../lib/next-path'
+import { loginPathFor } from '@repo/app-session/next-path'
 
 const PAGE = 'grid gap-8 pt-6'
 const HEADING = 'text-[15px] font-semibold'

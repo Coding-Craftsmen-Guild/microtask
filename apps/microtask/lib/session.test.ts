@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ADMIN_COOKIE } from './principal'
-import type { SealedCookie } from './session-store'
+import type { SealedCookie } from '@repo/app-session/cookies'
 
 const store = new Map<string, SealedCookie>()
-const request: { proto: string | null } = { proto: 'https' }
 
 vi.mock('next/headers', () => ({
   cookies: () =>
@@ -16,8 +14,7 @@ vi.mock('next/headers', () => ({
         store.set(cookie.name, cookie)
       },
     }),
-  headers: () =>
-    Promise.resolve({ get: (name: string) => (name === 'x-forwarded-proto' ? request.proto : null) }),
+  headers: () => Promise.resolve({ get: () => 'https' }),
 }))
 
 beforeEach(() => {
@@ -25,7 +22,6 @@ beforeEach(() => {
   vi.stubEnv('API_KEY', 'the-service-key')
   vi.stubEnv('COOKIE_SECRET', 'a-cookie-secret-of-at-least-32-by')
   store.clear()
-  request.proto = 'https'
 })
 
 afterEach(() => {
@@ -34,28 +30,23 @@ afterEach(() => {
 
 const { session } = await import('./session')
 
-describe('session', () => {
-  it("writes through to Next's cookie store and reads back what it wrote", async () => {
+describe('this app binds the shared session to mt_admin', () => {
+  it('seals into mt_admin and into no other cookie', async () => {
     ;(await session()).sealAdmin('admin.1.sig', 600)
-    expect(store.get(ADMIN_COOKIE)?.maxAge).toBe(600)
+    expect([...store.keys()]).toEqual(['mt_admin'])
+  })
+
+  it('reads back what it sealed, so the binding is a live session and not a name', async () => {
+    ;(await session()).sealAdmin('admin.1.sig', 600)
     expect((await session()).admin()).toEqual({ kind: 'admin', token: 'admin.1.sig' })
   })
 
-  it('marks the cookie Secure when the proxy says the client hop was https', async () => {
-    request.proto = 'https'
+  it('does not read Macroplan’s cookie, even sealed under the same secret', async () => {
     ;(await session()).sealAdmin('admin.1.sig', 600)
-    expect(store.get(ADMIN_COOKIE)?.secure).toBe(true)
-  })
-
-  it('leaves Secure off when the proxy says http, so local dev keeps a session', async () => {
-    request.proto = 'http'
-    ;(await session()).sealAdmin('admin.1.sig', 600)
-    expect(store.get(ADMIN_COOKIE)?.secure).toBe(false)
-  })
-
-  it('leaves Secure off when no proxy header arrived at all', async () => {
-    request.proto = null
-    ;(await session()).sealAdmin('admin.1.sig', 600)
-    expect(store.get(ADMIN_COOKIE)?.secure).toBe(false)
+    const sealed = store.get('mt_admin')
+    if (sealed === undefined) throw new Error('nothing was sealed')
+    store.clear()
+    store.set('mp_admin', { ...sealed, name: 'mp_admin' })
+    expect((await session()).admin()).toBeNull()
   })
 })

@@ -1,9 +1,9 @@
 import { unstable_rethrow } from 'next/navigation'
-import type { ActionFailure } from '../../actions/result'
+import type { ActionFailure } from './action-result'
 
 /**
  * What a Server Action call that got no answer comes back as: the shape of a refusal, with the
- * status `ActionFailure` reserves for a server that could not be reached.
+ * status {@link ActionFailure} reserves for a server that could not be reached.
  *
  * It says the server did not answer and nothing more. A connection that drops after the request
  * left may have dropped after the write landed, so it cannot promise nothing changed.

@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react'
 import { signOut } from '../../actions/auth'
-import { orNoAnswer } from './no-answer'
+import { orNoAnswer } from '@repo/app-session/no-answer'
 
 const guarded = orNoAnswer(signOut)
 

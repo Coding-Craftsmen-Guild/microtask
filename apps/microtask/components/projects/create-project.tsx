@@ -5,7 +5,7 @@ import { Button } from '@repo/ui/components/button'
 import { Input } from '@repo/ui/components/input'
 import { useState, useTransition, type FormEvent } from 'react'
 import type { ActionFailure } from '../../actions/result'
-import { orNoAnswer } from '../shared/no-answer'
+import { orNoAnswer } from '@repo/app-session/no-answer'
 
 /** Props for {@link CreateProject}. */
 export interface CreateProjectProps {

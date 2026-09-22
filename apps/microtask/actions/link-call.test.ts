@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { seal } from '../lib/crypto'
+import { seal } from '@repo/app-session/crypto'
 import { payloadOf } from '../lib/principal'
 import { LINK_UNAVAILABLE_PATH } from '../lib/routes'
 import { Redirected, redirectOf } from './testing/fake-admin'

@@ -1,4 +1,4 @@
-import { appEnv } from './lib/env'
+import { appEnv } from '@repo/app-session/env'
 
 type Runtime = { readonly exit?: (code: number) => never }
 

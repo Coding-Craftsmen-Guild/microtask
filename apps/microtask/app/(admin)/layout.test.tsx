@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NO_ANSWER } from '../../components/shared/no-answer'
+import { NO_ANSWER } from '@repo/app-session/no-answer'
 
 const signOut = vi.fn<() => Promise<void>>()
 

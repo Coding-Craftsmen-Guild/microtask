@@ -1,15 +1,15 @@
 import { open, seal } from './crypto'
-import { ADMIN_COOKIE, adminFrom, payloadOf, type AdminPrincipal } from './principal'
+import { adminFrom, payloadOf, type AdminPrincipal } from './principal'
 
 /**
- * One `Set-Cookie` this app writes, with every attribute spelled out.
+ * One `Set-Cookie` an app writes, with every attribute spelled out.
  *
  * A full object rather than name-and-value plus defaults, because a cleared cookie must carry
  * the **same** attributes as the one it replaces or the browser keeps both: `Path` and `Secure`
  * are part of a cookie's identity for removal, not decoration on it.
  */
 export interface SealedCookie {
-  /** Which cookie this is: `mt_admin`, the only one this app writes (ADR 0040). */
+  /** Which cookie this is — `mt_admin` in Microtask, `mp_admin` in Macroplan (ADR 0040). */
   readonly name: string
 
   /** The sealed blob, or the empty string when this cookie is being cleared. */
@@ -21,7 +21,7 @@ export interface SealedCookie {
   /** `true` behind TLS, derived from the proxy's `x-forwarded-proto`. */
   readonly secure: boolean
 
-  /** `lax`, so an admin following a link to a task from an email arrives signed in. */
+  /** `lax`, so an admin following a link from an email arrives signed in. */
   readonly sameSite: 'lax'
 
   /** Always `/`, which is what makes the payload's confidentiality load-bearing (ADR 0032). */
@@ -31,7 +31,7 @@ export interface SealedCookie {
   readonly maxAge: number
 }
 
-/** The subset of Next's cookie store this app uses, narrowed so a test needs no request scope. */
+/** The subset of Next's cookie store an app uses, narrowed so a test needs no request scope. */
 export interface CookieJar {
   /** Reads one cookie by name, or `undefined` when the request carried none. */
   get(name: string): { readonly value: string } | undefined
@@ -40,12 +40,21 @@ export interface CookieJar {
   set(cookie: SealedCookie): void
 }
 
-/** What the session needs: a jar, the sealing key, and whether the hop is TLS. */
+/** What the session needs: a jar, which cookie to write, the sealing key, and whether the hop is TLS. */
 export interface SessionCookieOptions {
   /** The cookie store for this request. */
   readonly jar: CookieJar
 
-  /** `COOKIE_SECRET`, the key `mt_admin` is sealed under. */
+  /**
+   * The cookie this session reads and writes.
+   *
+   * A parameter rather than a constant, because it is the one part of this file that differs
+   * between the two products and it must differ: both apps may be open in one browser, and two
+   * sessions sharing a name would each clear the other's (ADR 0014).
+   */
+  readonly name: string
+
+  /** `COOKIE_SECRET`, the key the admin cookie is sealed under. */
   readonly secret: string
 
   /** Whether to mark the cookie `Secure`. */
@@ -53,21 +62,21 @@ export interface SessionCookieOptions {
 }
 
 /**
- * The admin session: three operations on `mt_admin`, and nothing else.
+ * The admin session: three operations on one cookie, and nothing else.
  *
- * There is no link half. The client surface authenticates from the token in its URL on every
- * request, so it has no session to read, seal or clear — and an admin who opens a client's link
- * to check it keeps their own session, because nothing under `/s/*` touches a cookie at all. That
- * was the reason ADR 0032 gave for a second cookie; ADR 0040 meets it by having none.
+ * There is no link half. Microtask's client surface authenticates from the token in its URL on
+ * every request, so it has no session to read, seal or clear — and an admin who opens a client's
+ * link to check it keeps their own session, because nothing under `/s/*` touches a cookie at all.
+ * That was the reason ADR 0032 gave for a second cookie; ADR 0040 meets it by having none.
  */
 export interface SessionCookies {
-  /** The admin principal every route outside `/s/*` reads, or `null`. */
+  /** The admin principal every gated route reads, or `null`. */
   admin(): AdminPrincipal | null
 
-  /** Seals `mt_admin` for exactly as long as the bearer it wraps is valid. */
+  /** Seals the admin cookie for exactly as long as the bearer it wraps is valid. */
   sealAdmin(token: string, expiresInSeconds: number): void
 
-  /** Removes `mt_admin`. */
+  /** Removes the admin cookie. */
   clearAdmin(): void
 }
 
@@ -76,8 +85,8 @@ const HTTPS = 'https'
 /**
  * Whether a request reached the app over TLS, read from the proxy that terminated it.
  *
- * `x-forwarded-proto` and not the request URL, because the app is deployed behind Coolify: the
- * hop the app itself sees is plain HTTP inside the network, so a cookie marked `Secure` from the
+ * `x-forwarded-proto` and not the request URL, because the apps are deployed behind Coolify: the
+ * hop an app itself sees is plain HTTP inside the network, so a cookie marked `Secure` from the
  * app's own view of the scheme would be marked wrongly on every request. The **first** entry of
  * the list is the client-facing hop; a chained proxy appends rather than replaces.
  *
@@ -89,7 +98,7 @@ export function secureFrom(forwardedProto: string | null): boolean {
 }
 
 /**
- * The `Set-Cookie` that removes a cookie this app sealed.
+ * The `Set-Cookie` that removes a cookie an app sealed.
  *
  * Every attribute matches the sealed cookie it replaces. `Path` is part of a cookie's identity,
  * and a browser will not let a non-`Secure` write displace a `Secure` cookie, so a clear spelled
@@ -110,13 +119,13 @@ export function clearedCookie(name: string, secure: boolean): SealedCookie {
 export function sessionCookies(options: SessionCookieOptions): SessionCookies {
   return {
     admin: () => {
-      const raw = options.jar.get(ADMIN_COOKIE)
+      const raw = options.jar.get(options.name)
       const plaintext = raw === undefined ? null : open(options.secret, raw.value)
       return plaintext === null ? null : adminFrom(plaintext)
     },
     sealAdmin: (token, expiresInSeconds) =>
       options.jar.set({
-        name: ADMIN_COOKIE,
+        name: options.name,
         value: seal(options.secret, payloadOf({ kind: 'admin', token })),
         httpOnly: true,
         secure: options.secure,
@@ -124,6 +133,6 @@ export function sessionCookies(options: SessionCookieOptions): SessionCookies {
         path: '/',
         maxAge: expiresInSeconds,
       }),
-    clearAdmin: () => options.jar.set(clearedCookie(ADMIN_COOKIE, options.secure)),
+    clearAdmin: () => options.jar.set(clearedCookie(options.name, options.secure)),
   }
 }

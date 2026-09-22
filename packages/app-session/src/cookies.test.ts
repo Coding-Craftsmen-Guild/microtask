@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { seal } from './crypto'
-import { ADMIN_COOKIE, payloadOf } from './principal'
-import { clearedCookie, secureFrom, sessionCookies, type SealedCookie } from './session-store'
+import { payloadOf } from './principal'
+import { clearedCookie, secureFrom, sessionCookies, type SealedCookie } from './cookies'
 
+const ADMIN_COOKIE = 'mt_admin'
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 const BEARER_TTL = 3600
 const STRAY = 'mt_link'
@@ -45,7 +46,7 @@ beforeEach(() => {
   jar = makeJar()
 })
 
-const cookiesFor = (secure = true) => sessionCookies({ jar, secret: SECRET, secure })
+const cookiesFor = (secure = true) => sessionCookies({ jar, name: ADMIN_COOKIE, secret: SECRET, secure })
 
 describe('the session has one cookie and no link half (ADR 0040)', () => {
   it('offers exactly the three admin operations', () => {
@@ -170,5 +171,34 @@ describe('clearedCookie', () => {
     cookiesFor(true).sealAdmin('bearer', BEARER_TTL)
     const sealed = jar.store.get(ADMIN_COOKIE)
     expect(clearedCookie(ADMIN_COOKIE, true)).toEqual({ ...sealed, value: '', maxAge: 0 })
+  })
+})
+
+describe('the cookie name is the caller’s, so two products do not share one session', () => {
+  it('reads and writes the name it was given, not a constant', () => {
+    const macroplan = sessionCookies({ jar, name: 'mp_admin', secret: SECRET, secure: true })
+    macroplan.sealAdmin('bearer', BEARER_TTL)
+    expect([...jar.store.keys()]).toEqual(['mp_admin'])
+    expect(macroplan.admin()).toEqual({ kind: 'admin', token: 'bearer' })
+    expect(jar.reads).toEqual(['mp_admin'])
+  })
+
+  it('leaves the other product’s session alone when one of them signs out', () => {
+    const microtask = sessionCookies({ jar, name: ADMIN_COOKIE, secret: SECRET, secure: true })
+    const macroplan = sessionCookies({ jar, name: 'mp_admin', secret: SECRET, secure: true })
+    microtask.sealAdmin('mt-bearer', BEARER_TTL)
+    macroplan.sealAdmin('mp-bearer', BEARER_TTL)
+    macroplan.clearAdmin()
+    expect(jar.store.get(ADMIN_COOKIE)?.maxAge).toBe(BEARER_TTL)
+    expect(jar.store.get('mp_admin')?.maxAge).toBe(0)
+  })
+
+  it('will not open one product’s cookie as the other’s, though one secret seals both', () => {
+    const microtask = sessionCookies({ jar, name: ADMIN_COOKIE, secret: SECRET, secure: true })
+    microtask.sealAdmin('mt-bearer', BEARER_TTL)
+    put(jar, ADMIN_COOKIE, jar.store.get(ADMIN_COOKIE)?.value ?? '')
+    const macroplan = sessionCookies({ jar, name: 'mp_admin', secret: SECRET, secure: true })
+    expect(macroplan.admin()).toBeNull()
+    expect(microtask.admin()).toEqual({ kind: 'admin', token: 'mt-bearer' })
   })
 })

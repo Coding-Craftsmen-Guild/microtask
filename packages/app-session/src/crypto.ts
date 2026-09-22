@@ -19,13 +19,13 @@ const keyFor = (secret: string): Buffer => createHash('sha256').update(secret, '
 /**
  * Seals a string into an authenticated AES-256-GCM blob, base64url encoded.
  *
- * Encryption and not a signature, because the payload of `mt_admin` **is** a live admin bearer and
- * the cookie is sent on every request under `Path=/`. A signed-but-readable cookie publishes that
+ * Encryption and not a signature, because the payload of the admin cookie **is** a live admin bearer
+ * and the cookie is sent on every request under `Path=/`. A signed-but-readable cookie publishes that
  * bearer to anything that can read a request — a proxy log, an error reporter, a browser
  * extension. Signing would prove integrity and this needs confidentiality as well (ADR 0032).
  *
- * The key is `sha256(secret)` rather than the secret's own bytes, so any secret at or above the 32-byte floor
- * `lib/env.ts` enforces produces exactly the 32 bytes AES-256 takes, with no
+ * The key is `sha256(secret)` rather than the secret's own bytes, so any secret at or above the
+ * 32-byte floor `env.ts` enforces produces exactly the 32 bytes AES-256 takes, with no
  * truncation of a long one and no padding of a short one.
  *
  * A fresh random IV per call, prefixed to the blob. Reusing one under GCM is catastrophic — two

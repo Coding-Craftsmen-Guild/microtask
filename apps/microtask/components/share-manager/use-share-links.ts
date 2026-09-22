@@ -3,7 +3,7 @@
 import type { NewShareLink, ShareLinkChange } from '@repo/api-client'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { ActionResult } from '../../actions/result'
-import { eachOrNoAnswer } from '../shared/no-answer'
+import { eachOrNoAnswer } from '@repo/app-session/no-answer'
 import { revokedNotice } from './labels'
 import type { Link, ShareActions } from './types'
 

@@ -1,9 +1,9 @@
 import { ApiError } from '@repo/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { seal } from '../lib/crypto'
+import { seal } from '@repo/app-session/crypto'
 import { LOGIN_REFUSED } from '../lib/login'
 import { ADMIN_COOKIE, payloadOf } from '../lib/principal'
-import { sessionCookies, type SealedCookie } from '../lib/session-store'
+import { sessionCookies, type SealedCookie } from '@repo/app-session/cookies'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 const STRAY = 'mt_link'
@@ -26,6 +26,7 @@ vi.mock('../lib/session', () => ({
             jar.set(cookie.name, cookie)
           },
         },
+        name: ADMIN_COOKIE,
         secret: SECRET,
         secure: true,
       }),
@@ -89,6 +90,7 @@ describe('signIn', () => {
     await redirectOf(signIn({ message: null }, form({ password: 'pw' })))
     const cookies = sessionCookies({
       jar: { get: (name) => jar.get(name), set: () => undefined },
+      name: ADMIN_COOKIE,
       secret: SECRET,
       secure: true,
     })

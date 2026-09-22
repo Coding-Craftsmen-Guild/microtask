@@ -3,8 +3,9 @@ import * as principal from './principal'
 import { ADMIN_COOKIE, adminFrom, linkPrincipal, payloadOf } from './principal'
 
 describe('the one cookie', () => {
-  it('names mt_admin, the only cookie this app seals', () => {
+  it('names mt_admin, the only cookie this app seals, and not Macroplan’s mp_admin', () => {
     expect(ADMIN_COOKIE).toBe('mt_admin')
+    expect(ADMIN_COOKIE).not.toBe('mp_admin')
   })
 
   it('exports no link cookie, no link lifetime and no link cookie reader, because none exists (ADR 0040)', () => {
@@ -12,28 +13,14 @@ describe('the one cookie', () => {
   })
 })
 
-describe('adminFrom', () => {
-  it('round-trips an admin principal', () => {
+describe('the admin half is re-exported from @repo/app-session, not re-implemented', () => {
+  it('round-trips an admin principal through the shared seal payload', () => {
     const admin = { kind: 'admin', token: 'admin.123.sig' } as const
     expect(adminFrom(payloadOf(admin))).toEqual(admin)
   })
 
-  it('refuses a link payload offered as an admin principal', () => {
+  it('still refuses a link payload offered as an admin principal', () => {
     expect(adminFrom(payloadOf({ kind: 'link', token: 'a' }))).toBeNull()
-  })
-
-  it.each([
-    ['a payload that is not JSON', 'not json'],
-    ['a JSON array', '[]'],
-    ['a JSON null', 'null'],
-    ['a JSON string', '"admin"'],
-    ['an object with no kind', '{"token":"a"}'],
-    ['an object with no token', '{"kind":"admin"}'],
-    ['an object with an empty token', '{"kind":"admin","token":""}'],
-    ['an object with a non-string token', '{"kind":"admin","token":7}'],
-    ['an object with an unknown kind', '{"kind":"root","token":"a"}'],
-  ])('refuses %s', (_label, raw) => {
-    expect(adminFrom(raw)).toBeNull()
   })
 })
 

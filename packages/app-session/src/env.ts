@@ -1,7 +1,7 @@
 /** The environment a config is read from: `process.env`, or a literal object in a test. */
 export type Env = Readonly<Record<string, string | undefined>>
 
-/** Everything this app needs from its environment, already validated. */
+/** Everything a Next app in this workspace needs from its environment, already validated. */
 export interface AppEnv {
   /** Origin the internal API is served from, with or without a trailing slash. */
   readonly apiBaseUrl: string
@@ -9,7 +9,7 @@ export interface AppEnv {
   /** The `x-api-key` naming this app to the API. It confers no authority (ADR 0012). */
   readonly apiKey: string
 
-  /** Key `mt_admin` is sealed under, distinct from the API's `SESSION_SECRET`; the only cookie this app seals (ADR 0040). */
+  /** Key the admin cookie is sealed under, distinct from the API's `SESSION_SECRET`; the only cookie an app seals (ADR 0040). */
   readonly cookieSecret: string
 }
 
@@ -60,11 +60,11 @@ export function readEnv(source: Env): AppEnv {
 let resolved: AppEnv | null = null
 
 /**
- * The one place in this app that reads `process.env`, memoised after the first call.
+ * The one place in this workspace that reads `process.env`, memoised after the first call.
  *
  * `n/no-process-env` is an error everywhere else and lifted for this file alone in
- * `apps/microtask/eslint.config.js`, so "which file reads the environment" is answered by the
- * lint config rather than by a comment (ADR 0012).
+ * `packages/app-session/eslint.config.js`, so "which file reads the environment" is answered by
+ * the lint config rather than by a comment (ADR 0012). No file in either app reads it at all.
  *
  * It is a **function** rather than a validated module-level constant, because `next build`
  * imports every route's whole module graph to collect its configuration, so a module-level

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NO_ANSWER } from '../../components/shared/no-answer'
+import { NO_ANSWER } from '@repo/app-session/no-answer'
 import { LOGIN_REFUSED, type SignInState } from '../../lib/login'
 
 const signIn = vi.fn<(previous: SignInState, form: FormData) => Promise<SignInState>>()

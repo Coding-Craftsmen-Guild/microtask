@@ -1,30 +1,12 @@
-import {
-  createAdminClient,
-  createLinkClient,
-  login,
-  type AdminClient,
-  type AdminSessionValue,
-  type ClientOptions,
-  type LinkClient,
-} from '@repo/api-client'
-import { appEnv } from './env'
+import { apiOptions } from '@repo/app-session/api'
+import { createAdminClient, createLinkClient, type AdminClient, type ClientOptions, type LinkClient } from '@repo/api-client'
 import { linkPrincipal, type Principal } from './principal'
 import { session } from './session'
 
+export { apiOptions, loginWith } from '@repo/app-session/api'
+
 /** Either credential's client. Which operations succeed is the API's decision, not this type's. */
 export type SessionClient = AdminClient | LinkClient
-
-/**
- * Where the API is and which app is calling, assembled from the one environment reader.
- *
- * `@repo/api-client` reads no environment variable anywhere and takes both as arguments, because
- * the service key names the *server* making the call: a client that read it for itself would be
- * usable from a browser bundle only by inlining the key into that bundle (ADR 0012).
- */
-export function apiOptions(): ClientOptions {
-  const env = appEnv()
-  return { baseUrl: env.apiBaseUrl, serviceKey: env.apiKey }
-}
 
 /**
  * Builds the client a principal is entitled to, and no other.
@@ -35,6 +17,10 @@ export function apiOptions(): ClientOptions {
  * is the confused deputy ADR 0012 exists to close: a Server Action is reachable independently of
  * the page that rendered it, so a read-only visitor could otherwise have driven a call the API
  * read as "admin".
+ *
+ * Both branches stay here rather than in `@repo/app-session`, which has the admin one only: a
+ * shared module that could mint a link client would be a share token's way into an app that has
+ * no share links (ADR 0014).
  *
  * `options` is a parameter rather than read from {@link apiOptions} inside, so a test can inject
  * a fetcher and assert what actually goes on the wire.
@@ -76,14 +62,4 @@ export async function apiForSession(audience: 'admin'): Promise<SessionClient | 
 export function apiForLink(token: string): SessionClient | null {
   const principal = linkPrincipal(token)
   return principal === null ? null : clientFor(principal, apiOptions())
-}
-
-/**
- * Exchanges the admin password for the bearer `mt_admin` wraps.
- *
- * It is the one call in this app that presents a service key with no bearer, because the bearer
- * is what it returns. Everything else in the API refuses that combination with a 401.
- */
-export function loginWith(password: string): Promise<AdminSessionValue> {
-  return login(apiOptions(), password)
 }

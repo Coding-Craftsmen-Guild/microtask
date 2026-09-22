@@ -1,5 +1,4 @@
-/** Where an admin signs in, and where every admin 401 and every sign-out lands. */
-export const LOGIN_PATH = '/login'
+export { LOGIN_PATH } from '@repo/app-session/next-path'
 
 /**
  * Where a `/s/*` route sends a holder whose link no longer resolves.
