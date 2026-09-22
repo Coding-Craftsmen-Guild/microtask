@@ -65,11 +65,11 @@ export { ItemView, PlanList, PlanListItem, PlanView } from './plan-views.js'
 export {
   CreateEpicPayload,
   CreatePlanPayload,
-  CreatePlanShareLinkPayload,
   EpicPlacementPayload,
   UpdateEpicPayload,
   UpdatePlanPayload,
 } from './plan-payloads.js'
+export { CreatePlanShareLinkPayload } from './plan-share-payloads.js'
 export {
   CreateFeaturePayload,
   CreateItemPayload,

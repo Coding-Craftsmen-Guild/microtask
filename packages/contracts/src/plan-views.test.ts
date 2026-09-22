@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { EntityId } from './document.js'
 import { LIMITS } from './limits.js'
 import { PlanManifest } from './plan.js'
-import { CreatePlanShareLinkPayload } from './plan-payloads.js'
+import { UpdateEpicPayload, UpdatePlanPayload } from './plan-payloads.js'
+import { CreatePlanShareLinkPayload } from './plan-share-payloads.js'
 import { ItemView, PlanList, PlanListItem, PlanView } from './plan-views.js'
 import { IgnoredEdge, ScheduleView, UnscheduledEntry } from './schedule-view.js'
 import { DependenciesPayload, UpdateFeaturePayload, UpdateItemPayload } from './structure-payloads.js'
@@ -45,14 +47,23 @@ describe('UpdateFeaturePayload, where undefined and null must stay distinguishab
 
   it('keeps its shape introspectable after .refine(), which the OpenAPI generator needs', () => {
     expect(Object.keys(UpdateFeaturePayload.shape)).toEqual(['name', 'estimateDays', 'pinSprint'])
-    expect(() => UpdateFeaturePayload.extend({ epicId: PlanManifest.shape.id })).not.toThrow()
+    expect(() => UpdateFeaturePayload.extend({ epicId: EntityId })).not.toThrow()
+  })
+
+  it('throws from .omit() after .refine(), so a derived schema must start from an unrefined one', () => {
+    /** Zod 4.6 refuses .omit(), .pick(), .partial() and .merge() on a refined object, at construction. */
+    expect(() => UpdateFeaturePayload.omit({ pinSprint: true })).toThrow(/refinements/u)
   })
 })
 
 describe('the other three Update*Payload schemas, refusing an empty body the same way', () => {
-  it('refuses an empty UpdateItemPayload and accepts a bare clear', () => {
-    expect(UpdateItemPayload.safeParse({}).success).toBe(false)
-    expect(UpdateItemPayload.safeParse({ estimateDays: null }).success).toBe(true)
+  it.each([
+    ['UpdatePlanPayload', UpdatePlanPayload, { name: 'Relaunch' }],
+    ['UpdateEpicPayload', UpdateEpicPayload, { colour: '#1f2a37' }],
+    ['UpdateItemPayload', UpdateItemPayload, { estimateDays: null }],
+  ] as const)('refuses an empty %s and accepts a body carrying one field', (_label, schema, oneField) => {
+    expect(schema.safeParse({}).success).toBe(false)
+    expect(schema.safeParse(oneField).success).toBe(true)
   })
 })
 
@@ -97,10 +108,10 @@ describe('PlanView versus PlanManifest, since a stored manifest must never carry
     expect(Object.keys(PlanManifest.shape)).not.toContain('schedule')
   })
 
-  it('refuses a stored manifest carrying a schedule key, which PlanManifest does not declare', () => {
+  it('strips a schedule key off a stored manifest, PlanManifest not declaring one to keep', () => {
     expect(PlanManifest.safeParse(plan()).success).toBe(true)
-    const withSchedule = plan({ schedule })
-    const parsed = PlanManifest.safeParse(withSchedule)
+    const parsed = PlanManifest.safeParse(plan({ schedule }))
+    expect(parsed.success).toBe(true)
     expect(parsed.success && 'schedule' in parsed.data).toBe(false)
   })
 })
@@ -152,6 +163,12 @@ describe('CreatePlanShareLinkPayload, which takes no scope because a plan has ex
   })
 })
 
+/**
+ * Nothing here reads `@repo/schedule`: this package may not depend on it, so these assertions pin
+ * these schemas' own members and spellings and cannot notice the package's diverging. The two are
+ * compared where both may be imported — `apps/api`'s `agreement.test.ts`, Task 17, which asserts
+ * `schedule()` called on the fixture manifest deep-equals the `schedule` block of the plan response.
+ */
 describe('ScheduleView, the schedule as it crosses the wire', () => {
   it('parses a schedule with one span, one cycle, one unscheduled entry and one ignored edge', () => {
     const view = {
@@ -172,16 +189,20 @@ describe('ScheduleView, the schedule as it crosses the wire', () => {
     }
     const parsed = ScheduleView.safeParse(view)
     expect(parsed.success).toBe(true)
-    expect(parsed.success && parsed.data.spans).toHaveLength(1)
+    if (!parsed.success) return
+    expect(parsed.data.cycles).toHaveLength(0)
+    expect(parsed.data.unscheduled).toHaveLength(0)
+    expect(parsed.data.ignoredEdges).toHaveLength(1)
+    expect(parsed.data.spans).toHaveLength(1)
   })
 
-  it('mirrors @repo/schedule: UnscheduledReason has exactly no-estimate and in-cycle, no more', () => {
+  it('declares UnscheduledReason as exactly no-estimate and in-cycle, no more', () => {
     expect(UnscheduledEntry.safeParse({ id: ID, reason: 'no-estimate' }).success).toBe(true)
     expect(UnscheduledEntry.safeParse({ id: ID, reason: 'in-cycle' }).success).toBe(true)
     expect(UnscheduledEntry.safeParse({ id: ID, reason: 'blocked' }).success).toBe(false)
   })
 
-  it('mirrors @repo/schedule: IgnoredEdge names featureId and dependsOnId, not any other spelling', () => {
+  it('names IgnoredEdge’s fields featureId and dependsOnId, not any other spelling', () => {
     expect(Object.keys(IgnoredEdge.shape)).toEqual(['featureId', 'dependsOnId'])
   })
 })

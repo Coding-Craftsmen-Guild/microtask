@@ -6,6 +6,10 @@ import { EstimateDays, Position, SprintIndex } from './plan.js'
 /**
  * The body of the route that creates a feature on a rail.
  *
+ * This file's side of the payload seam is everything that sits on a rail — features and items, and
+ * so the estimates, pins, dependencies and descriptions only they carry; a plan's own settings and
+ * its rails are `plan-payloads.ts`, and a seat on a plan is `plan-share-payloads.ts`.
+ *
  * `estimateDays` and `pinSprint` are each nullable and optional: a feature is usually created
  * with neither, so both may be left off the body, and `null` is there for a caller that wants to
  * say "no estimate yet" or "no pin" explicitly rather than by omission.
@@ -28,6 +32,13 @@ export const CreateFeaturePayload = z
  * `undefined` and `null` differ on `estimateDays` and `pinSprint`: omitting either leaves it as
  * it was, `null` clears it. Collapsing the two into one optional would leave "clear it" with no
  * spelling of its own.
+ *
+ * The `.refine()` below is what the empty body costs: on `zod@4.6`, a refined object keeps `.shape`
+ * and `.extend()` — which is what the OpenAPI generator walks — but `.omit()`, `.pick()`,
+ * `.partial()` and `.merge()` all throw, and they throw **at construction**, so the failure lands
+ * at import time rather than on a parse. Anything needing those four must be derived from the
+ * unrefined object and refined afterwards; this repo's own idiom is exactly the shape that would
+ * trip on it, `ProjectListItem` in `views.ts` being `ProjectView.omit({ shareLinks: true })`.
  */
 export const UpdateFeaturePayload = z
   .object({

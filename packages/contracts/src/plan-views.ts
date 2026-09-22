@@ -3,7 +3,14 @@ import { EntityId, EntityName } from './document.js'
 import { IsoDate, PlanItem, PlanManifest, Timezone } from './plan.js'
 import { ScheduleView } from './schedule-view.js'
 
-/** A plan and the schedule derived from it, which is never stored (spec §3.4). */
+/**
+ * A plan and the schedule derived from it, which is never stored (spec §3.4).
+ *
+ * `shareLinks` is **optional** because an admin-only block a caller is refused is absent rather
+ * than empty (ADR 0013): one handler serves an admin and a link holder, so a plan handed to a link
+ * principal must not carry a field only an admin may see — and an empty array would not do, since
+ * it states that a plan has no seats, which is a different sentence from "you were not told".
+ */
 export const PlanView = PlanManifest.extend({
   epics: PlanManifest.shape.epics.readonly(),
   features: PlanManifest.shape.features.readonly(),
