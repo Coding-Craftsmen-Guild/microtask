@@ -2324,7 +2324,7 @@ Two rows are deferred by design and named in "What phase 1 does not ship". Every
 ## Out of scope, found during phase 1 and worth its own task
 
 The `Conflict` an index write raises **echoes the colliding share token**, and `failedOutcome` puts an
-`AppError`\s message into the import response body. Both predate Macroplan and both sit behind
+`AppError`'s message into the import response body. Both predate Macroplan and both sit behind
 `workspace:import`, which is admin-only — so this is not a link-holder disclosure. But it is exactly
 the leak [ADR 0033](../../adr/0033-list-ships-no-share-tokens.md) is about, and `link-checks.ts` goes
 out of its way to avoid echoing a token for that reason. Phase 1 does not touch it: the consolidation
