@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Principal, Role, Scope } from '@repo/kernel'
+import type { Principal, ProjectScope, Role } from '@repo/kernel'
 import type { DocumentJson } from '../entities/document.js'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
@@ -50,10 +50,10 @@ const EVERY_NAME = [
 
 const INSIDE_A_TASK_SCOPE = [PROJECT_NAME, MY_TASK_NAME] as const
 
-const projectScope = (projectId: string): Scope => ({ kind: 'project', projectId })
-const taskScope = (taskId: string): Scope => ({ kind: 'task', projectId: PROJECT, taskId })
+const projectScope = (projectId: string): ProjectScope => ({ kind: 'project', projectId })
+const taskScope = (taskId: string): ProjectScope => ({ kind: 'task', projectId: PROJECT, taskId })
 
-const link = (token: string, role: Role, scope: Scope): ShareLink => ({
+const link = (token: string, role: Role, scope: ProjectScope): ShareLink => ({
   token,
   name: `Seat ${token}`,
   role,

@@ -1,4 +1,4 @@
-import type { IdGenerator, Scope } from '@repo/kernel'
+import type { IdGenerator, ProjectScope } from '@repo/kernel'
 import type { TaskEntry } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import type { TaskDocument } from '../entities/task.js'
@@ -35,7 +35,7 @@ function mint(project: ConvertedProject, ids: IdGenerator): Minted {
   }
 }
 
-const movedScope = (scope: Scope, minted: Minted): Scope =>
+const movedScope = (scope: ProjectScope, minted: Minted): ProjectScope =>
   scope.kind === 'project'
     ? { kind: 'project', projectId: minted.projectId }
     : {

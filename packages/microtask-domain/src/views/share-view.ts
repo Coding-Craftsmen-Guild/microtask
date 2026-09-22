@@ -1,4 +1,4 @@
-import type { Role, Scope } from '@repo/kernel'
+import type { ProjectScope, Role } from '@repo/kernel'
 import type { Folder } from '../entities/folder.js'
 import type { ProjectManifest, TaskEntry } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
@@ -14,7 +14,7 @@ import { principalOf, visibleFolders, visibleTasks } from './view-mapper.js'
  */
 export interface ShareView {
   readonly role: Role
-  readonly scope: Scope
+  readonly scope: ProjectScope
   readonly project: { readonly id: string; readonly name: string }
   readonly folders: readonly Folder[]
   readonly tasks: readonly TaskEntry[]

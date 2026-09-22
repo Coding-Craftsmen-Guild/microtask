@@ -1,5 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import type { Clock, Role, Scope } from '@repo/kernel'
+import type { Clock, ProjectScope, Role } from '@repo/kernel'
 import { ShareIndex, type ProjectManifest, type ShareLink } from '@repo/microtask-domain'
 import { MemoryProjectStore, manifest, STAMP } from '@repo/microtask-domain/testing'
 import { describe, expect, it } from 'vitest'
@@ -21,7 +21,7 @@ const SERVICE_KEYS = new Map([
 
 const clock: Clock = { now: () => STAMP }
 
-const link = (token: string, role: Role, scope: Scope): ShareLink => ({
+const link = (token: string, role: Role, scope: ProjectScope): ShareLink => ({
   token,
   name: 'A seat',
   role,

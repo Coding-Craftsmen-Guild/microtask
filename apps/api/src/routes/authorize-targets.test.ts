@@ -3,7 +3,50 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { ACTION_DECISIONS, type CapabilityAction } from '@repo/contracts'
-import { ACTIONS } from '@repo/kernel'
+import { ACTIONS, type Action } from '@repo/kernel'
+
+/**
+ * The Macroplan actions the kernel declares before any route exists to reach them.
+ *
+ * Task 2 widened `ACTIONS` with these twenty-four; the routes that gate them land in Tasks 15, 16
+ * and 16b, and each of those empties its own rows out of this set. Task 17 asserts the set is
+ * empty, which is what stops it outliving the debt it records — a pending list is visible and
+ * self-clearing where a deleted assertion would be permanent and silent.
+ *
+ * Written out one by one rather than matched by prefix: a `plan:`/`epic:`/`feature:`/`item:` rule
+ * would silently swallow the next Macroplan action somebody adds without a route, and the whole
+ * value of this list is that adding one fails here until it is either gated or named.
+ *
+ * It is not a hole for the product it was not written for. The assertion below subtracts this set
+ * and nothing else, so a **Microtask** action losing its gate still fails; and an action named
+ * here that has since acquired a gate fails too, rather than sitting on the list forever.
+ */
+const PENDING_ROUTES: ReadonlySet<Action> = new Set([
+  'plan:read',
+  'plan:rename',
+  'plan:retime',
+  'plan:delete',
+  'epic:create',
+  'epic:rename',
+  'epic:delete',
+  'epic:reorder',
+  'epic:bind',
+  'feature:create',
+  'feature:rename',
+  'feature:estimate',
+  'feature:delete',
+  'feature:place',
+  'feature:depend',
+  'item:create',
+  'item:rename',
+  'item:estimate',
+  'item:describe',
+  'item:delete',
+  'item:place',
+  'item:link',
+  'workspace:list-plans',
+  'workspace:create-plan',
+])
 
 const ROUTES = join(dirname(fileURLToPath(import.meta.url)), 'microtask')
 
@@ -68,7 +111,10 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
 
   it('leaves only the action whose gate names no literal to read: workspace:search', () => {
     const gated = new Set(gates().map((gate) => gate.action))
-    expect(ACTIONS.filter((action) => !gated.has(action))).toEqual(['workspace:search'])
+    expect([...PENDING_ROUTES].filter((action) => gated.has(action))).toEqual([])
+    expect(
+      ACTIONS.filter((action) => !gated.has(action) && !PENDING_ROUTES.has(action)),
+    ).toEqual(['workspace:search'])
   })
 
   it('finds workspace:import gated on the workspace, which is the target its row records', () => {

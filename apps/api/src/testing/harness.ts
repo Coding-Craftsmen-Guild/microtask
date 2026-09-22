@@ -1,5 +1,5 @@
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import type { Clock, Role, Scope } from '@repo/kernel'
+import type { Clock, ProjectScope, Role } from '@repo/kernel'
 import { ShareIndex, type ProjectManifest, type ShareLink } from '@repo/microtask-domain'
 import {
   MemoryProjectStore,
@@ -94,7 +94,7 @@ export const tickingClock = (): Clock => {
   }
 }
 
-const link = (token: string, role: Role, scope: Scope): ShareLink => ({
+const link = (token: string, role: Role, scope: ProjectScope): ShareLink => ({
   token,
   name: 'A seat',
   role,

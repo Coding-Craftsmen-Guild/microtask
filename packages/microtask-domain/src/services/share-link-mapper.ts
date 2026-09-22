@@ -1,4 +1,4 @@
-import { Invalid, NotFound, type Role, type Scope } from '@repo/kernel'
+import { Invalid, NotFound, type ProjectScope, type Role } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import { pickTask } from './task-mapper.js'
@@ -11,7 +11,7 @@ import { pickTask } from './task-mapper.js'
  * without first assembling a whole request it does not have yet.
  *
  * Both members spell `| undefined` rather than relying on the `?` alone, because under
- * `exactOptionalPropertyTypes` a validated body infers `scope?: Scope | undefined` and would
+ * `exactOptionalPropertyTypes` a validated body infers `scope?: ProjectScope | undefined` and would
  * otherwise not be assignable here. Present-and-undefined means the same thing as absent for
  * both of them.
  */
@@ -26,7 +26,7 @@ export interface ScopeRequest {
    * another; task is therefore the default and the wider scope is the one that has to be asked
    * for by name (ADR 0011).
    */
-  readonly scope?: Scope | undefined
+  readonly scope?: ProjectScope | undefined
 }
 
 /** What a caller asks for when it mints a share link. */
@@ -49,7 +49,7 @@ export function pickLink(manifest: ProjectManifest, token: string): ShareLink {
 }
 
 /** The scope a request asks for, defaulting to the task it names rather than to the project. */
-export function requestedScope(projectId: string, request: ScopeRequest): Scope {
+export function requestedScope(projectId: string, request: ScopeRequest): ProjectScope {
   if (request.scope !== undefined) return request.scope
   if (request.taskId === undefined) throw new Invalid('A share link needs a task or a scope')
   return { kind: 'task', projectId, taskId: request.taskId }
@@ -62,7 +62,7 @@ export function requestedScope(projectId: string, request: ScopeRequest): Scope 
  * scoped into another project would otherwise sit in this manifest, resolve through this
  * project's tokens, and hand its holder a scope no check here had ever agreed to (ADR 0011).
  */
-export function assertContained(manifest: ProjectManifest, scope: Scope): void {
+export function assertContained(manifest: ProjectManifest, scope: ProjectScope): void {
   if (scope.projectId !== manifest.id) {
     throw new Invalid('A share link cannot be scoped outside its project')
   }
@@ -124,7 +124,7 @@ export function withLink(
 export function newLink(
   token: string,
   request: ShareLinkRequest,
-  scope: Scope,
+  scope: ProjectScope,
   stamp: string,
 ): ShareLink {
   return {

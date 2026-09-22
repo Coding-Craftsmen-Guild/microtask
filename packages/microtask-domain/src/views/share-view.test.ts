@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Role, Scope } from '@repo/kernel'
+import type { ProjectScope, Role } from '@repo/kernel'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import { folder, manifest, taskEntry, STAMP } from '../testing/fixtures.js'
@@ -25,10 +25,10 @@ const OWN_TASK = 'shr_ptarmigan_owntaskonly'
 const SIBLING_TASK = 'shr_ptarmigan_siblingtask'
 const OTHER_PROJECT = 'shr_ptarmigan_otherproject'
 
-const projectScope = (projectId: string): Scope => ({ kind: 'project', projectId })
-const taskScope = (taskId: string): Scope => ({ kind: 'task', projectId: PROJECT, taskId })
+const projectScope = (projectId: string): ProjectScope => ({ kind: 'project', projectId })
+const taskScope = (taskId: string): ProjectScope => ({ kind: 'task', projectId: PROJECT, taskId })
 
-const link = (token: string, role: Role, scope: Scope): ShareLink => ({
+const link = (token: string, role: Role, scope: ProjectScope): ShareLink => ({
   token,
   name: `Seat ${token}`,
   role,
