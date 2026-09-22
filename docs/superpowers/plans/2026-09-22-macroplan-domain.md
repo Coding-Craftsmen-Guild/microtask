@@ -81,7 +81,7 @@ Stated so a reviewer does not read an absence as an omission.
 ```
 packages/kernel/src/
   storage/contained.ts          MOVED here from microtask-domain; both domains build paths
-  access/action.ts              + 19 macroplan actions
+  access/action.ts              + 24 macroplan actions
   access/scope.ts               + { kind: 'plan', planId }
   access/target.ts              + plan · epic · feature · item, each carrying planId alone
   access/policy.ts              grants widened; inScope rewritten scope-first;
@@ -92,7 +92,7 @@ packages/kernel/src/
 packages/contracts/src/
   limits.ts                     + 6 collection caps, + 3 value caps
   share-link.ts                 Scope gains the plan variant
-  capabilities.ts               ROWS gains 19; CapabilityTarget gains 4
+  capabilities.ts               ROWS gains 24; CapabilityTarget gains 4
   plan.ts                       IsoDate · Timezone · EstimateDays · EpicBinding
                                 PlanEpic · PlanFeature · PlanItem · PlanManifest · ItemDocument
   schedule-view.ts              the wire form of a ScheduleResult
@@ -170,8 +170,8 @@ can disagree with them in one place rather than hunting them through twenty-two 
 | §10 wants a "named problem code" for exceeding a cap | `invalid` (422), with a message naming the limit — the code `assertWithin` already produces | A new problem code for a refusal that is already `invalid` would give one failure two names depending on which product produced it |
 | Property tests with no `fast-check` in the workspace | A seeded generator in `packages/schedule/src/testing/arbitrary.ts` | No new dependency, and a failing seed is printed so the case can be pinned as a literal regression test. The cost is no shrinking; state it in the file's TSDoc |
 | One `QueueLock` for both products | Yes — a Macroplan write serialises behind a Microtask write | Every write in this API is already serial (ADR 0006), and a second lock would be a second place for the ordering rules to be got wrong |
-| Are the kernel's `GRANTS` and `capabilities()`'s `ROWS` collapsed into one table? | **No.** Both gain the nineteen actions, and the existing exhaustive agreement test is what keeps them identical | It is not a choice: `@repo/contracts` holds `@repo/kernel` as a **devDependency only**, so `node:crypto` never reaches a browser bundle, and neither package can import the other at runtime. The duplication is forced by the bundle boundary; the test — full cross product, enumerated from the kernel's own `ACTIONS` — is the consolidation |
-| One `plan:write` action, or nineteen fine-grained ones? | **Nineteen.** An earlier draft of this plan collapsed them, on the reasoning that nothing sliced the set | A role slices it. The collapse was correct only while every action was admin-only, and it stopped being correct the moment a plan could be shared — which is exactly the kind of decision that cannot be revisited once tokens encoding a role are in clients' hands |
+| Are the kernel's `GRANTS` and `capabilities()`'s `ROWS` collapsed into one table? | **No.** Both gain the twenty-four actions, and the existing exhaustive agreement test is what keeps them identical | It is not a choice: `@repo/contracts` holds `@repo/kernel` as a **devDependency only**, so `node:crypto` never reaches a browser bundle, and neither package can import the other at runtime. The duplication is forced by the bundle boundary; the test — full cross product, enumerated from the kernel's own `ACTIONS` — is the consolidation |
+| One `plan:write` action, or twenty-four fine-grained ones? | **Twenty-four.** An earlier draft of this plan collapsed them, on the reasoning that nothing sliced the set | A role slices it. The collapse was correct only while every action was admin-only, and it stopped being correct the moment a plan could be shared — which is exactly the kind of decision that cannot be revisited once tokens encoding a role are in clients' hands |
 | Is `plan:retime` separate from `plan:rename`? | **Yes** | Changing `startDate` or `sprintLengthDays` moves every derived date on the canvas; a rename moves nothing. They do not belong at the same authority |
 | Who may bind an epic to a Microtask project? | **The admin only.** `epic:bind` is in `ADMIN_ONLY_ACTIONS` | Spec §7.3 makes the binding's role the ceiling on everything a link holder reaches in Microtask. A holder who could re-role a binding could raise their own ceiling, and every bound in that section would be decoration |
 | Does the token index move, or does Macroplan get its own? | **Moves to `@repo/kernel`, generalised to `{product, containerId}`** | A bearer is an opaque string: the index is what *tells* you which product owns it. Two indexes would mean asking both on every request, which is the drift that consolidating exists to prevent — and a token held by a project and a plan at once would be undetectable |
@@ -233,7 +233,7 @@ these grants are decided here or they are decided against links already issued (
 Only `planId` on each — a scope is plan-wide, so no rule can turn on an `epicId`, and a field no rule
 reads is a field that will one day be compared wrongly.
 
-`ACTIONS` gains nineteen. An earlier draft of this plan had **one** `plan:write` covering every
+`ACTIONS` gains twenty-four. An earlier draft of this plan had **one** `plan:write` covering every
 mutation, on the reasoning that nothing sliced it. A role slices it, so it is un-collapsed:
 
 ```ts
@@ -299,7 +299,7 @@ The cross-product refusal falls out of this and is not a special case: a `projec
       - a plan-scoped `manage` holder is cleared for all four `share:*` actions
       - **no link role reaches `epic:bind`**, at any scope — the ceiling test
       - `workspace:list-plans` and `workspace:create-plan` are refused to every link role at every
-        scope, and an admin is cleared for all nineteen
+        scope, and an admin is cleared for all twenty-four
 - [ ] **Step 2: run them and watch them fail.** `pnpm --filter @repo/kernel test`.
 - [ ] **Step 3: make the four edits.** Watch `max-lines-per-function` on `inScope` — four branches is
       a table, not a chain of `if`s.
@@ -309,7 +309,7 @@ The cross-product refusal falls out of this and is not a special case: a `projec
 - [ ] **Step 5: the gate**, then commit
       `"Teach the policy that a plan is not a project with the same id"`.
 
-### Task 2b: `capabilities()` learns the same nineteen
+### Task 2b: `capabilities()` learns the same twenty-four
 
 The kernel's grants and the UI's projection are two encodings of one fact. They cannot be collapsed —
 `@repo/contracts` holds `@repo/kernel` as a **devDependency only**, so that `node:crypto` never
@@ -319,7 +319,7 @@ fail the moment Task 2 lands, and that failure is the design working.
 
 **Files:**
 - Modify: `packages/contracts/src/share-link.ts` — `Scope` gains the `plan` variant
-- Modify: `packages/contracts/src/capabilities.ts` — `ROWS` gains nineteen, `CapabilityTarget` gains
+- Modify: `packages/contracts/src/capabilities.ts` — `ROWS` gains twenty-four, `CapabilityTarget` gains
   `'plan' | 'epic' | 'feature' | 'item'`
 - Modify: `packages/contracts/src/capabilities.test.ts` — `TARGETS` and `SCOPES` widen
 
@@ -331,13 +331,13 @@ are `'admin'`.
 
 - [ ] **Step 1: run the existing agreement test and watch it fail.**
       `pnpm --filter @repo/kernel build && pnpm --filter @repo/contracts test`
-      Expected: a failure naming the nineteen actions the kernel declares and `ROWS` does not. **Do
+      Expected: a failure naming the twenty-four actions the kernel declares and `ROWS` does not. **Do
       not skip this step** — seeing the test catch them unaided is the only proof it would catch the
       twentieth.
 - [ ] **Step 2: widen `TARGETS` and `SCOPES`** in the test, and extend `targetIn` to build a plan,
       epic, feature and item target from a plan scope. The cross product grows from
       `3 roles × 2 scopes × 28 actions × 6 targets` to `3 × 3 × 47 × 10`; it is still a loop.
-- [ ] **Step 3: add the `plan` variant to the contracts `Scope`** and the nineteen `ROWS`.
+- [ ] **Step 3: add the `plan` variant to the contracts `Scope`** and the twenty-four `ROWS`.
 - [ ] **Step 4: run the suite.** Green — `capabilities()` and `can()` now agree on every tuple,
       plan scope included. Spec §10 names this as the phase gate's third half.
 - [ ] **Step 5: assert `@repo/kernel` is still absent from `dependencies`** — the existing test does
@@ -1985,7 +1985,7 @@ bootstrap unreachable. Mirror `microtask/shares/handlers.ts` exactly.
 - Create: `docs/adr/0053-a-plan-is-shared-at-plan-scope.md`
 - Create: `docs/adr/0054-one-token-index-identity-stays-a-capability.md`
 - Modify: `docs/adr/0038-capabilities-role-and-scope.md` — an amendment noting the plan scope and the
-  widened cross product, since that ADR's agreement argument is what now covers nineteen more actions
+  widened cross product, since that ADR's agreement argument is what now covers twenty-four more actions
 - Modify: `docs/superpowers/specs/2026-09-22-macroplan-design.md` — §11's table marks 0048–0051, 0053
   and 0054 written and leaves 0052 to phase 4
 
