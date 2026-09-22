@@ -1,0 +1,187 @@
+import { describe, expect, it } from 'vitest'
+import { LIMITS } from './limits.js'
+import { PlanManifest } from './plan.js'
+import { CreatePlanShareLinkPayload } from './plan-payloads.js'
+import { ItemView, PlanList, PlanListItem, PlanView } from './plan-views.js'
+import { IgnoredEdge, ScheduleView, UnscheduledEntry } from './schedule-view.js'
+import { DependenciesPayload, UpdateFeaturePayload, UpdateItemPayload } from './structure-payloads.js'
+
+const ulid = (seed: number): string => `01M240ERCRWWCN16Q5AH${String(seed).padStart(6, '0')}`
+
+const ID = ulid(1)
+const STAMP = '2026-09-10T00:00:00.000Z'
+
+const plan = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  id: ID,
+  name: 'Launch',
+  startDate: '2026-01-05',
+  sprintLengthDays: 10,
+  timezone: 'UTC',
+  epics: [],
+  features: [],
+  items: [],
+  shareLinks: [],
+  createdAt: STAMP,
+  updatedAt: STAMP,
+  ...over,
+})
+
+describe('UpdateFeaturePayload, where undefined and null must stay distinguishable', () => {
+  it('refuses an empty body, so a pointless PATCH is a 422 rather than a stamped no-op', () => {
+    expect(UpdateFeaturePayload.safeParse({}).success).toBe(false)
+  })
+
+  it('parses an explicit clear and carries the key, proving null survives as a key', () => {
+    const parsed = UpdateFeaturePayload.safeParse({ estimateDays: null })
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && 'estimateDays' in parsed.data).toBe(true)
+  })
+
+  it('leaves the key off when estimateDays is only omitted, proving leave-alone differs from clear', () => {
+    const parsed = UpdateFeaturePayload.safeParse({ name: 'Renamed' })
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && 'estimateDays' in parsed.data).toBe(false)
+  })
+
+  it('keeps its shape introspectable after .refine(), which the OpenAPI generator needs', () => {
+    expect(Object.keys(UpdateFeaturePayload.shape)).toEqual(['name', 'estimateDays', 'pinSprint'])
+    expect(() => UpdateFeaturePayload.extend({ epicId: PlanManifest.shape.id })).not.toThrow()
+  })
+})
+
+describe('the other three Update*Payload schemas, refusing an empty body the same way', () => {
+  it('refuses an empty UpdateItemPayload and accepts a bare clear', () => {
+    expect(UpdateItemPayload.safeParse({}).success).toBe(false)
+    expect(UpdateItemPayload.safeParse({ estimateDays: null }).success).toBe(true)
+  })
+})
+
+describe('PlanListItem, which a list of 200 plans at the item cap must not carry contents in', () => {
+  it('has no epics, features or items key', () => {
+    expect(Object.keys(PlanListItem.shape)).not.toContain('epics')
+    expect(Object.keys(PlanListItem.shape)).not.toContain('features')
+    expect(Object.keys(PlanListItem.shape)).not.toContain('items')
+  })
+
+  it('parses a settings-and-counts row with no contents present', () => {
+    const row = {
+      id: ID,
+      name: 'Launch',
+      startDate: '2026-01-05',
+      sprintLengthDays: 10,
+      timezone: 'UTC',
+      epicCount: 2,
+      featureCount: 5,
+      itemCount: 30,
+      createdAt: STAMP,
+      updatedAt: STAMP,
+    }
+    expect(PlanListItem.safeParse(row).success).toBe(true)
+    expect(PlanList.safeParse({ plans: [row] }).success).toBe(true)
+  })
+})
+
+describe('PlanView versus PlanManifest, since a stored manifest must never carry a schedule', () => {
+  const schedule = { spans: [], cycles: [], unscheduled: [], ignoredEdges: [] }
+
+  it('accepts a plan view carrying its schedule', () => {
+    expect(PlanView.safeParse(plan({ schedule })).success).toBe(true)
+  })
+
+  it('refuses a plan view with no schedule, since the field is required, not optional', () => {
+    expect(PlanView.safeParse(plan()).success).toBe(false)
+  })
+
+  it('has a schedule key that PlanManifest does not, so a schedule can never land in storage', () => {
+    expect(Object.keys(PlanView.shape)).toContain('schedule')
+    expect(Object.keys(PlanManifest.shape)).not.toContain('schedule')
+  })
+
+  it('refuses a stored manifest carrying a schedule key, which PlanManifest does not declare', () => {
+    expect(PlanManifest.safeParse(plan()).success).toBe(true)
+    const withSchedule = plan({ schedule })
+    const parsed = PlanManifest.safeParse(withSchedule)
+    expect(parsed.success && 'schedule' in parsed.data).toBe(false)
+  })
+})
+
+describe('DependenciesPayload, bounded by the plan-wide edge budget', () => {
+  it('accepts a list at the cap and refuses one past it', () => {
+    const atCap = Array.from({ length: LIMITS.edgesPerPlan }, (_, i) => ulid(i))
+    const overCap = [...atCap, ulid(LIMITS.edgesPerPlan)]
+    expect(DependenciesPayload.safeParse({ dependsOn: atCap }).success).toBe(true)
+    expect(DependenciesPayload.safeParse({ dependsOn: overCap }).success).toBe(false)
+  })
+})
+
+describe('ItemView, which adds the description its own file holds', () => {
+  it('parses an item with its description alongside its own fields', () => {
+    const item = {
+      id: ID,
+      featureId: ulid(2),
+      name: 'Write the migration',
+      position: 0,
+      estimateDays: 1,
+      linkedTaskId: null,
+      createdAt: STAMP,
+      updatedAt: STAMP,
+      description: 'Backfill the new column.',
+    }
+    expect(ItemView.safeParse(item).success).toBe(true)
+  })
+})
+
+describe('CreatePlanShareLinkPayload, which takes no scope because a plan has exactly one', () => {
+  it('mints from a name and a role alone', () => {
+    expect(CreatePlanShareLinkPayload.safeParse({ name: 'Acme', role: 'view' }).success).toBe(true)
+  })
+
+  it('has no scope or planId field to state a fact the route path already states', () => {
+    expect(Object.keys(CreatePlanShareLinkPayload.shape)).toEqual(['name', 'role'])
+  })
+
+  it('strips a scope or planId a caller sends anyway, rather than accepting a second statement', () => {
+    const parsed = CreatePlanShareLinkPayload.parse({
+      name: 'Acme',
+      role: 'view',
+      scope: { kind: 'plan', planId: ID },
+      planId: ID,
+    })
+    expect(parsed).not.toHaveProperty('scope')
+    expect(parsed).not.toHaveProperty('planId')
+  })
+})
+
+describe('ScheduleView, the schedule as it crosses the wire', () => {
+  it('parses a schedule with one span, one cycle, one unscheduled entry and one ignored edge', () => {
+    const view = {
+      spans: [{ id: ID, startDay: 0, endDay: 3 }],
+      cycles: [{ featureIds: [ID, ulid(2)] }],
+      unscheduled: [{ id: ulid(3), reason: 'no-estimate' }],
+      ignoredEdges: [{ featureId: ulid(4), dependsOnId: ulid(5) }],
+    }
+    expect(ScheduleView.safeParse(view).success).toBe(true)
+  })
+
+  it('names an ignored edge as a fourth conflict channel, distinct from a cycle or an unscheduled entry', () => {
+    const view = {
+      spans: [{ id: ID, startDay: 0, endDay: 1 }],
+      cycles: [],
+      unscheduled: [],
+      ignoredEdges: [{ featureId: ID, dependsOnId: ulid(2) }],
+    }
+    const parsed = ScheduleView.safeParse(view)
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.spans).toHaveLength(1)
+  })
+
+  it('mirrors @repo/schedule: UnscheduledReason has exactly no-estimate and in-cycle, no more', () => {
+    expect(UnscheduledEntry.safeParse({ id: ID, reason: 'no-estimate' }).success).toBe(true)
+    expect(UnscheduledEntry.safeParse({ id: ID, reason: 'in-cycle' }).success).toBe(true)
+    expect(UnscheduledEntry.safeParse({ id: ID, reason: 'blocked' }).success).toBe(false)
+  })
+
+  it('mirrors @repo/schedule: IgnoredEdge names featureId and dependsOnId, not any other spelling', () => {
+    expect(Object.keys(IgnoredEdge.shape)).toEqual(['featureId', 'dependsOnId'])
+  })
+})

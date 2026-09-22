@@ -55,6 +55,32 @@ export {
 } from './plan.js'
 export { SearchResult, SearchResults } from './search.js'
 export {
+  IgnoredEdge,
+  ScheduleCycle,
+  ScheduleSpan,
+  ScheduleView,
+  UnscheduledEntry,
+} from './schedule-view.js'
+export { ItemView, PlanList, PlanListItem, PlanView } from './plan-views.js'
+export {
+  CreateEpicPayload,
+  CreatePlanPayload,
+  CreatePlanShareLinkPayload,
+  EpicPlacementPayload,
+  UpdateEpicPayload,
+  UpdatePlanPayload,
+} from './plan-payloads.js'
+export {
+  CreateFeaturePayload,
+  CreateItemPayload,
+  DependenciesPayload,
+  DescriptionPayload,
+  FeaturePlacementPayload,
+  ItemPlacementPayload,
+  UpdateFeaturePayload,
+  UpdateItemPayload,
+} from './structure-payloads.js'
+export {
   FolderList,
   ProjectList,
   ProjectListItem,
