@@ -8,8 +8,10 @@ import {
   PlanItem,
   PlanManifest,
   RailColour,
+  Timezone,
 } from './plan.js'
-import { LIMITS, MAX_ESTIMATE_DAYS } from './limits.js'
+import { PlanShareLink } from './share-link.js'
+import { LIMITS, MAX_ESTIMATE_DAYS, MAX_ITEM_DESCRIPTION_BYTES } from './limits.js'
 
 const ulid = (seed: number): string => `01M240ERCRWWCN16Q5AH${String(seed).padStart(6, '0')}`
 
@@ -152,9 +154,79 @@ describe('fields phase 4 fills in without a migration', () => {
   })
 })
 
+describe('a plan seat reaches a plan, and no seat of another shape reaches one', () => {
+  const PROJECT_SCOPE = { kind: 'project', projectId: ID }
+  const TASK_SCOPE = { kind: 'task', projectId: ID, taskId: ulid(2) }
+
+  it('accepts the plan-scoped seat, which is the only seat a plan has room for', () => {
+    expect(PlanShareLink.safeParse(shareLink()).success).toBe(true)
+  })
+
+  it.each([
+    ['project-scoped', PROJECT_SCOPE],
+    ['task-scoped', TASK_SCOPE],
+  ])('refuses a %s seat, a plan holding no project and no task', (_label, scope) => {
+    expect(PlanShareLink.safeParse(shareLink({ scope })).success).toBe(false)
+  })
+
+  it.each([
+    ['project-scoped', PROJECT_SCOPE],
+    ['task-scoped', TASK_SCOPE],
+  ])('refuses a %s seat inside shareLinks, where a manifest is parsed', (_label, scope) => {
+    const manifest = manifestWith({ shareLinks: [shareLink({ scope })] })
+    expect(PlanManifest.safeParse(manifest).success).toBe(false)
+  })
+
+  it('accepts a renamed-to-empty seat, UpdateShareLinkPayload permitting one', () => {
+    expect(PlanShareLink.safeParse(shareLink({ name: '' })).success).toBe(true)
+    const manifest = manifestWith({ shareLinks: [shareLink({ name: '' })] })
+    expect(PlanManifest.safeParse(manifest).success).toBe(true)
+  })
+})
+
+describe('Timezone, the one schema here with a runtime check behind it', () => {
+  it.each(['UTC', 'Europe/Belgrade', 'America/Argentina/Buenos_Aires'])(
+    'accepts %s, a zone this runtime resolves',
+    (value) => {
+      expect(Timezone.safeParse(value).success).toBe(true)
+    },
+  )
+
+  it('refuses a zone Intl cannot resolve, the refusal being the refinement and not a length', () => {
+    const bogus = 'Mars/Phobos'
+    expect(bogus.length).toBeLessThanOrEqual(64)
+    expect(Timezone.safeParse(bogus).success).toBe(false)
+  })
+
+  it('refuses it inside a manifest too, so a plan cannot be stored unresolvable', () => {
+    expect(PlanManifest.safeParse(manifestWith({ timezone: 'Mars/Phobos' })).success).toBe(false)
+  })
+})
+
 describe('ItemDocument', () => {
+  const doc = (description: string): unknown => ({
+    id: ID,
+    description,
+    createdAt: STAMP,
+    updatedAt: STAMP,
+  })
+
   it('parses a description alongside its id and stamps', () => {
     const parsed = ItemDocument.safeParse({ id: ID, description: 'Notes', createdAt: STAMP, updatedAt: STAMP })
     expect(parsed.success).toBe(true)
+  })
+
+  it('bounds description at MAX_ITEM_DESCRIPTION_BYTES, checked exactly at the boundary', () => {
+    expect(ItemDocument.safeParse(doc('a'.repeat(MAX_ITEM_DESCRIPTION_BYTES))).success).toBe(true)
+    expect(ItemDocument.safeParse(doc('a'.repeat(MAX_ITEM_DESCRIPTION_BYTES + 1))).success).toBe(
+      false,
+    )
+  })
+
+  it('counts UTF-16 units and not bytes, which is the backstop its TSDoc says it is', () => {
+    const astral = '\u{1F600}'.repeat(MAX_ITEM_DESCRIPTION_BYTES / 2)
+    expect(astral.length).toBe(MAX_ITEM_DESCRIPTION_BYTES)
+    expect(Buffer.byteLength(astral, 'utf8')).toBeGreaterThan(MAX_ITEM_DESCRIPTION_BYTES)
+    expect(ItemDocument.safeParse(doc(astral)).success).toBe(true)
   })
 })

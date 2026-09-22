@@ -63,11 +63,14 @@ export type PlanCountKey =
   | 'shareLinksPerPlan'
 
 /**
- * A bound a Microtask archive can exceed, which is every bound that is not a plan's.
+ * The Microtask half of {@link CountLimitKey}: every collection bound that is not a plan's.
  *
- * `Exclude` rather than a written list, so a **new** Microtask cap still breaks every exhaustive
- * map over this type until it is given a meaning — which is the property the import refusals rely
- * on — while a new *plan* cap does not, because no import can reach one. Macroplan has no import
- * and the design spec records that it needs none.
+ * The complement of {@link PlanCountKey}, so between the two every count bound is claimed by
+ * exactly one product and neither half can be read as "the ones I happened to need".
+ *
+ * `Exclude` rather than a written list, and that is the load-bearing part: a **new Microtask** cap
+ * lands in this type the moment it lands in `LIMITS`, and so breaks every exhaustive map over it
+ * until each has been told what the new cap means. A new **plan** cap does not, because a plan cap
+ * is no business of a consumer that serves only Microtask.
  */
-export type ImportCountKey = Exclude<CountLimitKey, PlanCountKey>
+export type MicrotaskCountKey = Exclude<CountLimitKey, PlanCountKey>

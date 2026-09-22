@@ -1,5 +1,5 @@
 import { Invalid } from '@repo/kernel'
-import { LIMITS, type CountLimitKey, type LimitKey } from '@repo/contracts'
+import { LIMITS, type MicrotaskCountKey } from '@repo/contracts'
 
 export {
   LIMITS,
@@ -9,19 +9,12 @@ export {
   type LimitKey,
 } from '@repo/contracts'
 
-const LABEL: Readonly<Record<LimitKey, string>> = {
-  nameLength: 'name length',
+const LABEL: Readonly<Record<MicrotaskCountKey, string>> = {
   tabsPerTask: 'tabs in this task',
   tasksPerProject: 'tasks in this project',
   foldersPerProject: 'folders in this project',
   shareLinksPerProject: 'share links for this project',
   projectsPerProduct: 'projects',
-  plansPerProduct: 'plans',
-  epicsPerPlan: 'epics in this plan',
-  featuresPerPlan: 'features in this plan',
-  itemsPerPlan: 'items in this plan',
-  edgesPerPlan: 'dependencies in this plan',
-  shareLinksPerPlan: 'share links for this plan',
 }
 
 /** Collapses whitespace, trims, and caps a display name. */
@@ -37,8 +30,16 @@ export function cleanName(value: unknown, fallback?: string): string {
   throw new Invalid('Name is required')
 }
 
-/** Throws Invalid when adding one more would exceed a bound. */
-export function assertWithin(key: CountLimitKey, current: number): void {
+/**
+ * Throws Invalid when adding one more would exceed a bound.
+ *
+ * Narrowed to Microtask's half of the count bounds, because no plan key can reach it: a
+ * `*-domain` package may not import another (ADR 0014), so `macroplan-domain` re-implements this
+ * over the same `@repo/contracts` constants rather than calling it. Typed at `CountLimitKey`,
+ * `LABEL` was obliged to carry six plan sentences no caller could ever ask for. `nameLength` is
+ * absent for the separate reason {@link cleanName} gives: it truncates, and never throws.
+ */
+export function assertWithin(key: MicrotaskCountKey, current: number): void {
   if (current >= LIMITS[key]) {
     throw new Invalid(`Too many ${LABEL[key]} — the limit is ${LIMITS[key]}`)
   }

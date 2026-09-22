@@ -42,8 +42,10 @@ export const ProjectScope = z
  * The symmetric half of {@link ProjectScope}, and narrow for the same reason: a plan's links are
  * stored in its own manifest, and a project-shaped scope arriving there would be data the schema
  * should never have accepted. A plan has exactly one shareable scope — spec §7.1 defers epic scope
- * rather than foreclosing it, and because this is a discriminated union, adding that variant later
- * invalidates no token already issued.
+ * rather than foreclosing it, and a union of one is written so that adding that variant is one more
+ * element in this array rather than a restructuring of the declaration. It buys nothing about
+ * already-issued tokens: a plain `z.object` widened into a union later would parse the data it
+ * had accepted identically, so the compatibility is in the shape of the data, not in this form.
  */
 export const PlanScope = z
   .discriminatedUnion('kind', [z.object({ kind: z.literal('plan'), planId: EntityId })])
@@ -69,6 +71,11 @@ export const ShareLink = z
  * the same three roles, the same `createdBy` chain that makes revocation cascade (ADR 0010). Only
  * what it reaches differs, so only that is restated — the rest is shared rather than copied, which
  * is what stops the two drifting into two different notions of a seat.
+ *
+ * `name` admits `''`, and that is load-bearing here rather than inherited from Microtask's legacy
+ * data: Macroplan reuses {@link UpdateShareLinkPayload}, which permits an empty name, so a plan
+ * seat can legitimately be renamed to nothing and a plan manifest has to be able to hold the
+ * result. Tightening it would refuse to store a seat the rename endpoint has already accepted.
  */
 export const PlanShareLink = z
   .object({ ...seat, scope: PlanScope })
