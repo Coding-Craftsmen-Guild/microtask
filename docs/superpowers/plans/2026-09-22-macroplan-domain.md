@@ -44,6 +44,7 @@ exactly, because they are load-bearing. Function bodies are not, and the tests j
 | `apps/api` loads `@repo/*` from `dist/`. A change to a package's `src` is invisible to the API suite until that package is rebuilt | ADR 0026 |
 | Files cap at 150 lines (`.tsx` at 80), functions at 50, complexity at 10, params at 4, depth at 3 | ADR 0027 |
 | TSDoc only. No other comments, no file-level `eslint-disable` | ADR 0027 |
+| TSDoc goes on **exported** declarations only — `local/tsdoc-comments-only` rejects it on a private helper, and directs rationale to `docs/adr/` or to a test's name instead. Put the reasoning in the exported block above, and let helpers speak through their names | measured: 8 lint errors in Task 7 |
 | Shared code must not import a `*-domain` package — spread `noProductImports` into every new package's `eslint.config.js` | ADR 0014 |
 | `@repo/schedule` is imported by apps, so it must never reach a node builtin, directly or transitively | ADR 0001, 0027 |
 | Every read-modify-write runs inside `lock.run`; `Lock` is not reentrant, so a method holding it calls only helpers that do not take it | ADR 0006, 0030 |
@@ -308,6 +309,67 @@ The cross-product refusal falls out of this and is not a special case: a `projec
       than re-deriving it.
 - [ ] **Step 5: the gate**, then commit
       `"Teach the policy that a plan is not a project with the same id"`.
+
+### Task 2a: each product names the scope it means
+
+**Found during Task 2, not anticipated by this plan.** Widening the kernel's `Scope` with a `plan`
+variant broke every Microtask consumer that reads `scope.projectId` without narrowing — the union no
+longer guarantees that field. These are type-only failures with no runtime behaviour change, but they
+are a genuine blast radius the plan's Task 2b did not cover, and the gate stays red until they are
+fixed.
+
+**Files:**
+- Modify: `packages/kernel/src/access/scope.ts` — two named narrowings
+- Modify: `packages/kernel/src/index.ts` — export them
+- Modify: `packages/microtask-domain/src/import/link-checks.ts` (~49–53),
+  `src/import/remint.ts` (~44), `src/services/share-link-mapper.ts` (~66),
+  `src/entities/contracts.test.ts` (~26–27), `src/export/bundle.test.ts` (~25),
+  `src/import/remint.test.ts` (~155–156)
+- Modify: `apps/api/src/routes/microtask/shares/handlers.ts` (~47), and the `RouteHandler`
+  inference cascade it causes in `routes/microtask/projects/handlers.ts` and
+  `routes/microtask/share-links/handlers.ts`
+- Modify: `apps/api/src/routes/authorize-targets.test.ts`
+
+The decision, taken here rather than at eight call sites:
+
+```ts
+/** A scope rooted at a Microtask project — the project itself, or one task inside it. */
+export type ProjectScope = Extract<Scope, { kind: 'project' | 'task' }>
+
+/** A scope rooted at a Macroplan plan. */
+export type PlanScope = Extract<Scope, { kind: 'plan' }>
+```
+
+`Scope` stays the union of everything a link can reach, because `Principal` and `can()` genuinely
+handle all of it. What every *product-specific* consumer means is one of these two, and saying so is
+better than `Extract<…>` repeated inline or a cast. A `PlanScope` that nothing imports yet is not
+speculative: it is the symmetric half, and its absence would make the next author reach for the
+inline `Extract` the narrowing exists to replace.
+
+**`authorize-targets.test.ts` needs a pending list.** It asserts every action in `ACTIONS` is reached
+by some route literal, and twenty-four Macroplan actions now exist with no routes until Tasks 15, 16
+and 16b. Give it an explicit `PENDING_ROUTES` set naming exactly those actions, with a TSDoc saying
+which tasks empty it. Task 17 asserts the set is empty. A pending list makes the debt visible and
+self-clearing; deleting the assertion would make it permanent and silent.
+
+- [ ] **Step 1: add the two types** and export them from the kernel barrel. Rebuild:
+      `pnpm --filter @repo/kernel build`. **`apps/api` and the domains load `@repo/*` from `dist/`,
+      so nothing downstream sees this until the rebuild.**
+- [ ] **Step 2: narrow the six domain sites.** Each is a signature or local annotation changing from
+      `Scope` to `ProjectScope`. **Do not add runtime guards** — these are compile-time narrowings,
+      and a thrown error where the type already excludes the case is dead code that reads as a real
+      possibility. In `remint.ts`, `movedScope`'s `else` branch stopped being exhaustive: restore
+      exhaustiveness through the narrowed type, not by adding a branch for a case that cannot occur.
+- [ ] **Step 3: narrow the API sites.** `shares/handlers.ts:47` is the root; the two other handlers
+      fail only by inference cascade and should need no edit once it is fixed. If they do, say so.
+- [ ] **Step 4: add `PENDING_ROUTES`** to `authorize-targets.test.ts`, listing exactly the 24
+      Macroplan actions, and assert the test still fails if a *Microtask* action loses its route —
+      the pending list must not become a hole for the product it was not written for.
+- [ ] **Step 5: `pnpm --filter @repo/microtask-domain test` and `pnpm --filter api test`**, both
+      green, with the same counts as before Task 2 (881 and 985).
+- [ ] **Step 6: the gate.** Green **except `@repo/contracts`**, whose agreement test Task 2b fixes.
+      Confirm that is the only failing package.
+- [ ] **Step 7: commit** `"Let each product name the scope it actually means"`.
 
 ### Task 2b: `capabilities()` learns the same twenty-four
 
@@ -2047,6 +2109,17 @@ undecided, and an ADR recording a decision that has not been taken is worse than
         `MemoryPlanStore` and `FsPlanStore`
 - [ ] **Step 6: confirm the phase-1 boundary held.** `git diff --stat main -- apps/macroplan` is
       **empty**: phase 1 ships no UI, and a single file changed there means scope crept.
+- [ ] **Step 6b: every forward ADR citation now resolves.** Code written in earlier tasks cites ADRs
+      that this task creates — `contained.ts` names ADR 0050 before ADR 0050 exists. Grep the whole
+      source tree for `ADR 00(4[89]|5[0-4])` and confirm each number has a file in `docs/adr/`. A
+      TSDoc citing an ADR that was never written is a dead reference a reader cannot follow, and it
+      is invisible until someone tries.
+- [ ] **Step 6c: `packages/kernel/src/storage/` holds more than one module, or it is flattened.**
+      Task 1 created that directory for `contained.ts` alone. The kernel's two existing
+      subdirectories (`access/`, `ports/`) each launched with five files, while its single-purpose
+      primitives (`ids.ts`, `errors.ts`, `product.ts`) sit flat — and the barrel already exports
+      `contained` in the flat-primitives group, so the directory and the export site disagree. If
+      nothing else landed in `storage/`, move it to `packages/kernel/src/contained.ts`.
 - [ ] **Step 7: confirm nothing stores a schedule.**
       `grep -rn "schedule" packages/macroplan-domain/src/entities packages/contracts/src/plan.ts`
       returns nothing. ADR 0048 is only as strong as this.
