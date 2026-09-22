@@ -1,5 +1,4 @@
-/** Every action the policy can decide. Adding one requires a policy decision. */
-export const ACTIONS = [
+const MICROTASK_ACTIONS = [
   'project:read',
   'project:rename',
   'project:delete',
@@ -27,6 +26,11 @@ export const ACTIONS = [
   'workspace:create-project',
   'workspace:import',
   'workspace:search',
+  'workspace:list-plans',
+  'workspace:create-plan',
+] as const
+
+const PLAN_ACTIONS = [
   'plan:read',
   'plan:rename',
   'plan:retime',
@@ -49,9 +53,10 @@ export const ACTIONS = [
   'item:delete',
   'item:place',
   'item:link',
-  'workspace:list-plans',
-  'workspace:create-plan',
 ] as const
+
+/** Every action the policy can decide. Adding one requires a policy decision. */
+export const ACTIONS = [...MICROTASK_ACTIONS, ...PLAN_ACTIONS] as const
 
 /** Something a principal may attempt. */
 export type Action = (typeof ACTIONS)[number]

@@ -10,8 +10,8 @@ import type {
   ImportOutcome,
   ImportShape,
   ImportWriteOutcome,
+  ProjectScope,
   Role,
-  Scope,
 } from '@repo/contracts'
 import type {
   ConflictChoice,
@@ -43,7 +43,7 @@ type ProjectResult = Decoded<typeof ImportProjectResult>
 type Preview = Decoded<typeof ImportPreview>
 type ConfirmResult = Decoded<typeof ImportConfirmResult>
 type WireChoice = Decoded<typeof ImportProjectChoice>
-type WireScope = Decoded<typeof Scope>
+type WireScope = Decoded<typeof ProjectScope>
 type WireRole = Decoded<typeof Role>
 type WireShape = Decoded<typeof ImportShape>
 type WireOutcome = Decoded<typeof ImportOutcome>

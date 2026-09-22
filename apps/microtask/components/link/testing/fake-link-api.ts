@@ -1,4 +1,4 @@
-import type { RoleValue, ScopeValue } from '@repo/contracts'
+import type { ProjectScopeValue, RoleValue } from '@repo/contracts'
 
 /** One request the fake API received, as the wire carried it. */
 export interface Received {
@@ -11,7 +11,7 @@ export interface Received {
 /** A share the fake API resolves one bearer to. */
 export interface FakeShare {
   readonly role: RoleValue
-  readonly scope: ScopeValue
+  readonly scope: ProjectScopeValue
 }
 
 /** What the fake API holds, all of it live and all of it keyed by what the wire would name. */

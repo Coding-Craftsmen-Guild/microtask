@@ -4,7 +4,7 @@ import { LIMITS } from './limits.js'
 import { Folder } from './folder.js'
 import { Progress } from './progress.js'
 import { ProjectManifest } from './project.js'
-import { Role, Scope } from './share-link.js'
+import { ProjectScope, Role } from './share-link.js'
 import { TaskDocument } from './task.js'
 
 /**
@@ -132,7 +132,7 @@ export const RevokedShareLinks = z
 export const ShareView = z
   .object({
     role: Role,
-    scope: Scope,
+    scope: ProjectScope,
     project: z.object({ id: EntityId, name: EntityName }),
     folders: ProjectManifest.shape.folders.readonly(),
     tasks: ProjectManifest.shape.tasks.readonly(),

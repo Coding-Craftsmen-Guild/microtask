@@ -1,5 +1,5 @@
 import type { Project } from '@repo/api-client'
-import type { ScopeValue } from '@repo/contracts'
+import type { ProjectScopeValue } from '@repo/contracts'
 
 /** The project. */
 export const P = '01HZZZZZZZZZZZZZZZZZZZZZP1'
@@ -36,7 +36,7 @@ const entry = (id: string, name: string, folderId: string | null, [position, don
   tabNames: ['General'],
 })
 
-const seat = (token: string, scope: ScopeValue) => ({
+const seat = (token: string, scope: ProjectScopeValue) => ({
   token,
   name: 'Client',
   role: 'write' as const,

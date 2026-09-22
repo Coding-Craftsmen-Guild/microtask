@@ -6,7 +6,9 @@ import {
   ROLES,
   can,
   type Action,
+  type PlanScope,
   type Principal,
+  type ProjectScope,
   type Role,
   type Scope,
   type Target,
@@ -26,31 +28,46 @@ const TARGETS: readonly CapabilityTarget[] = [
   'folder',
   'task',
   'tab',
+  'plan',
+  'epic',
+  'feature',
+  'item',
   'own-scope',
 ]
 
 const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const T = '01M240FB4GD6PF6V0PKZVF6FD9'
+const PL = '01M240HZ6T4K9QW8N2RXY5BCDE'
 const TOKEN = 'yjKq3Zc1vHt8Lm0Pw5Rb2Nd7'
 
-const projectScope: Scope = { kind: 'project', projectId: P }
-const taskScope: Scope = { kind: 'task', projectId: P, taskId: T }
+const projectScope: ProjectScope = { kind: 'project', projectId: P }
+const taskScope: ProjectScope = { kind: 'task', projectId: P, taskId: T }
+const planScope: PlanScope = { kind: 'plan', planId: PL }
 
 const SCOPES: readonly (readonly [string, Scope])[] = [
   ['project-scoped', projectScope],
   ['task-scoped', taskScope],
+  ['plan-scoped', planScope],
 ]
 
 const holder = (role: Role, scope: Scope): Principal => ({ kind: 'link', role, scope, token: TOKEN })
 
 const taskOf = (scope: Scope): string => (scope.kind === 'task' ? scope.taskId : T)
 
+const projectIdOf = (scope: Scope): string => (scope.kind === 'plan' ? P : scope.projectId)
+
+const planIdOf = (scope: Scope): string => (scope.kind === 'plan' ? scope.planId : PL)
+
 const targetIn = (scope: Scope, kind: CapabilityTarget): Target => {
   if (kind === 'workspace') return { kind: 'workspace' }
-  if (kind === 'project') return { kind: 'project', projectId: scope.projectId }
-  if (kind === 'folder') return { kind: 'folder', projectId: scope.projectId }
-  if (kind === 'task') return { kind: 'task', projectId: scope.projectId, taskId: taskOf(scope) }
-  if (kind === 'tab') return { kind: 'tab', projectId: scope.projectId, taskId: taskOf(scope) }
+  if (kind === 'project') return { kind: 'project', projectId: projectIdOf(scope) }
+  if (kind === 'folder') return { kind: 'folder', projectId: projectIdOf(scope) }
+  if (kind === 'task') return { kind: 'task', projectId: projectIdOf(scope), taskId: taskOf(scope) }
+  if (kind === 'tab') return { kind: 'tab', projectId: projectIdOf(scope), taskId: taskOf(scope) }
+  if (kind === 'plan') return { kind: 'plan', planId: planIdOf(scope) }
+  if (kind === 'epic') return { kind: 'epic', planId: planIdOf(scope) }
+  if (kind === 'feature') return { kind: 'feature', planId: planIdOf(scope) }
+  if (kind === 'item') return { kind: 'item', planId: planIdOf(scope) }
   return scope
 }
 
@@ -113,9 +130,9 @@ describe('capabilities agrees with can() for every role x scope x action triple'
     expect(shape('manage', projectScope)).not.toBe(shape('manage', taskScope))
   })
 
-  it('is not vacuous: role changes the answer in both scopes', () => {
+  it('is not vacuous: role changes the answer in every scope', () => {
     const distinct = SCOPES.map(([, scope]) => new Set(ROLES.map((role) => shape(role, scope))))
-    expect(distinct.map((set) => set.size)).toEqual([ROLES.length, ROLES.length])
+    expect(distinct.map((set) => set.size)).toEqual(SCOPES.map(() => ROLES.length))
   })
 
   it('answers a view link identically in both scopes, its two actions being all a task reaches', () => {

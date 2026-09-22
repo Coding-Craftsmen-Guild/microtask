@@ -3,8 +3,8 @@ import { ACTIONS, type Action } from './action.js'
 import { ROLES, type Role } from './role.js'
 import type { Principal } from './principal.js'
 import type { Scope } from './scope.js'
-import type { Target } from './target.js'
-import { ADMIN_ONLY_ACTIONS, can } from './policy.js'
+import { TARGET_KINDS, type Target } from './target.js'
+import { ADMIN_ONLY_ACTIONS, PLAN_TARGETS, PROJECT_TARGETS, can } from './policy.js'
 
 const P = '01M240ERCRWWCN16Q5AHP1FZAQ'
 const T = '01M240FB4GD6PF6V0PKZVF6FD9'
@@ -154,6 +154,13 @@ const MANAGE: readonly Action[] = [
 ]
 
 const ALLOWED: Record<Role, readonly Action[]> = { view: VIEW, write: WRITE, manage: MANAGE }
+
+describe('can — every target kind is placed', () => {
+  it('places every target kind in exactly one scope family, so a kind added and left out is unreachable rather than silently open', () => {
+    const placed = [...PROJECT_TARGETS, ...PLAN_TARGETS, 'workspace' as const]
+    expect([...placed].sort()).toEqual([...TARGET_KINDS].sort())
+  })
+})
 
 describe('can — admin', () => {
   it('permits every action', () => {

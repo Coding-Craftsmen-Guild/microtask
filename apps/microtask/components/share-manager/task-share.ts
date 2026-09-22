@@ -1,4 +1,4 @@
-import type { ScopeValue } from '@repo/contracts'
+import type { ProjectScopeValue } from '@repo/contracts'
 import type { ScopeChoice } from './types'
 
 /**
@@ -9,7 +9,7 @@ import type { ScopeChoice } from './types'
  * the project page, where the count beside Share and each task row's count already draw the same
  * line, so the number beside Share on a task page is the number on that task's row.
  */
-export const scopedToTask = (scope: ScopeValue, taskId: string): boolean =>
+export const scopedToTask = (scope: ProjectScopeValue, taskId: string): boolean =>
   scope.kind === 'task' && scope.taskId === taskId
 
 /**

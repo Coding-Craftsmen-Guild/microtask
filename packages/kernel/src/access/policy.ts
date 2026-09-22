@@ -80,8 +80,11 @@ export const ADMIN_ONLY_ACTIONS: readonly Action[] = [
 
 const TASK_SCOPE_PROJECT_ACTIONS: readonly Action[] = ['project:read']
 
-const PROJECT_TARGETS: readonly Target['kind'][] = ['project', 'folder', 'task', 'tab']
-const PLAN_TARGETS: readonly Target['kind'][] = ['plan', 'epic', 'feature', 'item']
+/** The target kinds a project or task scope may reach. */
+export const PROJECT_TARGETS: readonly Target['kind'][] = ['project', 'folder', 'task', 'tab']
+
+/** The target kinds a plan scope may reach. */
+export const PLAN_TARGETS: readonly Target['kind'][] = ['plan', 'epic', 'feature', 'item']
 
 const SCOPE_TARGETS: Readonly<Record<Scope['kind'], readonly Target['kind'][]>> = {
   project: PROJECT_TARGETS,

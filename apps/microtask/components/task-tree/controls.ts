@@ -1,4 +1,4 @@
-import { capabilities, mayReach, type Capabilities, type RoleValue, type ScopeValue } from '@repo/contracts'
+import { capabilities, mayReach, type Capabilities, type ProjectScopeValue, type RoleValue } from '@repo/contracts'
 import { ADMIN_CAPABILITIES } from '../shared/admin-capabilities'
 
 /** Which tree controls to draw. Each is a rendering answer, never a gate (ADR 0038). */
@@ -53,5 +53,5 @@ export function treeControls(can: Capabilities, foldersVisible: boolean): TreeCo
 export const ADMIN_TREE: TreeControls = treeControls(ADMIN_CAPABILITIES, true)
 
 /** The tree a share-link holder sees, from its role **and** scope — never from role alone. */
-export const linkTreeControls = (role: RoleValue, scope: ScopeValue): TreeControls =>
+export const linkTreeControls = (role: RoleValue, scope: ProjectScopeValue): TreeControls =>
   treeControls(capabilities(role, scope), mayReach(role, scope, 'project:read', 'folder'))

@@ -6,6 +6,7 @@ export type {
   CapabilityAction,
   CapabilityMinimum,
   CapabilityTarget,
+  ProjectScopeValue,
   RoleValue,
   ScopeValue,
 } from './capabilities.js'
@@ -29,6 +30,7 @@ export { Folder } from './folder.js'
 export { MAX_LISTED_TAB_NAMES, TaskEntry, TaskDocument } from './task.js'
 export {
   CreateShareLinkPayload,
+  ProjectScope,
   Role,
   Scope,
   ShareLink,

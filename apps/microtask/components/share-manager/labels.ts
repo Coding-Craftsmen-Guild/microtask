@@ -1,4 +1,4 @@
-import type { RoleValue, ScopeValue } from '@repo/contracts'
+import type { ProjectScopeValue, RoleValue } from '@repo/contracts'
 import { plural } from '../projects/summary'
 import type { ScopeChoice } from './types'
 
@@ -18,7 +18,7 @@ export const linkName = (name: string): string => (name.trim() === '' ? 'Unnamed
  * The last is real rather than defensive: deleting a task leaves a link scoped to it in the
  * manifest, and the manager has to be able to show it so it can be revoked.
  */
-export function scopeLabel(scope: ScopeValue, choices: readonly ScopeChoice[]): string {
+export function scopeLabel(scope: ProjectScopeValue, choices: readonly ScopeChoice[]): string {
   if (scope.kind === 'project') return 'Whole project'
   return choices.find((choice) => choice.value === scope.taskId)?.label ?? 'A deleted task'
 }

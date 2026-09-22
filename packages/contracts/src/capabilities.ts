@@ -1,11 +1,14 @@
 import type { z } from 'zod'
-import type { Role, Scope } from './share-link.js'
+import type { ProjectScope, Role, Scope } from './share-link.js'
 
 /** The authority a share link carries, as a value rather than as a schema. */
 export type RoleValue = z.infer<typeof Role>
 
 /** What a share link may reach, as a value rather than as a schema. */
 export type ScopeValue = z.infer<typeof Scope>
+
+/** What a Microtask share link may reach, as a value rather than as a schema. */
+export type ProjectScopeValue = z.infer<typeof ProjectScope>
 
 /**
  * Which resource an action is decided against, named relative to the caller's own scope.
@@ -16,7 +19,17 @@ export type ScopeValue = z.infer<typeof Scope>
  * is the whole reason a task-scoped `manage` holder can share and then neither list nor revoke
  * (ADR 0038).
  */
-export type CapabilityTarget = 'workspace' | 'project' | 'folder' | 'task' | 'tab' | 'own-scope'
+export type CapabilityTarget =
+  | 'workspace'
+  | 'project'
+  | 'folder'
+  | 'task'
+  | 'tab'
+  | 'plan'
+  | 'epic'
+  | 'feature'
+  | 'item'
+  | 'own-scope'
 
 /**
  * The weakest role an action needs, or `admin` for one no link role reaches.
@@ -75,6 +88,30 @@ const ROWS = {
   'workspace:create-project': { minimum: 'admin', target: 'workspace' },
   'workspace:import': { minimum: 'admin', target: 'workspace' },
   'workspace:search': { minimum: 'admin', target: 'workspace' },
+  'plan:read': { minimum: 'view', target: 'plan' },
+  'plan:rename': { minimum: 'manage', target: 'plan' },
+  'plan:retime': { minimum: 'manage', target: 'plan' },
+  'plan:delete': { minimum: 'manage', target: 'plan' },
+  'epic:create': { minimum: 'manage', target: 'epic' },
+  'epic:rename': { minimum: 'manage', target: 'epic' },
+  'epic:delete': { minimum: 'manage', target: 'epic' },
+  'epic:reorder': { minimum: 'manage', target: 'epic' },
+  'epic:bind': { minimum: 'admin', target: 'epic' },
+  'feature:create': { minimum: 'write', target: 'feature' },
+  'feature:rename': { minimum: 'write', target: 'feature' },
+  'feature:estimate': { minimum: 'write', target: 'feature' },
+  'feature:delete': { minimum: 'manage', target: 'feature' },
+  'feature:place': { minimum: 'manage', target: 'feature' },
+  'feature:depend': { minimum: 'manage', target: 'feature' },
+  'item:create': { minimum: 'write', target: 'item' },
+  'item:rename': { minimum: 'write', target: 'item' },
+  'item:estimate': { minimum: 'write', target: 'item' },
+  'item:describe': { minimum: 'write', target: 'item' },
+  'item:delete': { minimum: 'manage', target: 'item' },
+  'item:place': { minimum: 'manage', target: 'item' },
+  'item:link': { minimum: 'write', target: 'item' },
+  'workspace:list-plans': { minimum: 'admin', target: 'workspace' },
+  'workspace:create-plan': { minimum: 'admin', target: 'workspace' },
 } as const
 
 /** One of the actions {@link capabilities} answers for. */
@@ -116,13 +153,23 @@ const RANK: Readonly<Record<CapabilityMinimum, number>> = { view: 0, write: 1, m
 
 const PROJECT_ACTIONS_A_TASK_SCOPE_REACHES: readonly CapabilityAction[] = ['project:read']
 
+const PROJECT_FAMILY: readonly CapabilityTarget[] = ['project', 'folder', 'task', 'tab']
+const PLAN_FAMILY: readonly CapabilityTarget[] = ['plan', 'epic', 'feature', 'item']
+
+const FAMILY_BY_SCOPE_KIND: Readonly<Record<ScopeValue['kind'], readonly CapabilityTarget[]>> = {
+  project: PROJECT_FAMILY,
+  task: PROJECT_FAMILY,
+  plan: PLAN_FAMILY,
+}
+
 const inScope = (
   scope: ScopeValue,
   action: CapabilityAction,
   target: CapabilityTarget,
 ): boolean => {
-  if (target === 'workspace') return false
-  if (scope.kind === 'project') return true
+  if (target === 'own-scope') return true
+  if (!FAMILY_BY_SCOPE_KIND[scope.kind].includes(target)) return false
+  if (scope.kind !== 'task') return true
   if (target === 'project') return PROJECT_ACTIONS_A_TASK_SCOPE_REACHES.includes(action)
   return target !== 'folder'
 }
@@ -166,35 +213,8 @@ export function mayReach(
  * rendering for one has no scope to ask about.
  */
 export function capabilities(role: RoleValue, scope: ScopeValue): Capabilities {
-  const answer = (action: CapabilityAction): boolean =>
-    mayReach(role, scope, action, ACTION_DECISIONS[action].target)
-  return {
-    'project:read': answer('project:read'),
-    'project:rename': answer('project:rename'),
-    'project:delete': answer('project:delete'),
-    'folder:create': answer('folder:create'),
-    'folder:rename': answer('folder:rename'),
-    'folder:delete': answer('folder:delete'),
-    'folder:reorder': answer('folder:reorder'),
-    'task:create': answer('task:create'),
-    'task:read': answer('task:read'),
-    'task:rename': answer('task:rename'),
-    'task:delete': answer('task:delete'),
-    'task:move': answer('task:move'),
-    'task:reorder': answer('task:reorder'),
-    'tab:create': answer('tab:create'),
-    'tab:rename': answer('tab:rename'),
-    'tab:delete': answer('tab:delete'),
-    'tab:reorder': answer('tab:reorder'),
-    'tab:write': answer('tab:write'),
-    'share:read': answer('share:read'),
-    'share:create': answer('share:create'),
-    'share:revoke': answer('share:revoke'),
-    'share:update': answer('share:update'),
-    'export:run': answer('export:run'),
-    'workspace:list-projects': answer('workspace:list-projects'),
-    'workspace:create-project': answer('workspace:create-project'),
-    'workspace:import': answer('workspace:import'),
-    'workspace:search': answer('workspace:search'),
-  }
+  const rows = CAPABILITY_ACTIONS.map(
+    (action) => [action, mayReach(role, scope, action, ACTION_DECISIONS[action].target)] as const,
+  )
+  return Object.fromEntries(rows) as Capabilities
 }

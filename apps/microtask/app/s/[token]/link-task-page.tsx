@@ -1,4 +1,4 @@
-import { capabilities, type RoleValue, type ScopeValue } from '@repo/contracts'
+import { capabilities, type ProjectScopeValue, type RoleValue } from '@repo/contracts'
 import { EmptyState } from '@repo/ui/shell/empty-state'
 import type { ReactNode } from 'react'
 import { linkShareActions, linkTabActions } from '../../../components/link/link-actions'
@@ -17,7 +17,7 @@ export interface LinkTaskInput {
   /** The URL's own token, the only credential this page presents. */
   readonly token: string
   /** The role and scope `shares/current` answered for it. */
-  readonly share: { readonly role: RoleValue; readonly scope: ScopeValue }
+  readonly share: { readonly role: RoleValue; readonly scope: ProjectScopeValue }
   /** The task to render, which the scope has already been checked to reach. */
   readonly taskId: string
   /** The untrusted `?tab=`, validated against this task's own tabs. */

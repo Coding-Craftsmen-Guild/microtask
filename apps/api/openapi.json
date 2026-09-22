@@ -390,7 +390,7 @@
             "$ref": "#/components/schemas/Role"
           },
           "scope": {
-            "$ref": "#/components/schemas/Scope"
+            "$ref": "#/components/schemas/ProjectScope"
           },
           "createdBy": {
             "allOf": [
@@ -433,7 +433,7 @@
         ],
         "description": "The authority a share link carries"
       },
-      "Scope": {
+      "ProjectScope": {
         "oneOf": [
           {
             "type": "object",
@@ -476,7 +476,7 @@
             ]
           }
         ],
-        "description": "What a share link may reach"
+        "description": "What a Microtask share link may reach"
       },
       "NamePayload": {
         "type": "object",
@@ -497,7 +497,7 @@
             "$ref": "#/components/schemas/Role"
           },
           "scope": {
-            "$ref": "#/components/schemas/Scope"
+            "$ref": "#/components/schemas/ProjectScope"
           },
           "project": {
             "type": "object",
@@ -1013,7 +1013,7 @@
             "$ref": "#/components/schemas/Role"
           },
           "scope": {
-            "$ref": "#/components/schemas/Scope"
+            "$ref": "#/components/schemas/ProjectScope"
           },
           "index": {
             "type": "integer",
@@ -1445,7 +1445,7 @@
             "$ref": "#/components/schemas/Role"
           },
           "scope": {
-            "$ref": "#/components/schemas/Scope"
+            "$ref": "#/components/schemas/ProjectScope"
           },
           "taskId": {
             "$ref": "#/components/schemas/EntityId"

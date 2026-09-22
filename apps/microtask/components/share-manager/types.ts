@@ -1,5 +1,5 @@
 import type { Decoded, NewShareLink, ShareLinkChange } from '@repo/api-client'
-import type { Capabilities, ScopeValue, ShareLink } from '@repo/contracts'
+import type { Capabilities, ProjectScopeValue, ShareLink } from '@repo/contracts'
 import type { ActionResult } from '../../actions/result'
 
 /** One share link as the manager holds it once opened — token included, and only then. */
@@ -60,5 +60,5 @@ export interface ScopeChoice {
   /** What the option says: the task's name, or `Whole project`. */
   readonly label: string
   /** The scope it mints. */
-  readonly scope: ScopeValue
+  readonly scope: ProjectScopeValue
 }

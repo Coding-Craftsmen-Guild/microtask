@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { capabilities, type RoleValue, type ScopeValue } from '@repo/contracts'
+import { capabilities, type ProjectScopeValue, type RoleValue } from '@repo/contracts'
 import { isValidElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Redirected, redirectOf } from '../../../actions/testing/fake-admin'
@@ -51,8 +51,8 @@ vi.mock('../../../components/tabs/task-workspace', () => ({
 
 const TOKEN = 'tok_CLIENTSOWNTOKEN_0001'
 const OTHER = 'tok_SOMEBODYELSE_000001'
-const TASK_SCOPE: ScopeValue = { kind: 'task', projectId: P, taskId: T1 }
-const PROJECT_SCOPE: ScopeValue = { kind: 'project', projectId: P }
+const TASK_SCOPE: ProjectScopeValue = { kind: 'task', projectId: P, taskId: T1 }
+const PROJECT_SCOPE: ProjectScopeValue = { kind: 'project', projectId: P }
 
 let api: FakeLinkApiState
 
@@ -74,7 +74,7 @@ afterEach(() => {
 
 const { default: LinkPage, generateMetadata } = await import('./page')
 
-const holding = (role: RoleValue, scope: ScopeValue, token = TOKEN): void => {
+const holding = (role: RoleValue, scope: ProjectScopeValue, token = TOKEN): void => {
   api.shares.set(token, { role, scope })
 }
 

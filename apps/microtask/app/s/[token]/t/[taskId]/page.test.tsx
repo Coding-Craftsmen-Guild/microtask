@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { RoleValue, ScopeValue } from '@repo/contracts'
+import type { ProjectScopeValue, RoleValue } from '@repo/contracts'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Redirected, redirectOf } from '../../../../../actions/testing/fake-admin'
@@ -48,8 +48,8 @@ vi.mock('../../../../../components/tabs/task-workspace', () => ({
 }))
 
 const TOKEN = 'tok_CLIENTSOWNTOKEN_0001'
-const TASK_SCOPE: ScopeValue = { kind: 'task', projectId: P, taskId: T1 }
-const PROJECT_SCOPE: ScopeValue = { kind: 'project', projectId: P }
+const TASK_SCOPE: ProjectScopeValue = { kind: 'task', projectId: P, taskId: T1 }
+const PROJECT_SCOPE: ProjectScopeValue = { kind: 'project', projectId: P }
 
 let api: FakeLinkApiState
 
@@ -70,7 +70,7 @@ afterEach(() => {
 
 const { default: LinkTaskPage, generateMetadata } = await import('./page')
 
-const holding = (role: RoleValue, scope: ScopeValue): void => {
+const holding = (role: RoleValue, scope: ProjectScopeValue): void => {
   api.shares.set(TOKEN, { role, scope })
 }
 
@@ -118,7 +118,7 @@ describe('/s/<token>/t/<taskId> on a project-scoped link', () => {
 
   it('counts only the links scoped to this task beside a manage link’s Share, as the admin task page does', async () => {
     holding('manage', PROJECT_SCOPE)
-    const seat = (token: string, scope: ScopeValue) => ({ token, name: 'x', role: 'view', scope, createdBy: null, createdAt: 'S0' })
+    const seat = (token: string, scope: ProjectScopeValue) => ({ token, name: 'x', role: 'view', scope, createdBy: null, createdAt: 'S0' })
     api.shareLinks = [
       seat('tok_THISTASKTHISTASKTHIS1', { kind: 'task', projectId: P, taskId: T1 }),
       seat('tok_OTHERTASKOTHERTASK01', { kind: 'task', projectId: P, taskId: '01M240FB4GD6PF6V0PKZVF6FD8' }),

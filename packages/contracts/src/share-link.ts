@@ -11,8 +11,25 @@ export const Scope = z
   .discriminatedUnion('kind', [
     z.object({ kind: z.literal('project'), projectId: EntityId }),
     z.object({ kind: z.literal('task'), projectId: EntityId, taskId: EntityId }),
+    z.object({ kind: z.literal('plan'), planId: EntityId }),
   ])
   .meta({ id: 'Scope', description: 'What a share link may reach' })
+
+/**
+ * A {@link Scope} rooted at a Microtask project — the project itself, or one task inside it.
+ *
+ * Microtask's own share links are minted, stored and rendered through this narrower schema, never
+ * through {@link Scope} directly: a project's manifest is parsed from a bundle a caller uploads,
+ * and a plan-shaped scope arriving inside it is not a wider grant to reject at authorization time,
+ * it is data the schema itself should never have accepted (ADR 0038's product ids are drawn from
+ * separate sequences and may collide).
+ */
+export const ProjectScope = z
+  .discriminatedUnion('kind', [
+    z.object({ kind: z.literal('project'), projectId: EntityId }),
+    z.object({ kind: z.literal('task'), projectId: EntityId, taskId: EntityId }),
+  ])
+  .meta({ id: 'ProjectScope', description: 'What a Microtask share link may reach' })
 
 /** One person's access to a project or a single task. */
 export const ShareLink = z
@@ -20,7 +37,7 @@ export const ShareLink = z
     token: ShareToken,
     name: EntityName.or(z.literal('')),
     role: Role,
-    scope: Scope,
+    scope: ProjectScope,
     createdBy: ShareToken.nullable(),
     createdAt: z.string(),
   })
@@ -42,7 +59,7 @@ export const CreateShareLinkPayload = z
   .object({
     name: EntityName,
     role: Role,
-    scope: Scope.optional(),
+    scope: ProjectScope.optional(),
     taskId: EntityId.optional(),
   })
   .meta({ id: 'CreateShareLinkPayload', description: 'A seat to mint: who for, what authority, and over what' })
