@@ -14,6 +14,7 @@
   "dependencies": {
     "@repo/contracts": "workspace:*",
     "@repo/kernel": "workspace:*",
+    "@repo/macroplan-domain": "workspace:*",
     "@repo/microtask-domain": "workspace:*",
     "@repo/store": "workspace:*",
     "hono": "4.13.7",

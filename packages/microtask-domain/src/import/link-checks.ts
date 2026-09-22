@@ -1,7 +1,6 @@
-import { isRole, isShareToken, type Product } from '@repo/kernel'
+import { isRole, isShareToken, type Product, type TokenIndex } from '@repo/kernel'
 import type { ProjectManifest as Manifest } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
-import type { TokenIndex } from '../ports/token-index.js'
 import { listed, quotedId, when } from './refusal.js'
 
 /**
@@ -61,12 +60,14 @@ function tokenReasons(
   target: TargetTokens,
 ): readonly string[] {
   const claimed = manifest.shareLinks.map((one) => one.token)
-  const held = new Set(target.tokens.collisions(target.product, manifest.id, claimed))
+  const held = new Set(
+    target.tokens.collisions({ product: target.product, containerId: manifest.id }, claimed),
+  )
   return eachLink(manifest, (link, at) => {
     const carried = owners.get(link.token) ?? new Set<string>()
     const elsewhere = [...carried].filter((id) => id !== manifest.id)
     const mine = manifest.shareLinks.filter((one) => one.token === link.token).length
-    const owner = target.tokens.find(link.token)?.projectId ?? ''
+    const owner = target.tokens.find(link.token)?.containerId ?? ''
     return [
       ...when(
         elsewhere.length > 0,

@@ -1,6 +1,5 @@
-import type { Clock, IdGenerator, Lock } from '@repo/kernel'
+import type { Clock, IdGenerator, Lock, TokenIndex } from '@repo/kernel'
 import type { ProjectStore } from '../ports/project-store.js'
-import type { TokenIndex } from '../ports/token-index.js'
 
 /**
  * Everything a service needs, supplied by whoever constructs it.

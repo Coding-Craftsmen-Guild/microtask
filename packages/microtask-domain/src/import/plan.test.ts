@@ -9,7 +9,7 @@ import {
 } from '@repo/contracts'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { TaskDocument } from '../entities/task.js'
-import { ShareIndex } from '../storage/share-index.js'
+import { ShareIndex } from '@repo/kernel'
 import { fixedClock } from '../testing/doubles.js'
 import { manifest, marked, shareLink, STAMP, taskDocument, taskEntry, token } from '../testing/fixtures.js'
 import type { ImportTarget } from './checks.js'
@@ -211,7 +211,7 @@ describe('what the plan reads off the target store, which is what makes it worth
 
   it('blocks a project whose share token another project on disk already holds, naming that project', () => {
     const tokens = new ShareIndex()
-    tokens.add('microtask', manifest(P2, { shareLinks: [shareLink(token(1), P2)] }))
+    tokens.add({ product: 'microtask', containerId: P2 }, [token(1)])
     const files = [
       { path: 'drop/launch/project.json', json: { ...project(P1), shareLinks: [shareLink(token(1), P1)] } },
       { path: `drop/launch/tasks/${T1}.json`, json: taskDocument(T1, B1) },

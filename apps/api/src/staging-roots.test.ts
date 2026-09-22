@@ -1,9 +1,8 @@
 import { join, resolve, sep } from 'node:path'
 import { MemoryFileSystem } from '@repo/kernel/testing'
-import { ulid } from '@repo/kernel'
+import { ShareIndex, ulid } from '@repo/kernel'
 import {
   FsProjectStore,
-  ShareIndex,
   buildDir,
   buildRoot,
   projectsDir,
@@ -68,7 +67,7 @@ describe('ADR 0045 (a): the positive control, proving both read paths do pick su
     const id = ulid()
     await files.writeTextAtomic(join(projectsDir(ROOT, 'microtask'), id, 'project.json'), dropped(id))
     expect(await warmTokenIndex(deps)).toBe(1)
-    expect(deps.tokens.find(TOKEN)).toMatchObject({ projectId: id })
+    expect(deps.tokens.find(TOKEN)).toMatchObject({ containerId: id })
   })
 })
 

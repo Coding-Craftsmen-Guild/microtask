@@ -57,9 +57,9 @@ const exportedProjectFields = ProjectManifest.extend({
  * The manifest's own fields extended rather than restated, for the reason {@link ProjectManifest}
  * is extended by a view: a field added to a project cannot then be left out of an export, and
  * neither collection bound is written down a second time. `shareLinks` stays **required**, so a
- * token-stripped export carries an empty block rather than an absent one — `warmTokenIndex` and
- * `ShareIndex.add` both dereference that block on the way to serving a socket, and an import is
- * the one write path that can put a manifest on disk without it.
+ * token-stripped export carries an empty block rather than an absent one — `warmTokenIndex` and the
+ * import's own index write both map over that block on the way to serving a socket, and an import
+ * is the one write path that can put a manifest on disk without it.
  *
  * Two rules are checked across the two collections, because a bundler that kept less than it was
  * copying otherwise writes a file that reads exactly like a whole one:

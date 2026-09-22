@@ -1,11 +1,10 @@
 import { sep } from 'node:path'
 import { ImportConfirmResult, LIMITS } from '@repo/contracts'
-import { Conflict } from '@repo/kernel'
+import { Conflict, ShareIndex } from '@repo/kernel'
 import type { Clock, FileSystem, IdGenerator, Lock } from '@repo/kernel'
 import { MemoryFileSystem } from '@repo/kernel/testing'
 import {
   FsProjectStore,
-  ShareIndex,
   buildDir,
   buildManifestFile,
   buildTaskFile,
@@ -1173,7 +1172,7 @@ describe('the token index is written before the project, and that refusal is rea
     const rows = await projectsOf(applied)
     expect(rows.map((one) => one['outcome'])).toEqual(['created', 'failed'])
     expect(String((rows[1]?.['reasons'] as readonly string[])[0])).toContain(
-      'already belongs to another project',
+      'already belongs to another container',
     )
   })
 

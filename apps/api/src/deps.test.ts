@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { shareToken, ulid, type Clock, type IdGenerator } from '@repo/kernel'
-import { FsProjectStore, ShareIndex, type ServiceContext } from '@repo/microtask-domain'
+import { ShareIndex, shareToken, ulid, type Clock, type IdGenerator } from '@repo/kernel'
+import { FsPlanStore } from '@repo/macroplan-domain'
+import { FsProjectStore, type ServiceContext } from '@repo/microtask-domain'
 import { NodeFileSystem, QueueLock } from '@repo/store'
 import { readConfig } from './config.js'
 import type { ApiDeps } from './deps.js'
@@ -20,6 +21,7 @@ const buildDeps = (): ApiDeps => {
     config,
     fileSystem,
     store: new FsProjectStore({ files: fileSystem, root: () => config.dataDir }),
+    plans: new FsPlanStore({ files: fileSystem, root: () => config.dataDir }),
     lock: new QueueLock(),
     clock,
     ids,

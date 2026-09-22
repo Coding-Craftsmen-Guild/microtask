@@ -31,3 +31,18 @@ export type ProjectScope = Extract<Scope, { kind: 'project' | 'task' }>
  * named at all.
  */
 export type PlanScope = Extract<Scope, { kind: 'plan' }>
+
+/**
+ * Narrows a scope to one rooted at a Microtask project.
+ *
+ * The runtime half of {@link ProjectScope}, beside the type rather than re-derived at each call
+ * site. Without it a consumer that has a {@link Scope} and needs the narrower type has only a cast
+ * available, and a cast in an authorization path asserts what nothing checked — which is exactly
+ * what `apps/api` was doing while `PrincipalResolver` could only ever produce a project scope.
+ *
+ * It enumerates the kinds it admits rather than excluding `'plan'`, so a third product's variant
+ * added to {@link Scope} is refused here until someone decides it belongs — the opposite direction
+ * from a `!== 'plan'` test, which would silently admit it.
+ */
+export const isProjectScope = (scope: Scope): scope is ProjectScope =>
+  scope.kind === 'project' || scope.kind === 'task'

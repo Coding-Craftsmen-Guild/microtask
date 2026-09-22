@@ -1,6 +1,8 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { Clock, ProjectScope, Role } from '@repo/kernel'
-import { ShareIndex, type ProjectManifest, type ShareLink } from '@repo/microtask-domain'
+import { ShareIndex } from '@repo/kernel'
+import { MemoryPlanStore } from '@repo/macroplan-domain/testing'
+import type { ProjectManifest, ShareLink } from '@repo/microtask-domain'
 import { MemoryProjectStore, manifest, STAMP } from '@repo/microtask-domain/testing'
 import { describe, expect, it } from 'vitest'
 import { errorHandler } from '../http/error-handler.js'
@@ -8,6 +10,7 @@ import { notFoundHandler } from '../http/not-found.js'
 import { PROBLEM_MEDIA_TYPE } from '../http/problem.js'
 import { AdminVerifier } from './admin-verifier.js'
 import type { ApiEnv } from './env.js'
+import { linkDirectories } from './link-directory.js'
 import { PrincipalResolver } from './principal-resolver.js'
 import { requirePrincipal } from './require-principal.js'
 
@@ -46,8 +49,12 @@ const makeResolver = async (): Promise<PrincipalResolver> => {
     shareLinks: [link(TOKEN, 'view', { kind: 'project', projectId: P1 })],
   })
   await store.saveManifest('microtask', project)
-  tokens.add('microtask', project)
-  return new PrincipalResolver({ admin: verifier, tokens, store })
+  tokens.add({ product: 'microtask', containerId: project.id }, [TOKEN])
+  return new PrincipalResolver({
+    admin: verifier,
+    tokens,
+    directories: linkDirectories(store, new MemoryPlanStore()),
+  })
 }
 
 type Order = 'guard-first' | 'guard-after-the-route'

@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import { ProjectService, SearchService } from '@repo/microtask-domain'
 import { AdminVerifier } from '../../auth/admin-verifier.js'
 import type { ApiEnv } from '../../auth/env.js'
+import { linkDirectories } from '../../auth/link-directory.js'
 import { PrincipalResolver } from '../../auth/principal-resolver.js'
 import { requirePrincipal } from '../../auth/require-principal.js'
 import type { ApiDeps } from '../../deps.js'
@@ -20,7 +21,7 @@ const resolverFor = (deps: ApiDeps): PrincipalResolver =>
   new PrincipalResolver({
     admin: new AdminVerifier({ config: deps.config, clock: deps.clock }),
     tokens: deps.tokens,
-    store: deps.store,
+    directories: linkDirectories(deps.store, deps.plans),
   })
 
 /**

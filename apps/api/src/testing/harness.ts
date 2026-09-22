@@ -1,6 +1,8 @@
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import type { Clock, ProjectScope, Role } from '@repo/kernel'
-import { ShareIndex, type ProjectManifest, type ShareLink } from '@repo/microtask-domain'
+import { ShareIndex, type Clock, type ProjectScope, type Role } from '@repo/kernel'
+import type { PlanManifest } from '@repo/macroplan-domain'
+import { MemoryPlanStore, planManifest } from '@repo/macroplan-domain/testing'
+import type { ProjectManifest, ShareLink } from '@repo/microtask-domain'
 import {
   MemoryProjectStore,
   fixedClock,
@@ -38,6 +40,7 @@ export const IDS = {
   tab2: '01M240ERCRWWCN16Q5AHP1FZB2',
   tab3: '01M240ERCRWWCN16Q5AHP1FZB3',
   tab4: '01M240ERCRWWCN16Q5AHP1FZB4',
+  plan1: '01M240ERCRWWCN16Q5AHP1FZN1',
   missing: '01M240ERCRWWCN16Q5AHP1FZZZ',
 } as const
 
@@ -56,6 +59,16 @@ export const TOKENS = {
   t1Manage: 'shr_t1_manage_seat_token',
   p2Manage: 'shr_p2_manage_seat_token',
 } as const
+
+/**
+ * A live Macroplan bearer, deliberately **outside** {@link TOKENS}.
+ *
+ * One token index serves both products, so a plan's token resolves to a real plan-scoped principal
+ * on any route in this app — which is what the Microtask share-description route has to refuse
+ * rather than assert away. It is kept out of `TOKENS` because the suites that loop over that map
+ * assert every token in it is held by a project in this product, and this one is held by a plan.
+ */
+export const PLAN_TOKEN = 'shr_plan_manage_seat_tok'
 
 /** The service key the fixture config recognises, presented as `x-api-key`. */
 export const SERVICE_KEY = 'k-microtask'
@@ -126,6 +139,20 @@ const projectTwo = (): ProjectManifest =>
     shareLinks: [link(TOKENS.p2Manage, 'manage', { kind: 'project', projectId: IDS.p2 })],
   })
 
+const planOne = (): PlanManifest =>
+  planManifest(IDS.plan1, {
+    name: 'Roadmap',
+    shareLinks: [
+      {
+        token: PLAN_TOKEN,
+        name: 'A seat',
+        role: 'manage',
+        createdBy: null,
+        createdAt: STAMP,
+      },
+    ],
+  })
+
 /**
  * A fresh dependency surface holding two projects, so one suite's writes cannot reach another's.
  *
@@ -142,6 +169,7 @@ const projectTwo = (): ProjectManifest =>
  */
 export async function buildDeps(at: Clock = clock): Promise<ApiDeps> {
   const store = new MemoryProjectStore()
+  const plans = new MemoryPlanStore()
   const tokens = new ShareIndex()
   const first = projectOne()
   await store.saveTask('microtask', first, taskDocument(IDS.t1, IDS.tab1))
@@ -150,11 +178,17 @@ export async function buildDeps(at: Clock = clock): Promise<ApiDeps> {
   await store.saveTask('microtask', first, taskDocument(IDS.t4, IDS.tab4))
   const second = projectTwo()
   await store.saveManifest('microtask', second)
-  for (const project of [first, second]) tokens.add('microtask', project)
+  for (const project of [first, second]) {
+    tokens.add(
+      { product: 'microtask', containerId: project.id },
+      project.shareLinks.map((one) => one.token),
+    )
+  }
   return {
     config: testConfig,
     fileSystem: new MemoryFileSystem(),
     store,
+    plans,
     lock: new QueueLock(),
     clock: at,
     ids: sequentialIds(),
@@ -165,6 +199,22 @@ export async function buildDeps(at: Clock = clock): Promise<ApiDeps> {
 /** The whole app over a fresh fixture, assembled exactly as production assembles it. */
 export async function buildApp(at?: Clock): Promise<OpenAPIHono<ApiEnv>> {
   return createApp(await buildDeps(at))
+}
+
+/**
+ * The same app over a fixture that also holds one plan, whose {@link PLAN_TOKEN} therefore resolves.
+ *
+ * Separate from {@link buildDeps} rather than seeded into it, because the plan's token is a share
+ * token on the volume and three suites assert what `warmTokenIndex` counts there. Seeding it by
+ * default would move those numbers, and a fixture that changes an unrelated count is a fixture that
+ * hides the next real change to it.
+ */
+export async function buildAppWithPlan(): Promise<OpenAPIHono<ApiEnv>> {
+  const deps = await buildDeps()
+  const plan = planOne()
+  await deps.plans.saveManifest('macroplan', plan)
+  deps.tokens.add({ product: 'macroplan', containerId: plan.id }, [PLAN_TOKEN])
+  return createApp(deps)
 }
 
 /** The two credentials an admin presents: the calling app's key, and a freshly minted token. */

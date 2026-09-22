@@ -3,10 +3,10 @@ import { join } from 'node:path'
 import { MAX_LISTED_TAB_NAMES } from '@repo/contracts'
 import {
   FsProjectStore,
-  ShareIndex,
   projectsDir,
   type ProjectStore,
 } from '@repo/microtask-domain'
+import { ShareIndex } from '@repo/kernel'
 import { MemoryFileSystem } from '@repo/kernel/testing'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { describe, expect, it } from 'vitest'
@@ -295,7 +295,7 @@ describe.skipIf(!hasBackup)('the live backup under data/projects imports as it s
     )
     for (const project of backup()) {
       for (const link of project.shareLinks) {
-        expect([link.name, rebuilt.tokens.find(link.token)?.projectId]).toEqual([
+        expect([link.name, rebuilt.tokens.find(link.token)?.containerId]).toEqual([
           link.name,
           project.id,
         ])

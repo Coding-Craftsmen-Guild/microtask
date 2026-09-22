@@ -18,11 +18,11 @@ const inside = (parent: string, segment: string): string =>
 /**
  * Resolves the directory holding every plan for one product.
  *
- * A **sibling** of `projects/` under the product root, never a child: `FsProjectStore` and a
- * future `FsPlanStore` each list the immediate ULID-named children of their own root and read a
- * manifest out of each, so one nested inside the other would make a plan look like a project (or
- * the reverse) to whichever store lists the wrong directory. `warmTokenIndex` already walks every
- * product calling the project side of this, which is what a shared root would corrupt.
+ * A **sibling** of `projects/` under the product root, never a child: `FsProjectStore` and
+ * `FsPlanStore` each list the immediate ULID-named children of their own root and read a manifest
+ * out of each, so one nested inside the other would make a plan look like a project (or the
+ * reverse) to whichever store lists the wrong directory. `warmTokenIndex` loads the share tokens of
+ * both on the way to serving a socket, which is what a shared root would corrupt.
  */
 export function plansDir(root: string, product: Product): string {
   return inside(productRoot(root, product), PLANS)

@@ -112,10 +112,14 @@ export class ShareLinkService {
    * project already owns and records nothing when it does, so a colliding mint throws `Conflict`
    * with neither store touched. Writing the manifest first would leave a link behind whose token
    * resolves to somebody else's project. Assumes the caller holds the lock.
+   *
+   * The token list is read off the manifest here rather than inside the index, because the index is
+   * shared with Macroplan and a port that took a `ProjectManifest` could only serve one product.
    */
   async #save(at: ProjectRef, next: ProjectManifest): Promise<void> {
     const stamped = { ...next, updatedAt: this.#ctx.clock.now() }
-    this.#ctx.tokens.add(at.product, stamped)
+    const owner = { product: at.product, containerId: stamped.id }
+    this.#ctx.tokens.add(owner, stamped.shareLinks.map((link) => link.token))
     await this.#ctx.store.saveManifest(at.product, stamped)
   }
 }

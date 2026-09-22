@@ -9,15 +9,20 @@ import {
   Role,
   ShareToken,
 } from '@repo/contracts'
-import { isShareToken, isUlid, ROLES, type Role as RoleValue } from '@repo/kernel'
+import {
+  isShareToken,
+  isUlid,
+  ROLES,
+  ShareIndex,
+  type Role as RoleValue,
+  type TokenIndex,
+} from '@repo/kernel'
 import { emptyDocument, type DocumentJson } from '../entities/document.js'
 import type { ProjectManifest, TaskEntry } from '../entities/manifest.js'
 import type { ShareLink } from '../entities/share-link.js'
 import type { Tab } from '../entities/tab.js'
 import type { TaskDocument } from '../entities/task.js'
-import type { TokenIndex } from '../ports/token-index.js'
 import { cleanName } from '../limits.js'
-import { ShareIndex } from '../storage/share-index.js'
 import { projectListItem, projectView } from '../views/project-view.js'
 import { fixedClock } from '../testing/doubles.js'
 import {
@@ -151,7 +156,7 @@ const target = (overrides: Partial<ImportTarget> = {}): ImportTarget => ({
 
 const owning = (projectId: string, tokens: readonly string[]): TokenIndex => {
   const index = new ShareIndex()
-  index.add('microtask', manifest(projectId, { shareLinks: tokens.map((value) => link(value)) }))
+  index.add({ product: 'microtask', containerId: projectId }, tokens)
   return index
 }
 
@@ -193,13 +198,14 @@ describe('schema conformance, which runs before anything else', () => {
     expect(said(checked)).toContain('shareLinks.1.role')
   })
 
-  it('blocks a manifest with no shareLinks block, which ShareIndex.add would dereference', () => {
+  it('blocks a manifest with no shareLinks block, which every index write maps over', () => {
     const { shareLinks, ...broken } = manifest(P1)
     expect(shareLinks).toEqual([])
     const checked = only(directory(broken, []))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain('shareLinks')
-    expect(() => new ShareIndex().add('microtask', broken as unknown as ProjectManifest)).toThrow()
+    const unchecked = broken as unknown as ProjectManifest
+    expect(() => unchecked.shareLinks.map((one) => one.token)).toThrow(TypeError)
   })
 
   it('runs before conversion, so a manifest nobody has checked never reaches the converter', () => {

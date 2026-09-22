@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { GUARDED_PREFIX, IDS, TOKENS, admin, asLink, body, buildApp } from '../../testing/harness.js'
+import {
+  GUARDED_PREFIX,
+  IDS,
+  PLAN_TOKEN,
+  TOKENS,
+  admin,
+  asLink,
+  body,
+  buildApp,
+  buildAppWithPlan,
+} from '../../testing/harness.js'
 
 const CURRENT = `${GUARDED_PREFIX}/shares/current`
 
@@ -45,6 +55,21 @@ describe('GET /v1/microtask/shares/current', () => {
     const response = await (await buildApp()).request(CURRENT, { headers: admin() })
     expect(response.status).toBe(404)
     expect(await body(response)).toMatchObject({ code: 'not_found' })
+  })
+
+  it('refuses a plan-scoped link, which one shared token index makes a credential that resolves', async () => {
+    const app = await buildAppWithPlan()
+    const response = await app.request(CURRENT, { headers: asLink(PLAN_TOKEN) })
+    expect(response.status).toBe(403)
+    expect(await body(response)).toMatchObject({ code: 'forbidden' })
+  })
+
+  it('still resolves that plan link, so the 403 is a refusal and not a failure to authenticate', async () => {
+    const app = await buildAppWithPlan()
+    const response = await app.request(`${GUARDED_PREFIX}/projects/${IDS.p1}`, {
+      headers: asLink(PLAN_TOKEN),
+    })
+    expect(response.status).toBe(403)
   })
 
   it('takes no token in its path, so there is no per-token address to leak', async () => {

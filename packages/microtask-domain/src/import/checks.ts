@@ -1,6 +1,5 @@
 import type { ImportOutcomeValue } from '@repo/contracts'
-import { isUlid, type Product } from '@repo/kernel'
-import type { TokenIndex } from '../ports/token-index.js'
+import { isUlid, type Product, type TokenIndex } from '@repo/kernel'
 import { prepareDrop, type DroppedProject, type Prepared } from './drop-checks.js'
 import type { ConvertedProject } from './legacy.js'
 import { projectReasons, type TokenCarriers } from './project-checks.js'

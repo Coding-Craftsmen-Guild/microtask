@@ -9,7 +9,7 @@ import { emptyDocument } from '../entities/document.js'
 import { assertContained } from '../services/share-link-mapper.js'
 import { ShareLinkService } from '../services/share-link-service.js'
 import { taskFile } from '../storage/paths.js'
-import { ShareIndex } from '../storage/share-index.js'
+import { ShareIndex } from '@repo/kernel'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
 import {
   folder,
@@ -91,9 +91,13 @@ const fileHolding = (project: ConvertedProject, tabId: string): string =>
     (project.documents.find((one) => one.tabs.some((tab) => tab.id === tabId)) as TaskDocument).id,
   )
 
+const records = (index: ShareIndex, of: ProjectManifest): void => {
+  index.add({ product: 'microtask', containerId: of.id }, of.shareLinks.map((one) => one.token))
+}
+
 const owning = (of: ProjectManifest): ShareIndex => {
   const index = new ShareIndex()
-  index.add('microtask', of)
+  records(index, of)
   return index
 }
 
@@ -127,7 +131,7 @@ const revoking = async (
   const store = new MemoryProjectStore()
   const tokens = new ShareIndex()
   await store.saveManifest('microtask', project.manifest)
-  tokens.add('microtask', project.manifest)
+  records(tokens, project.manifest)
   const service = new ShareLinkService({
     store,
     tokens,
@@ -396,14 +400,14 @@ describe('a reminted project re-checked against the store the original is still 
     const before = source()
     const out = remintProject(before, sequentialIds())
     const index = new ShareIndex()
-    index.add('microtask', before.manifest)
+    records(index, before.manifest)
     expect(() => {
-      index.add('microtask', out.manifest)
+      records(index, out.manifest)
     }).not.toThrow()
     const clashing = new ShareIndex()
-    clashing.add('microtask', before.manifest)
+    records(clashing, before.manifest)
     expect(() => {
-      clashing.add('microtask', withTokensOf(out, before).manifest)
+      records(clashing, withTokensOf(out, before).manifest)
     }).toThrow(Conflict)
   })
 })

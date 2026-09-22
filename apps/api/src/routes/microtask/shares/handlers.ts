@@ -1,6 +1,6 @@
 import type { RouteHandler } from '@hono/zod-openapi'
 import type { Principal, ProjectScope } from '@repo/kernel'
-import { NotFound } from '@repo/kernel'
+import { Forbidden, isProjectScope, NotFound } from '@repo/kernel'
 import type { ProjectManifest, ProjectService, ShareLink } from '@repo/microtask-domain'
 import { shareView } from '@repo/microtask-domain'
 import { authorize } from '../../../auth/authorize.js'
@@ -10,11 +10,14 @@ import type { currentShareRoute } from './routes.js'
 
 const NO_LINK = 'This credential does not name a share link'
 
+const NOT_PERMITTED = 'Not permitted: project:read'
+
 type MicrotaskLink = Extract<Principal, { kind: 'link' }> & { readonly scope: ProjectScope }
 
 const actingLink = (principal: Principal): MicrotaskLink => {
   if (principal.kind !== 'link') throw new NotFound(NO_LINK)
-  return principal as MicrotaskLink
+  if (!isProjectScope(principal.scope)) throw new Forbidden(NOT_PERMITTED)
+  return { ...principal, scope: principal.scope }
 }
 
 const storedLink = (manifest: ProjectManifest, token: string): ShareLink => {
@@ -38,13 +41,26 @@ const storedLink = (manifest: ProjectManifest, token: string): ShareLink => {
  * the caller's own scope root, and an admin has no scope to derive one from.
  *
  * The acting link is narrowed to a **project-rooted** scope, because `Principal` spans both
- * products and a Microtask route means one of them. That narrowing is a statement about the type
- * and not a second refusal: a scope-kind check here would have to invent an answer for a
- * credential the gate already answers, turning a plan-scoped link's 403 into a 404 and putting a
- * branch in the way that no request can reach. `PrincipalResolver` reads Microtask manifests, so
- * every link principal that exists roots in a project; `authorize` below is what keeps holding
- * the line on the day a plan link resolves too, since `project:read` on a project target is
- * refused to a plan scope by the policy rather than by anything written here.
+ * products and a Microtask route means one of them. That narrowing is now **checked**, and it has
+ * to be: one token index serves both products, so `PrincipalResolver.resolve` can legitimately
+ * return a plan-scoped link and the cast this used to make — `principal as MicrotaskLink`, on the
+ * grounds that no such principal could exist — would be asserting something false in the
+ * authorization path. The check is `isProjectScope`, the kernel's own guard for the type, so the
+ * narrower type is earned rather than claimed.
+ *
+ * It is the **only** route in this subtree that needs one, which is why the check is here and not
+ * in the mount. Every other handler builds its target from a validated path parameter, so a plan
+ * scope is refused by `authorize` — `inScope` gives a plan scope no project-shaped target — and a
+ * mount-wide guard would be a second refusal of a request the gate already refuses. This route is
+ * the exception because its target *is* the caller's own scope root: there is no path parameter to
+ * build one from, so the gate below cannot be reached until the scope has a `projectId`.
+ *
+ * The refusal is a **403 and not a 404**, and it is the same 403 the gate would give: the action
+ * about to be asked is `project:read`, and the policy refuses that to a plan scope on any
+ * project-shaped target. Answering 404 instead would claim the caller's link does not exist, which
+ * is untrue — it exists, in the other product — and would tell a plan holder that a Microtask
+ * project it named was absent. The admin's 404 above is a different statement and keeps its status:
+ * an admin credential names no share link at all.
  *
  * The stored link is looked up rather than rebuilt from the principal, so what the caller is
  * told is what the manifest holds. Resolution found it a moment ago, so its absence means it was

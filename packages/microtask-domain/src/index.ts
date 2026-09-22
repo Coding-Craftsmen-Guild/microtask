@@ -65,7 +65,6 @@ export {
   type TokenDisposition,
 } from './export/bundle.js'
 export type { ProjectStore, WholeProject } from './ports/project-store.js'
-export type { TokenIndex, TokenOwner } from './ports/token-index.js'
 export type { ServiceContext } from './services/context.js'
 export type { ProjectRef, TaskRef } from './services/refs.js'
 export { FolderService } from './services/folder-service.js'
@@ -88,7 +87,6 @@ export {
 export { shareView, type ShareView } from './views/share-view.js'
 export { taskView, type TaskView } from './views/task-view.js'
 export { FsProjectStore, type FsProjectStoreOptions } from './storage/fs-project-store.js'
-export { ShareIndex } from './storage/share-index.js'
 export {
   buildDir,
   buildManifestFile,

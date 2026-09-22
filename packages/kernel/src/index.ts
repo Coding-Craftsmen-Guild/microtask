@@ -5,10 +5,17 @@ export { contained } from './storage/contained.js'
 
 export { ACTIONS, type Action } from './access/action.js'
 export { isRole, ROLES, type Role } from './access/role.js'
-export type { PlanScope, ProjectScope, Scope } from './access/scope.js'
+export {
+  isProjectScope,
+  type PlanScope,
+  type ProjectScope,
+  type Scope,
+} from './access/scope.js'
 export type { Principal } from './access/principal.js'
 export { TARGET_KINDS, type Target } from './access/target.js'
 export { ADMIN_ONLY_ACTIONS, can } from './access/policy.js'
+export type { TokenIndex, TokenOwner } from './access/token-index.js'
+export { ShareIndex } from './access/share-index.js'
 
 export type { Clock } from './ports/clock.js'
 export type { IdGenerator } from './ports/id-generator.js'

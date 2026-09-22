@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Invalid, NotFound } from '@repo/kernel'
 import { QueueLock } from '@repo/store'
-import { ShareIndex } from '../storage/share-index.js'
+import { ShareIndex } from '@repo/kernel'
 import type { ShareLink } from '../entities/share-link.js'
 import { MemoryProjectStore } from '../testing/memory-project-store.js'
 import { manifest } from '../testing/fixtures.js'
@@ -136,8 +136,8 @@ describe('ProjectService.remove', () => {
     const created = await service.create('microtask', 'Launch')
     const shared = { ...created, shareLinks: [shareLink(TOKEN, created.id)] }
     await store.saveManifest('microtask', shared)
-    tokens.add('microtask', shared)
-    expect(tokens.find(TOKEN)).toEqual({ product: 'microtask', projectId: created.id })
+    tokens.add({ product: 'microtask', containerId: created.id }, [TOKEN])
+    expect(tokens.find(TOKEN)).toEqual({ product: 'microtask', containerId: created.id })
     await service.remove(ref(created.id))
     expect(tokens.find(TOKEN)).toBeNull()
   })

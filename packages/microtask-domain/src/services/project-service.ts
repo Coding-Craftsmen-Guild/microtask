@@ -71,7 +71,7 @@ export class ProjectService {
     await this.#ctx.lock.run(async () => {
       const removed = await this.#ctx.store.deleteProject(at.product, at.projectId)
       if (!removed) throw new NotFound('Project not found')
-      this.#ctx.tokens.removeProject(at.product, at.projectId)
+      this.#ctx.tokens.remove({ product: at.product, containerId: at.projectId })
     })
   }
 }

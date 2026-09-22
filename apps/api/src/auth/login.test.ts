@@ -15,6 +15,7 @@ import {
 import type { ApiEnv } from './env.js'
 import { createAuth } from './login.js'
 import { requirePrincipal } from './require-principal.js'
+import { linkDirectories } from './link-directory.js'
 import { PrincipalResolver } from './principal-resolver.js'
 import { AdminVerifier } from './admin-verifier.js'
 
@@ -154,7 +155,7 @@ describe('where the login route sits', () => {
     const resolver = new PrincipalResolver({
       admin: new AdminVerifier({ config: deps.config, clock: deps.clock }),
       tokens: deps.tokens,
-      store: deps.store,
+      directories: linkDirectories(deps.store, deps.plans),
     })
     guarded.use('*', requirePrincipal(resolver, deps.config.serviceKeys))
     guarded.route('/v1/auth', createAuth(deps))

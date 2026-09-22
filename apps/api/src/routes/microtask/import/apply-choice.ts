@@ -53,7 +53,8 @@ export interface ChoiceContext {
  * disk at the next restart.
  */
 export async function writeProject(deps: ApiDeps, project: ConvertedProject): Promise<void> {
-  deps.tokens.add(PRODUCT, project.manifest)
+  const owner = { product: PRODUCT, containerId: project.manifest.id }
+  deps.tokens.add(owner, project.manifest.shareLinks.map((link) => link.token))
   await deps.store.publishProject(PRODUCT, project)
 }
 

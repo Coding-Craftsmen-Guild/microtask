@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import type { Action, Clock, ProjectScope, Role, Target } from '@repo/kernel'
-import { ShareIndex, type ProjectManifest, type ShareLink } from '@repo/microtask-domain'
+import { ShareIndex } from '@repo/kernel'
+import { MemoryPlanStore } from '@repo/macroplan-domain/testing'
+import type { ProjectManifest, ShareLink } from '@repo/microtask-domain'
 import { MemoryProjectStore, manifest, STAMP } from '@repo/microtask-domain/testing'
 import { describe, expect, it } from 'vitest'
 import { errorHandler } from '../http/error-handler.js'
@@ -10,6 +12,7 @@ import { validationHook } from '../http/validation-hook.js'
 import { AdminVerifier } from './admin-verifier.js'
 import { authorize } from './authorize.js'
 import type { ApiEnv } from './env.js'
+import { linkDirectories } from './link-directory.js'
 import { PrincipalResolver } from './principal-resolver.js'
 import { requirePrincipal } from './require-principal.js'
 
@@ -57,9 +60,16 @@ const makeResolver = async (): Promise<PrincipalResolver> => {
   const second: ProjectManifest = manifest(P2, { shareLinks: [] })
   for (const project of [first, second]) {
     await store.saveManifest('microtask', project)
-    tokens.add('microtask', project)
+    tokens.add(
+      { product: 'microtask', containerId: project.id },
+      project.shareLinks.map((one) => one.token),
+    )
   }
-  return new PrincipalResolver({ admin: verifier, tokens, store })
+  return new PrincipalResolver({
+    admin: verifier,
+    tokens,
+    directories: linkDirectories(store, new MemoryPlanStore()),
+  })
 }
 
 const projectRoute = createRoute({

@@ -5,7 +5,7 @@ import { QueueLock } from '@repo/store'
 import type { ProjectManifest } from '../entities/manifest.js'
 import type { ProjectStore } from '../ports/project-store.js'
 import type { ShareLink } from '../entities/share-link.js'
-import { ShareIndex } from '../storage/share-index.js'
+import { ShareIndex } from '@repo/kernel'
 import { MemoryProjectStore } from '../testing/memory-project-store.js'
 import { manifest, taskEntry, STAMP } from '../testing/fixtures.js'
 import { fixedClock, sequentialIds } from '../testing/doubles.js'
@@ -70,7 +70,10 @@ const build = (ids: IdGenerator = sequentialIds()) => {
       ...overrides,
     })
     await store.saveManifest('microtask', seeded)
-    tokens.add('microtask', seeded)
+    tokens.add(
+      { product: 'microtask', containerId: seeded.id },
+      seeded.shareLinks.map((one) => one.token),
+    )
     calls.length = 0
     return seeded
   }
@@ -179,7 +182,7 @@ describe('ShareLinkService.create', () => {
     const { service, seed, tokens } = build()
     await seed()
     const created = await service.create(AT, { ...asAdmin, taskId: TASK })
-    expect(tokens.find(created.token)).toEqual({ product: 'microtask', projectId: PROJECT })
+    expect(tokens.find(created.token)).toEqual({ product: 'microtask', containerId: PROJECT })
   })
 
   it('appends the link to the project, leaving the ones already there alone', async () => {
@@ -264,12 +267,7 @@ describe('ShareLinkService.create scope containment', () => {
 
 describe('ShareLinkService.create token collisions', () => {
   const owned = (tokens: ShareIndex, token: string): void => {
-    tokens.add(
-      'microtask',
-      manifest(ELSEWHERE, {
-        shareLinks: [{ ...link(token), scope: { kind: 'project', projectId: ELSEWHERE } }],
-      }),
-    )
+    tokens.add({ product: 'microtask', containerId: ELSEWHERE }, [token])
   }
 
   it('throws Conflict when the token already belongs to another project', async () => {
@@ -293,8 +291,8 @@ describe('ShareLinkService.create token collisions', () => {
     await seed({ shareLinks: [link('tok_mine')] })
     owned(tokens, 'tok_taken')
     await expect(service.create(AT, { ...asAdmin, taskId: TASK })).rejects.toThrow(Conflict)
-    expect(tokens.find('tok_taken')).toEqual({ product: 'microtask', projectId: ELSEWHERE })
-    expect(tokens.find('tok_mine')).toEqual({ product: 'microtask', projectId: PROJECT })
+    expect(tokens.find('tok_taken')).toEqual({ product: 'microtask', containerId: ELSEWHERE })
+    expect(tokens.find('tok_mine')).toEqual({ product: 'microtask', containerId: PROJECT })
   })
 })
 
@@ -374,7 +372,7 @@ describe('ShareLinkService.revoke', () => {
     })
     await service.revoke(AT, 'tok_c')
     expect(tokensOf((await read()).shareLinks)).toEqual(['tok_a', 'tok_b'])
-    expect(tokens.find('tok_b')).toEqual({ product: 'microtask', projectId: PROJECT })
+    expect(tokens.find('tok_b')).toEqual({ product: 'microtask', containerId: PROJECT })
   })
 
   it('leaves the links minted through a sibling alone', async () => {
@@ -547,7 +545,7 @@ describe('ShareLinkService.update (ADR 0035)', () => {
   it('keeps the token index pointing at this project, so the link still resolves', async () => {
     const { service, tokens } = await seeded()
     await service.update(AT, TOKEN, { role: 'view' })
-    expect(tokens.find(TOKEN)).toEqual({ product: 'microtask', projectId: PROJECT })
+    expect(tokens.find(TOKEN)).toEqual({ product: 'microtask', containerId: PROJECT })
   })
 
   it('rejects a token this project does not hold, before writing anything', async () => {

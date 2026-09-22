@@ -1,4 +1,5 @@
 import type { FileSystem } from '@repo/kernel'
+import type { PlanStore } from '@repo/macroplan-domain'
 import type { ServiceContext } from '@repo/microtask-domain'
 import type { ApiConfig } from './config.js'
 
@@ -17,4 +18,15 @@ import type { ApiConfig } from './config.js'
 export interface ApiDeps extends ServiceContext {
   readonly config: ApiConfig
   readonly fileSystem: FileSystem
+
+  /**
+   * The Macroplan half of persistence, beside the Microtask `store` it inherits.
+   *
+   * It is here rather than only inside a Macroplan subtree because two things that are not a
+   * Macroplan route need it: `warmTokenIndex`, which has to load a plan's share tokens or every one
+   * of them answers 401 after a restart, and `PrincipalResolver`, which reads a bearer's live link
+   * from whichever product's manifest holds it. One token index serving both products is what makes
+   * both of those product-agnostic, so the stores they read through have to arrive together.
+   */
+  readonly plans: PlanStore
 }
