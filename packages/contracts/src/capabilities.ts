@@ -57,12 +57,20 @@ export interface ActionDecision {
    * drawn from `capabilities()['project:read']` must be the project read and never the folder
    * tree; for the tree, ask {@link mayReach} with `'folder'`.
    *
-   * `share:update` and `share:revoke` have one for a different reason: the share actions are the
-   * share system's rather than either product's, so `GRANTS` serves both from one row, and what
-   * separates the products is the scope check. Microtask gates the pair on the `project` whose
-   * seats they administer and Macroplan on the `plan` whose seats they administer — the same
+   * `share:read`, `share:update` and `share:revoke` have one for a different reason: the share
+   * actions are the share system's rather than either product's, so `GRANTS` serves both from one
+   * row, and what separates the products is the scope check. Microtask gates them on the `project`
+   * whose seats they administer and Macroplan on the `plan` whose seats they administer — the same
    * action, a different container. `target` can name only one, so a plan-scoped caller reads
    * `capabilities()['share:revoke']` as **false** and has to ask {@link mayReach} with `'plan'`.
+   *
+   * `share:read` is the one of the three that no `authorize(` scan can find, because Macroplan
+   * decides it inside `visibleLinks` rather than at a route: a plan's seats arrive inside
+   * `PlanView.shareLinks` rather than from a list endpoint. So nothing forced this row, and without
+   * it the projection told a plan `manage` holder it could not read seats the server was already
+   * handing over — the disagreement ADR 0038 exists to prevent, in the one shape its agreement test
+   * cannot see.
+   *
    * `share:create` needs no entry: it is decided against `own-scope` in both products.
    */
   readonly alsoGatedOn?: readonly CapabilityTarget[]
@@ -87,7 +95,7 @@ const ROWS = {
   'tab:delete': { minimum: 'manage', target: 'tab' },
   'tab:reorder': { minimum: 'manage', target: 'tab' },
   'tab:write': { minimum: 'write', target: 'tab' },
-  'share:read': { minimum: 'manage', target: 'project' },
+  'share:read': { minimum: 'manage', target: 'project', alsoGatedOn: ['plan'] },
   'share:create': { minimum: 'manage', target: 'own-scope' },
   'share:revoke': { minimum: 'manage', target: 'project', alsoGatedOn: ['plan'] },
   'share:update': { minimum: 'manage', target: 'project', alsoGatedOn: ['plan'] },

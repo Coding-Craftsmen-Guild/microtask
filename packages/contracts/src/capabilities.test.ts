@@ -282,29 +282,37 @@ describe('the projection answers about the caller own project and no other', () 
   })
 })
 
-describe('the three actions the API gates on two targets (ADR 0011)', () => {
+describe('the four actions the API gates on two targets (ADR 0011)', () => {
   it('records the second target rather than leaving it unsaid', () => {
     expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])
   })
 
-  it('names all three, so an action gaining a second target cannot arrive unrecorded', () => {
+  it('names all four, so an action gaining a second target cannot arrive unrecorded', () => {
     const doubled = CAPABILITY_ACTIONS.filter(
       (action) => (ACTION_DECISIONS[action].alsoGatedOn ?? []).length > 0,
     )
-    expect(doubled).toEqual(['project:read', 'share:revoke', 'share:update'])
+    expect(doubled).toEqual(['project:read', 'share:read', 'share:revoke', 'share:update'])
   })
 
-  it('records the plan for the two seat actions, which Macroplan gates on a plan and not a project', () => {
+  it('records the plan for the three seat actions, which Macroplan gates on a plan and not a project', () => {
     expect(ACTION_DECISIONS['share:revoke'].alsoGatedOn).toEqual(['plan'])
     expect(ACTION_DECISIONS['share:update'].alsoGatedOn).toEqual(['plan'])
+    expect(ACTION_DECISIONS['share:read'].alsoGatedOn).toEqual(['plan'])
   })
 
   it('clears a plan manage seat on that second target and refuses it the first, the row naming one', () => {
-    for (const action of ['share:revoke', 'share:update'] as const) {
+    for (const action of ['share:read', 'share:revoke', 'share:update'] as const) {
       expect(mayReach('manage', planScope, action, 'plan')).toBe(true)
       expect(mayReach('manage', planScope, action, 'project')).toBe(false)
       expect(capabilities('manage', planScope)[action]).toBe(false)
     }
+  })
+
+  it('agrees with the server about a plan manage seat reading seats, which no route scan can check', () => {
+    expect(mayReach('manage', planScope, 'share:read', 'plan')).toBe(true)
+    expect(can(holder('manage', planScope), 'share:read', { kind: 'plan', planId: PL })).toBe(true)
+    expect(mayReach('view', planScope, 'share:read', 'plan')).toBe(false)
+    expect(mayReach('write', planScope, 'share:read', 'plan')).toBe(false)
   })
 
   it('refuses a plan view seat that same second target, so the pair is manage and not scope', () => {
