@@ -1,9 +1,23 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { seal } from '@repo/app-session/crypto'
+import type * as Crypto from '@repo/app-session/crypto'
 import { ADMIN_COOKIE, payloadOf } from './lib/principal'
 import { LINK_UNAVAILABLE_PATH } from './lib/routes'
 import { config, proxy } from './proxy'
+
+const opened: string[] = []
+
+vi.mock('@repo/app-session/crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof Crypto>()
+  return {
+    ...actual,
+    open: (secret: string, value: string) => {
+      opened.push(value)
+      return actual.open(secret, value)
+    },
+  }
+})
 
 const ORIGIN = 'https://macroplan.example'
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
@@ -24,6 +38,7 @@ beforeEach(() => {
   vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
   vi.stubEnv('API_KEY', 'the-service-key')
   vi.stubEnv('COOKIE_SECRET', SECRET)
+  opened.length = 0
 })
 
 afterEach(() => {
@@ -124,6 +139,19 @@ describe('the link surface, whose URL is its credential', () => {
     const response = visit('/s/tok_A_PLAN_SEAT_0001', { cookies })
     expect(isRedirect(response)).toBe(false)
     expect(response.headers.getSetCookie()).toEqual([])
+  })
+
+  it.each(['/s', '/s/tok_A_PLAN_SEAT_0001', '/s/tok_A_PLAN_SEAT_0001/anything', LINK_UNAVAILABLE_PATH])(
+    'opens no cookie at %s, with a live mp_admin in the jar, so nothing there can decide on one',
+    (path) => {
+      expect(isRedirect(visit(path, { cookies: signedIn }))).toBe(false)
+      expect(opened).toEqual([])
+    },
+  )
+
+  it('opens the cookie on the admin surface, which is the read the rule above is ahead of', () => {
+    expect(isRedirect(visit('/plans/01M240ERCRWWCN16Q5AHP1FZAQ', { cookies: signedIn }))).toBe(false)
+    expect(opened).toEqual([ADMIN])
   })
 
   it('treats /splash as the admin surface, which a startsWith without the separator would not', () => {
