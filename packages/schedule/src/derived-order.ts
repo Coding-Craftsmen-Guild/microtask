@@ -30,6 +30,10 @@ function groupBy<T>(all: readonly T[], keyOf: (one: T) => string): Map<string, T
  * A feature whose `epicId` names no epic still forms a rail of its own, ordered after every real
  * one: the forward pass must place every feature it is given, and a rail that no epic claims is
  * still a rail. Neither the plan nor any array in it is written to; every sort runs on a copy.
+ *
+ * Exported so `@repo/canvas` draws against the exact order the forward pass placed spans in,
+ * rather than re-deriving a total order that a second package's tests cannot check against the
+ * first's — a mismatch there is a bar drawn on the wrong rail.
  */
 export function railsOf(plan: PlanStructure): readonly (readonly ScheduleFeature[])[] {
   const rank = new Map(plan.epics.map((epic) => [epic.id, epic.railOrder]))

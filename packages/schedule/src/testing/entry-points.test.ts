@@ -13,6 +13,8 @@ const manifest = async (): Promise<Manifest> =>
 describe('@repo/schedule entry points', () => {
   it('keeps the plan generator out of the main entry, so no browser bundle can pull it in', () => {
     expect(Object.keys(main)).toContain('schedule')
+    expect(Object.keys(main)).toContain('railsOf')
+    expect(Object.keys(main)).toContain('itemsByFeature')
     expect(Object.keys(main)).not.toContain('arbitraryPlan')
     expect(Object.keys(main)).not.toContain('randomSource')
   })
