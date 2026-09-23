@@ -2138,6 +2138,29 @@ Each subtree is its own `OpenAPIHono<ApiEnv>` mounted by `plan-scoped.ts`, mirro
 
 ### Task 16b: the share-link routes, and the bootstrap call
 
+**Five things Task 16 settled that this task and Task 17 inherit.**
+
+`pinSprint` has **no action of its own**. `PATCH /features/{featureId}` carries three fields against
+two actions, so Task 16 grouped `pinSprint` with `feature:estimate` — both decide *when* the bar is
+drawn, where `feature:place` decides *which rail*. `PATCH /epics/{epicId}` has the same shape with
+`colour` under `epic:rename`, and being single-action there is no ambiguity.
+
+`EXTRA_GATES` in `surface.test.ts` is **6**. Each two-authority `PATCH` costs two extra textual
+`authorize(` calls, and there are three such routes. Raise it, never relax the equality.
+
+**A bad id in a body is 422; an absent addressed entity is 404.** `Invalid` from `assertEpic`/
+`assertFeature` against a body, `NotFound` from `pickEpic`/`pickFeature`/`pickItem` against the path.
+The plan spelled this only for epics; it holds everywhere.
+
+Two existing suites admit no opt-out and will need entries for every route added here:
+`surface.test.ts`'s group census and param samples, and `response-shapes.test.ts`'s `SAMPLES` — whose
+"a sample request for every operation" assertion means a new operation without one fails the suite.
+
+`DELETE /plans/{planId}/share-links/{token}` answers **204**, which is deliberately *not* Task 16's
+"every mutating route returns the whole `PlanView`". Revoking a seat moves no bar on the canvas, so
+there is no derived state for the response to carry; a caller who wants the updated seat list re-reads
+the plan. Do not "fix" this into a 200.
+
 **Extend `guard.test.ts` here too.** Task 15's Step 1 asked it to refuse a plan `write` seat on
 "every `share-links` route" — unimplementable there, since those paths did not exist. Assert it now:
 a `write` seat is refused **403** on `POST`, `PATCH` and `DELETE` under `/plans/{planId}/share-links`,
@@ -2195,14 +2218,15 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
 `plan:read`, which every plan role has.
 
 - [ ] **Step 1: write the failing tests:**
-      - `POST` as a plan `manage` holder mints a link whose `scope` is `{kind:'plan', planId}` and
+      - `POST` as a plan `manage` holder mints a seat carrying the five seat fields and **no scope**,
         whose `createdBy` is **the presenting token** — assert it equals the caller's own, not `null`
       - `POST` as a plan `write` holder → **403**. This is the `write`-cannot-become-`manage` boundary
         at its most dangerous point: a `write` holder who could mint would mint themselves `manage`
       - `POST` as the admin mints with `createdBy: null`
-      - `POST` with a `scope` in the body naming a **different** plan has it **stripped**, not
-        honoured — the minted link's scope is the caller's plan. A payload that could re-scope a mint
-        is a privilege escalation with a JSON body
+      - `POST` with a `scope` in the body naming a **different** plan has it **stripped**, not honoured:
+        `CreatePlanShareLinkPayload` does not declare the key, so zod drops it and the seat stored
+        carries no scope at all. A payload that could re-scope a mint is a privilege escalation with a
+        JSON body, and the strongest form of that refusal is a shape in which the field cannot exist
       - `PATCH` changes name and role, keeps the token, and a `scope` key in the body is stripped
       - `DELETE` revokes, cascades to children, answers 204, and every revoked token then 401s on
         `GET /plans/{planId}` — asserted by actually presenting one
@@ -2245,12 +2269,16 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
       - **`ProblemCode` still covers every code these routes emit.** The existing contract test
         enumerates `MEANINGS` plus the three 401s; assert the macroplan routes introduce no code
         outside `PROBLEM_CODES`
-      - **`PENDING_ROUTES` is empty, and the set is deleted.** `authorize-targets.test.ts` carries a
-        set of actions that have no route yet, so its target-table cross-check passes while 24
-        Macroplan rows are unconfirmed. Every one of those routes exists by the end of Task 16b. The
-        scan reads the whole `routes/` tree, so a handler gating on a **literal** action clears its
-        own entry — but a handler gating on a computed one does not, and nothing else retires the
-        remainder. An allowance that outlives its debt is indistinguishable from a hole.
+      - **`PENDING_ROUTES` holds exactly `epic:bind` and `item:link`, and nothing else.**
+        `authorize-targets.test.ts` carries a set of actions with no route yet, so its target-table
+        cross-check passes while those rows are unconfirmed. It began at 24. The scan reads the whole
+        `routes/` tree, so a handler gating on a **literal** action clears its own entry, and Tasks 15
+        and 16 cleared 22 that way. The last two are **not** oversights and must not be deleted from
+        the set: `epic:bind` and `item:link` are the phase-4 bridge actions, spec §9 reserves the
+        fields they write, and Task 16 asserts those fields stay `null`. So assert the set's exact
+        contents rather than its emptiness — an allowance that outlives its debt is indistinguishable
+        from a hole, but an allowance whose debt is a *later phase* has to be named as such or the
+        next reader deletes a guard to make a test pass.
 - [ ] **Step 4: run the API suite.** Green.
 - [ ] **Step 5: the gate**, then commit `"Publish the document, and prove both schedules agree"`.
 
