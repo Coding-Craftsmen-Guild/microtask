@@ -10,7 +10,14 @@ import { CANVAS_RANGE, CANVAS_SCALE } from './view'
 // The reveal itself — a browser painting a `<title>` after a pointer rests on a shape — is not
 // something happy-dom does, and nothing here pretends otherwise: every assertion below is about
 // what the canvas *carries*, which is the half that can be wrong in a way a person would not see.
-// The reveal is browser-verification work and is written up as such.
+// Which surfaces reach the tooltip was measured in Chromium instead, and `SprintTickLayer` records
+// the result; the layer-order test below pins the paint order that measurement was taken against,
+// and deliberately does not claim the coverage the order alone does not buy.
+//
+// The `aria-hidden` assertions are the exception that matters. They exist because the first version
+// of this feature argued in prose that `role="img"` pruned its own subtree — advisory in WAI-ARIA,
+// declined by Chromium, and false where it counted. An attribute is observable here, so the
+// guarantee is now pinned rather than reasoned about.
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
@@ -108,13 +115,26 @@ describe('the calendar dates a hover reveals', () => {
     expect(numberOf(nth(targets, 1), 'x')).toBe(nth(ticks, 0).x + nth(ticks, 0).width)
   })
 
-  it('draws the targets before every rail, so a bar painted over one still wins the pointer', () => {
+  it('sits over the bands and under the rails, which is a paint order and not a hover guarantee', () => {
     render(<PlanCanvas at={AT} plan={atlasPlan()} />)
-    const children = [...only('[data-slot="plan-canvas"]').children]
-    const targets = children.findIndex((child) => child.getAttribute('data-slot') === 'sprint-ticks')
-    const rails = children.findIndex((child) => child.getAttribute('data-slot') === 'rail')
-    expect(targets).toBeGreaterThanOrEqual(0)
+    const slotsInOrder = [...only('[data-slot="plan-canvas"]').children].map((child) =>
+      child.getAttribute('data-slot'),
+    )
+    const bands = slotsInOrder.indexOf('quarter-bands')
+    const targets = slotsInOrder.indexOf('sprint-ticks')
+    const rails = slotsInOrder.indexOf('rail')
+    expect(bands).toBeGreaterThanOrEqual(0)
+    expect(targets).toBeGreaterThan(bands)
     expect(rails).toBeGreaterThan(targets)
+  })
+
+  it('is behind every mark, so a painted fill absorbs the pointer and no sentence is revealed', () => {
+    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    const target = only('[data-slot="sprint-date"]')
+    const bar = only('[data-slot="feature-bar"]')
+    expect(target.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(bar.closest('[data-slot="sprint-dates"]')).toBeNull()
+    expect(bar.querySelector('title')).toBeNull()
   })
 })
 
@@ -170,10 +190,19 @@ describe('what the canvas still does not draw, and still does not name', () => {
     for (const mark of all('[data-slot="item-mark"]')) expect(mark.children).toHaveLength(0)
   })
 
-  it('tells a screen reader exactly what it told before, because a role=img subtree is presentational', () => {
+  it('leaves the canvas’s own accessible name to its aria-label, which outranks any descendant title', () => {
     render(<PlanCanvas at={AT} plan={atlasPlan()} />)
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
     expect(only('[data-slot="plan-canvas"]').querySelector(':scope > title')).toBeNull()
+  })
+
+  it('hides every titled group explicitly, because role=img prunes a subtree only as a SHOULD NOT', () => {
+    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    expect(only('[data-slot="sprint-dates"]').getAttribute('aria-hidden')).toBe('true')
+    expect(only('[data-slot="today"]').getAttribute('aria-hidden')).toBe('true')
+    for (const title of all('[data-slot="plan-canvas"] title')) {
+      expect(title.closest('[aria-hidden="true"]'), title.textContent ?? '').toBeTruthy()
+    }
   })
 
   it('reveals nothing at all when this runtime cannot resolve the plan’s zone', () => {

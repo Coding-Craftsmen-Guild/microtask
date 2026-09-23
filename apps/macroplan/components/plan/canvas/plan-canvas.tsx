@@ -69,6 +69,12 @@ export interface PlanCanvasProps {
  * drawing: "An SVG-only plan is unreadable to a screen reader, and the table is also the fastest way
  * to audit a plan someone else drew." Task 13 builds that table as this canvas's accessible peer.
  *
+ * That "no accessible name of its own" holds because it is **enforced**, not because the role is
+ * trusted to prune the subtree. `role="img"` is only documented to prune it as a *SHOULD NOT*, and
+ * Chromium declines: the two groups that carry a hover `<title>` — `SprintTickLayer`'s targets and
+ * `TodayMark` — would otherwise be exposed as named nodes, so each sets `aria-hidden="true"`.
+ * `SprintTickLayer` carries that argument, and `plan-hover.test.tsx` pins it.
+ *
  * There is no `eslint-plugin-jsx-a11y` and no `axe` in this repo, so a role-based assertion is the
  * whole mechanism: `plan-canvas.test.tsx` asserts the accessible name **only** through
  * `getByRole('img', { name })`, never by reading `aria-label` off the node. Its `data-slot` queries

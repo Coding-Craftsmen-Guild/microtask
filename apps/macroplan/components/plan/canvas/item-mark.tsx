@@ -26,6 +26,12 @@ export interface ItemMarkShapeProps {
  * belongs to the table, which is the rendering a reader can actually read, and to the item rung's
  * labels, which §5 puts there and phase 2 does not draw.
  *
+ * That count is also why a mark carries **no `<title>` and so no hover date of its own**, and why
+ * the sprint's hover target behind it does not cover for one: a painted fill absorbs the pointer,
+ * and an SVG tooltip walks the hit element's ancestors rather than the paint order.
+ * `FeatureBarMark` sets out that whole trade — including why the target is deliberately not moved
+ * above the rails before phase 3 makes marks interactive.
+ *
  * It takes its epic's colour from the rail it was drawn under, not from a lookup of its own: an item
  * has a `featureId` and no `epicId`, and the rail already knows which epic's hue it is painting.
  *

@@ -48,18 +48,25 @@ export interface TodayMarkProps {
  * a browser's own hover tooltip, which draws nothing until pointed at and needs no client boundary
  * to do it. It is built by {@link todayHover} from the **date string alone** — `today.day` is never
  * handed to it — so the Saturday case cannot come back as Monday, and the sentence says outright
- * why the line is not under the date it names. `SprintTickLayer` argues why a `<title>` inside a
- * `role="img"` adds nothing a screen reader hears.
+ * why the line is not under the date it names.
+ *
+ * The group carries `aria-hidden="true"` for the reason `SprintTickLayer` sets out at length: a
+ * `<title>` names its own shape, `role="img"` on the `<svg>` is documented to prune its subtree but
+ * only as a *SHOULD NOT*, and Chromium exposes this group as a named `group` regardless. Hiding it
+ * explicitly keeps `PlanCanvas`'s single `aria-label` the whole of what is announced, and does it by
+ * construction rather than by trusting a user agent.
  *
  * Its hover target is the line itself, which is two px wide and is a small thing to hit. The
- * sprint's own full-height target sits directly behind it and names the same stretch of days, so
- * the pointer that misses the line still lands on a date.
+ * sprint's own full-height target sits directly behind it, so a pointer that misses the line still
+ * lands on that sprint's dates **wherever nothing else is painted** — but a solid bar or an item
+ * mark under the line absorbs the pointer and reveals nothing, because an SVG tooltip walks the hit
+ * element's ancestors and not the paint order. `SprintTickLayer` measures which surfaces reach it.
  */
 export function TodayMark({ plan, scale, at, height }: TodayMarkProps) {
   const today = todayLine(plan, at, scale)
   if (today === null) return null
   return (
-    <g data-date={today.date} data-day={today.day} data-slot="today">
+    <g aria-hidden="true" data-date={today.date} data-day={today.day} data-slot="today">
       <title>{todayHover(today.date)}</title>
       <line className={TODAY_STROKE} x1={today.x} x2={today.x} y1={0} y2={height} />
     </g>

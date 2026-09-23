@@ -285,6 +285,7 @@ describe('the chrome the canvas draws around its rails', () => {
     const ticks = slot('sprint-tick')
     expect(ticks.length).toBeGreaterThan(1)
     expect(ticks[0]?.textContent).toBe('W1–3')
+    for (const tick of ticks) expect(tick.querySelector('title')).toBeNull()
     const drawn = all('[data-slot="plan-canvas"] text')
     expect(drawn.length).toBeGreaterThan(ticks.length)
     for (const text of drawn) expect(text.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/)

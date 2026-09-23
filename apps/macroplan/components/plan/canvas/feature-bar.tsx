@@ -38,8 +38,16 @@ export interface FeatureBarMarkProps {
  * all, so `@repo/canvas` would have to grow them — and the app must not convert an offset back to a
  * date itself, because a weekend-adjacent one does not survive the round trip. The second thing is
  * cheaper to say: a `<title>` per bar and per mark is one extra node per bar and per mark, which at
- * this product's 2 000-item cap is the doubling `ItemMarkShape` exists to refuse. The sprint target
- * behind every bar already names the days that bar sits in.
+ * this product's 2 000-item cap is the doubling `ItemMarkShape` exists to refuse.
+ *
+ * **So hovering a placed bar reveals nothing, and no other layer covers for it.** The sprint's
+ * hover target sits *behind* this rect, and an SVG tooltip resolves by walking the DOM ancestors of
+ * the element the pointer hit rather than by paint order — a painted fill absorbs the pointer and
+ * the rect beneath is never consulted. Measured in Chromium: the sprint sentence appears over a
+ * `'hollow'` bar's interior, whose `fill-none` lets the pointer through, and not over a `'solid'`
+ * one. Evening that out means moving the target above the rails, which phase 3 must not inherit —
+ * it is the editing phase, and a transparent sheet over every bar would swallow the drag and the
+ * click it adds. A bar's own hover is phase 3's work, with the layer order it revisits anyway.
  *
  * The hue is an inline `style` and the treatment is a class, and {@link TREATMENT_CLASS} is where that
  * split is argued: a `#rrggbb` from the API is one of an unbounded set and no Tailwind class can be
