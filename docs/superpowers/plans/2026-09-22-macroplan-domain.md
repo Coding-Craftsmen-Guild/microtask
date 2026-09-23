@@ -1820,7 +1820,7 @@ export class PlanShareLinkService {
   constructor(ctx: PlanContext)
 
   /** Mints a link over one plan, recording who granted it. */
-  create(at: PlanRef, seat: NewSeat): Promise<{ manifest: PlanManifest; link: ShareLink }>
+  create(at: PlanRef, seat: NewSeat): Promise<{ manifest: PlanManifest; link: PlanShareLink }>
 
   /** Renames a link or changes its role, keeping its token. */
   update(at: PlanRef, token: string, changes: SeatChanges): Promise<PlanManifest>
@@ -1846,9 +1846,12 @@ export interface SeatChanges {
 Five rules, each carried over from Microtask rather than re-decided, because a second set of share
 semantics in one monorepo is how one of them ends up wrong:
 
-- **Scope is always `{ kind: 'plan', planId }`** and is not a parameter. There is one scope a plan link
-  can hold (spec §7.1), so `NewSeat` cannot express a wrong one. `update` cannot change it —
-  re-scoping is revoke-and-reissue (ADR 0011).
+- **A plan seat carries no scope at all.** There is one scope a plan link can hold (spec §7.1), so
+  storing it would be a second home for a fact the container already states, and `b2fcb38` removed it
+  from both the entity and the contract. `NewSeat` cannot express a wrong scope because it cannot
+  express one; `update` cannot change it because there is nothing to change — re-scoping remains
+  revoke-and-reissue (ADR 0011). Where a scope is needed for authorization, `link-directory.ts`
+  derives `{ kind: 'plan', planId }` from the plan the seat was found in.
 - **`createdBy` comes from the presenting credential**, never from the payload, so a link cannot claim
   a parent it was not minted through (ADR 0010). The route supplies it; the service does not read it
   from anywhere else.
@@ -1859,7 +1862,7 @@ semantics in one monorepo is how one of them ends up wrong:
 - **The token is minted by `ctx.ids.token()`**, never by anything in this service.
 
 - [ ] **Step 1: write the failing tests:**
-      - `create` mints a `{kind:'plan', planId}` scope for a plan-scoped caller and stores
+      - `create` stores the five seat fields and **no scope**, and stores
         `createdBy` as given
       - `create` at `LIMITS.shareLinksPerPlan` throws `Invalid` naming the limit, tested at the cap
       - `create` registers the token in the index, and a `find` on it resolves to
