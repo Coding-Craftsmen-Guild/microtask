@@ -14,7 +14,9 @@
   "dependencies": {
     "@repo/api-client": "workspace:*",
     "@repo/app-session": "workspace:*",
+    "@repo/canvas": "workspace:*",
     "@repo/contracts": "workspace:*",
+    "@repo/schedule": "workspace:*",
     "@repo/ui": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",

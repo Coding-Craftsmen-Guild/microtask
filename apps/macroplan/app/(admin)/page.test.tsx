@@ -115,6 +115,14 @@ describe('the admin landing page', () => {
     )
   })
 
+  it('caps itself at legacy’s 900px column, which the now-wide layout no longer does for it', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    const { container } = await show()
+    expect(container.firstElementChild?.className).toContain('max-w-[900px]')
+    expect(container.firstElementChild?.className).toContain('mx-auto')
+  })
+
   it('carries the seat count an admin is told, and no plan contents at all', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]

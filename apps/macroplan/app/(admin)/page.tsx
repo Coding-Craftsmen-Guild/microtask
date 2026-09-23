@@ -23,11 +23,16 @@ export const metadata = { title: 'Macroplan · CC Guild' } satisfies Metadata
  *
  * `Date.now()` is read once here and threaded down, so every row's age is measured against one
  * instant and the markup cannot disagree with itself.
+ *
+ * It caps itself at legacy's 900px column. The admin layout takes `Page`'s `wide` width for the plan
+ * page's timeline, and a layout cannot see which page it wraps — so the one page that wants the column
+ * says so, and pays for it by repeating a class string `Page` would otherwise own. A list of rows is
+ * unreadable stretched across a wide monitor, which is the whole reason that cap exists.
  */
 export default async function MacroplanPage() {
   const loaded = await adminCall('/', (api) => api.plans.list())
   return (
-    <div className="grid gap-4 pt-6">
+    <div className="mx-auto grid w-full max-w-[900px] gap-4 pt-6">
       {loaded.ok ? (
         <PlanList now={Date.now()} plans={loaded.value.plans} />
       ) : (

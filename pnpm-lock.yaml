@@ -257,9 +257,15 @@ importers:
       '@repo/app-session':
         specifier: workspace:*
         version: link:../../packages/app-session
+      '@repo/canvas':
+        specifier: workspace:*
+        version: link:../../packages/canvas
       '@repo/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@repo/schedule':
+        specifier: workspace:*
+        version: link:../../packages/schedule
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui

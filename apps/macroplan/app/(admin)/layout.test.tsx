@@ -34,4 +34,12 @@ describe('the admin frame', () => {
     render(<AdminLayout>body text</AdminLayout>)
     expect(screen.getByRole('main').textContent).toContain('body text')
   })
+
+  it('takes the viewport rather than legacy’s column, because this surface’s page is a timeline', () => {
+    const { container } = render(<AdminLayout>body</AdminLayout>)
+    const main = container.querySelector('main')
+    expect(main?.className).not.toContain('max-w-[900px]')
+    expect(main?.className).toContain('px-5')
+    expect(main?.className).toContain('pb-20')
+  })
 })
