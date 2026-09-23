@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Conflict } from '../errors.js'
+import type { Product } from '../product.js'
 import type { TokenOwner } from './token-index.js'
 import { ShareIndex } from './share-index.js'
 
@@ -84,5 +85,26 @@ describe('ShareIndex', () => {
     expect(index.collisions(project(P2), [TOKEN, 'tok_freshfreshfresh1'])).toEqual([TOKEN])
     expect(index.collisions(project(P1), [TOKEN])).toEqual([])
     expect(index.collisions(plan(P1), [TOKEN])).toEqual([TOKEN])
+  })
+
+  it('copies the owner it was handed, so a caller reusing one object cannot rewrite an answer', () => {
+    const index = new ShareIndex()
+    const reused = { product: 'microtask', containerId: P1 } as { product: Product; containerId: string }
+    index.add(reused, [TOKEN])
+    reused.product = 'macroplan'
+    reused.containerId = P2
+    expect(index.find(TOKEN)).toEqual({ product: 'microtask', containerId: P1 })
+  })
+
+  it('copies it on the way out of remove too, so the reused object still names one container', () => {
+    const index = new ShareIndex()
+    const other = 'tok_p2ownaaaaaaaaaa'
+    const reused = { product: 'microtask', containerId: P1 } as { product: Product; containerId: string }
+    index.add(reused, [TOKEN])
+    reused.containerId = P2
+    index.add(reused, [other])
+    index.remove(reused)
+    expect(index.find(other)).toBeNull()
+    expect(index.find(TOKEN)).toEqual({ product: 'microtask', containerId: P1 })
   })
 })

@@ -190,8 +190,9 @@ describe('PrincipalResolver', () => {
   })
 
   it('resolves nothing once the project itself is gone', async () => {
-    const { resolver, store } = await world()
+    const { resolver, store, tokens } = await world()
     await store.deleteProject('microtask', P1)
+    expect(tokens.find(P1_VIEW)).toEqual({ product: 'microtask', containerId: P1 })
     expect(await resolver.resolve(P1_VIEW)).toBeNull()
   })
 

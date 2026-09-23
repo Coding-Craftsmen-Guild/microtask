@@ -42,6 +42,7 @@ import {
   type DroppedProject,
   type ImportTarget,
 } from './checks.js'
+import { linkReasons } from './link-checks.js'
 
 const NOW = '2026-09-12T12:00:00.000Z'
 
@@ -198,14 +199,17 @@ describe('schema conformance, which runs before anything else', () => {
     expect(said(checked)).toContain('shareLinks.1.role')
   })
 
-  it('blocks a manifest with no shareLinks block, which every index write maps over', () => {
+  it('blocks a manifest with no shareLinks block, which linkReasons maps over unguarded', () => {
     const { shareLinks, ...broken } = manifest(P1)
     expect(shareLinks).toEqual([])
     const checked = only(directory(broken, []))
     expect(checked.outcome).toBe('blocked')
     expect(said(checked)).toContain('shareLinks')
     const unchecked = broken as unknown as ProjectManifest
-    expect(() => unchecked.shareLinks.map((one) => one.token)).toThrow(TypeError)
+    const tokens: TokenIndex = new ShareIndex()
+    expect(() => linkReasons(unchecked, new Map(), { product: 'microtask', tokens })).toThrow(
+      TypeError,
+    )
   })
 
   it('runs before conversion, so a manifest nobody has checked never reaches the converter', () => {

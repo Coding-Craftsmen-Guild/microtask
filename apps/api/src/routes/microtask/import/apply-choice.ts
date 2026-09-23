@@ -1,4 +1,5 @@
 import type { ConflictChoiceValue } from '@repo/contracts'
+import { Conflict } from '@repo/kernel'
 import {
   checkImport,
   remintProject,
@@ -10,6 +11,8 @@ import {
 import type { ApiDeps } from '../../../deps.js'
 import { PRODUCT } from '../product.js'
 import { landedOutcome, refusedOutcome, type ProjectOutcome } from './apply-outcome.js'
+
+const TOKEN_TAKEN = 'Share token already belongs to another project'
 
 /** How one project's application reaches the live target, which a remint has to re-read. */
 export interface ChoiceContext {
@@ -35,6 +38,16 @@ export interface ChoiceContext {
  * `catch` — so the next container restart would never open a socket. This way a refused token
  * means nothing was written for that project and the index is untouched.
  *
+ * **The refusal is re-worded here, and this is the boundary that owes a reader real words.**
+ * `ShareIndex` lives in the kernel and serves both products, so its own message says "another
+ * container" — correct there, and jargon naming nothing on the screen an admin is looking at while
+ * they import *projects*. `failedOutcome` puts an `AppError`'s message straight into the row's
+ * `reasons`, so whatever is thrown here is read verbatim by a person. The clashing tokens are
+ * re-derived with `collisions` rather than parsed back out of the kernel's sentence: `add` throws
+ * before it mutates, so the same call answers the same set, and nothing here depends on how that
+ * sentence is punctuated. A non-`Conflict` failure is rethrown untouched — the 500 path deliberately
+ * does not echo a volume's own message, and that is decided in `failedOutcome`, not here.
+ *
  * That refusal is **reachable, and the preview cannot predict it.** `carriers()` in `checks.ts`
  * builds the in-session token map from the drops' *original* links, so a token minted by a remint
  * earlier in the same confirm is never checked against a project later in it. An id generator
@@ -54,7 +67,13 @@ export interface ChoiceContext {
  */
 export async function writeProject(deps: ApiDeps, project: ConvertedProject): Promise<void> {
   const owner = { product: PRODUCT, containerId: project.manifest.id }
-  deps.tokens.add(owner, project.manifest.shareLinks.map((link) => link.token))
+  const tokens = project.manifest.shareLinks.map((link) => link.token)
+  try {
+    deps.tokens.add(owner, tokens)
+  } catch (error) {
+    if (!(error instanceof Conflict)) throw error
+    throw new Conflict(`${TOKEN_TAKEN}: ${deps.tokens.collisions(owner, tokens).join(', ')}`)
+  }
   await deps.store.publishProject(PRODUCT, project)
 }
 

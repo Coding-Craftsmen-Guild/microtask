@@ -1172,7 +1172,7 @@ describe('the token index is written before the project, and that refusal is rea
     const rows = await projectsOf(applied)
     expect(rows.map((one) => one['outcome'])).toEqual(['created', 'failed'])
     expect(String((rows[1]?.['reasons'] as readonly string[])[0])).toContain(
-      'already belongs to another container',
+      'already belongs to another project',
     )
   })
 
