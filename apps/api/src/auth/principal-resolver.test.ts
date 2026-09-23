@@ -1,5 +1,5 @@
 import type { Clock, ProjectScope, Role } from '@repo/kernel'
-import { ShareIndex } from '@repo/kernel'
+import { Invalid, ShareIndex } from '@repo/kernel'
 import type { PlanManifest, PlanShareLink } from '@repo/macroplan-domain'
 import { MemoryPlanStore, planManifest } from '@repo/macroplan-domain/testing'
 import type { ProjectManifest, ShareLink } from '@repo/microtask-domain'
@@ -201,6 +201,21 @@ describe('PrincipalResolver', () => {
     await plans.deletePlan('macroplan', N1)
     expect(tokens.find(N1_WRITE)).toEqual({ product: 'macroplan', containerId: N1 })
     expect(await resolver.resolve(N1_WRITE)).toBeNull()
+  })
+
+  it('reads a container id that is not a ULID as a dead link, in either product, never a 500', async () => {
+    const { resolver, tokens } = await world()
+    for (const product of ['microtask', 'macroplan'] as const) {
+      const bearer = `shr_malformed_${product}`
+      tokens.add({ product, containerId: '../../etc/passwd' }, [bearer])
+      await expect(resolver.resolve(bearer)).resolves.toBeNull()
+    }
+  })
+
+  it('would throw Invalid without that guard, which is the 500 it exists to stop', async () => {
+    const { store, plans } = await world()
+    await expect(store.readManifest('microtask', 'not-a-ulid')).rejects.toThrow(Invalid)
+    await expect(plans.readManifest('macroplan', 'not-a-ulid')).rejects.toThrow(Invalid)
   })
 
   it('checks the admin token before the share index, so a share token is never mistaken for admin', async () => {
