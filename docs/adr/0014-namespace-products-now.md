@@ -104,3 +104,56 @@ into one product does not sign the other out and neither app's server can open t
 
 If Macroplan ever reaches Microtask's data by any route other than a share token, that is the point
 at which the guard becomes worth building, and it needs its own record.
+
+## Amended · 2026-09-23 — one consequence retracted: the token index does need the product dimension
+
+The consequence above reads "Share tokens stay globally unique across products, so the token index
+needs no product dimension." **The premise survives and the inference fails.** Tokens genuinely are
+still globally unique, and the index is what enforces it: `ShareIndex` keys its map by the token
+alone, so `find` takes a bare bearer and answers without being told where to look
+(`packages/kernel/src/access/share-index.ts:14`). What the sentence went on to conclude is wrong
+twice over. `TokenOwner` carries a `product` (`packages/kernel/src/access/token-index.ts:23`), and
+that field is load-bearing in two distinct ways.
+
+**It selects the store the live link is read from.** `PrincipalResolver` asks the index once and then
+indexes a `Record<Product, LinkDirectory>` by the product the index answered:
+`this.#directories[owner.product].readLink(owner.containerId, bearer)`
+(`apps/api/src/auth/principal-resolver.ts:60`). The two directories are different reads — a project
+manifest through `ProjectStore`, a plan manifest through `PlanStore`, with the plan's scope derived
+rather than stored (`apps/api/src/auth/link-directory.ts:68`). An index answering only "some
+container owns this" would not say which product's store to open, and the resolver would be back to
+asking both and choosing between their answers, in the authorization path.
+
+**It is half the ownership key.** The key is `product` and `containerId` joined
+(`packages/kernel/src/access/share-index.ts:4`), and it is the thing `add`, `remove` and `collisions`
+each compare (`:41`, `:52`, `:22`). Without the product, a plan and a project **of the same ULID**
+would be one owner and each would evict the other's tokens. The two products draw their ids from
+separate ULID sequences, so that pair is possible rather than hypothetical, and it is seeded
+deliberately at both levels: in the kernel's own suite
+(`packages/kernel/src/access/share-index.test.ts:31`, `:72`, `:87`), and over HTTP, where the API's
+macroplan fixture gives a whole plan the id `IDS.p1` already held by a project
+(`apps/api/src/testing/macroplan-harness.ts:148`) so that the guard suite can prove a seat on one is
+refused on the other in both directions.
+
+**The standing constraint the second role leaves behind: one product tag must name exactly one kind
+of token-owning container.** The reason is mechanical rather than stylistic. `add` **replaces** an
+owner's whole set rather than merging into it — it calls `this.remove(mine)` and only then records
+the tokens it was handed (`packages/kernel/src/access/share-index.ts:47`). So two kinds of container
+sharing one product tag would evict each other's tokens, and **no `Conflict` would be raised**:
+`collisions` reports only tokens held under a *different* key (`:22`), and to it the two containers
+are one container writing twice. Every evicted link then answers 401 while its manifest still
+holds it.
+
+Where that eviction would not be caught, which is the whole trap: not in `ShareIndex`, whose
+collision check passes; not at the service that writes, whose own store write lands intact; and not
+at boot — `warm` calls `add` per container and lets `Conflict` propagate out of `warmTokenIndex`
+before `serve()`, so a genuine clash does stop the process, while a silent eviction leaves it
+listening and returns a token count that looks correct (`apps/api/src/runtime.ts:26`, `:92`). It has
+been measured, from plans briefly listed under `microtask/`, and the regression that pins the
+per-product read is `apps/api/src/runtime.test.ts:118`. The constraint is written at `TokenOwner`
+itself (`packages/kernel/src/access/token-index.ts:6`), because whoever adds the third token-owning
+container will be reaching for that type long before reading `runtime.ts`.
+
+Only that one inference is retracted. The decision this ADR takes — namespace the products now —
+stands, and so does every other consequence it draws: the index turned out to be one of the places
+the product dimension was needed first rather than one where it was never needed at all.

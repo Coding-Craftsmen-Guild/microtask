@@ -17,7 +17,10 @@ import type { Product } from '../product.js'
  * **third field** naming the kind — not a naming convention on `containerId`, which `find` and
  * `remove` would have to parse. Recorded here rather than only at the adapters that warm the index,
  * because whoever adds that container will be editing a domain package or this one, and will reach
- * for `TokenOwner` long before they read `apps/api/src/runtime.ts`.
+ * for `TokenOwner` long before they read `apps/api/src/runtime.ts`. ADR 0054 records the constraint
+ * as a decision, and ADR 0014's 2026-09-23 amendment points at this type as the place it is written,
+ * retracting its own consequence that a globally unique token leaves the index needing no product
+ * dimension.
  */
 export interface TokenOwner {
   /** Which product owns the container. Never enough on its own; see above. */
@@ -36,8 +39,11 @@ export interface TokenOwner {
  * thing that says which product it belongs to, so one index per product would mean
  * `PrincipalResolver` asking both and choosing between their answers — two lookups, two ways to be
  * wrong, in the authorization path. It is expressed in strings and a {@link Product} alone, so it
- * takes no product's entities with it (ADR 0014). Where the mapping is kept is the adapter's
- * business (ADR 0030); a service only ever names this port.
+ * takes no product's entities with it — ADR 0014's rule that a port lives with the types it is
+ * expressed in, though the list of kernel ports it draws from that rule is closed at `Clock`,
+ * `IdGenerator`, `Lock` and `FileSystem`, so **ADR 0054** is the record that admits this fifth one
+ * and moves it here from `packages/microtask-domain/src/ports/`. Where the mapping is kept is the
+ * adapter's business (ADR 0030); a service only ever names this port.
  */
 export interface TokenIndex {
   /** Resolves a token to its owning container, or null when nothing owns it. */

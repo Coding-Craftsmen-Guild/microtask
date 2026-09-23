@@ -4,7 +4,7 @@
 **Date:** 2026-09-22
 **Branch:** `feat/macroplan-timeline`
 **Follows:** [the shell design](2026-09-22-macroplan-shell-design.md), whose §6 left this undesigned
-**Decisions this spec creates:** ADRs 0048–0054 (§11)
+**Decisions this spec creates:** ADRs 0048–0054 (§11) — six written; 0052 deferred to phase 4
 **Amended:** 2026-09-22 — §7 split into the outward link and the inward one. The first draft had no
 notion of sharing a plan at all, and the phase 1 plan had written "every Macroplan action is
 admin-only" on the strength of that silence.
@@ -123,7 +123,12 @@ people or teams to be meaningful, and neither exists in this product.
 [ADR 0007](../../adr/0007-progress-derived-then-cached.md) caches progress in the manifest because
 deriving it requires reading every task *file*. The schedule derives from the manifest **alone** — a
 plan's entire structure is one read — so caching it would buy nothing and would create a class of
-staleness bugs that cannot otherwise exist. The forward pass is `O(n)` over at most 2 000 items.
+staleness bugs that cannot otherwise exist. The forward pass is not `O(n)`, which an earlier draft
+of this sentence claimed: the relaxation sweep is Bellman-Ford shaped, `O(n·(n+e))` over **features**
+(`packages/schedule/src/relax.ts`), with the `O(i log i)` item sorts beneath it. At this product's
+own caps — 200 features, 400 edges, 2 000 items — that is on the order of 10^5 operations and
+sub-millisecond, which is what lets phase 3 re-run the whole pass per pointer move rather than patch
+it incrementally. The `O(n)` was the items half of the work, mistaken for all of it.
 
 This is a deliberate departure from 0007's shape, recorded so that nobody later "fixes" the
 inconsistency by adding a cache.
@@ -174,8 +179,12 @@ drawer opens it. Write ordering per [ADR 0006](../../adr/0006-write-ordering-not
 item file first, manifest second.
 
 **Edges never cross a plan boundary.** A plan directory is wholly present or wholly absent, the same
-invariant [ADR 0004](../../adr/0004-project-task-folder-hierarchy.md) gives a project; a cross-plan
-dependency would break it, and there is no user need for one.
+invariant [ADR 0005](../../adr/0005-manifest-plus-task-files.md) gives a project; a cross-plan
+dependency would break it, and there is no user need for one. (An earlier draft cited ADR 0004 here.
+0004 decides the *hierarchy* — renaming Project to Task and adding a Project above it with one-level
+folders — and says nothing about directories. Directory-as-unit is 0005, with
+[ADR 0018](../../adr/0018-sniff-by-directory-group.md) deciding what makes a directory a recognised
+one.)
 
 There are **many plans**, one directory each, so next year can be drafted without disturbing this
 one.
@@ -431,15 +440,15 @@ links already issued. §7.3's behaviour is phase 4; the actions and scopes it de
 
 ## 11. ADRs this spec creates
 
-| ADR | Title |
-| --- | --- |
-| 0048 | Macroplan schedules, it does not store dates |
-| 0049 | Per-rail forward pass, in one pure package both sides import |
-| 0050 | The plan directory is the unit; edges never cross it |
-| 0051 | Estimate is authored at any level; children win, and the gap is shown |
-| 0052 | An epic binds to a Microtask project by a sealed share token |
-| 0053 | A plan is shared at plan scope, by the share-link system that already exists |
-| 0054 | One token index for both products, and identity stays a capability until there are users |
+| ADR | Title | Status |
+| --- | --- | --- |
+| 0048 | Macroplan schedules, it does not store dates | **Written.** |
+| 0049 | Per-rail forward pass, in one pure package both sides import | **Written.** |
+| 0050 | The plan directory is the unit; edges never cross it | **Written.** |
+| 0051 | Estimate is authored at any level; children win, and the gap is shown | **Written.** |
+| 0052 | An epic binds to a Microtask project by a sealed share token | **Deferred to phase 4.** Phase 1 reserves the bridge fields and decides nothing about the bridge, and §12 leaves who mints the token undecided — an ADR recording a decision nobody has taken is worse than an absent one. |
+| 0053 | A plan is shared at plan scope, by the share-link system that already exists | **Written.** |
+| 0054 | One token index for both products, and identity stays a capability until there are users | **Written.** |
 
 ## 12. What this spec does not decide
 

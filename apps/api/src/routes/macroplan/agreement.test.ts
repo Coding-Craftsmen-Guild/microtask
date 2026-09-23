@@ -177,10 +177,13 @@ const gatesIn = (handler: Handler): number => [...handler.source.matchAll(/autho
  *
  * Not "the call count equals the handler count", which `authorize`'s own TSDoc claimed until it was
  * corrected to point here: three handlers choose their action from the body, because a retime is a
- * different grant from a rename (ADR 0011), and each of those spends three `authorize` calls on two
- * branches and a follow-up. A count equality would therefore have to be a magic number, and a magic
- * number changes for the wrong reasons — a fourth branching handler and a newly unguarded one move it
- * the same way.
+ * different grant from a rename. ADR 0053 is what puts those two on opposite sides of one line —
+ * `write` changes what the work is and what it costs, `manage` changes where it sits and what the
+ * plan is — so a single PATCH body can ask for one grant, the other, or both. Two of those handlers
+ * spend three `authorize` calls on two branches and a follow-up while `updateFeature` spends five on
+ * a three-way branch and two follow-ups. A count equality would therefore have to be a magic number,
+ * and a magic number changes for the wrong reasons — a fourth branching handler and a newly
+ * unguarded one move it the same way.
  *
  * `authorize` throws rather than returning a boolean precisely so that *not calling it* is the only
  * way left to be unguarded: a handler that ignored a returned `false` would still answer 200, but a

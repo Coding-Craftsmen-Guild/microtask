@@ -63,6 +63,18 @@ in the working tree.
 | [0045](0045-staging-and-build-roots.md) | Staging and build roots live beside `projects/`, never inside it | Accepted |
 | [0046](0046-legacy-admin-address-redirect.md) | The legacy admin address redirects, and a stale `?tab=` degrades instead of 404ing | Accepted |
 | [0047](0047-one-admin-session-two-cookies.md) | One admin session package, one cookie name per product | Accepted |
+| [0048](0048-macroplan-schedules-it-does-not-store-dates.md) | Macroplan schedules, it does not store dates | Accepted |
+| [0049](0049-per-rail-forward-pass-in-one-pure-package.md) | Per-rail forward pass, in one pure package both sides import | Accepted |
+| [0050](0050-the-plan-directory-is-the-unit.md) | The plan directory is the unit; edges never cross it | Accepted |
+| [0051](0051-estimate-authored-at-any-level-children-win.md) | Estimate is authored at any level; children win, and the gap is shown | Accepted |
+| [0053](0053-a-plan-is-shared-at-plan-scope.md) | A plan is shared at plan scope, by the share-link system that already exists | Accepted |
+| [0054](0054-one-token-index-identity-stays-a-capability.md) | One token index for both products, and identity stays a capability until there are users | Accepted |
+
+**0052 is reserved, not missing.** It belongs to the phase-4 bridge — an epic binding to a
+Microtask project by a sealed share token — and phase 1 reserved the fields for it while deciding
+nothing about it. Spec §12 leaves who mints that token undecided, and an ADR recording a decision
+nobody has taken is worse than an absent one. Numbers are permanent, so the gap stays until the
+decision is made.
 
 ## Amendments
 

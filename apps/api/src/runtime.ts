@@ -87,7 +87,9 @@ export function buildRuntimeDeps(config: ApiConfig): ApiDeps {
  * It runs before `serve()` rather than lazily, so the process is either ready or not listening.
  * A container added to the volume by something other than this API — ADR 0017 admits imported
  * bundles — is not indexed until a restart. That is a bound of a per-process index, and the same
- * bound that makes a second replica unsafe (ADR 0006, carried forward to Plan 3).
+ * bound that makes a second replica unsafe: ADR 0030 states it outright, an in-memory `Map` per
+ * replica resolving a token minted by the other replica as unknown, and ADR 0054 restates it for
+ * the one index that now serves both products. Carried forward to Plan 3.
  */
 export async function warmTokenIndex(deps: ApiDeps): Promise<number> {
   const listing: Readonly<Record<Product, () => Promise<readonly Shared[]>>> = {

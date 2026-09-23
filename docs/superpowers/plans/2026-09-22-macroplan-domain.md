@@ -243,7 +243,7 @@ mutation, on the reasoning that nothing sliced it. A role slices it, so it is un
 'epic:create'          'epic:rename'          'epic:delete'      'epic:reorder'
 'epic:bind'
 'feature:create'       'feature:rename'       'feature:estimate'
-'feature:delete'       'feature:place'        'feature:depend'
+'feature:delete'       'feature:place'        'feature:depend'   'feature:pin'
 'item:create'          'item:rename'          'item:estimate'    'item:describe'
 'item:delete'          'item:place'           'item:link'
 'workspace:list-plans' 'workspace:create-plan'
@@ -264,7 +264,7 @@ which already compose (`WRITE = [...VIEW, …]`), so inheritance stays structura
 | --- | --- |
 | `VIEW` | `plan:read` |
 | `WRITE` | `feature:create`, `feature:rename`, `feature:estimate`, `item:create`, `item:rename`, `item:estimate`, `item:describe`, `item:link` |
-| `MANAGE` | `plan:rename`, `plan:retime`, `plan:delete`, `epic:create`, `epic:rename`, `epic:delete`, `epic:reorder`, `feature:delete`, `feature:place`, `feature:depend`, `item:delete`, `item:place` |
+| `MANAGE` | `plan:rename`, `plan:retime`, `plan:delete`, `epic:create`, `epic:rename`, `epic:delete`, `epic:reorder`, `feature:delete`, `feature:place`, `feature:depend`, `feature:pin`, `item:delete`, `item:place` |
 
 `ADMIN_ONLY_ACTIONS` gains **three**: `workspace:list-plans`, `workspace:create-plan`, and
 `epic:bind`. The third is the load-bearing one. Spec §7.3 makes the epic's binding role the ceiling on
@@ -2081,7 +2081,7 @@ assertion to `>=`: a `>=` would let one handler's second gate pay for another's 
 | `PATCH` | `/epics/{epicId}/placement` | `EpicPlacementPayload` | `epic:reorder` |
 | `DELETE` | `/epics/{epicId}` | — | `epic:delete` |
 | `POST` | `/features` | `CreateFeaturePayload` | `feature:create` |
-| `PATCH` | `/features/{featureId}` | `UpdateFeaturePayload` | `feature:rename` **and** `feature:estimate` |
+| `PATCH` | `/features/{featureId}` | `UpdateFeaturePayload` | `feature:rename`, `feature:estimate` **and** `feature:pin` — one per field the body carries |
 | `PATCH` | `/features/{featureId}/placement` | `FeaturePlacementPayload` | `feature:place` |
 | `PUT` | `/features/{featureId}/dependencies` | `DependenciesPayload` | `feature:depend` |
 | `DELETE` | `/features/{featureId}` | — | `feature:delete` |
@@ -2140,13 +2140,22 @@ Each subtree is its own `OpenAPIHono<ApiEnv>` mounted by `plan-scoped.ts`, mirro
 
 **Five things Task 16 settled that this task and Task 17 inherit.**
 
-`pinSprint` has **no action of its own**. `PATCH /features/{featureId}` carries three fields against
-two actions, so Task 16 grouped `pinSprint` with `feature:estimate` — both decide *when* the bar is
-drawn, where `feature:place` decides *which rail*. `PATCH /epics/{epicId}` has the same shape with
-`colour` under `epic:rename`, and being single-action there is no ambiguity.
+`pinSprint` **has an action of its own, `feature:pin`, and this paragraph used to say it did not.**
+Task 16 grouped it with `feature:estimate` on the reasoning that both decide *when* the bar is drawn
+where `feature:place` decides *which rail* — a coherent line, but not the one the spec draws.
+`feature:estimate` is **`write`**, so that grouping let a plan `write` seat re-pin a feature, while
+§7.1's role table gives re-pin to `manage` and §10 promises a `write` holder is refused it "by name".
+Task 18's audit found the promise unmet and the grant wrong, and `feature:pin` is now a `manage`-only
+action of its own. The lesson generalises: two keys of different authority behind one action is safe
+only while both authorities are held by the same roles, and nothing checks that they are.
+`PATCH /epics/{epicId}` has the same two-keys shape with `colour` under `epic:rename`, and is safe for
+that reason rather than by design — every `epic:*` action is `manage`, so no role holds one half.
 
-`EXTRA_GATES` in `surface.test.ts` is **6**. Each two-authority `PATCH` costs two extra textual
-`authorize(` calls, and there are three such routes. Raise it, never relax the equality.
+`EXTRA_GATES` in `surface.test.ts` is **8** as of Task 18, having been 6. `updatePlan` and
+`updateItem` cost two extra textual `authorize(` calls each; `updateFeature` costs **four**, spending
+five calls on one operation — a three-way branch plus two follow-ups, one per remaining authority the
+body implies. Raise it, never relax the equality: a `>=` would let one handler's second gate pay for
+another's missing first.
 
 **A bad id in a body is 422; an absent addressed entity is 404.** `Invalid` from `assertEpic`/
 `assertFeature` against a body, `NotFound` from `pickEpic`/`pickFeature`/`pickItem` against the path.
@@ -2313,7 +2322,7 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
 
 # Group E — the record
 
-### Task 18: four ADRs and the final audit
+### Task 18: six ADRs, two amendments and the final audit
 
 **Files:**
 - Create: `docs/adr/0048-macroplan-schedules-it-does-not-store-dates.md`
@@ -2332,7 +2341,14 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
   falls out of the second role: one product tag must name exactly one kind of token-owning container,
   because `add` replaces an owner's whole set and would evict silently, raising no `Conflict`.
 - Modify: `docs/adr/0038-capabilities-role-and-scope.md` — an amendment noting the plan scope and the
-  widened cross product, since that ADR's agreement argument is what now covers twenty-four more actions
+  widened cross product, since that ADR's agreement argument is what now covers twenty-four more
+  actions. Two statements in its **first amendment** are now false and are what the new one has to
+  correct. It sizes the agreement test as `role × scope.kind × action × target` = "3 × 2 × 27 × 6,
+  972 comparisons"; every factor but the first has moved, and it is now 3 roles × **3** scope kinds
+  × **51** actions × **10** targets. **Count it, do not copy this sentence** — read the four lists
+  and multiply, because a number copied from a plan is how the first one went stale. The same
+  amendment also still says `export:run` and `workspace:import` have no route yet; both have had
+  routes since the import work, and `capabilities.ts`'s own TSDoc already says so.
 - Modify: `docs/superpowers/specs/2026-09-22-macroplan-design.md` — §11's table marks 0048–0051, 0053
   and 0054 written and leaves 0052 to phase 4
 
@@ -2351,7 +2367,10 @@ alternative it rejects. The content each must carry:
   `node:path` and `node:crypto`), and why `schedule` is total — a cycle is returned and rendered, not
   thrown. Include the DST decision: all calendar arithmetic runs on UTC-midnight instants, and the
   plan's `timezone` is read by `todayIn` alone.
-- **0050 — The plan directory is the unit; edges never cross it.** Mirrors ADR 0004. A plan directory
+- **0050 — The plan directory is the unit; edges never cross it.** Mirrors ADR **0005** (directory
+  per project) and ADR **0018** (what makes a directory a recognised one) — **not** ADR 0004, which
+  decides the hierarchy and says nothing about directories. Spec §4.2 cited 0004 and has been
+  corrected. A plan directory
   is wholly present or wholly absent; a cross-plan dependency would break that invariant for no
   stated need, and `setDependencies` refuses one at the write.
 - **0051 — Estimate is authored at any level; children win, and the gap is shown.** The authored
@@ -2389,13 +2408,20 @@ ADR **0052** (an epic binds to a Microtask project by a sealed share token) is *
 Phase 1 reserves the fields and decides nothing about the bridge; spec §12 leaves who mints the token
 undecided, and an ADR recording a decision that has not been taken is worse than an absent one.
 
-- [ ] **Step 1: write the four ADRs.**
+- [ ] **Step 1: write the six ADRs** — 0048, 0049, 0050, 0051, 0053 and 0054. Not 0052.
 - [ ] **Step 2: update spec §11's table.**
 - [ ] **Step 3: the full cold gate.** Delete `.next` first, then
       `npx turbo run build typecheck lint test --force`. Green, `Cached: 0` on every task.
-- [ ] **Step 4: `node scripts/check-exports.mjs`** exits 0, and its output lists `@repo/schedule`.
+- [ ] **Step 4: `node scripts/check-exports.mjs`** exits 0. It will **not** name `@repo/schedule` in
+      its output, and that is not a failure: the script prints an `ok` line per **wildcard** export
+      target, and `@repo/schedule` declares two plain ones (`.` and `./testing`, both into `dist/`).
+      Its summary line — "checked N exports targets across M of 14 workspace packages" — is where the
+      package is counted. Confirmed 2026-09-23: exit 0, 29 targets across 9 of 14 packages.
 - [ ] **Step 5: confirm the phase gate the spec names.** Both halves, by name:
-      - `pnpm --filter @repo/schedule test` — the nine property tests over 1 000 seeds each, green
+      - `pnpm --filter @repo/schedule test` — the property suite over 1 000 seeds each, green. **Ten**
+        property groups, not nine: totality, partition, order independence, monotonicity, pins hold,
+        cycles are contained, contiguity, dependencies hold, an ignored edge names a real
+        contradiction, and rail order holds. Count them in the file rather than trusting this list.
       - `pnpm --filter @repo/macroplan-domain test` — `describePlanStore` green against both
         `MemoryPlanStore` and `FsPlanStore`
 - [ ] **Step 6: confirm the phase-1 boundary held.** `git diff --stat main -- apps/macroplan` is
@@ -2421,11 +2447,13 @@ undecided, and an ADR recording a decision that has not been taken is worse than
       primitives (`ids.ts`, `errors.ts`, `product.ts`) sit flat — and the barrel already exports
       `contained` in the flat-primitives group, so the directory and the export site disagree. If
       nothing else landed in `storage/`, move it to `packages/kernel/src/contained.ts`.
-- [ ] **Step 7: confirm nothing stores a schedule.**
-      `grep -rn "schedule" packages/macroplan-domain/src/entities packages/contracts/src/plan.ts`
-      returns nothing. ADR 0048 is only as strong as this.
+- [ ] **Step 7: confirm nothing stores a schedule.** A bare `grep -rn "schedule"` over those paths
+      does **not** return nothing and never will: both files discuss `@repo/schedule` in TSDoc, which
+      is the opposite of a defect. Grep for the **field** instead —
+      `grep -rnE "(readonly )?schedule??:" packages/macroplan-domain/src/entities packages/contracts/src/plan.ts`
+      — which must match nothing. ADR 0048 is only as strong as this. Confirmed empty 2026-09-23.
 - [ ] **Step 8: commit and push the feature branch.**
-      `git commit -m "Record the four decisions phase 1 took"`, then
+      `git commit -m "Record the six decisions phase 1 took"`, then
       `git push origin feat/macroplan-timeline`. **Never `main`** — Coolify deploys it (ADR 0022).
 
 ---
@@ -2450,7 +2478,7 @@ Spec §10's table, resolved to tasks. A row with no task is a gap; there are non
 | the role model — `capabilities()` agrees with `can()` across every tuple, plan scope included | Task 2b, by the existing exhaustive agreement test |
 | cross-product isolation — a Microtask token refused on a `planId` equal to its `projectId`, and the reverse | Task 2 (kernel), Task 15 step 1 (over the wire) |
 | the token index — one token, one container, across both products | Task 2c step 2, the collision case |
-| `write` cannot become `manage` | Task 2 (each action by name), Task 15 step 1 and Task 16b step 1 (the mint refusal) |
+| `write` cannot become `manage` | Task 2 (each action by name), Task 15 step 1 and Task 16b step 1 (the mint refusal) — **and Task 18's audit, which found this row overstated.** Spec §10 promises a `write` holder is refused "delete, reorder, **re-pin**, dependency rewiring, plan settings and every `share:*` action, each asserted by name". Re-pin was neither refused nor asserted: `updateFeature` gated `pinSprint` on `feature:estimate`, which `write` holds, so a `write` seat could move a bar in time. A pin is "where it sits", which §7.1 reserves to `manage`. Closed by adding `feature:pin` as a `manage` action, with the refusal asserted by name and the both-fields-in-one-body case asserted to write neither |
 | layout — pure functions, no DOM | **Phase 2.** Not in scope here |
 | the bridge — revoked token, deleted project, a `view` holder denied a task name, `effectiveBridgeRole` | **Phase 4.** Phase 1 proves the fields stay `null` (Task 16) and that `epic:bind` is admin-only (Task 2) |
 

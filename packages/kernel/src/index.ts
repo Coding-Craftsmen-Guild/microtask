@@ -1,7 +1,7 @@
 export { isProduct, PRODUCTS, type Product } from './product.js'
 export { isShareToken, isUlid, shareToken, ulid } from './ids.js'
 export { AppError, Conflict, Forbidden, Invalid, NotFound } from './errors.js'
-export { contained } from './storage/contained.js'
+export { contained } from './contained.js'
 
 export { ACTIONS, type Action } from './access/action.js'
 export { isRole, ROLES, type Role } from './access/role.js'

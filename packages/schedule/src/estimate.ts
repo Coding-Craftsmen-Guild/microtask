@@ -18,7 +18,10 @@ function total(days: readonly number[]): number {
  * The gate is *at least one estimated item*, not *has items*. Summing over zero estimated
  * children would answer 0, which turns a 40-day feature into a milestone the moment someone
  * names its first item and has not yet sized it — the estimate would evaporate mid-typing.
- * So an unestimated breakdown is no breakdown, and the authored value still stands.
+ * So an unestimated breakdown is no breakdown, and the authored value still stands. ADR 0051
+ * settles all of that: an estimate may be authored at either level, both authored values are kept,
+ * nothing in this system ever writes one from the other, and placement takes the children only when
+ * at least one of them carries an estimate.
  *
  * Nothing here treats 0 as absent. An `estimateDays` of 0 is a milestone: a real estimate that
  * means no time, and the only thing that distinguishes it from `null` is the `=== null` test.

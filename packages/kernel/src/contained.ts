@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { Invalid } from '../errors.js'
+import { Invalid } from './errors.js'
 
 /**
  * Resolves `target` and returns it only when it lands strictly inside `parent`.

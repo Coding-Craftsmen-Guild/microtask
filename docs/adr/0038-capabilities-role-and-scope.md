@@ -142,3 +142,85 @@ from its own answer:
 
 The plan behind this unit asked for the manager to be "absent" for that holder and for the
 create-but-not-list case to be "stated in the UI". The create-only dialog is how both are met at once.
+
+## Amended by measurement · 2026-09-23 — the plan scope, and the first amendment's two stale numbers
+
+This ADR's argument now covers **twenty-four more actions** — Macroplan's — and a third scope kind,
+`plan`. `GRANTS` and `ROWS` are still two encodings of one fact and the agreement test still holds
+them to each other, so nothing here changes the decision. What it changes is two statements in the
+first amendment above that were true when they were written.
+
+**The cross product is not 3 × 2 × 27 × 6.** Every factor but the first has moved. Counted from the
+lists themselves rather than carried over:
+
+- **3 roles** — `ROLES` (`packages/kernel/src/access/role.ts:2`), which is what `GRANTS` is keyed by
+  (`packages/kernel/src/access/policy.ts:58`). The one factor that did not change.
+- **3 scope kinds** — `project`, `task` and `plan` (`packages/kernel/src/access/scope.ts:8`). The
+  scope axis this ADR said "means the cross product grows" grew, exactly there.
+- **51 actions** — `ACTIONS` (`packages/kernel/src/access/action.ts:70`), being 29 in the
+  Microtask-and-workspace list plus 22 in the plan-family list. Those two lists are grouped by action
+  family and **not** by product, so neither length is a product's action count: Macroplan's 24 are the
+  22 plan-family actions plus `workspace:list-plans` and `workspace:create-plan`, which sit with their
+  `workspace:` siblings because a workspace target and admin-only authority is what the policy turns
+  on. 51 − 27 = the 24 this amendment opens with.
+- **10 target kinds, as the test enumerates them.** The kernel's own `TARGET_KINDS` has **9**
+  (`packages/kernel/src/access/target.ts:2`); `@repo/contracts` adds one of its own, `own-scope`, so
+  `CapabilityTarget` has **10** (`packages/contracts/src/capabilities.ts:22`). The number that
+  matters is the test's, and the test enumerates 10: `TARGETS` is `[...TARGET_KINDS, 'own-scope']`
+  (`packages/contracts/src/capabilities.test.ts:32`), derived from the kernel's list rather than
+  hand-written so a tenth kernel kind enters the cross product by itself, with a type-level guard
+  (`BEYOND_KERNEL_KINDS`, `:45`) failing the build if the contracts union grows a member the kernel
+  does not name. Between the two the lists cannot part.
+
+3 × 3 × 51 × 10 = **4 590 comparisons**, arrived at as 51 × 10 = 510 per role-and-scope pair and
+3 × 3 = 9 such pairs.
+
+**And the test really does enumerate that product, with nothing skipped.** It is nine `it` blocks,
+one per role × scope, each walking all 51 actions × 10 targets and collecting the disagreements
+rather than asserting pair by pair, so a failure names every divergent pair at once
+(`packages/contracts/src/capabilities.test.ts:139`). Combinations that cannot arise are included on
+purpose — a plan-scoped holder is asked about a `tab` target, and answering `false` in both encodings
+is the agreement being checked. Two details make the enumeration well defined rather than arbitrary:
+`own-scope` resolves to the caller's own scope (`targetIn`, `:88`), and each of the other nine targets
+is built **inside the root the scope names** (`TARGET_BY_KIND`, `:76`), because a `CapabilityTarget`
+is a bare kind with no id, so agreement is about kind and the id comparison stays the kernel's.
+`CAPABILITY_ACTIONS` is still asserted equal to `ACTIONS` (`:96`), so a new kernel action fails the
+test until the projection accounts for it.
+
+**`export:run` and `workspace:import` both have routes.** The first amendment's "no route yet" is the
+other stale statement, and it has been stale since the import work landed:
+
+- `export:run` is gated on `{kind:'project'}` at `GET /v1/microtask/projects/{projectId}/export`
+  (`apps/api/src/routes/microtask/export/handlers.ts:84`). There are **two** export addresses; the
+  workspace-wide sibling `GET /v1/microtask/export` is gated on `workspace:list-projects` rather than
+  on `export:run`, because a route naming no project has no per-resource target to decide against.
+- `workspace:import` is gated on `{kind:'workspace'}` at **five** import-session addresses — open a
+  session, upload a chunk, expand an archive, preview, confirm (`POST /v1/microtask/import/sessions`,
+  `POST …/sessions/{sessionId}/files`, `POST …/sessions/{sessionId}/archives`,
+  `GET …/sessions/{sessionId}/preview`, `POST …/sessions/{sessionId}/confirm`;
+  `apps/api/src/routes/microtask/import/handlers.ts:33`, `:52`, `:73`, `:91`, `:114`). That five is
+  asserted gate by gate rather than read off a comment (`apps/api/src/routes/authorize-targets.test.ts:125`).
+
+So the list of rows no route scan can confirm is no longer those two plus `workspace:search`. It is
+**`workspace:search`**, which has a route and will never be confirmable from one — its gate names a
+computed action and a computed target, so there is no literal in the source to read
+(`apps/api/src/routes/authorize-targets.test.ts:87`) — plus **`epic:bind`** and **`item:link`**, the
+phase-4 bridge actions, which have no route at all. Those two are named in `PENDING_ROUTES` (`:36`)
+and the suite fails the moment one is gated without being struck off (`:120`), which is how the
+Macroplan rows that did acquire routes left that set.
+
+One row the **route-target cross-check** structurally cannot see is `share:read` in Macroplan.
+Macroplan decides it inside `visibleLinks` rather than at a route — a plan's seats arrive inside
+`PlanView.shareLinks` instead of from a list endpoint
+(`packages/macroplan-domain/src/views/plan-view.ts:132`) — so no `authorize(` scan reaches it, and
+nothing forced its `alsoGatedOn: ['plan']` row. That is a limit of
+`apps/api/src/routes/authorize-targets.test.ts` and **not** of the agreement test: the agreement test
+compares the projection against `can()` for the whole product above, `share:read` × plan scope ×
+`plan` target included, and pins that pair by name (`packages/contracts/src/capabilities.test.ts:327`).
+
+`alsoGatedOn` remains a note to callers and changes no answer. Neither `mayReach` nor `capabilities`
+consults it (`packages/contracts/src/capabilities.ts:213`, `:238`); its readers are the two tests
+above. So `capabilities('manage', planScope)['share:revoke']` is `false` **deliberately** — the record
+answers each action against its own single `target`, which for the seat actions is the Microtask
+project — and a plan-scoped caller has to ask `mayReach(role, scope, action, 'plan')` by name. That
+`false` is pinned, not tolerated (`packages/contracts/src/capabilities.test.ts:319`).

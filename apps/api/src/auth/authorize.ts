@@ -25,15 +25,19 @@ export const notPermitted = (action: Action): string => `Not permitted: ${action
  * ignores a returned `false` still answers 200; a handler that never calls this at all is the
  * only remaining way to be unguarded, and that is greppable.
  *
- * Not by a count equal to the handler count, which this said until ADR 0011 broke it:
+ * Not by a count equal to the handler count, which this said until ADR 0053 broke it:
  * `updatePlan`, `updateFeature` and `updateItem` each choose their action from the body, because a
- * retime is a different grant from a rename, and each spends three calls on two branches and a
- * follow-up. Two tests hold what is actually invariant. `surface.test.ts` asserts the textual
- * `authorize(` count equals one per guarded operation **plus** `EXTRA_GATES` — a named constant
- * carrying those six extra calls and the three routes they belong to — by equality and never `>=`, so
- * one handler's second gate cannot pay for another's missing first. `routes/macroplan/agreement.test.ts`
- * asserts the claim that needs no count at all: the set of macroplan handler blocks containing no
- * `authorize(` call is empty.
+ * retime is a different grant from a rename (and a re-pin a different grant again from an estimate).
+ * ADR 0053 is what makes those separate grants rather than one `plan:update` per route: `write`
+ * changes what the work is and what it costs, `manage` changes where it sits and what the plan is,
+ * so a rename and a retime fall on opposite sides of that line while one body may carry both.
+ * `updatePlan` and `updateItem` spend three calls each on two branches and a follow-up, and
+ * `updateFeature` spends five on a three-way branch and two follow-ups. Two tests hold what is
+ * actually invariant. `surface.test.ts` asserts the textual `authorize(` count equals one per guarded
+ * operation **plus** `EXTRA_GATES` — a named constant carrying those eight extra calls and the three
+ * routes they belong to — by equality and never `>=`, so one handler's second gate cannot pay for
+ * another's missing first. `routes/macroplan/agreement.test.ts` asserts the claim that needs no
+ * count at all: the set of macroplan handler blocks containing no `authorize(` call is empty.
  *
  * One **gate**, not one mention of `can()`. A gate is one check on the way in for a request with
  * a single target; a filter is a per-item predicate over a result set, and has to run where the

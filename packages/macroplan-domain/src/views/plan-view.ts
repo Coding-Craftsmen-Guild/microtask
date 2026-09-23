@@ -138,7 +138,13 @@ export function visibleLinks(
 }
 
 /**
- * A plan with the schedule derived from it. Derived here, stored nowhere (spec §3.4).
+ * A plan with the schedule derived from it. Derived here, stored nowhere (spec §3.4, ADR 0048).
+ *
+ * ADR 0048 decides that, and records it as a deliberate departure from ADR 0007 rather than an
+ * oversight: progress *is* cached in a Microtask manifest, because deriving it means reading every
+ * task file, where a schedule derives from the one manifest this caller already has open. So a cache
+ * would save no read at all, and would add the one thing that cannot otherwise exist — a stored span
+ * left behind by a retimed `startDate`. `PlanManifest` must never grow a `schedule` field.
  *
  * Shapes rather than gates: the one thing the principal decides is the share block, and the route's
  * own `authorize()` is what decides who reaches a plan at all (ADR 0009). So the contents below are

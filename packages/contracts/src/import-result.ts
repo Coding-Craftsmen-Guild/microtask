@@ -92,8 +92,9 @@ export const ImportProjectResult = projectResultFields
  * re-run, the session having been swept as the apply began (ADR 0045). It was bounded by
  * `projectsPerProduct` until this was measured, on the claim that the preview refuses a bigger
  * drop first. It does not: `capped()` blocks a project that would take the store over that number
- * and still answers a row for it, so 501 groups preview as 501 rows (ADR 0017 — describe what was
- * dropped rather than refuse to describe it) and confirm as 501 outcomes. The API validates no
+ * and still answers a row for it, so 501 groups preview as 501 rows (ADR 0018 — "skipped" and
+ * "error" are distinct outcomes a preview states, and silent skipping is the failure that ADR was
+ * written about) and confirm as 501 outcomes. The API validates no
  * response, but `@repo/api-client`'s transport parses every one, so the bound turned an
  * over-the-cap confirm into a `ZodError` in place of the outcome list — after the writes had
  * landed, which the 501st row need not be one of: 498 importable projects and three unreadable
