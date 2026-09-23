@@ -1,25 +1,40 @@
-import { EmptyState } from '@repo/ui/shell/empty-state'
 import type { Metadata } from 'next'
+import { adminCall } from '../../actions/result'
+import { PlanList } from '../../components/plans/plan-list'
 
 /** The tab title this page gives the browser. */
 export const metadata = { title: 'Macroplan · CC Guild' } satisfies Metadata
 
 /**
- * `/`: the admin's landing page, which has nothing to list yet.
+ * `/`: the admin's landing page, which lists every plan this workspace holds.
  *
- * It reads nothing, and that is deliberate rather than unfinished: Macroplan's entities are not
- * specified, and `/v1/macroplan/*` is reserved and empty (ADR 0014). A page that called the API
- * for a collection that does not exist would render a 404 as if something had gone wrong.
+ * It reads `plans.list()` and nothing else. That list carries settings and three counts per plan
+ * and never a plan's contents, so the one screen that renders none of 200 plans' 400,000 items does
+ * not load them; and it carries a share-link **count** rather than seats, so no plan token reaches
+ * this page's HTML however it is composed (ADR 0033).
  *
- * What it does prove is the whole seam this app was built to prove: an admin signed in against
- * the product-agnostic `/v1/auth/login` with this app's own service key, `mp_admin` sealed and
- * read back, `proxy.ts` gating this route, and the shared shell drawn around it. The first
- * entity replaces the empty state and changes nothing else on this page.
+ * `workspace:list-plans` is admin-only (ADR 0009), which is why this is the admin surface's page
+ * and there is no seat-facing version of it: a plan seat is refused the collection outright rather
+ * than handed the one plan its token opens.
+ *
+ * A load failure is said in place of the list, in this surface's own words rather than the API's,
+ * and an expired session redirects to `/login` from inside `adminCall` — for `/` there is no
+ * `?next=` to carry, because `/` is where sign-in already lands.
+ *
+ * `Date.now()` is read once here and threaded down, so every row's age is measured against one
+ * instant and the markup cannot disagree with itself.
  */
-export default function MacroplanPage() {
+export default async function MacroplanPage() {
+  const loaded = await adminCall('/', (api) => api.plans.list())
   return (
     <div className="grid gap-4 pt-6">
-      <EmptyState>Nothing here yet — Macroplan has no plans of its own.</EmptyState>
+      {loaded.ok ? (
+        <PlanList now={Date.now()} plans={loaded.value.plans} />
+      ) : (
+        <p className="text-center text-muted-foreground" role="alert">
+          {loaded.detail}
+        </p>
+      )}
     </div>
   )
 }
