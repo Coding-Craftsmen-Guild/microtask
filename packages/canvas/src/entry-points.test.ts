@@ -16,16 +16,20 @@ describe('@repo/canvas entry points', () => {
     expect(exports['.']).toEqual({ types: './dist/index.d.ts', default: './dist/index.js' })
   })
 
-  it('ships the scale, the rails, the marks and the chrome, and nothing a later module has not landed yet', () => {
+  it('ships the scale, the rails, the marks, the chrome, the rungs and the treatments, and nothing a later module has not landed yet', () => {
     expect(Object.keys(main).sort()).toEqual([
+      'FEATURE_RUNG_MIN_PX_PER_DAY',
+      'ITEM_RUNG_MIN_PX_PER_DAY',
       'SPRINTS_PER_QUARTER',
       'dayToX',
       'itemsToMarks',
       'quarterBands',
       'railLayout',
+      'rungFor',
       'scaleFor',
       'sprintTicks',
       'todayLine',
+      'treatmentOf',
       'widthOfDays',
       'xToDay',
     ])
