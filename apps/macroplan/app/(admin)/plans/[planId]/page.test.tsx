@@ -1,5 +1,6 @@
 import { seal } from '@repo/app-session/crypto'
 import { render, screen } from '@testing-library/react'
+import { isValidElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fakePlanApiState,
@@ -18,6 +19,8 @@ import {
   PLAN_A,
   PLAN_B,
   PLAN_GONE,
+  SEAT_TOKEN,
+  WRITE_SEAT_TOKEN,
 } from '../../../../components/plan/testing/plan-fixture'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
@@ -63,12 +66,23 @@ const { default: PlanPage, generateMetadata } = await import('./page')
 
 let api: FakePlanApiState
 
+// Every answer body the fake put on the wire, as read-share.test.ts collects them: it is what lets
+// "the page hands over no token" be checked against what the API actually served rather than against
+// an assumption that it served one.
+const answered: unknown[] = []
+
 beforeEach(() => {
   vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
   vi.stubEnv('API_KEY', 'the-macroplan-service-key')
   vi.stubEnv('COOKIE_SECRET', SECRET)
   api = fakePlanApiState()
-  vi.stubGlobal('fetch', fakePlanFetch(api))
+  answered.length = 0
+  const fake = fakePlanFetch(api)
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    const answer = await fake(url, init)
+    answered.push(await answer.clone().json())
+    return answer
+  })
   bearer = ADMIN_TOKEN
 })
 
@@ -95,6 +109,57 @@ const redirectOf = async (planId: string): Promise<string> => {
   if (thrown instanceof Redirected) return thrown.location
   throw new Error(`expected a redirect, got ${String(thrown)}`)
 }
+
+// Every token this test world holds, read off the fixture rather than listed here, so the sweep
+// cannot miss one a seat was added with. `ShareToken` is /^[A-Za-z0-9_-]{16,64}$/ with no prefix and
+// a ULID satisfies it too, so recognising a token by shape would demand every plan id be a leak.
+const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
+
+interface Handed {
+  readonly strings: string[]
+  readonly functions: string[]
+}
+
+// Ported from app/s/[token]/page.test.tsx and widened in two places that sweep missed.
+//
+// 1. `key`. React moves it out of `props` onto `element.key`, so `<div key={token}>` is invisible to
+//    a walk that descends into `props` alone — and React does serialise keys into the Flight
+//    payload. `keysOf` reads it off the element, and the self-test below plants one.
+// 2. Functions. A bound argument is unreachable by reflection: `action.bind(null, token)` exposes
+//    neither the token nor its own name, so no walk can see inside one, and that is exactly the
+//    mechanism ADR 0040 describes for handing a token to a component. What is checkable is whether
+//    the page hands over a function **at all**, so every function met is recorded and asserted
+//    empty. Phase 3's first bound server action therefore fails that assertion rather than passing
+//    it quietly, and whoever adds it has to say how its arguments are proved clean.
+const keysOf = (value: object): readonly string[] =>
+  isValidElement(value) && typeof value.key === 'string' ? [value.key] : []
+
+const childrenOf = (value: object): readonly unknown[] =>
+  Object.values(isValidElement(value) ? (value.props as object) : value)
+
+const sweep = (value: unknown, found: Handed, seen: WeakSet<object>): void => {
+  if (typeof value === 'string') {
+    found.strings.push(value)
+    return
+  }
+  if (typeof value === 'function') {
+    found.functions.push(value.name)
+    return
+  }
+  if (typeof value !== 'object' || value === null || seen.has(value)) return
+  seen.add(value)
+  found.strings.push(...keysOf(value))
+  for (const child of childrenOf(value)) sweep(child, found, seen)
+}
+
+const handedBy = (element: ReactNode): Handed => {
+  const found: Handed = { strings: [], functions: [] }
+  sweep(element, found, new WeakSet())
+  return found
+}
+
+const tokensHandedBy = (element: ReactNode): readonly string[] =>
+  handedBy(element).strings.filter((one) => EVERY_TOKEN.some((token) => one.includes(token)))
 
 describe('the plan page', () => {
   it('reads the one plan under the bearer the admin cookie carries, and reads nothing else', async () => {
@@ -127,14 +192,6 @@ describe('the plan page', () => {
     expect(
       screen.getByText('starts 2026-09-28 · 14-day sprints · Europe/Belgrade'),
     ).toBeTruthy()
-  })
-
-  it('carries no share token into the page, however senior the caller', async () => {
-    holdingAdmin(api)
-    api.plans = [atlasPlan()]
-    const { container } = await show()
-    expect(container.textContent).not.toContain('a_plan_seats_token1')
-    expect(container.textContent).not.toContain('a_manage_seats_tok1')
   })
 
   it('titles the tab with the plan’s own name, read through the same cached function the page uses', async () => {
@@ -186,5 +243,52 @@ describe('the plan page', () => {
     await show()
     expect(trace(api)).toEqual([`${planReadKey(PLAN_A)} ${MANAGE_SEAT_TOKEN}`])
     expect(screen.getByRole('alert').textContent).toBe(ACTION_REFUSALS.admin.forbidden)
+  })
+})
+
+describe('the plan page hands no share token to a component, however senior the caller', () => {
+  const shown = async (): Promise<ReactNode> => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    return await PlanPage(paramsOf(PLAN_A))
+  }
+
+  it('reads three live tokens off the fixture, so “none of them” is not a claim about an empty set', () => {
+    expect(EVERY_TOKEN).toHaveLength(3)
+    expect(EVERY_TOKEN).toEqual([SEAT_TOKEN, WRITE_SEAT_TOKEN, MANAGE_SEAT_TOKEN])
+  })
+
+  it('sees a token wherever one can hide — a prop, a child, and a key', () => {
+    const planted: ReactNode = (
+      <div data-seat={`seat ${WRITE_SEAT_TOKEN}`}>
+        <p key={SEAT_TOKEN}>{[MANAGE_SEAT_TOKEN]}</p>
+      </div>
+    )
+    expect(tokensHandedBy(planted)).toHaveLength(3)
+    expect(tokensHandedBy(<p>Atlas rollout</p>)).toEqual([])
+  })
+
+  it('was answered all three on the wire, so what follows is a reduction and not a thin plan', async () => {
+    await shown()
+    const wire = JSON.stringify(answered)
+    for (const token of EVERY_TOKEN) expect(wire).toContain(token)
+  })
+
+  it('hands not one of them to a component, and renders none of them', async () => {
+    const element = await shown()
+    const { container } = render(element)
+    expect(tokensHandedBy(element)).toEqual([])
+    for (const token of EVERY_TOKEN) expect(container.innerHTML).not.toContain(token)
+  })
+
+  it('hands a plan whose seats were dropped on the server, not merely one nothing rendered', async () => {
+    const element = await shown()
+    const plan = isValidElement<{ plan: object }>(element) ? element.props.plan : undefined
+    expect(plan).toBeTruthy()
+    expect(Object.keys(plan ?? {})).not.toContain('shareLinks')
+  })
+
+  it('hands over no function at all, so no token is hiding in a bound action’s arguments', async () => {
+    expect(handedBy(await shown()).functions).toEqual([])
   })
 })

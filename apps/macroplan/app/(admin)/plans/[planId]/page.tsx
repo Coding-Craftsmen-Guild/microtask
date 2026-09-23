@@ -27,6 +27,11 @@ export async function generateMetadata({ params }: PlanPageProps): Promise<Metad
  * `@repo/canvas` asks of a caller — "A caller reads the clock; this reads the caller" — and is why a
  * test can pin a date and get one answer.
  *
+ * What it hands down is **not** what the API answered. `plans.read()` serves an admin every seat on
+ * the plan and its live token, and `read-plan.ts` reduces that to a `PlanPageModel` whose type
+ * cannot hold one — so there is no share token in this page's props for the Flight payload to carry,
+ * and none for a client component added inside `PlanScreen` to drag into the HTML (ADR 0033).
+ *
  * A plan the API does not hold, and an id that is not a ULID, are both `not-found.tsx`; `read-plan.ts`
  * is where that is argued. Every other refusal is said in place of the timeline, in this surface's own
  * words rather than the API's, and an expired session redirects to `/login?next=/plans/<id>` from
