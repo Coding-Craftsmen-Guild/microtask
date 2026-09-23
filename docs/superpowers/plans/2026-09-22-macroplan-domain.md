@@ -1903,12 +1903,24 @@ its TSDoc records: **`app.use('*', requirePrincipal(…))` is the first statemen
 and nothing is mounted before it.** A `.use()` registered after a `.route()` never runs and the
 request still answers 200 — no warning, no failing route, only an open endpoint.
 
-`PrincipalResolver` needs a `ProjectStore` for token resolution; Macroplan has no tokens. It is
-constructed with `deps.store` (the Microtask one) exactly as `createMicrotask` does, because its job
-here is only to resolve a bearer to a principal. Since Task 2c it is constructed with a
-`LinkDirectory` per product, so a Macroplan token resolves against `deps.planStore` and a Microtask
-one against `deps.store` — and a Microtask principal reaching a plan target is then refused by the
-scope rule, which is Task 2's id-collision test.
+**The cross-product refusal is already written.** `apps/api/src/auth/require-product.ts` exports
+`requireProduct(product)`. In `createMacroplan`, register `app.use('*', requireProduct(PRODUCT))` as
+the statement immediately after the `requirePrincipal` line and before anything is mounted — that is
+the whole of the cross-product refusal for `/v1/macroplan/*`, and **no handler in this tree should
+re-check the scope's product.** It must live inside this app rather than at the `/macroplan` mount
+prefix in `v1.ts`: a parent's `use()` runs before the child's middleware, so there would be no
+principal to read yet.
+
+A handler may still need `isProjectScope`-style narrowing for a **type**, because a middleware
+refusal is invisible to the compiler — `principal.scope` is still the full union inside a handler.
+Where that happens, the guard owns the refusal and the check owns the type, and the check's own
+`Forbidden` is unreachable through the app. Say so rather than implying it still refuses anyone.
+
+`PrincipalResolver` resolves a bearer for **both** products. Since Task 2c it takes a `LinkDirectory`
+per product, so a Macroplan token resolves against `deps.planStore` and a Microtask one against
+`deps.store` — and a principal rooted in the other product is then refused at the mount, below.
+`PlanContext` carries `tokens` because `PlanService.remove` drops a deleted plan's seats from the
+index; leaving it out does not typecheck.
 
 The four services are constructed once in `createMacroplan` from a `PlanContext` assembled at the
 mount, which is the one place the two domains' differing `store` members are told apart:
@@ -1919,6 +1931,7 @@ const ctx: PlanContext = {
   lock: deps.lock,
   clock: deps.clock,
   ids: deps.ids,
+  tokens: deps.tokens,
 }
 ```
 
