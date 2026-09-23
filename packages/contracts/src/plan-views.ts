@@ -62,12 +62,15 @@ export const ItemView = PlanItem.extend({ description: z.string() }).meta({
  * It carries **no token**, its own included, for the reason `ShareView` carries none: the caller
  * sent its token to ask the question, so echoing it back tells nobody anything and only puts a live
  * credential into another response body — and having no token field at all is what makes "never
- * another seat's token" true by construction rather than by filtering (ADR 0017).
+ * another seat's token" true by construction rather than by filtering (ADR 0033).
  *
- * `role` and `scope` are the two inputs `capabilities()` takes, and they are here rather than
- * the projection itself: this package computes that record in the browser, which is the whole reason
- * ADR 0038 admits it, so a served copy would be a second answer free to disagree with the one the
- * client already has. No API response carries one today.
+ * `role` and `scope` are the two inputs `capabilities()` takes, and they are here rather than the
+ * projection itself. ADR 0038 weighed serving the set, called it the cleanest option, and rejected
+ * it on **reach** rather than on principle: the set is needed to render Server Components that have
+ * made no bootstrap call, and threading it through every one of them makes the capability set a prop
+ * on the whole tree. So no API response carries that record today and this route mirrors Microtask's
+ * handler exactly — and the door stays open, the ADR itself holding the question worth revisiting
+ * should `shares/current` become a hard dependency of every page anyway.
  *
  * `scope` is spelled inline rather than through a shared `PlanScope` schema, because a plan seat
  * stores no scope to validate — `PlanShareLink` has no such field, and the API derives this value

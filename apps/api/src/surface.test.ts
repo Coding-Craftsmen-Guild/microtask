@@ -207,7 +207,7 @@ const handlerCount = async (): Promise<number> =>
 const EXTRA_GATES = 6
 
 describe('guard (3): one authorize( per handler, and one can() in the app', () => {
-  it('counts one authorize( per guarded operation, plus the six three two-authority bodies add', async () => {
+  it('counts one authorize( per guarded operation, plus the six two-authority bodies add', async () => {
     expect(await matchesIn(await under('./routes/'), GATE())).toBe(
       (await handlerCount()) + EXTRA_GATES,
     )

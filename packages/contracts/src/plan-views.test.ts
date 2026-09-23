@@ -219,7 +219,7 @@ describe('PlanShareView, the answer a plan seat gets about itself', () => {
     expect(PlanShareView.safeParse(view).success).toBe(true)
   })
 
-  it('has no token field of any kind, so no answer can carry a live credential (ADR 0017)', () => {
+  it('has no token field of any kind, so no answer can carry a live credential (ADR 0033)', () => {
     expect(Object.keys(PlanShareView.shape)).toEqual(['role', 'scope', 'plan'])
   })
 
@@ -236,7 +236,7 @@ describe('PlanShareView, the answer a plan seat gets about itself', () => {
     expect(PlanShareView.safeParse({ ...view, role: 'owner' }).success).toBe(false)
   })
 
-  it('carries what capabilities() takes, which is why the projection itself is not served', () => {
+  it('carries what capabilities() takes, so the client computes the set the answer does not', () => {
     const parsed = PlanShareView.parse(view)
     expect(capabilities(parsed.role, parsed.scope)['feature:create']).toBe(true)
     expect(capabilities(parsed.role, parsed.scope)['epic:create']).toBe(false)

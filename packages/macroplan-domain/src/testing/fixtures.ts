@@ -16,8 +16,10 @@ export const STAMP = '2026-09-10T00:00:00.000Z'
  * lets a test assert the `id`-descending tiebreak `PlanStore.listManifests` promises.
  *
  * The mark has to stay inside Crockford base32 — `I`, `L`, `O` and `U` are **not** in it — or the
- * id is not a ULID and every guard in this package refuses it. So the marks in this package's tests
- * are the consonant pairs `PN`, `EP`, `FT` and `TM` rather than the words they abbreviate.
+ * id is not a ULID and every guard in this package refuses it. So a mark is any Crockford-base32
+ * consonant pair rather than the word it abbreviates. The pairs in use are deliberately not listed
+ * here: the constraint is what callers have to obey, while an enumeration is a second place to
+ * update every time a suite needs one more entity, and it had already drifted once.
  */
 export const marked = (mark: string, index: number): string =>
   `${mark}${String(index).padStart(26 - mark.length, '0')}`

@@ -126,7 +126,8 @@ describe('an edge that would leave this plan, which is a 422 rather than a confl
 
   it('writes nothing when it refuses one, which a subsequent GET proves', async () => {
     const app = await buildMacroplanApp()
-    await put(app, PLAN_IDS.f4, [PLAN_IDS.f2, PLAN_IDS.missing])
+    const refused = await put(app, PLAN_IDS.f4, [PLAN_IDS.f2, PLAN_IDS.missing])
+    expect(refused.status).toBe(422)
     const found = await body(await app.request(ONE, { headers: admin() }))
     expect(edgesOf(found, PLAN_IDS.f4)).toEqual([PLAN_IDS.f2])
   })

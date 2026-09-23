@@ -127,6 +127,27 @@ describe('a Microtask seat reaches no macroplan route, whatever its role or scop
     })
   })
 
+  /**
+   * The one place the two layers are distinguishable, pinned so the TSDoc saying so cannot drift.
+   *
+   * `requireProduct` words every refusal after the product's own top-level read, because a mount has
+   * no route to read an action off. On `/plans/{planId}` that is also what the handler gates, so the
+   * two are indistinguishable there and `authorize.ts` can promise as much. On the two collection
+   * routes it is not: the handler asks a `workspace:` action instead, so a same-product seat with too
+   * thin a role is refused in different words than a foreign seat is. Both sentences are asserted
+   * here, against one path, because the claim is about the difference and not about either half.
+   */
+  it('words a collection refusal differently for a foreign seat and a thin same-product one', async () => {
+    const app = await buildMacroplanApp()
+    const foreign = await app.request(COLLECTION, { headers: asLink(TOKENS.p1Manage) })
+    const thin = await app.request(COLLECTION, { headers: asLink(PLAN_TOKENS.view) })
+    expect([foreign.status, thin.status]).toEqual([403, 403])
+    expect([(await body(foreign))['detail'], (await body(thin))['detail']]).toEqual([
+      'Not permitted: plan:read',
+      'Not permitted: workspace:list-plans',
+    ])
+  })
+
   it('refuses before the body is even validated, so a foreign seat gets no schema oracle', async () => {
     const response = await (await buildMacroplanApp()).request(COLLECTION, {
       method: 'POST',

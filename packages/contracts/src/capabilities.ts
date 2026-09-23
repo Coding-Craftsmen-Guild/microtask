@@ -161,7 +161,7 @@ export type CapabilityAction = keyof typeof ROWS
  * routes left that set while `workspace:search` stays outside the scan for good.
  *
  * Declared at the widened type rather than left as the literal the rows infer, so a caller may
- * read `alsoGatedOn` off any row instead of only off the three that carry one.
+ * read `alsoGatedOn` off any row instead of only off the rows that happen to carry one.
  */
 export const ACTION_DECISIONS: Readonly<Record<CapabilityAction, ActionDecision>> = ROWS
 

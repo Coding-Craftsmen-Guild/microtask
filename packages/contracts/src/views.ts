@@ -127,7 +127,7 @@ export const RevokedShareLinks = z
  * It carries **no token**, its own included. The caller sent its token to ask the question, so
  * echoing it back tells nobody anything and only puts a live credential into another response
  * body — and having no token field at all is what makes "never another link's token" true by
- * construction rather than by filtering (ADR 0017).
+ * construction rather than by filtering (ADR 0033).
  */
 export const ShareView = z
   .object({

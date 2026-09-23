@@ -122,6 +122,17 @@ describe('PATCH /v1/macroplan/plans/{planId}/epics/{epicId}', () => {
   })
 })
 
+/**
+ * Both tests below assert the stored and the answered `binding` is still `null`, which is what spec
+ * §9 asks for and is worth pinning — but neither can tell zod stripping the key from the service
+ * ignoring it, because the field defaults to `null` either way. Their names say only what they check.
+ *
+ * The strip itself is proven where it can be: `../agreement.test.ts` parses `UpdateEpicPayload` with
+ * a well-formed `binding` and finds no `binding` key on the result, which is the half these two
+ * cannot reach. `../share-links/share-links.test.ts` makes the same argument end to end for a
+ * dropped `scope`, by comparing a stored seat's key list against `SEAT_FIELDS` — possible there
+ * because a seat has no `scope` field to default. Read as one pair, the claim has no hole in it.
+ */
 describe('the binding a PATCH may not write, which phase 4 owns (spec §9)', () => {
   it('ignores a binding in the body and leaves the stored one null', async () => {
     const { app, deps } = await buildMacroplanFixture()
@@ -138,7 +149,7 @@ describe('the binding a PATCH may not write, which phase 4 owns (spec §9)', () 
     expect(stored?.epics.find((one) => one.id === PLAN_IDS.e1)?.binding).toBeNull()
   })
 
-  it('does not answer a binding either, the key being stripped before the handler runs', async () => {
+  it('answers a null binding too after a body that names one, not only stores one', async () => {
     const found = await body(
       await (await buildMacroplanApp()).request(`${EPICS}/${PLAN_IDS.e1}`, {
         method: 'PATCH',

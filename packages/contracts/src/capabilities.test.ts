@@ -282,11 +282,7 @@ describe('the projection answers about the caller own project and no other', () 
   })
 })
 
-describe('the four actions the API gates on two targets (ADR 0011)', () => {
-  it('records the second target rather than leaving it unsaid', () => {
-    expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])
-  })
-
+describe('the actions the API gates on two targets', () => {
   it('names all four, so an action gaining a second target cannot arrive unrecorded', () => {
     const doubled = CAPABILITY_ACTIONS.filter(
       (action) => (ACTION_DECISIONS[action].alsoGatedOn ?? []).length > 0,
@@ -294,42 +290,50 @@ describe('the four actions the API gates on two targets (ADR 0011)', () => {
     expect(doubled).toEqual(['project:read', 'share:read', 'share:revoke', 'share:update'])
   })
 
-  it('records the plan for the three seat actions, which Macroplan gates on a plan and not a project', () => {
-    expect(ACTION_DECISIONS['share:revoke'].alsoGatedOn).toEqual(['plan'])
-    expect(ACTION_DECISIONS['share:update'].alsoGatedOn).toEqual(['plan'])
-    expect(ACTION_DECISIONS['share:read'].alsoGatedOn).toEqual(['plan'])
+  describe('project:read, gated a second time on the folder list a task scope is refused (ADR 0011)', () => {
+    it('records the second target rather than leaving it unsaid', () => {
+      expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])
+    })
+
+    it('tells a task-scoped holder it may read its project and not its folder list', () => {
+      expect(mayReach('view', taskScope, 'project:read', 'project')).toBe(true)
+      expect(mayReach('manage', taskScope, 'project:read', 'folder')).toBe(false)
+      expect(
+        can(holder('manage', taskScope), 'project:read', { kind: 'folder', projectId: P }),
+      ).toBe(false)
+    })
+
+    it('tells a project-scoped holder it may read both, so the distinction is scope and not role', () => {
+      expect(mayReach('view', projectScope, 'project:read', 'project')).toBe(true)
+      expect(mayReach('view', projectScope, 'project:read', 'folder')).toBe(true)
+    })
   })
 
-  it('clears a plan manage seat on that second target and refuses it the first, the row naming one', () => {
-    for (const action of ['share:read', 'share:revoke', 'share:update'] as const) {
-      expect(mayReach('manage', planScope, action, 'plan')).toBe(true)
-      expect(mayReach('manage', planScope, action, 'project')).toBe(false)
-      expect(capabilities('manage', planScope)[action]).toBe(false)
-    }
-  })
+  describe('the three seat actions, gated a second time on the plan whose seats they administer', () => {
+    it('records the plan on each of the three rather than leaving it unsaid', () => {
+      expect(ACTION_DECISIONS['share:revoke'].alsoGatedOn).toEqual(['plan'])
+      expect(ACTION_DECISIONS['share:update'].alsoGatedOn).toEqual(['plan'])
+      expect(ACTION_DECISIONS['share:read'].alsoGatedOn).toEqual(['plan'])
+    })
 
-  it('agrees with the server about a plan manage seat reading seats, which no route scan can check', () => {
-    expect(mayReach('manage', planScope, 'share:read', 'plan')).toBe(true)
-    expect(can(holder('manage', planScope), 'share:read', { kind: 'plan', planId: PL })).toBe(true)
-    expect(mayReach('view', planScope, 'share:read', 'plan')).toBe(false)
-    expect(mayReach('write', planScope, 'share:read', 'plan')).toBe(false)
-  })
+    it('clears a plan manage seat on that second target and refuses it the first, the row naming one', () => {
+      for (const action of ['share:read', 'share:revoke', 'share:update'] as const) {
+        expect(mayReach('manage', planScope, action, 'plan')).toBe(true)
+        expect(mayReach('manage', planScope, action, 'project')).toBe(false)
+        expect(capabilities('manage', planScope)[action]).toBe(false)
+      }
+    })
 
-  it('refuses a plan view seat that same second target, so the pair is manage and not scope', () => {
-    expect(mayReach('view', planScope, 'share:revoke', 'plan')).toBe(false)
-    expect(mayReach('write', planScope, 'share:update', 'plan')).toBe(false)
-  })
+    it('agrees with the server about a plan manage seat reading seats, which no route scan can check', () => {
+      expect(mayReach('manage', planScope, 'share:read', 'plan')).toBe(true)
+      expect(can(holder('manage', planScope), 'share:read', { kind: 'plan', planId: PL })).toBe(true)
+      expect(mayReach('view', planScope, 'share:read', 'plan')).toBe(false)
+      expect(mayReach('write', planScope, 'share:read', 'plan')).toBe(false)
+    })
 
-  it('tells a task-scoped holder it may read its project and not its folder list', () => {
-    expect(mayReach('view', taskScope, 'project:read', 'project')).toBe(true)
-    expect(mayReach('manage', taskScope, 'project:read', 'folder')).toBe(false)
-    expect(can(holder('manage', taskScope), 'project:read', { kind: 'folder', projectId: P })).toBe(
-      false,
-    )
-  })
-
-  it('tells a project-scoped holder it may read both, so the distinction is scope and not role', () => {
-    expect(mayReach('view', projectScope, 'project:read', 'project')).toBe(true)
-    expect(mayReach('view', projectScope, 'project:read', 'folder')).toBe(true)
+    it('refuses a plan view seat that same second target, so the pair is manage and not scope', () => {
+      expect(mayReach('view', planScope, 'share:revoke', 'plan')).toBe(false)
+      expect(mayReach('write', planScope, 'share:update', 'plan')).toBe(false)
+    })
   })
 })

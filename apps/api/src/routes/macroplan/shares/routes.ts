@@ -13,8 +13,19 @@ import { GUARDED_SECURITY } from '../../../http/security.js'
  *
  * It answers role, scope and the plan the scope names, which are what a client feeds
  * `capabilities()` from `@repo/contracts` to decide what to draw. The projection itself is not
- * served: that record is computed in the browser, which is the whole reason ADR 0038 admits it, and
- * a served copy would be a second answer free to disagree with the one the client already has.
+ * served, and **not** because serving it would contradict ADR 0038 — read its *Alternatives
+ * considered* and the opposite is true: returning the set with the bootstrap response, computed by
+ * calling `can()`, is the option that ADR calls "genuinely the cleanest", precisely because the API
+ * *can* import the kernel and there would then be exactly one implementation. It was rejected on
+ * **reach**: the set is needed to render Server Components that make no bootstrap call, so serving it
+ * here makes the capability set a prop threaded through the whole tree rather than a thing each
+ * component derives where it stands.
+ *
+ * So the reason this route does not carry it is narrow and current: nothing in this API serves that
+ * record today, and this route mirrors Microtask's handler, which is not the place to diverge from it.
+ * ADR 0038 leaves its own door open — "worth revisiting if `shares/current` becomes a hard dependency
+ * of every page anyway" — and phase 2 or 3 may well make that true, at which point the change belongs
+ * to both products at once and to an amendment there rather than to a decision taken here.
  *
  * An admin credential names no seat, so this answers 404 for one. That is the honest reading and the
  * one Microtask's route already gives: an admin is not refused the question, there is simply no

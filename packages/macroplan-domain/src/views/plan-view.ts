@@ -94,6 +94,15 @@ const spansOf = (days: ReadonlyMap<string, Span>): readonly PlanSpan[] =>
  * something inherited. `cycles` and `ignoredEdges` are passed through as they came: `findCycles`
  * sorts ids within a cycle and cycles by first id, and the pass sorts dropped edges by
  * `(featureId, dependsOnId)`.
+ *
+ * Exported from this module and deliberately **not** from the package barrel, though
+ * {@link PlanScheduleView} and {@link PlanSpan} are: no consumer has ever wanted the function —
+ * `apps/api` and `apps/macroplan` take `planView` and read `PlanView['schedule']` off it, and the
+ * only caller of this one is in this package. The reason to keep it that way is the agreement test in
+ * `apps/api`, which asserts that the schedule a client receives equals `schedule()` from
+ * `@repo/schedule` flattened by the test itself. This is the function the route already calls, so a
+ * test reaching for it would compare a value to itself and could never fail; a barrel export puts
+ * that mistake one import away.
  */
 export function planSchedule(manifest: PlanManifest): PlanScheduleView {
   const result = schedule(manifest)

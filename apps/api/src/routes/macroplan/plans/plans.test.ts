@@ -17,9 +17,20 @@ const drafted = (extra: Record<string, unknown> = {}): string =>
   JSON.stringify({ name: 'Q1 roadmap', startDate: '2026-03-02', ...extra })
 
 /**
- * The spans `@repo/schedule`'s own example tests pin, flattened and ordered as `planSchedule`
- * promises: by `startDay`, ties broken by ascending id. Feature ids and item ids share this one
- * array, exactly as they share the `days` map it is built from.
+ * The spans this file pins by hand, flattened and ordered as `planSchedule` promises: by `startDay`,
+ * ties broken by ascending id. Feature ids and item ids share this one array, exactly as they share
+ * the `days` map it is built from.
+ *
+ * Pinned **here**, and not taken from `@repo/schedule`'s own example tests, which pin neither these
+ * ids nor this many bars: that package covers a two-rail dependency case and a separate three-rail
+ * case, and the fixture this file reads is that example grown to three rails, six features and nine
+ * items — which is what `testing/macroplan-harness.ts` says it is. So these fifteen rows are this
+ * file's own arithmetic over that fixture, and a reader who wants them checked has to re-derive them.
+ *
+ * What ties them to the package is `../agreement.test.ts`, which runs `schedule()` from
+ * `@repo/schedule` over the manifest in the store and deep-equals the flattened result against the
+ * `schedule` block these routes answer. So a change in the pass fails there, naming the package, and
+ * fails here, naming the bar that moved.
  */
 const SPANS: readonly { id: string; startDay: number; endDay: number }[] = [
   { id: PLAN_IDS.f1, startDay: 0, endDay: 4 },
@@ -152,7 +163,7 @@ describe('GET /v1/macroplan/plans/{planId}', () => {
     })
   })
 
-  it('carries the spans the schedule unit tests pin, in the order the view promises', async () => {
+  it('carries every span this file pins by hand, in the order the view promises', async () => {
     const response = await (await buildMacroplanApp()).request(ONE, { headers: admin() })
     expect(scheduleOf(await body(response))['spans']).toEqual(SPANS)
   })
@@ -179,6 +190,7 @@ describe('GET /v1/macroplan/plans/{planId}', () => {
   it('stores none of that schedule, which the fixture manifest is proof of', async () => {
     const { deps } = await buildMacroplanFixture()
     const stored = await deps.plans.readManifest('macroplan', PLAN_IDS.plan)
+    expect(stored).not.toBeNull()
     expect(Object.keys(stored ?? {})).not.toContain('schedule')
   })
 
@@ -249,8 +261,9 @@ describe('PATCH /v1/macroplan/plans/{planId}', () => {
       headers: adminJson(),
       body: JSON.stringify({ startDate: '2026-02-02', sprintLengthDays: 14 }),
     })
-    expect(await body(response)).toMatchObject({ startDate: '2026-02-02', sprintLengthDays: 14 })
-    expect(scheduleOf(await body(await (await buildMacroplanApp()).request(ONE, { headers: admin() })))['spans']).toEqual(SPANS)
+    const retimed = await body(response)
+    expect(retimed).toMatchObject({ startDate: '2026-02-02', sprintLengthDays: 14 })
+    expect(scheduleOf(retimed)['spans']).toEqual(SPANS)
   })
 
   it('refuses an empty body with a 422, rather than stamping updatedAt for nothing', async () => {

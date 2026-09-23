@@ -32,12 +32,25 @@ const ROOT_READS: Readonly<Record<Product, Action>> = {
  * them — so what leaked was the 200 itself, and a 200 is still the wrong answer.
  *
  * It refuses with **403 and the gate's own wording**. 404 would claim the caller's link does not
- * exist, which is untrue: it exists, in the other product. The action named is the product root's
- * read, because that is the least any route in the subtree asks and it is what a plan holder was
- * refused by the per-handler check this replaces — so no caller sees a message change.
+ * exist, which is untrue: it exists, in the other product. The action named is the read on the
+ * product's own top-level resource — `plan:read` here, `project:read` on Microtask's side — because
+ * that is what a foreign holder was refused by the per-handler check this replaces, so no caller sees
+ * a message change.
  *
- * It refuses **only a link**. An admin principal carries no scope, reaches both products by design
- * (ADR 0013), and is the one credential that could not be described by a product at all.
+ * It coincides with the handler's own gate on the **resource-scoped routes only**. Each product's two
+ * collection routes gate a workspace action instead: `GET`/`POST /plans` ask `workspace:list-plans`
+ * and `workspace:create-plan`, `GET`/`POST /projects` their `project` equivalents. So on those four a
+ * same-product seat is refused a different sentence from a cross-product one, and this action is not
+ * "the least any route in the subtree asks" — the collection routes ask something else entirely. What
+ * that leaks is which layer refused a caller about the product it already holds a link in, and the
+ * alternative is this middleware deriving an action per path, which is the per-handler narrowing it
+ * exists to remove.
+ *
+ * It refuses **only a link**. An admin principal carries no scope (ADR 0013) and is the one
+ * credential that could not be described by a product at all. That it reaches both products is
+ * deliberate rather than an oversight this forgot to close: ADR 0014's 2026-09-22 amendment records
+ * the reasoning — there is one admin, and a credential that could reach the other product's routes
+ * reaches data that admin already has a password for.
  *
  * Both tables are keyed `Record`s rather than tests against one value, so a fourth `Scope` variant
  * or a third `Product` fails to compile here until someone decides where it belongs — the same

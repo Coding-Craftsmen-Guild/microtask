@@ -44,7 +44,6 @@ export {
 export {
   itemView,
   planListItem,
-  planSchedule,
   planView,
   type ItemView,
   type PlanListItem,

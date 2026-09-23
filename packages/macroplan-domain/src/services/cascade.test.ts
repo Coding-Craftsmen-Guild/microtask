@@ -113,6 +113,21 @@ const build = async () => {
   return { store, epics: new EpicService(ctx), features: new FeatureService(ctx) }
 }
 
+/**
+ * The manifest the store holds, or a throw when it holds none.
+ *
+ * Throwing is the point, and it is why the reads below do not fall back to the expectation with
+ * `?? withoutF2()`: both sides of `toEqual` would then be the same expression, and the claim this
+ * whole file rests on — that a delete leaves exactly the plan built without that branch — would pass
+ * by comparing a value to itself on a service that wrote nothing at all. `plan-view.test.ts` and
+ * `share-link-service.test.ts` read a stored manifest the same way, for the same reason.
+ */
+const storedManifest = async (store: RecordingPlanStore): Promise<PlanManifest> => {
+  const found = await store.readManifest('macroplan', PLAN)
+  if (found === null) throw new Error('no manifest')
+  return found
+}
+
 const files = async (store: RecordingPlanStore): Promise<readonly string[]> => {
   const present: string[] = []
   for (const id of [I1, I2, I3, I4]) {
@@ -216,22 +231,19 @@ describe('the schedule after a delete is the schedule of a plan built without th
   it('agrees span for span with the plan that never had the feature', async () => {
     const { features, store } = await build()
     await features.remove(at, F2)
-    const stored = await store.readManifest('macroplan', PLAN)
-    expect(schedule(stored ?? withoutF2())).toEqual(schedule(withoutF2()))
+    expect(schedule(await storedManifest(store))).toEqual(schedule(withoutF2()))
   })
 
   it('agrees span for span with the plan that never had the rail', async () => {
     const { epics: service, store } = await build()
     await service.remove(at, TOP)
-    const stored = await store.readManifest('macroplan', PLAN)
-    expect(schedule(stored ?? withoutTop())).toEqual(schedule(withoutTop()))
+    expect(schedule(await storedManifest(store))).toEqual(schedule(withoutTop()))
   })
 
   it('reports no cycle and drops no edge, since nothing dangles', async () => {
     const { features, store } = await build()
     await features.remove(at, F2)
-    const stored = await store.readManifest('macroplan', PLAN)
-    const result = schedule(stored ?? withoutF2())
+    const result = schedule(await storedManifest(store))
     expect(result.cycles).toEqual([])
     expect(result.ignoredEdges).toEqual([])
     expect(result.unscheduled).toEqual([])

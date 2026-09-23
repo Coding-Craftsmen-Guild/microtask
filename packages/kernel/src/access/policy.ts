@@ -62,11 +62,14 @@ const GRANTS: Readonly<Record<Role, readonly Action[]>> = {
 }
 
 /**
- * Actions with no per-resource target, reserved to the admin (ADR 0009).
+ * Every action reserved to the admin, whatever its target.
  *
- * `epic:bind` sits here rather than under `manage` because an epic's binding role is the ceiling
- * on everything a link holder reaches in Microtask through the bridge. A holder who could re-role
- * a binding could raise its own ceiling, and every bound would be decoration.
+ * Most are the collection and top-level actions ADR 0009 makes deny-by-default, which name no single
+ * resource to decide against. `epic:bind` is the exception, and it is here for its own reason: an
+ * epic's binding role is the ceiling on everything a link holder reaches in Microtask through the
+ * bridge, so a holder who could re-role a binding could raise its own ceiling and every bound would
+ * be decoration. It has a per-resource target, so ADR 0009's argument is not what puts it here —
+ * naming this list after that argument is what led one caller to cite 0009 for the wrong reason.
  */
 export const ADMIN_ONLY_ACTIONS: readonly Action[] = [
   'workspace:list-projects',

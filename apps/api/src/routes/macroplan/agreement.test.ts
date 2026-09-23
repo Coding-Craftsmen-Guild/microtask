@@ -175,12 +175,12 @@ const gatesIn = (handler: Handler): number => [...handler.source.matchAll(/autho
 /**
  * Every macroplan handler calls the gate at least once, which is all that can be asserted.
  *
- * Not "the call count equals the handler count", although `authorize`'s own TSDoc still says that:
- * three handlers choose their action from the body, because a retime is a different grant from a
- * rename (ADR 0011), and each of those spends three `authorize` calls on two branches and a
- * follow-up. A count equality would therefore have to be a magic number, and a magic number
- * changes for the wrong reasons — a fourth branching handler and a newly unguarded one move it the
- * same way.
+ * Not "the call count equals the handler count", which `authorize`'s own TSDoc claimed until it was
+ * corrected to point here: three handlers choose their action from the body, because a retime is a
+ * different grant from a rename (ADR 0011), and each of those spends three `authorize` calls on two
+ * branches and a follow-up. A count equality would therefore have to be a magic number, and a magic
+ * number changes for the wrong reasons — a fourth branching handler and a newly unguarded one move it
+ * the same way.
  *
  * `authorize` throws rather than returning a boolean precisely so that *not calling it* is the only
  * way left to be unguarded: a handler that ignored a returned `false` would still answer 200, but a

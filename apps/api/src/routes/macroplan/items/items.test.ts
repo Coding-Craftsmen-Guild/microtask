@@ -195,6 +195,17 @@ describe('PATCH /v1/macroplan/plans/{planId}/items/{itemId}', () => {
   })
 })
 
+/**
+ * Both tests below assert the stored and the answered `linkedTaskId` is still `null`, which is what
+ * spec §9 asks for and is worth pinning — but neither can tell zod stripping the key from the service
+ * ignoring it, because the field defaults to `null` either way. Their names say only what they check.
+ *
+ * The strip itself is proven where it can be: `../agreement.test.ts` parses `UpdateItemPayload` with
+ * a well-formed `linkedTaskId` and finds no `linkedTaskId` key on the result, which is the half these
+ * two cannot reach. `../share-links/share-links.test.ts` makes the same argument end to end for a
+ * dropped `scope`, by comparing a stored seat's key list against `SEAT_FIELDS` — possible there
+ * because a seat has no `scope` field to default. Read as one pair, the claim has no hole in it.
+ */
 describe('the task link a PATCH may not write, which phase 4 owns (spec §9)', () => {
   it('ignores a linkedTaskId in the body and leaves the stored one null', async () => {
     const { app, deps } = await buildMacroplanFixture()
@@ -208,7 +219,7 @@ describe('the task link a PATCH may not write, which phase 4 owns (spec §9)', (
     expect(stored?.items.find((one) => one.id === PLAN_IDS.i1)?.linkedTaskId).toBeNull()
   })
 
-  it('answers no link either, the key being stripped before the handler runs', async () => {
+  it('answers a null linkedTaskId too after a body that names one, not only stores one', async () => {
     const app = await buildMacroplanApp()
     await app.request(`${ITEMS}/${PLAN_IDS.i1}`, {
       method: 'PATCH',

@@ -132,10 +132,22 @@ describe('EpicService.add', () => {
     expect(next.epics[0]?.colour).toBe('#1f2a37')
   })
 
-  it('applies one default colour when none is given', async () => {
+  /**
+   * The literal is written out rather than imported because `DEFAULT_COLOUR` is not exported, and
+   * widening the module's surface for a test would be the wrong trade: the constant is an internal
+   * decision, and a test is not a reason to publish one.
+   *
+   * Two rails rather than one, and an equality rather than a hex pattern, because "one default" is
+   * the claim `NewEpic` makes the design argument for — deliberately not a rotating palette, which
+   * would decide from inside the domain what the canvas looks like. A pattern match passes against a
+   * palette of lowercase hex unchanged, so it tests the shape of the value and not the decision.
+   */
+  it('applies the same one default colour to every rail that asks for none', async () => {
     const { service, store } = build()
     await seed(store)
-    expect((await service.add(at, { name: 'D' })).epics[0]?.colour).toMatch(/^#[0-9a-f]{6}$/)
+    await service.add(at, { name: 'D' })
+    const next = await service.add(at, { name: 'E' })
+    expect(next.epics.map((each) => each.colour)).toEqual(['#3355ff', '#3355ff'])
   })
 
   it('succeeds one below the epicsPerPlan cap', async () => {

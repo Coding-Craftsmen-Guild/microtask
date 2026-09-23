@@ -31,10 +31,12 @@ export interface NewEpic {
  * What may change about a rail. An absent key leaves that field alone.
  *
  * Neither field is nullable, because neither can be cleared: a rail always has a name and always has
- * a colour. `binding` is absent from this interface and that is the point — an epic's binding is the
- * ceiling on what a link holder reaches in Microtask through the bridge, so raising or re-rolling it
- * is `epic:bind`, an admin-only action (ADR 0009), and phase 4 is what writes it. No edit reachable
- * from here may touch it.
+ * a colour. `binding` is absent from this interface and that is the point — a binding's **role** is
+ * the ceiling on everything a link holder reaches in Microtask through the phase-4 bridge, so a
+ * holder who could re-role one would raise its own ceiling and every bound rail would be decoration.
+ * That, and not the absence of a target, is why raising or re-rolling it is `epic:bind` and why that
+ * action is admin-only (ADR 0053); phase 4 is what writes it (spec §9). No edit reachable from here
+ * may touch it.
  *
  * Both members spell `| undefined` for the reason {@link NewEpic}'s `colour` does: a validated
  * `PATCH` body infers `name?: string | undefined`, and {@link EpicService.update} treats

@@ -93,7 +93,8 @@ describe('proof (a): the live router and the emitted document describe the same 
 
   it('leaves the document self-describing routes out of the document, and nothing else', async () => {
     const app = await buildApp()
-    const undocumented = routerPaths(app).filter((path) => !documentPaths(app).includes(path))
+    const documented = documentPaths(app)
+    const undocumented = routerPaths(app).filter((path) => !documented.includes(path))
     expect(undocumented.sort()).toEqual([...META_PATHS].sort())
   })
 })
