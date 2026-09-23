@@ -11,7 +11,7 @@ export interface PlansApi {
   /** Lists every plan the caller may be told about. `workspace:list-plans` is admin-only. */
   list(): Promise<Decoded<typeof PlanList>>
 
-  /** Reads one plan, its rails, its items and the schedule derived from all three. */
+  /** Reads one plan: its rails, its features, its items, and the schedule derived from all three. */
   read(planId: string): Promise<Plan>
 
   /** Reads one item with the description its own file holds. */

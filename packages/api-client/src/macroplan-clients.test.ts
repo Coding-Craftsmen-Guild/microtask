@@ -49,7 +49,7 @@ describe('the two macroplan clients are not interchangeable', () => {
     expect(NOT_INTERCHANGEABLE).toEqual([true, true])
   })
 
-  it('makes the session union narrower than neither member, so a page has to ask which it holds', () => {
+  it('refuses the session union where either member is expected, so a page must ask which it holds', () => {
     expect(EITHER_CREDENTIAL).toEqual([true, true])
   })
 

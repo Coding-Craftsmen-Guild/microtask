@@ -48,8 +48,11 @@ export type MacroplanSessionClient = MacroplanAdminClient | MacroplanLinkClient
  * app is calling are facts about the deployment, passed in by the one layer that may know them.
  *
  * Both credentials go on every request: a bearer with no service key and a service key with no
- * bearer are each a 401, and `x-api-key` is also what names Macroplan to the API rather than the
- * other product.
+ * bearer are each a 401. Neither of them names the product. `x-api-key` says which app is calling
+ * and confers no authority whatsoever (ADR 0012) — `requirePrincipal` accepts any recognised key
+ * against either product's subtree, and this repo's own harness drives `/v1/macroplan` with the key
+ * it registered as `microtask`. What names the product is the **path** (ADR 0014), which is why
+ * this constructor exists beside `createAdminClient` rather than as an argument to it.
  */
 export function createMacroplanAdminClient(
   options: ClientOptions,

@@ -9,9 +9,9 @@ import type { Decoded } from './types.js'
  *
  * A sibling of {@link MicrotaskApi} rather than a widening of it. ADR 0014 puts the product
  * dimension into the path, the data directory and the domain packages while nothing depends on it,
- * and the client layer is the last place that seam was missing: every root in `paths.ts` names one
- * product, so one client carrying both would have to be told which. Keeping them apart means a page
- * holding this one cannot reach a project at all.
+ * and the client layer is the last place that seam was missing: every root in `paths.ts` but the
+ * product-agnostic `/v1/auth` names one product, so one client carrying both would have to be told
+ * which. Keeping them apart means a page holding this one cannot reach a project at all.
  *
  * The two clients built from it differ by brand and by nothing else, for the reason
  * {@link MicrotaskApi} gives — which calls a credential may actually make is the API's decision, on
@@ -27,10 +27,10 @@ export interface MacroplanApi {
    *
    * It sends no token in the path and none in a header of its own — the answer is derived from the
    * bearer the transport already carries, which is what keeps a credential out of server logs and
-   * out of the `Referer` of every link the page then renders (ADR 0013). This is the call a
-   * `/s/[token]` landing makes first: a seat holder knows its token and nothing else, and `scope`
-   * and `plan` here are what name the plan it may then read. An **admin** token names no seat, so
-   * this answers 404 for one: not a refusal, simply nothing to describe.
+   * out of the `Referer` of every link the page then renders (ADR 0013). It is the call a share-link
+   * landing will have to make first: a seat holder knows its token and nothing else, and `scope` and
+   * `plan` here are what name the plan it may then read. An **admin** token names no seat, so this
+   * answers 404 for one: not a refusal, simply nothing to describe.
    */
   currentShare(): Promise<Decoded<typeof PlanShareView>>
 }

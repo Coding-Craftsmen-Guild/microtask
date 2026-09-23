@@ -53,8 +53,10 @@ export const importSessionPath = (sessionId: string): string =>
  * The collection every plan path is built from.
  *
  * The `/v1/macroplan` prefix is the whole reason the Macroplan clients are siblings rather than the
- * existing ones widened: every root above hard-codes `/v1/microtask`, and ADR 0014 puts the product
- * dimension in the path itself, so one client cannot address both products.
+ * existing ones widened: every product root above hard-codes `/v1/microtask`, and ADR 0014 puts the
+ * product dimension in the path itself, so one client cannot address both products. `LOGIN_PATH` is
+ * the exception that proves the rule — ADR 0014 keeps `/v1/auth` product-agnostic, which is why one
+ * `login` serves both surfaces and is not duplicated here.
  */
 export const MACROPLAN_PLANS_PATH = '/v1/macroplan/plans'
 
