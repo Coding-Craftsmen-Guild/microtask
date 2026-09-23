@@ -50,8 +50,8 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  * variant: the timeline and its table are what a plan is, and a second rendering of one would be a
  * second place for a span to be drawn wrong. Nothing about a seat changes it, because everything a
  * role decides on this surface is decided by the API — phase 2 draws no control a seat could be
- * refused. `Date.now()` is read once, here, and threaded down as the instant the today line is drawn
- * at, as the admin page does.
+ * refused. The clock is read once, here — `new Date()`, which is what `PlanScreen.at` takes — and
+ * threaded down as the instant the today line is drawn at, as the admin page does.
  *
  * A refusal of either read is said in place of the timeline, in this surface's own words rather than
  * the API's; a plan the API no longer holds is `not-found.tsx`; and anything actually thrown is

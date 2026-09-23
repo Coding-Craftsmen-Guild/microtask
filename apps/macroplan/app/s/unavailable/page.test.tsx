@@ -53,10 +53,11 @@ describe('/s/unavailable', () => {
     expect(container.querySelector('form')).toBeNull()
   })
 
-  it('names no plan and no token, having been told neither', () => {
-    const { container } = render(<LinkUnavailablePage />)
-    expect(container.textContent).not.toContain('_')
-    expect(container.textContent).toBe('MacroplanCC GuildLink unavailableThis share link is no longer available.')
+  it('says those two things and nothing else of its own, taking no props to say more from', () => {
+    render(<LinkUnavailablePage />)
+    const main = screen.getByRole('main')
+    expect(main.querySelectorAll('h1')).toHaveLength(1)
+    expect(main.textContent).toBe(`Link unavailable${ACTION_REFUSALS.link.unauthorised}`)
   })
 
   it('caps its prose at the column, under a frame that is wide for the timeline', () => {

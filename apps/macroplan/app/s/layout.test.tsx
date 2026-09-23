@@ -19,6 +19,16 @@ const walk = (dir: string): string[] =>
 
 const FILES = ROOTS.flatMap(walk)
 
+// A Suspense boundary over `/s/[token]` can be declared by any segment **above** it too, and the
+// segments above it are exactly two: the app root and `app/s`. So the sweep reads the root's own
+// files as well — not the whole of `app/**`, because the admin surface is allowed one and ADR 0040
+// records that it keeps its boundaries and answers its own redirects with a 200 in consequence.
+const ROOT_FILES = readdirSync(join(APP, 'app'), { withFileTypes: true })
+  .filter((entry) => entry.isFile())
+  .map((entry) => join(APP, 'app', entry.name))
+
+const ABOVE_AND_UNDER = [...ROOT_FILES, ...FILES]
+
 const SHIPPED = FILES.filter((file) => !file.includes('.test.'))
 
 const isLoading = (file: string): boolean => /^loading\.tsx?$/.test(basename(file))
@@ -59,9 +69,13 @@ describe('the surface this sweep reads', () => {
   })
 })
 
-describe('and holds no loading.tsx anywhere, which is a measured requirement', () => {
+describe('and has no loading.tsx over it, its own or an ancestor’s, which is a measured requirement', () => {
   it('leaves a dead link a 307 and a missing plan a 404, rather than a 200 with a meta refresh', () => {
-    expect(FILES.filter(isLoading).map(named)).toEqual([])
+    expect(ABOVE_AND_UNDER.filter(isLoading).map(named)).toEqual([])
+  })
+
+  it('reads the app root as well as the subtree, so an app/loading.tsx could not hide from it', () => {
+    expect(ROOT_FILES.map(named)).toContain('app/layout.tsx')
   })
 })
 

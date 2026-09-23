@@ -9,8 +9,39 @@ import { LINK_UNAVAILABLE_PATH } from '../../../lib/routes'
 /** What a seat's page learns about itself, or the sentence the API refused the question with. */
 export type ShareRead = ActionResult<Decoded<typeof PlanShareView>>
 
+/**
+ * The plan a seat's page renders from: everything `PlanView` holds, with the plan's seats made
+ * **unrepresentable** rather than merely dropped.
+ *
+ * `Omit` alone would not be worth writing. A `Plan` is still structurally assignable to
+ * `Omit<Plan, 'shareLinks'>` — TypeScript checks for excess properties only on fresh object
+ * literals — so a future edit returning the plan unchanged would compile, ship, and change nothing
+ * anybody could see: `PlanScreen`'s whole subtree is server-only, so the block would be carried and
+ * never rendered, and the leak sweep in `page.test.tsx` would be the only thing that noticed. The
+ * `?: never` is what turns that edit into a **compile error**, because `readonly PlanShareLink[]` is
+ * assignable to nothing but itself. It is the `ProjectListItem = ProjectView.omit(...)` idea from
+ * `packages/contracts/src/views.ts` with the hole closed, spelled here rather than there because the
+ * omission is this *surface's* decision: the same `PlanView` must keep its seats for the phase 3
+ * share manager that asks for them deliberately.
+ *
+ * It names **one** field, and that is the limit of what this can promise: a second privileged block
+ * added to `PlanView` later would arrive on this surface unannounced.
+ *
+ * `app/(admin)/plans/[planId]/plan-page-model.ts` landed the same type for the admin half in this
+ * phase, and closes exactly that gap by copying the plan **field by field** instead of stripping one
+ * name, so a new field on `PlanView` fails to compile until somebody decides whether a page may carry
+ * it. That is the better half of the two, and the two should become **one** module — in
+ * `components/plan/` or `lib/`, since neither route segment may sensibly import the other's — with
+ * this type and `seatless` deleted in favour of it. It is not done here because that means editing a
+ * file another agent owns this phase. The alternative durable answer, should the projection ever want
+ * a schema, is one omission declared beside the contract as
+ * `PlanSeatView = PlanView.omit({ shareLinks: true })` (`packages/contracts/src/views.ts` does this
+ * for `ProjectListItem`).
+ */
+export type SeatPlan = Omit<Plan, 'shareLinks'> & { readonly shareLinks?: never }
+
 /** The plan a seat opens, or the sentence the API refused it with. */
-export type SeatPlanRead = ActionResult<Plan>
+export type SeatPlanRead = ActionResult<SeatPlan>
 
 const NOT_FOUND = 404
 
@@ -36,9 +67,12 @@ export const readShare = cache(async (token: string): Promise<ShareRead> => {
   return result
 })
 
-const seatless = (plan: Plan): Plan => {
+const holdsNoSeats = (plan: Plan): plan is SeatPlan => plan.shareLinks === undefined
+
+const seatless = (plan: Plan): SeatPlan => {
   const { shareLinks, ...rest } = plan
-  return shareLinks === undefined ? plan : rest
+  if (shareLinks !== undefined) return rest
+  return holdsNoSeats(plan) ? plan : rest
 }
 
 /**
@@ -72,9 +106,16 @@ const seatless = (plan: Plan): Plan => {
  * in the HTML, and the seats a manager may list belong to the call its share manager makes when it
  * opens. Phase 2 draws no seats and holds no client component at all, so dropping them costs this
  * surface nothing and leaves nothing for phase 3 to leak by accident — the array has to be asked for
- * deliberately. `shareLinks` is read rather than merely destructured away, so a caller that was
- * refused the block gets back the very object the API answered with, and an absent block cannot
- * become a present-but-undefined one under `exactOptionalPropertyTypes`.
+ * deliberately. What the block is dropped *into* is {@link SeatPlan}, whose `shareLinks?: never`
+ * makes "return it unchanged" a compile error rather than a silent regression only a test could
+ * catch.
+ *
+ * The strip reads the block and hands back the rest; a caller the API refused it gets the very object
+ * the API answered with, identity included, because a type predicate over the field is what narrows
+ * that value rather than a rebuild — so an absent block cannot become a present-but-undefined one
+ * under `exactOptionalPropertyTypes`. The predicate is a second look at the same field, and it earns
+ * its place: a destructured `shareLinks` is a fresh binding, so checking it narrows the copy and not
+ * the plan, and only a predicate over the plan itself lets that plan be returned as a {@link SeatPlan}.
  */
 export const readSeatPlan = cache(async (token: string, planId: string): Promise<SeatPlanRead> => {
   const read = await linkRead(token, (api) => api.plans.read(planId))

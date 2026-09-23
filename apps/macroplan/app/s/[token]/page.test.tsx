@@ -59,13 +59,24 @@ const NOT_A_ULID = 'not-a-ulid'
 
 let api: FakePlanApiState
 
+// Every answer body the fake actually put on the wire, which is what the leak sweep derives its
+// recogniser from. Same wrapper as read-share.test.ts; its natural home is fake-plan-api.ts if a
+// third file ever wants it.
+const answered: unknown[] = []
+
 beforeEach(() => {
   vi.stubEnv('API_BASE_URL', 'http://api.internal:4321')
   vi.stubEnv('API_KEY', 'the-macroplan-service-key')
   vi.stubEnv('COOKIE_SECRET', 'a-cookie-secret-of-at-least-32-by')
   api = fakePlanApiState()
   api.plans = [atlasPlan()]
-  vi.stubGlobal('fetch', fakePlanFetch(api))
+  answered.length = 0
+  const fake = fakePlanFetch(api)
+  vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+    const answer = await fake(url, init)
+    answered.push(await answer.clone().json())
+    return answer
+  })
 })
 
 afterEach(() => {
@@ -101,25 +112,49 @@ const redirectOf = async (token: string): Promise<string> => {
   throw new Error(`expected a redirect, got ${String(thrown)}`)
 }
 
-// Every token this test world can produce, read off the fixture rather than listed here: the fake
-// API mints none of its own, so the manifest's seats plus the revoked one are exhaustively the
-// token-shaped strings a leak could hand over. That is how a token is recognised below, because
-// `ShareToken` is /^[A-Za-z0-9_-]{16,64}$/ with **no prefix** to match on — and a ULID satisfies
-// that regexp too, so a shape test would demand every plan id be the visitor's own token. A set
-// taken from the fixture cannot miss a real token and cannot mistake an id for one.
-const EVERY_TOKEN = [...atlasPlan().shareLinks.map((seat) => seat.token), REVOKED_SEAT_TOKEN]
+// How a token-shaped string is recognised, and why it is neither a prefix nor a shape: `ShareToken`
+// is /^[A-Za-z0-9_-]{16,64}$/ with no prefix to match on — Microtask's `shr_` has no analogue here —
+// and a 26-character ULID satisfies that regexp too, so a shape test would demand that every plan id
+// be the visitor's own token. The recogniser is therefore the set of tokens the fake **actually
+// served in this very run**, collected out of the answer bodies by the one field a token can travel
+// in. That is complete under any fixture: a candidate list computed from `atlasPlan()` at module
+// scope would silently narrow the moment a test seeded a plan with different seats, and nothing
+// would tie the two together.
+const tokensServed = (): readonly string[] => {
+  const found = new Set<string>()
+  const walk = (value: unknown): void => {
+    if (typeof value !== 'object' || value === null) return
+    const token = (value as { token?: unknown }).token
+    if (typeof token === 'string') found.add(token)
+    for (const child of Object.values(value)) walk(child)
+  }
+  answered.forEach(walk)
+  return [...found]
+}
 
+// The walk reads `props` **and `key`**: React moves `key` off props onto the element, and a key is
+// serialised into the Flight payload, so `<div key={token}>` is a real leak the props-only version of
+// this sweep could not see.
+//
+// KNOWN GAP, for whoever extends this surface: functions are skipped, so a Server Action bound as
+// `action.bind(null, token)` is invisible to it — which is precisely how ADR 0040 says a page hands
+// its token to a component ("the page binds it into the actions it hands the tab strip"). Nothing on
+// this surface binds an action today. **Phase 3 will**, and must widen this to read a bound
+// function's arguments before it does.
 const stringsIn = (value: unknown, visited = new WeakSet<object>()): string[] => {
   if (typeof value === 'string') return [value]
   if (typeof value === 'function' || typeof value !== 'object' || value === null) return []
   if (visited.has(value)) return []
   visited.add(value)
-  const node = isValidElement(value) ? (value.props as object) : value
-  return Object.values(node).flatMap((child: unknown) => stringsIn(child, visited))
+  if (!isValidElement(value)) {
+    return Object.values(value).flatMap((child: unknown) => stringsIn(child, visited))
+  }
+  const keyed = value.key === null ? [] : stringsIn(value.key, visited)
+  return [...keyed, ...stringsIn(value.props, visited)]
 }
 
-const tokensHandedBy = (element: ReactNode): string[] =>
-  stringsIn(element).filter((one) => EVERY_TOKEN.some((token) => one.includes(token)))
+const tokensHandedBy = (element: ReactNode, served = tokensServed()): string[] =>
+  stringsIn(element).filter((one) => served.some((token) => one.includes(token)))
 
 describe('a plan seat lands on the one plan its token opens', () => {
   it('asks what the token reaches, then reads that plan, both under the URL token', async () => {
@@ -184,24 +219,33 @@ describe('the token in this URL is the only authority the page has', () => {
 })
 
 describe('no seat is handed another seat’s token, however senior it is', () => {
-  it('sees a token wherever one sits in a tree, which is what makes the sweep below mean something', () => {
+  it('sees one in a prop, in a child, and in a key — which props-only walking cannot', () => {
     const planted: ReactNode = (
       <div data-seat={`seat ${WRITE_SEAT_TOKEN}`}>
-        <p>{[MANAGE_SEAT_TOKEN]}</p>
+        <p key={MANAGE_SEAT_TOKEN}>{[REVOKED_SEAT_TOKEN]}</p>
       </div>
     )
-    expect(tokensHandedBy(planted)).toHaveLength(2)
-    expect(tokensHandedBy(<p>Atlas rollout</p>)).toEqual([])
+    const found = stringsIn(planted)
+    expect(found.filter((one) => one.includes(WRITE_SEAT_TOKEN))).toHaveLength(1)
+    expect(found).toContain(REVOKED_SEAT_TOKEN)
+    expect(found).toContain(MANAGE_SEAT_TOKEN)
+    expect(stringsIn(<p key={SEAT_TOKEN} />)).toEqual([SEAT_TOKEN])
+  })
+
+  it('finds no token to recognise in a tree that holds none', () => {
+    expect(stringsIn(<p>Atlas rollout</p>)).toEqual(['Atlas rollout'])
+    expect(tokensHandedBy(<p>Atlas rollout</p>, [SEAT_TOKEN])).toEqual([])
   })
 
   it('hands nothing at all to a manage seat, the one role the API tells the plan’s other seats', async () => {
     seated(MANAGE_SEAT_TOKEN)
     const element: ReactNode = await LinkPlanPage(props(MANAGE_SEAT_TOKEN))
     const { container } = render(element)
-    const handed = tokensHandedBy(element)
-    expect(handed.filter((one) => !one.includes(MANAGE_SEAT_TOKEN))).toEqual([])
-    expect(handed).toEqual([])
-    for (const token of EVERY_TOKEN) expect(container.innerHTML).not.toContain(token)
+    const served = tokensServed()
+    expect(served).toHaveLength(3)
+    expect(served).toContain(SEAT_TOKEN)
+    expect(tokensHandedBy(element, served)).toEqual([])
+    for (const token of served) expect(container.innerHTML).not.toContain(token)
   })
 
   it('renders from a plan whose seats were dropped on the server, not merely unrendered', async () => {

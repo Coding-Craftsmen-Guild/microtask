@@ -19,10 +19,21 @@ import {
   REVOKED_SEAT_TOKEN,
   SEAT_TOKEN,
 } from '../../../components/plan/testing/plan-fixture'
-import { SERVICE_UNAVAILABLE } from '../../../lib/problem'
-import { ACTION_REFUSALS } from '../../../lib/refusal'
 import { LINK_UNAVAILABLE_PATH } from '../../../lib/routes'
 
+// What this file is for, and what it deliberately leaves to its neighbours. The status→outcome
+// mapping — a segment that cannot be a token, 401, 403, 409, 500, an unreachable API, and
+// `linkRead`'s 404/422 — belongs to `linkCall`, is unit-tested in `actions/link-call.test.ts` over
+// every one of those, and is re-asserted end to end through the page in `page.test.tsx`. Testing it a
+// third time here would pin the same matrix in three places and make one of them the stale copy. What
+// is **this module's own** is what neither neighbour can see: which wrapper each read takes (so a
+// token naming nobody redirects where a missing plan 404s), that the plan id comes from the bootstrap,
+// and `seatless`, which has no equivalent in apps/microtask at all.
+//
+// The `Redirected`/`NotFound` doubles and the `next/*` mocks are declared per file, as the five other
+// test files in this app declare them. Factoring them out would mean editing those too, including one
+// another agent is in.
+//
 // As in page.test.tsx: a cookie read anywhere under these reads fails the file rather than passing.
 vi.mock('next/headers', () => ({
   cookies: () => {
@@ -117,42 +128,14 @@ describe('the bootstrap a seat page makes first', () => {
     expect(JSON.stringify(share)).not.toContain(MANAGE_SEAT_TOKEN)
   })
 
-  it('goes to the terminal page for a segment that cannot be a token, with no request made', async () => {
-    expect(await redirectOf(readShare('short'))).toBe(LINK_UNAVAILABLE_PATH)
-    expect(await redirectOf(readShare('a token with spaces in it'))).toBe(LINK_UNAVAILABLE_PATH)
-    expect(await redirectOf(readShare('a_token_with_a_newline\n'))).toBe(LINK_UNAVAILABLE_PATH)
-    expect(trace(api)).toEqual([])
-  })
-
-  it('goes to the terminal page on a 401, and never to the admin password form', async () => {
-    const where = await redirectOf(readShare(SEAT_TOKEN))
-    expect(where).toBe(LINK_UNAVAILABLE_PATH)
-    expect(where.startsWith('/login')).toBe(false)
-  })
-
-  it('goes to the terminal page on the 404 a token that holds no seat is answered', async () => {
+  it('redirects on the 404 a token that holds no seat is answered, where linkRead would 404 the page', async () => {
     holdingSeat(api, PLAN_A, 'view', REVOKED_SEAT_TOKEN)
     expect(await redirectOf(readShare(REVOKED_SEAT_TOKEN))).toBe(LINK_UNAVAILABLE_PATH)
   })
 
-  it('comes back as a sentence for every other refusal, for the page to say', async () => {
+  it('comes back as a sentence for any other refusal, rather than redirecting on that too', async () => {
     api.answers.set(currentShareKey(), () => problemAnswer(500, 'The plan store is busy.'))
-    expect(await readShare(SEAT_TOKEN)).toEqual({
-      ok: false,
-      status: 500,
-      detail: ACTION_REFUSALS.link.broken,
-    })
-  })
-
-  it('comes back as an unreachable API rather than as a dead link', async () => {
-    api.answers.set(currentShareKey(), () => {
-      throw new TypeError('fetch failed')
-    })
-    expect(await readShare(SEAT_TOKEN)).toEqual({
-      ok: false,
-      status: 0,
-      detail: SERVICE_UNAVAILABLE,
-    })
+    expect(await readShare(SEAT_TOKEN)).toMatchObject({ ok: false, status: 500 })
   })
 })
 
@@ -174,12 +157,11 @@ describe('the plan read that follows it', () => {
     expect(JSON.stringify(plan)).not.toContain(MANAGE_SEAT_TOKEN)
   })
 
-  it('leaves a plan a view seat was refused the block for exactly as the API answered it', async () => {
+  it('hands back exactly the document the API answered, for a seat refused the block', async () => {
     holdingStoredSeat(api, atlasPlan(), SEAT_TOKEN)
     const plan = await readSeatPlan(SEAT_TOKEN, PLAN_A)
     expect(bodiesWith(SEAT_TOKEN)).toEqual([])
-    expect(plan.ok && plan.value.epics.length).toBe(1)
-    expect(Object.keys(plan.ok ? plan.value : {})).not.toContain('shareLinks')
+    expect(plan.ok && plan.value).toEqual(answered[0])
   })
 
   it('renders not-found for a plan the API no longer holds', async () => {
@@ -198,16 +180,6 @@ describe('the plan read that follows it', () => {
     holdingStoredSeat(api, atlasPlan(), SEAT_TOKEN)
     api.answers.set(planReadKey(PLAN_A), () => problemAnswer(401))
     expect(await redirectOf(readSeatPlan(SEAT_TOKEN, PLAN_A))).toBe(LINK_UNAVAILABLE_PATH)
-  })
-
-  it('says a 403 in this surface’s words rather than the API’s', async () => {
-    holdingSeat(api, PLAN_A, 'view', SEAT_TOKEN)
-    api.answers.set(planReadKey(PLAN_A), () => problemAnswer(403, 'Not permitted: plan:read'))
-    expect(await readSeatPlan(SEAT_TOKEN, PLAN_A)).toEqual({
-      ok: false,
-      status: 403,
-      detail: ACTION_REFUSALS.link.forbidden,
-    })
   })
 
   it('presents the seat’s token and never an admin bearer, whatever else this process holds', async () => {
