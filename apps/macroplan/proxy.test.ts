@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { seal } from '@repo/app-session/crypto'
 import { ADMIN_COOKIE, payloadOf } from './lib/principal'
+import { LINK_UNAVAILABLE_PATH } from './lib/routes'
 import { config, proxy } from './proxy'
 
 const ORIGIN = 'https://macroplan.example'
@@ -100,6 +101,44 @@ describe('/login', () => {
   })
 })
 
+describe('the link surface, whose URL is its credential', () => {
+  it('lets a share link through with no cookie, because the token is the credential', () => {
+    expect(locationOf(visit('/s/tok_A_PLAN_SEAT_0001'))).toBeNull()
+  })
+
+  it('never routes a token into a login URL, at any depth under /s', () => {
+    for (const path of ['/s', '/s/tok_A_PLAN_SEAT_0001', '/s/tok_A_PLAN_SEAT_0001/anything']) {
+      expect(locationOf(visit(path)), path).toBeNull()
+    }
+  })
+
+  it('lets the terminal page through, which is reached by redirect and must not be gated', () => {
+    expect(locationOf(visit(LINK_UNAVAILABLE_PATH))).toBeNull()
+  })
+
+  it.each([
+    ['no cookie', {}],
+    ['a live mp_admin', signedIn],
+    ['an mp_admin that will not open', { [ADMIN_COOKIE]: FLIPPED }],
+  ])('passes with %s, since no cookie decides anything there', (_label, cookies) => {
+    const response = visit('/s/tok_A_PLAN_SEAT_0001', { cookies })
+    expect(isRedirect(response)).toBe(false)
+    expect(response.headers.getSetCookie()).toEqual([])
+  })
+
+  it('treats /splash as the admin surface, which a startsWith without the separator would not', () => {
+    expect(locationOf(visit('/splash')) ?? '').toContain('/login?next=')
+  })
+
+  it('still gates the admin surface, so the new rule is not a hole in the old one', () => {
+    expect(locationOf(visit('/plans/01M240ERCRWWCN16Q5AHP1FZAQ')) ?? '').toContain('/login?next=')
+  })
+
+  it('still gates a route handler, which must exempt itself deliberately', () => {
+    expect(locationOf(visit('/api/anything')) ?? '').toContain('/login?next=')
+  })
+})
+
 describe('it writes no cookie on any request', () => {
   it.each([
     ['/login', {}],
@@ -132,8 +171,11 @@ describe('the matcher', () => {
     },
   )
 
-  it.each(['/', '/plans', '/login'])('covers %s', (path) => {
-    const [pattern] = config.matcher
-    expect(new RegExp(`^${String(pattern)}$`).test(path)).toBe(true)
-  })
+  it.each(['/', '/plans', '/login', '/s', '/s/tok_A_PLAN_SEAT_0001', LINK_UNAVAILABLE_PATH])(
+    'covers %s',
+    (path) => {
+      const [pattern] = config.matcher
+      expect(new RegExp(`^${String(pattern)}$`).test(path)).toBe(true)
+    },
+  )
 })
