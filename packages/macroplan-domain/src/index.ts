@@ -36,3 +36,14 @@ export {
   type ItemPlacement,
   type NewItem,
 } from './services/item-service.js'
+export {
+  itemView,
+  planListItem,
+  planSchedule,
+  planView,
+  type ItemView,
+  type PlanListItem,
+  type PlanScheduleView,
+  type PlanSpan,
+  type PlanView,
+} from './views/plan-view.js'
