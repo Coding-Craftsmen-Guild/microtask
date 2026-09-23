@@ -1836,10 +1836,10 @@ export interface NewSeat {
   readonly createdBy: string | null
 }
 
-/** A new name, a new role, or both. Scope is immutable. */
+/** A new name, a new role, or both. There is no scope to change. */
 export interface SeatChanges {
-  readonly name?: string
-  readonly role?: Role
+  readonly name?: string | undefined
+  readonly role?: Role | undefined
 }
 ```
 
@@ -1861,6 +1861,15 @@ semantics in one monorepo is how one of them ends up wrong:
   a collision — so a mint that would clash with a Microtask token fails before the manifest lands.
 - **The token is minted by `ctx.ids.token()`**, never by anything in this service.
 
+**One asymmetry to expect.** `create` hands back `{ manifest, link }` while `update` returns a bare
+`PlanManifest` and `revoke` returns `{ manifest, revoked }`. So a handler renaming a seat reads the
+changed seat out of the returned manifest rather than being given it. Real, harmless, and named here
+so Task 16b is not surprised by it.
+
+The `| undefined` on both `SeatChanges` members is not decoration: `exactOptionalPropertyTypes` is on,
+so a validated `PATCH` body infers `role?: Role | undefined`, which a bare `role?: Role` will not
+accept. `NewPlan`, `PlanChanges` and the three structure `*Changes` interfaces all carry it for the
+same reason.
 - [ ] **Step 1: write the failing tests:**
       - `create` stores the five seat fields and **no scope**, and stores
         `createdBy` as given
@@ -1879,7 +1888,7 @@ semantics in one monorepo is how one of them ends up wrong:
       - `revoke` of an unknown token throws `NotFound`
       - every method runs inside `lock.run`, asserted with a counting `Lock` double
 - [ ] **Step 2: run them and watch them fail.**
-- [ ] **Step 3: implement the service** and widen `PlanContext`.
+- [ ] **Step 3: implement the service.** `PlanContext` already carries `tokens` — Task 13 added it for `PlanService.remove`, as the prose above says. Nothing needs widening.
 - [ ] **Step 4: run the domain suite.** Green.
 - [ ] **Step 5: the gate**, then commit `"Mint seats over a plan, with the cascade already decided"`.
 
