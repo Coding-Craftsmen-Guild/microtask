@@ -16,7 +16,7 @@ function sources(directory: string): readonly string[] {
 
 const shipped = sources(SRC).filter((file) => !file.endsWith('.test.ts'))
 
-describe('the package declares no runtime dependency beyond @repo/schedule, which it needs for types only', () => {
+describe('the package declares no runtime dependency beyond @repo/schedule, whose rail order it calls rather than re-derive', () => {
   it('has exactly {"@repo/schedule": "workspace:*"} in "dependencies", and nothing else', () => {
     const manifest = JSON.parse(
       readFileSync(join(PACKAGE_ROOT, 'package.json'), 'utf8'),

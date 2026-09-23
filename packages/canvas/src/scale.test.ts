@@ -18,7 +18,7 @@ describe('a PlanScale turns a working-day offset into an x, and back', () => {
 
   it('round-trips a day through x and back, so a hover can name the day it is over', () => {
     const scale = scaleFor({ pxPerDay: 8, gutter: 120 })
-    for (const day of [-13, -1, 0, 7, 200, 2_000]) expect(xToDay(dayToX(day, scale), scale)).toBe(day)
+    for (const day of [-13, -1, 0, 1, 7, 200, 2_000]) expect(xToDay(dayToX(day, scale), scale)).toBe(day)
   })
 
   it('floors a fractional x rather than rounding, so every pixel of a bar names that bar day', () => {

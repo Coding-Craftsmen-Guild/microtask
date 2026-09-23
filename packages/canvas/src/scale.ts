@@ -5,6 +5,14 @@
  * across the RSC boundary.
  */
 export interface PlanScale {
+  /**
+   * Px per working day, expected to be a positive whole number.
+   *
+   * A zoom control must step through integers rather than fractions. {@link dayToX} multiplies by
+   * this and {@link xToDay} divides by it, and the division is only exact when the value is exact
+   * in binary: at `0.1`, days 1, 3 and 13 come back from that round trip as 0, 2 and 12, so a
+   * hover names the day before the one it is over and nothing fails loudly enough to notice.
+   */
   readonly pxPerDay: number
 
   /**
