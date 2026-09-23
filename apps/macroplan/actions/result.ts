@@ -1,7 +1,8 @@
 import { missingIsNotFound, rejected, type ActionFailure, type ActionResult } from '@repo/app-session/action-result'
-import type { AdminClient } from '@repo/api-client'
+import type { MacroplanSessionClient } from '@repo/api-client'
 import { redirect } from 'next/navigation'
 import { apiForSession } from '../lib/api'
+import type { PrincipalKind } from '../lib/principal'
 import { remedyFor, remedyForNoSession, type Remedy } from '../lib/problem'
 
 export { flattened, missingIsNotFound, rejected } from '@repo/app-session/action-result'
@@ -10,6 +11,36 @@ export type { ActionFailure, ActionResult } from '@repo/app-session/action-resul
 const settle = (remedy: Remedy): ActionFailure => {
   if (remedy.kind === 'problem') return rejected(remedy.status, remedy.detail)
   redirect(remedy.location)
+}
+
+/**
+ * Runs one API call on the client handed in, and turns whatever went wrong into the one thing the
+ * audience's surface should do about it (`lib/problem.ts`).
+ *
+ * The one body both surfaces' calls share, so an admin action and a link action cannot drift in
+ * how they answer: `null` — no credential of the audience at all — and a 401 each redirect, to
+ * `/login?next=` for the admin and to `/s/unavailable` for a plan seat, and every other refusal
+ * comes back as its sentence. `redirect` is called outside the `try`, because it works by throwing
+ * and a `catch` around it would swallow it.
+ *
+ * Which client it is, is decided by the caller from its own route, never from an argument the
+ * browser sent as proof: {@link adminCall} from `mp_admin`, `linkCall` from the share token that is
+ * itself the credential (ADR 0040).
+ */
+export async function callWith<Value>(
+  api: MacroplanSessionClient | null,
+  audience: PrincipalKind,
+  pathname: string,
+  call: (api: MacroplanSessionClient) => Promise<Value>,
+): Promise<ActionResult<Value>> {
+  if (api === null) return settle(remedyForNoSession(audience, pathname))
+  let failure: unknown
+  try {
+    return { ok: true, value: await call(api) }
+  } catch (error) {
+    failure = error
+  }
+  return settle(remedyFor(failure, audience, pathname))
 }
 
 /**
@@ -24,31 +55,22 @@ const settle = (remedy: Remedy): ActionFailure => {
  * No session and a 401 both redirect to `/login?next=<pathname>`, so an expired admin lands back
  * on the page they were using (ADR 0032). `pathname` is the page the action serves, built by the
  * caller from route facts rather than read from a header, and it only ever reaches `?next=`
- * through `safeNextPath`. `redirect` is called outside the `try`, because it works by throwing
- * and a `catch` around it would swallow it.
+ * through `safeNextPath`.
  *
  * This is the shape every write in this app will take once it has entities: a Server Action calls
  * {@link adminCall}, and renders what comes back (ADR 0015).
  */
 export async function adminCall<Value>(
   pathname: string,
-  call: (api: AdminClient) => Promise<Value>,
+  call: (api: MacroplanSessionClient) => Promise<Value>,
 ): Promise<ActionResult<Value>> {
-  const api = await apiForSession()
-  if (api === null) return settle(remedyForNoSession(pathname))
-  let failure: unknown
-  try {
-    return { ok: true, value: await call(api) }
-  } catch (error) {
-    failure = error
-  }
-  return settle(remedyFor(failure, pathname))
+  return callWith(await apiForSession(), 'admin', pathname, call)
 }
 
 /** {@link adminCall} for a page's own read; see {@link missingIsNotFound}. */
 export async function adminRead<Value>(
   pathname: string,
-  call: (api: AdminClient) => Promise<Value>,
+  call: (api: MacroplanSessionClient) => Promise<Value>,
 ): Promise<ActionResult<Value>> {
   return missingIsNotFound(await adminCall(pathname, call))
 }

@@ -1,9 +1,10 @@
-import { ApiError, type AdminClient } from '@repo/api-client'
+import { ApiError, type MacroplanSessionClient } from '@repo/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SERVICE_UNAVAILABLE } from '../lib/problem'
 import { ACTION_REFUSALS } from '../lib/refusal'
+import { LINK_UNAVAILABLE_PATH } from '../lib/routes'
 
-const held: { api: AdminClient | null } = { api: null }
+const held: { api: MacroplanSessionClient | null } = { api: null }
 
 vi.mock('../lib/api', () => ({ apiForSession: () => Promise.resolve(held.api) }))
 
@@ -24,9 +25,9 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-const { adminCall, adminRead } = await import('./result')
+const { adminCall, adminRead, callWith } = await import('./result')
 
-const api = {} as AdminClient
+const api = {} as MacroplanSessionClient
 
 const refusal = (status: number): ApiError =>
   new ApiError({ status, code: 'x', detail: 'the API said so', instance: '/v1/macroplan/plans' })
@@ -86,7 +87,7 @@ describe('adminCall', () => {
 
   it('uses this app copy tables and not another product', async () => {
     const result = await adminCall('/plans', () => Promise.reject(refusal(409)))
-    expect(result).toEqual({ ok: false, status: 409, detail: ACTION_REFUSALS.conflict })
+    expect(result).toEqual({ ok: false, status: 409, detail: ACTION_REFUSALS.admin.conflict })
   })
 })
 
@@ -97,10 +98,66 @@ describe('adminRead', () => {
 
   it('lets every other refusal through as a sentence the page can show', async () => {
     const result = await adminRead('/plans', () => Promise.reject(refusal(403)))
-    expect(result).toEqual({ ok: false, status: 403, detail: ACTION_REFUSALS.forbidden })
+    expect(result).toEqual({ ok: false, status: 403, detail: ACTION_REFUSALS.admin.forbidden })
   })
 
   it('answers a successful read as a value', async () => {
     expect(await adminRead('/plans', () => Promise.resolve('ok'))).toEqual({ ok: true, value: 'ok' })
+  })
+})
+
+describe('callWith — the one body both surfaces run, so the two cannot drift', () => {
+  it('answers a success identically whichever audience asked', async () => {
+    for (const audience of ['admin', 'link'] as const) {
+      expect(await callWith(api, audience, '/plans', () => Promise.resolve(3))).toEqual({
+        ok: true,
+        value: 3,
+      })
+    }
+  })
+
+  it.each([403, 409, 413, 500])(
+    'answers a %i as that audience own sentence, never the API detail',
+    async (status) => {
+      for (const audience of ['admin', 'link'] as const) {
+        const result = await callWith(api, audience, '/plans', () => Promise.reject(refusal(status)))
+        expect(result).toMatchObject({ ok: false, status })
+        expect(JSON.stringify(result)).not.toContain('the API said so')
+      }
+    },
+  )
+
+  it('sends an absent admin credential to /login and an absent link one to the terminal page', async () => {
+    const admin = await callWith(null, 'admin', '/plans/01H', () => Promise.resolve(1)).catch(
+      (error: unknown) => error,
+    )
+    const link = await callWith(null, 'link', LINK_UNAVAILABLE_PATH, () => Promise.resolve(1)).catch(
+      (error: unknown) => error,
+    )
+    expect((admin as Redirected).location).toBe('/login?next=%2Fplans%2F01H')
+    expect((link as Redirected).location).toBe(LINK_UNAVAILABLE_PATH)
+  })
+
+  it('lets the redirect throw out rather than catching it, which is how next redirect works', async () => {
+    const thrown = await callWith(api, 'link', '/s/x', () => Promise.reject(refusal(401))).catch(
+      (error: unknown) => error,
+    )
+    expect(thrown).toBeInstanceOf(Redirected)
+    expect((thrown as Redirected).location).toBe(LINK_UNAVAILABLE_PATH)
+  })
+
+  it('never sends a link 401 to /login, whatever pathname it was given', async () => {
+    for (const pathname of ['/s/a_plan_seats_token1', '/login', '/plans/01H']) {
+      const thrown = await callWith(api, 'link', pathname, () => Promise.reject(refusal(401))).catch(
+        (error: unknown) => error,
+      )
+      expect((thrown as Redirected).location).toBe(LINK_UNAVAILABLE_PATH)
+    }
+  })
+
+  it('makes no call at all when the audience presented no credential', async () => {
+    const called = vi.fn(() => Promise.resolve(1))
+    await callWith(null, 'link', LINK_UNAVAILABLE_PATH, called).catch(() => undefined)
+    expect(called).not.toHaveBeenCalled()
   })
 })
