@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { docConfig } from './http/docs.js'
 import { GUARDED_PREFIX, IDS, SERVICE_KEY, TOKENS, admin, body, buildApp } from './testing/harness.js'
+import { MACROPLAN_PREFIX, PLAN_IDS } from './testing/macroplan-harness.js'
 
 const SAMPLES: Readonly<Record<string, string>> = {
   projectId: IDS.p1,
@@ -12,7 +13,21 @@ const SAMPLES: Readonly<Record<string, string>> = {
   tabId: IDS.tab1,
   token: TOKENS.p1View,
   sessionId: IDS.missing,
+  planId: PLAN_IDS.plan,
 }
+
+/**
+ * Every prefix a product mounts its guarded routes under.
+ *
+ * Both are listed rather than one, because the matrix below is the only place that asks each group
+ * what it does with a missing credential, and a product left out of this array would be left out of
+ * that question — silently, since nothing else here enumerates products. `/v1/auth` and `/healthz`
+ * are deliberately absent: the first mints a principal and the second carries none.
+ */
+const GUARDED_PREFIXES: readonly string[] = [GUARDED_PREFIX, MACROPLAN_PREFIX]
+
+const isGuarded = (path: string): boolean =>
+  GUARDED_PREFIXES.some((prefix) => path.startsWith(prefix))
 
 const concrete = (path: string): string =>
   path.replaceAll(/\{([^}]+)\}/g, (_whole, name: string) => {
@@ -45,7 +60,7 @@ const oneCallPerGroup = async (): Promise<Call[]> => {
 }
 
 const guarded = async (): Promise<Call[]> =>
-  (await oneCallPerGroup()).filter((call) => call.path.startsWith(GUARDED_PREFIX))
+  (await oneCallPerGroup()).filter((call) => isGuarded(call.path))
 
 const send = async (call: Call, headers: Record<string, string>): Promise<Response> => {
   const app = await buildApp()
@@ -78,6 +93,7 @@ describe('guard (2): the credential matrix, per route group', () => {
       'folders',
       'import',
       'meta',
+      'plans',
       'projects',
       'search',
       'share-links',
@@ -164,11 +180,28 @@ const matchesIn = async (files: readonly string[], pattern: RegExp): Promise<num
 }
 
 const handlerCount = async (): Promise<number> =>
-  (await everyCall()).filter((call) => call.path.startsWith(GUARDED_PREFIX)).length
+  (await everyCall()).filter((call) => isGuarded(call.path)).length
+
+/**
+ * Gates beyond one per guarded operation, counted rather than allowed for.
+ *
+ * `PATCH /v1/macroplan/plans/{planId}` carries two authorities in one body: a `name` needs
+ * `plan:rename` and a calendar field needs `plan:retime`. Its handler asks for each action the
+ * body's present keys imply and never for one the body omitted, which costs two extra textual
+ * `authorize(` calls — the branch that asks a single action, and the second gate a body doing both
+ * runs into.
+ *
+ * Counted here rather than turned into a `>=`, because the equality is the whole guard: a handler
+ * that forgot its gate makes the total fall **short** of this sum, and a `>=` would let one
+ * handler's second gate pay for another handler's missing first.
+ */
+const EXTRA_GATES = 2
 
 describe('guard (3): one authorize( per handler, and one can() in the app', () => {
-  it('counts exactly one authorize( for every guarded operation the document declares', async () => {
-    expect(await matchesIn(await under('./routes/'), GATE())).toBe(await handlerCount())
+  it('counts one authorize( per guarded operation, plus the two a two-authority body adds', async () => {
+    expect(await matchesIn(await under('./routes/'), GATE())).toBe(
+      (await handlerCount()) + EXTRA_GATES,
+    )
   })
 
   it('finds handlers to count, so that equality is not two zeroes agreeing', async () => {

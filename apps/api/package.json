@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@repo/api-client": "workspace:*",
+    "@repo/schedule": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@repo/eslint-config": "workspace:*",
     "@types/node": "catalog:",

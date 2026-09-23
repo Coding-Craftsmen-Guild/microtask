@@ -28,20 +28,34 @@ function applyChanges(current: PlanManifest, changes: PlanChanges, updatedAt: st
   }
 }
 
-/** What a new plan is created from. `sprintLengthDays` defaults to 10 and `timezone` to `'UTC'`. */
+/**
+ * What a new plan is created from. `sprintLengthDays` defaults to 10 and `timezone` to `'UTC'`.
+ *
+ * The two optional members spell `| undefined` rather than relying on the `?` alone, for the reason
+ * `@repo/microtask-domain`'s `ScopeRequest` already records: under `exactOptionalPropertyTypes` a
+ * validated body infers `sprintLengthDays?: number | undefined`, and would otherwise not be
+ * assignable here. Present-and-undefined means the same thing as absent, which is what `create`
+ * reads them as.
+ */
 export interface NewPlan {
   readonly name: string
   readonly startDate: string
-  readonly sprintLengthDays?: number
-  readonly timezone?: string
+  readonly sprintLengthDays?: number | undefined
+  readonly timezone?: string | undefined
 }
 
-/** What may change about a plan itself. An absent key leaves that setting alone. */
+/**
+ * What may change about a plan itself. An absent key leaves that setting alone.
+ *
+ * Every member spells `| undefined` for the reason {@link NewPlan}'s two do: a validated `PATCH`
+ * body infers `name?: string | undefined`, and `update` treats present-and-undefined exactly as it
+ * treats absent.
+ */
 export interface PlanChanges {
-  readonly name?: string
-  readonly startDate?: string
-  readonly sprintLengthDays?: number
-  readonly timezone?: string
+  readonly name?: string | undefined
+  readonly startDate?: string | undefined
+  readonly sprintLengthDays?: number | undefined
+  readonly timezone?: string | undefined
 }
 
 /** Creates, reads, retimes and removes plans. */

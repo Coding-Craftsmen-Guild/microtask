@@ -8,11 +8,13 @@ import { ACTIONS, type Action } from '@repo/kernel'
 /**
  * The Macroplan actions the kernel declares before any route exists to reach them.
  *
- * Task 2 widened `ACTIONS` with these twenty-four; the routes that gate them land in Tasks 15, 16
- * and 16b, and each of those empties its own rows out of this set. Task 17 is where the plan
- * commits to asserting the set is finally empty — a commitment, not yet an enforcement: until that
- * step is written, nothing here fails if the last rows are never struck off. What the assertion
- * below does enforce today is that no row outlives its own route.
+ * Task 2 widened `ACTIONS` with twenty-four of these; the routes that gate them land in Tasks 15, 16
+ * and 16b, and each of those empties its own rows out of this set. Task 15 struck off the six the
+ * plan routes now gate — the two workspace collections and the four `plan:` actions — leaving the
+ * rails and what sits on them. Task 17 is where the plan commits to asserting the set is finally
+ * empty — a commitment, not yet an enforcement: until that step is written, nothing here fails if
+ * the last rows are never struck off. What the assertion below does enforce today is that no row
+ * outlives its own route.
  *
  * Written out one by one rather than matched by prefix: a `plan:`/`epic:`/`feature:`/`item:` rule
  * would silently swallow the next Macroplan action somebody adds without a route, and the whole
@@ -28,10 +30,6 @@ import { ACTIONS, type Action } from '@repo/kernel'
  * routes on literals, or remove their rows by hand when you do not.
  */
 const PENDING_ROUTES: ReadonlySet<Action> = new Set([
-  'plan:read',
-  'plan:rename',
-  'plan:retime',
-  'plan:delete',
   'epic:create',
   'epic:rename',
   'epic:delete',
@@ -50,8 +48,6 @@ const PENDING_ROUTES: ReadonlySet<Action> = new Set([
   'item:delete',
   'item:place',
   'item:link',
-  'workspace:list-plans',
-  'workspace:create-plan',
 ])
 
 const ROUTES = dirname(fileURLToPath(import.meta.url))

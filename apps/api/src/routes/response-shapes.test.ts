@@ -14,11 +14,14 @@ import {
   asLink,
   buildApp,
 } from '../testing/harness.js'
+import { MACROPLAN_PREFIX } from '../testing/macroplan-harness.js'
 
 const PROJECT = `${GUARDED_PREFIX}/projects/{projectId}`
 const TASK = `${PROJECT}/tasks/{taskId}`
 const P1 = `${GUARDED_PREFIX}/projects/${IDS.p1}`
 const T1 = `${P1}/tasks/${IDS.t1}`
+const PLANS = `${MACROPLAN_PREFIX}/plans`
+const PLAN = `${PLANS}/{planId}`
 
 interface Step {
   readonly method: string
@@ -43,6 +46,24 @@ const OPEN_SESSION: Step = {
   path: `${GUARDED_PREFIX}/import/sessions`,
   headers: admin(),
 }
+
+const DRAFT_PLAN = JSON.stringify({ name: 'A roadmap', startDate: '2026-03-02' })
+
+/**
+ * The three plan-scoped operations need a plan, and `buildApp`'s fixture holds none.
+ *
+ * So they draft one first and then address it by the id a fresh `sequentialIds()` mints first —
+ * the same trick `FIRST_SESSION` uses above, and sound for the same reason: each sample gets its
+ * own app, and this setup step is the first thing in it to mint an id.
+ */
+const DRAFT_A_PLAN: Step = {
+  method: 'POST',
+  path: `${MACROPLAN_PREFIX}/plans`,
+  headers: adminJson(),
+  body: DRAFT_PLAN,
+}
+
+const FIRST_PLAN_PATH = `${MACROPLAN_PREFIX}/plans/${FIRST_SESSION}`
 
 const STAGE_ARCHIVE: Step = {
   method: 'POST',
@@ -98,6 +119,16 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     path: `${GUARDED_PREFIX}/shares/current`,
     headers: asLink(TOKENS.p1View),
   },
+  [`GET ${PLANS}`]: { path: PLANS, headers: admin() },
+  [`POST ${PLANS}`]: { path: PLANS, headers: adminJson(), body: DRAFT_PLAN },
+  [`GET ${PLAN}`]: { path: FIRST_PLAN_PATH, headers: admin(), setup: [DRAFT_A_PLAN] },
+  [`PATCH ${PLAN}`]: {
+    path: FIRST_PLAN_PATH,
+    headers: adminJson(),
+    body: json({ name: 'The roadmap', startDate: '2026-04-06' }),
+    setup: [DRAFT_A_PLAN],
+  },
+  [`DELETE ${PLAN}`]: { path: FIRST_PLAN_PATH, headers: admin(), setup: [DRAFT_A_PLAN] },
   [`GET ${PROJECT}`]: { path: P1, headers: admin() },
   [`PATCH ${PROJECT}`]: { path: P1, headers: adminJson(), body: json({ name: 'Renamed' }) },
   [`DELETE ${PROJECT}`]: { path: P1, headers: admin() },

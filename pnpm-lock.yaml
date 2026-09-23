@@ -224,6 +224,9 @@ importers:
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
+      '@repo/schedule':
+        specifier: workspace:*
+        version: link:../../packages/schedule
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config

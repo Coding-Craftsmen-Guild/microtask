@@ -2,6 +2,7 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import type { ApiEnv } from '../auth/env.js'
 import { createAuth } from '../auth/login.js'
 import type { ApiDeps } from '../deps.js'
+import { createMacroplan } from './macroplan/index.js'
 import { createMicrotask } from './microtask/index.js'
 
 /**
@@ -11,8 +12,12 @@ import { createMicrotask } from './microtask/index.js'
  * the bearer token every product route demands, so it cannot sit under the principal guard —
  * that would make the credential obtainable only by someone who already had one. A `use('*')`
  * registered at a mount prefix also covers siblings registered under that same prefix later, so
- * the two subtrees are kept apart by their paths (`/auth/*` and `/microtask/*`) rather than by
- * the order of these two lines, and a test issues an uncredentialed login to prove it.
+ * the subtrees are kept apart by their paths (`/auth/*`, `/microtask/*` and `/macroplan/*`)
+ * rather than by the order of these lines, and a test issues an uncredentialed login to prove it.
+ *
+ * Each product mount carries its own `requirePrincipal` **and** its own `requireProduct`, and
+ * neither could be lifted here. A parent's `use()` runs before the child's middleware, so a
+ * product guard registered at this level would run ahead of the principal it has to read.
  *
  * The version lives in the path rather than in a header so that two versions can be served side
  * by side from one deployment, and so a stale client's requests are visible in a log rather than
@@ -27,5 +32,6 @@ export function createV1(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
   app.route('/auth', createAuth(deps))
   app.route('/microtask', createMicrotask(deps))
+  app.route('/macroplan', createMacroplan(deps))
   return app
 }

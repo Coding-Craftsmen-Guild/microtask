@@ -1494,6 +1494,577 @@
           "revoked"
         ],
         "description": "Every share link one revocation removed"
+      },
+      "PlanList": {
+        "type": "object",
+        "properties": {
+          "plans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanListItem"
+            }
+          }
+        },
+        "required": [
+          "plans"
+        ],
+        "description": "The plans of one product"
+      },
+      "PlanListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/IsoDate"
+          },
+          "sprintLengthDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "timezone": {
+            "$ref": "#/components/schemas/Timezone"
+          },
+          "epicCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "featureCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "itemCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shareLinkCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "startDate",
+          "sprintLengthDays",
+          "timezone",
+          "epicCount",
+          "featureCount",
+          "itemCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A plan as a list row describes it: settings and counts, no contents"
+      },
+      "IsoDate": {
+        "type": "string",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+        "description": "A YYYY-MM-DD calendar date, with no time and no zone"
+      },
+      "Timezone": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "description": "An IANA time-zone name this runtime can resolve"
+      },
+      "PlanView": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/IsoDate"
+          },
+          "sprintLengthDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "timezone": {
+            "$ref": "#/components/schemas/Timezone"
+          },
+          "epics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanEpic"
+            },
+            "maxItems": 40
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanFeature"
+            },
+            "maxItems": 200
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanItem"
+            },
+            "maxItems": 2000
+          },
+          "shareLinks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanShareLink"
+            },
+            "maxItems": 50
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/ScheduleView"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "startDate",
+          "sprintLengthDays",
+          "timezone",
+          "epics",
+          "features",
+          "items",
+          "createdAt",
+          "updatedAt",
+          "schedule"
+        ],
+        "description": "A plan, and the schedule computed from it"
+      },
+      "PlanEpic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "colour": {
+            "$ref": "#/components/schemas/RailColour"
+          },
+          "railOrder": {
+            "$ref": "#/components/schemas/Position"
+          },
+          "binding": {
+            "$ref": "#/components/schemas/EpicBinding"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "colour",
+          "railOrder",
+          "binding",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A rail on the timeline, and what it is bound to, if anything"
+      },
+      "RailColour": {
+        "type": "string",
+        "pattern": "^#[0-9a-f]{6}$",
+        "description": "A lowercase #rrggbb colour"
+      },
+      "Position": {
+        "type": "integer",
+        "minimum": 0,
+        "description": "A dense 0-based order within one parent"
+      },
+      "EpicBinding": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "projectId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "view",
+              "manage"
+            ]
+          },
+          "sealedToken": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "projectId",
+          "role",
+          "sealedToken"
+        ],
+        "description": "A live link from one epic to one Microtask project"
+      },
+      "PlanFeature": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "epicId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          },
+          "estimateDays": {
+            "$ref": "#/components/schemas/EstimateDays"
+          },
+          "pinSprint": {
+            "$ref": "#/components/schemas/SprintIndex"
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "maxItems": 400
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "epicId",
+          "name",
+          "position",
+          "estimateDays",
+          "pinSprint",
+          "dependsOn",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A feature on one rail, its estimate, its pin, and its dependencies"
+      },
+      "EstimateDays": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 1000,
+        "description": "A non-negative whole number of working days"
+      },
+      "SprintIndex": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "description": "A 0-based sprint number, with no upper bound"
+      },
+      "PlanItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "featureId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          },
+          "estimateDays": {
+            "$ref": "#/components/schemas/EstimateDays"
+          },
+          "linkedTaskId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "featureId",
+          "name",
+          "position",
+          "estimateDays",
+          "linkedTaskId",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "One unit of work under a feature"
+      },
+      "PlanShareLink": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/ShareToken"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntityName"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  ""
+                ]
+              }
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "createdBy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ShareToken"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/PlanScope"
+          }
+        },
+        "required": [
+          "token",
+          "name",
+          "role",
+          "createdBy",
+          "createdAt",
+          "scope"
+        ],
+        "description": "One person’s access to a plan, and who granted it"
+      },
+      "PlanScope": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "plan"
+                ]
+              },
+              "planId": {
+                "$ref": "#/components/schemas/EntityId"
+              }
+            },
+            "required": [
+              "kind",
+              "planId"
+            ]
+          }
+        ],
+        "description": "What a Macroplan share link may reach"
+      },
+      "ScheduleView": {
+        "type": "object",
+        "properties": {
+          "spans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleSpan"
+            }
+          },
+          "cycles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleCycle"
+            }
+          },
+          "unscheduled": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnscheduledEntry"
+            }
+          },
+          "ignoredEdges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IgnoredEdge"
+            }
+          }
+        },
+        "required": [
+          "spans",
+          "cycles",
+          "unscheduled",
+          "ignoredEdges"
+        ],
+        "description": "A plan's schedule: spans, cycles, unscheduled entries, ignored edges"
+      },
+      "ScheduleSpan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "startDay": {
+            "type": "integer"
+          },
+          "endDay": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "startDay",
+          "endDay"
+        ],
+        "description": "One feature or item, placed at a working-day offset"
+      },
+      "ScheduleCycle": {
+        "type": "object",
+        "properties": {
+          "featureIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EntityId"
+            }
+          }
+        },
+        "required": [
+          "featureIds"
+        ],
+        "description": "Feature ids caught in a dependency cycle"
+      },
+      "UnscheduledEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no-estimate",
+              "in-cycle"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "description": "A feature or item left off the axis, and why"
+      },
+      "IgnoredEdge": {
+        "type": "object",
+        "properties": {
+          "featureId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "dependsOnId": {
+            "$ref": "#/components/schemas/EntityId"
+          }
+        },
+        "required": [
+          "featureId",
+          "dependsOnId"
+        ],
+        "description": "A dependency dropped to keep rail order, and who declared it"
+      },
+      "CreatePlanPayload": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/IsoDate"
+          },
+          "sprintLengthDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "timezone": {
+            "$ref": "#/components/schemas/Timezone"
+          }
+        },
+        "required": [
+          "name",
+          "startDate"
+        ],
+        "description": "A plan to create: its name, its start date, its calendar"
+      },
+      "UpdatePlanPayload": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "startDate": {
+            "$ref": "#/components/schemas/IsoDate"
+          },
+          "sprintLengthDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "timezone": {
+            "$ref": "#/components/schemas/Timezone"
+          }
+        },
+        "description": "A plan's settings, at least one of them"
       }
     },
     "parameters": {}
@@ -4893,6 +5464,427 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "List every plan in this product",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every plan, most recently updated first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Create an empty plan",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePlanPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The plan as created, with the schedule of an empty timeline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans/{planId}": {
+      "get": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Read one plan and its schedule",
+        "description": "Rails, features, items, the derived schedule, and — for an admin — its seats.",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan, shaped for whoever asked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Rename or retime one plan",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePlanPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan as changed, with the schedule recomputed from its new calendar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "plans"
+        ],
+        "summary": "Remove one plan and everything on it",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The plan is gone, along with its items and its seats"
           },
           "401": {
             "description": "Unauthorized",
