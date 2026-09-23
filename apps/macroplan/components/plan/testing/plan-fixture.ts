@@ -17,11 +17,14 @@ export const STAMP = '2026-09-23T10:00:00.000Z'
 /** When every record in this fixture was created. */
 export const CREATED = '2026-09-01T09:00:00.000Z'
 
-/** `Atlas rollout`: one rail, two features, three items, two seats. */
+/** `Atlas rollout`: one rail, two features, three items, three seats. */
 export const PLAN_A = '01MPAAAAAAAAAAAAAAAAAAAAA1'
 
 /** `Beacon migration`: a plan with nothing in it and nobody on it. */
 export const PLAN_B = '01MPBBBBBBBBBBBBBBBBBBBBB2'
+
+/** A plan id no fixture holds, for the read that must answer 404. */
+export const PLAN_GONE = '01MPGGGGGGGGGGGGGGGGGGGGG9'
 
 /** Atlas's one rail, `Platform`. */
 export const EPIC_1 = '01MPEEEEEEEEEEEEEEEEEEEEE1'
@@ -44,36 +47,45 @@ export const ITEM_3 = '01MPHHHHHHHHHHHHHHHHHHHHH3'
 /** The bearer the sealed `mp_admin` cookie carries in these tests. */
 export const ADMIN_TOKEN = 'admin.7.sig'
 
-/** The token of Atlas's first seat, which is also a `/s/<token>` segment. */
+/** Atlas's `view` seat, held by `Dana`. Also a valid `/s/<token>` segment. */
 export const SEAT_TOKEN = 'a_plan_seats_token1'
 
-/** The token of Atlas's second seat, held by nobody these tests render as. */
-export const OTHER_SEAT_TOKEN = 'a_second_seats_tok1'
+/** Atlas's `write` seat, held by `Ivo`. */
+export const WRITE_SEAT_TOKEN = 'a_write_seats_token1'
+
+/** Atlas's `manage` seat, held by `Ravi` — the role that *is* told the plan's other seats. */
+export const MANAGE_SEAT_TOKEN = 'a_manage_seats_tok1'
+
+/** A token no plan's manifest holds, for the seat that was revoked between resolve and read. */
+export const REVOKED_SEAT_TOKEN = 'a_revoked_seats_tok1'
 
 /**
  * A plan as the fake API stores it: the manifest, and the schedule a read derives from it.
  *
- * The manifest and not `PlanView`, because storage holds what an admin may see and the projection
- * decides what a caller is told: `shareLinks` is always here and is **withheld** per principal on
- * the way out (ADR 0013). The schedule rides along because no route answers a plan without one,
- * and because nothing in this app recomputes it — `@repo/schedule` is the API's dependency, so a
- * fixture that derived it here would be asserting a second implementation of the forward pass.
+ * The manifest and not `PlanView`, because storage holds every seat and the projection decides what
+ * a caller is told: `shareLinks` is always here and the block is withheld per **caller** on the way
+ * out, from the same `share:read` decision the API asks (ADR 0009, ADR 0013). The schedule rides
+ * along because no route answers a plan without one, and because nothing in this app recomputes
+ * it — `@repo/schedule` is the API's dependency, so a fixture that derived it here would be
+ * asserting a second implementation of the forward pass.
  */
 export type StoredPlan = Decoded<typeof PlanManifest> & {
   readonly schedule: Decoded<typeof ScheduleView>
 }
 
-const epic = {
-  id: EPIC_1,
-  name: 'Platform',
-  colour: '#3b82f6',
-  railOrder: 0,
-  binding: null,
-  createdAt: CREATED,
-  updatedAt: STAMP,
-}
+const epics = () => [
+  {
+    id: EPIC_1,
+    name: 'Platform',
+    colour: '#3b82f6',
+    railOrder: 0,
+    binding: null,
+    createdAt: CREATED,
+    updatedAt: STAMP,
+  },
+]
 
-const features = [
+const features = () => [
   {
     id: FEATURE_1,
     epicId: EPIC_1,
@@ -98,16 +110,24 @@ const features = [
   },
 ]
 
-const items = [
-  { id: ITEM_1, featureId: FEATURE_1, name: 'Sessions', position: 0, estimateDays: 3 },
-  { id: ITEM_2, featureId: FEATURE_1, name: 'Password reset', position: 1, estimateDays: 2 },
-  { id: ITEM_3, featureId: FEATURE_2, name: 'Invoices', position: 0, estimateDays: 3 },
-].map((one) => ({ ...one, linkedTaskId: null, createdAt: CREATED, updatedAt: STAMP }))
+const items = () =>
+  [
+    { id: ITEM_1, featureId: FEATURE_1, name: 'Sessions', position: 0, estimateDays: 3 },
+    { id: ITEM_2, featureId: FEATURE_1, name: 'Password reset', position: 1, estimateDays: 2 },
+    { id: ITEM_3, featureId: FEATURE_2, name: 'Invoices', position: 0, estimateDays: 3 },
+  ].map((one) => ({ ...one, linkedTaskId: null, createdAt: CREATED, updatedAt: STAMP }))
 
-const seats = [
+const seats = () => [
   { token: SEAT_TOKEN, name: 'Dana', role: 'view' as const, createdBy: null, createdAt: CREATED },
   {
-    token: OTHER_SEAT_TOKEN,
+    token: WRITE_SEAT_TOKEN,
+    name: 'Ivo',
+    role: 'write' as const,
+    createdBy: null,
+    createdAt: CREATED,
+  },
+  {
+    token: MANAGE_SEAT_TOKEN,
     name: 'Ravi',
     role: 'manage' as const,
     createdBy: null,
@@ -115,7 +135,7 @@ const seats = [
   },
 ]
 
-const atlasSchedule = {
+const atlasSchedule = () => ({
   spans: [
     { id: FEATURE_1, startDay: 0, endDay: 5 },
     { id: ITEM_1, startDay: 0, endDay: 3 },
@@ -126,15 +146,24 @@ const atlasSchedule = {
   cycles: [],
   unscheduled: [],
   ignoredEdges: [],
-}
+})
 
-const EMPTY_SCHEDULE = { spans: [], cycles: [], unscheduled: [], ignoredEdges: [] }
+const emptySchedule = () => ({ spans: [], cycles: [], unscheduled: [], ignoredEdges: [] })
 
 /**
- * `Atlas rollout`, the plan with something in it: one rail, two features, three items, two seats.
+ * `Atlas rollout`, the plan with something in it: one rail, two features, three items, three seats.
+ *
+ * Every array is built fresh on each call, and that is not tidiness: `PlanManifest` types `epics`,
+ * `features`, `items` and `shareLinks` as mutable arrays — only `PlanView` marks them
+ * `.readonly()` — so one shared reference would let a `push` or an in-place `sort` in one test
+ * rewrite the fixture for every other test in the process, including in other files. The schedule
+ * is fresh for the same reason.
  *
  * Its schedule is written out rather than computed, and it is coherent with the estimates above —
  * the two features run back to back on the one rail, and each feature's items fill its own span.
+ *
+ * The three seats carry the three roles, as `apps/api`'s own plan fixture does, because the role a
+ * seat holds is what decides whether it is told the others: `share:read` is `manage` and above.
  */
 export const atlasPlan = (overrides: Partial<StoredPlan> = {}): StoredPlan => ({
   id: PLAN_A,
@@ -142,21 +171,22 @@ export const atlasPlan = (overrides: Partial<StoredPlan> = {}): StoredPlan => ({
   startDate: '2026-09-28',
   sprintLengthDays: 14,
   timezone: 'Europe/Belgrade',
-  epics: [epic],
-  features,
-  items,
-  shareLinks: seats,
+  epics: epics(),
+  features: features(),
+  items: items(),
+  shareLinks: seats(),
   createdAt: CREATED,
   updatedAt: STAMP,
-  schedule: atlasSchedule,
+  schedule: atlasSchedule(),
   ...overrides,
 })
 
 /**
  * `Beacon migration`: a plan with no rails, no work and no seats.
  *
- * It exists so a list is seen to hold more than one row, and so the zero counts a brand-new plan
- * carries are rendered by something rather than assumed.
+ * It exists so a list is seen to hold more than one row, so the zero counts a brand-new plan
+ * carries are rendered by something rather than assumed, and so the order the API answers in has
+ * two `updatedAt` values to be checked against — this one is a day older than {@link atlasPlan}'s.
  */
 export const beaconPlan = (overrides: Partial<StoredPlan> = {}): StoredPlan => ({
   id: PLAN_B,
@@ -170,7 +200,7 @@ export const beaconPlan = (overrides: Partial<StoredPlan> = {}): StoredPlan => (
   shareLinks: [],
   createdAt: CREATED,
   updatedAt: '2026-09-22T12:00:00.000Z',
-  schedule: EMPTY_SCHEDULE,
+  schedule: emptySchedule(),
   ...overrides,
 })
 
@@ -191,7 +221,7 @@ export const listRow = (overrides: Partial<ListedPlan> = {}): ListedPlan => ({
   epicCount: 1,
   featureCount: 2,
   itemCount: 3,
-  shareLinkCount: 2,
+  shareLinkCount: 3,
   createdAt: CREATED,
   updatedAt: STAMP,
   ...overrides,

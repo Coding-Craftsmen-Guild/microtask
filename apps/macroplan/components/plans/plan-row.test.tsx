@@ -1,25 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
 import { PlanRow } from './plan-row'
 import { listRow, NOW, PLAN_A } from '../plan/testing/plan-fixture'
 
-vi.mock('next/link', () => ({
-  default: ({
-    href,
-    children,
-    className,
-    'data-testid': testId,
-  }: {
-    href: string
-    children: ReactNode
-    className?: string
-    'data-testid'?: string
-  }) => (
-    <a className={className} data-testid={testId} href={href}>
-      {children}
-    </a>
-  ),
+vi.mock('next/link', async () => ({
+  default: (await import('../plan/testing/next-link')).LinkDouble,
 }))
 
 const show = (overrides: Parameters<typeof listRow>[0] = {}) =>
@@ -39,7 +24,7 @@ describe('PlanRow', () => {
   it('counts the three things a list row may know, and the seats it was told about', () => {
     show()
     expect(screen.getByTestId('plan-counts').textContent).toBe(
-      '1 epic · 2 features · 3 items · 2 share links',
+      '1 epic · 2 features · 3 items · 3 share links',
     )
   })
 

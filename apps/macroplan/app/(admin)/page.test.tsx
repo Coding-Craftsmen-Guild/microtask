@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { seal } from '@repo/app-session/crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
 import { payloadOf } from '../../lib/principal'
 import { ACTION_REFUSALS } from '../../lib/refusal'
 import { SERVICE_UNAVAILABLE } from '../../lib/problem'
@@ -9,7 +8,8 @@ import {
   fakePlanApiState,
   fakePlanFetch,
   holdingAdmin,
-  holdingSeat,
+  holdingStoredSeat,
+  listKey,
   problemAnswer,
   trace,
   type FakePlanApiState,
@@ -18,14 +18,13 @@ import {
   ADMIN_TOKEN,
   atlasPlan,
   beaconPlan,
+  MANAGE_SEAT_TOKEN,
   PLAN_A,
   PLAN_B,
   SEAT_TOKEN,
 } from '../../components/plan/testing/plan-fixture'
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
-
-const LIST = 'GET /v1/macroplan/plans'
 
 class Redirected extends Error {
   constructor(readonly location: string) {
@@ -54,22 +53,8 @@ vi.mock('next/navigation', () => ({
     throw new Error('notFound')
   },
 }))
-vi.mock('next/link', () => ({
-  default: ({
-    href,
-    children,
-    className,
-    'data-testid': testId,
-  }: {
-    href: string
-    children: ReactNode
-    className?: string
-    'data-testid'?: string
-  }) => (
-    <a className={className} data-testid={testId} href={href}>
-      {children}
-    </a>
-  ),
+vi.mock('next/link', async () => ({
+  default: (await import('../../components/plan/testing/next-link')).LinkDouble,
 }))
 
 const { default: MacroplanPage, metadata } = await import('./page')
@@ -92,6 +77,9 @@ afterEach(() => {
 
 const show = async () => render(await MacroplanPage())
 
+const names = (): readonly (string | null)[] =>
+  screen.getAllByTestId('plan-name').map((one) => one.textContent)
+
 const redirectOf = async (): Promise<string> => {
   try {
     await MacroplanPage()
@@ -111,21 +99,20 @@ describe('the admin landing page', () => {
     holdingAdmin(api)
     api.plans = [atlasPlan(), beaconPlan()]
     await show()
-    expect(trace(api)).toEqual([`${LIST} ${ADMIN_TOKEN}`])
+    expect(trace(api)).toEqual([`${listKey()} ${ADMIN_TOKEN}`])
   })
 
-  it('lists every plan the API answered with, most recently updated first', async () => {
+  it('renders the plans in the order the API answered, newest update first', async () => {
     holdingAdmin(api)
-    api.plans = [atlasPlan(), beaconPlan()]
+    api.plans = [beaconPlan(), atlasPlan()]
     await show()
-    expect(screen.getAllByTestId('plan-name').map((one) => one.textContent)).toEqual([
-      'Atlas rollout',
-      'Beacon migration',
-    ])
-    expect(screen.getAllByTestId('plan-name').map((one) => one.getAttribute('href'))).toEqual([
+    expect(names()).toEqual(['Atlas rollout', 'Beacon migration'])
+    expect(screen.getByRole('link', { name: 'Atlas rollout' }).getAttribute('href')).toBe(
       `/plans/${PLAN_A}`,
+    )
+    expect(screen.getByRole('link', { name: 'Beacon migration' }).getAttribute('href')).toBe(
       `/plans/${PLAN_B}`,
-    ])
+    )
   })
 
   it('carries the seat count an admin is told, and no plan contents at all', async () => {
@@ -133,7 +120,7 @@ describe('the admin landing page', () => {
     api.plans = [atlasPlan()]
     await show()
     expect(screen.getByTestId('plan-counts').textContent).toBe(
-      '1 epic · 2 features · 3 items · 2 share links',
+      '1 epic · 2 features · 3 items · 3 share links',
     )
     expect(screen.queryByText(SEAT_TOKEN)).toBeNull()
     expect(screen.queryByText('Auth rewrite')).toBeNull()
@@ -143,12 +130,12 @@ describe('the admin landing page', () => {
     holdingAdmin(api)
     await show()
     expect(screen.getByText('No plans yet — there is nothing to open.')).toBeTruthy()
-    expect(trace(api)).toEqual([`${LIST} ${ADMIN_TOKEN}`])
+    expect(trace(api)).toEqual([`${listKey()} ${ADMIN_TOKEN}`])
   })
 
   it('says a refusal in place of the list, in this surface’s words and never the API’s', async () => {
     holdingAdmin(api)
-    api.answers.set(LIST, () => problemAnswer(403, 'Not permitted: workspace:list-plans'))
+    api.answers.set(listKey(), () => problemAnswer(403, 'Not permitted: workspace:list-plans'))
     await show()
     expect(screen.getByRole('alert').textContent).toBe(ACTION_REFUSALS.admin.forbidden)
     expect(screen.queryByText(/workspace:list-plans/)).toBeNull()
@@ -163,7 +150,7 @@ describe('the admin landing page', () => {
 
   it('sends a bearer the API no longer knows to sign in, with no ?next= for /', async () => {
     expect(await redirectOf()).toBe('/login')
-    expect(trace(api)).toEqual([`${LIST} ${ADMIN_TOKEN}`])
+    expect(trace(api)).toEqual([`${listKey()} ${ADMIN_TOKEN}`])
   })
 
   it('sends a browser with no admin cookie to sign in without making a request at all', async () => {
@@ -172,12 +159,13 @@ describe('the admin landing page', () => {
     expect(trace(api)).toEqual([])
   })
 
-  it('refuses the collection to a seat token, because the state is keyed on the bearer', async () => {
-    holdingSeat(api, PLAN_A, 'manage')
-    api.plans = [atlasPlan()]
-    bearer = SEAT_TOKEN
+  it('refuses the collection to a seat token, however senior, because the state is keyed on the bearer', async () => {
+    const plan = atlasPlan()
+    api.plans = [plan]
+    holdingStoredSeat(api, plan, MANAGE_SEAT_TOKEN)
+    bearer = MANAGE_SEAT_TOKEN
     await show()
-    expect(trace(api)).toEqual([`${LIST} ${SEAT_TOKEN}`])
+    expect(trace(api)).toEqual([`${listKey()} ${MANAGE_SEAT_TOKEN}`])
     expect(screen.getByRole('alert').textContent).toBe(ACTION_REFUSALS.admin.forbidden)
   })
 })

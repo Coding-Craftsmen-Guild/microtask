@@ -1,5 +1,16 @@
-import { MACROPLAN_CURRENT_SHARE_PATH, MACROPLAN_PLANS_PATH } from '@repo/api-client'
-import type { RoleValue } from '@repo/contracts'
+import {
+  MACROPLAN_CURRENT_SHARE_PATH,
+  MACROPLAN_PLANS_PATH,
+  planItemPath,
+  planPath,
+} from '@repo/api-client'
+import {
+  mayReach,
+  type CapabilityAction,
+  type CapabilityTarget,
+  type RoleValue,
+  type ScopeValue,
+} from '@repo/contracts'
 import type { ListedPlan } from '../../plans/plan-row'
 import { ADMIN_TOKEN, SEAT_TOKEN, type StoredPlan } from './plan-fixture'
 
@@ -22,8 +33,9 @@ export interface Received {
  * Whoever a bearer names: this app's two principals, and no third.
  *
  * A seat carries the plan it is rooted in and the role it holds, because those are the two facts
- * every answer to it is decided from — the API reads them from the manifest on every request, and a
- * fake that stored only "is a seat" could not refuse a call outside that plan (ADR 0053).
+ * every authorization decision about it is made from — the API's `PrincipalResolver` puts both on
+ * the principal, and `can(principal, …)` reads them there rather than from the manifest. What the
+ * *stored* seat holds is a separate question, and `shares/current` is where the two can disagree.
  */
 export type FakePrincipal =
   | { readonly kind: 'admin' }
@@ -34,7 +46,7 @@ export interface FakePlanApiState {
   /** Bearer → the principal it names. A bearer not here is answered 401, as a revoked one is. */
   readonly principals: Map<string, FakePrincipal>
 
-  /** Every plan the workspace holds, in the order `plans.list()` answers with. */
+  /** Every plan the workspace holds, in any order: `GET /plans` sorts them as the API does. */
   plans: readonly StoredPlan[]
 
   /** Item id → the description its own file holds. An item not here has an empty one. */
@@ -43,9 +55,24 @@ export interface FakePlanApiState {
   /** Every request, in order. */
   readonly received: Received[]
 
-  /** Overrides by `METHOD path`, answered before anything else. */
+  /** Overrides by `METHOD path`, answered before anything else. Build the keys with {@link listKey} and its siblings. */
   readonly answers: Map<string, () => Response>
 }
+
+/** The `answers` key for `GET /v1/macroplan/plans`, the collection this app's landing page reads. */
+export const listKey = (): string => `GET ${MACROPLAN_PLANS_PATH}`
+
+/** The `answers` key for `GET /v1/macroplan/plans/{planId}`. */
+export const planReadKey = (planId: string): string => `GET ${planPath(planId)}`
+
+/** The `answers` key for `GET /v1/macroplan/plans/{planId}/items/{itemId}`. */
+export const itemReadKey = (planId: string, itemId: string): string =>
+  `GET ${planItemPath(planId, itemId)}`
+
+/** The `answers` key for `GET /v1/macroplan/shares/current`. */
+export const currentShareKey = (): string => `GET ${MACROPLAN_CURRENT_SHARE_PATH}`
+
+const NO_SEAT = 'This credential does not name a share link'
 
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), {
@@ -71,7 +98,17 @@ export const problemAnswer = (status: number, detail = `status ${String(status)}
     instance: '/v1/x',
   })
 
-const told = (who: FakePrincipal): boolean => who.kind === 'admin'
+interface Asked {
+  readonly method: string
+  readonly path: string
+  readonly bearer: string
+  readonly who: FakePrincipal
+}
+
+const scopeOf = (planId: string): ScopeValue => ({ kind: 'plan', planId })
+
+const grants = (who: FakePrincipal, action: CapabilityAction, target: CapabilityTarget): boolean =>
+  who.kind === 'admin' || mayReach(who.role, scopeOf(who.planId), action, target)
 
 const listRowOf = (plan: StoredPlan, who: FakePrincipal): ListedPlan => ({
   id: plan.id,
@@ -82,14 +119,14 @@ const listRowOf = (plan: StoredPlan, who: FakePrincipal): ListedPlan => ({
   epicCount: plan.epics.length,
   featureCount: plan.features.length,
   itemCount: plan.items.length,
-  ...(told(who) ? { shareLinkCount: plan.shareLinks.length } : {}),
+  ...(grants(who, 'share:read', 'plan') ? { shareLinkCount: plan.shareLinks.length } : {}),
   createdAt: plan.createdAt,
   updatedAt: plan.updatedAt,
 })
 
 const planViewOf = (plan: StoredPlan, who: FakePrincipal): unknown => {
   const { shareLinks, ...rest } = plan
-  return told(who) ? { ...rest, shareLinks } : rest
+  return grants(who, 'share:read', 'plan') ? { ...rest, shareLinks } : rest
 }
 
 const reaches = (who: FakePrincipal, planId: string): boolean =>
@@ -98,18 +135,35 @@ const reaches = (who: FakePrincipal, planId: string): boolean =>
 const planOf = (state: FakePlanApiState, planId: string): StoredPlan | undefined =>
   state.plans.find((one) => one.id === planId)
 
+/**
+ * The order `GET /plans` answers in, restated from the domain comparator of the same name.
+ *
+ * Restated rather than imported because the original lives in `@repo/macroplan-domain`, which this
+ * app is lint-forbidden to import at all (ADR 0014, ADR 0027) — so a fake that is to answer in the
+ * API's order has no way to reuse it. `packages/macroplan-domain/src/entities/plan-order.ts` is
+ * that original, and the tiebreak on descending id is load-bearing there: two plans saved in the
+ * same millisecond carry the same `updatedAt`, and sorting on that alone leaves their order to
+ * whatever the caller happened to seed.
+ */
+export const newestUpdateFirst = (a: StoredPlan, b: StoredPlan): number =>
+  b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id)
+
 const listAnswer = (state: FakePlanApiState, who: FakePrincipal): Response =>
-  told(who)
-    ? json(200, { plans: state.plans.map((plan) => listRowOf(plan, who)) })
+  grants(who, 'workspace:list-plans', 'workspace')
+    ? json(200, {
+        plans: [...state.plans].sort(newestUpdateFirst).map((plan) => listRowOf(plan, who)),
+      })
     : problemAnswer(403, 'Not permitted: workspace:list-plans')
 
-const shareAnswer = (state: FakePlanApiState, who: FakePrincipal): Response => {
-  if (who.kind === 'admin') return problemAnswer(404, 'No such share link')
-  const plan = planOf(state, who.planId)
-  if (plan === undefined) return problemAnswer(404, 'No such share link')
+const shareAnswer = (state: FakePlanApiState, asked: Asked): Response => {
+  if (asked.who.kind === 'admin') return problemAnswer(404, NO_SEAT)
+  const plan = planOf(state, asked.who.planId)
+  if (plan === undefined) return problemAnswer(404, NO_SEAT)
+  const stored = plan.shareLinks.find((seat) => seat.token === asked.bearer)
+  if (stored === undefined) return problemAnswer(404, NO_SEAT)
   return json(200, {
-    role: who.role,
-    scope: { kind: 'plan', planId: plan.id },
+    role: stored.role,
+    scope: scopeOf(plan.id),
     plan: { id: plan.id, name: plan.name },
   })
 }
@@ -121,7 +175,11 @@ const planAnswer = (state: FakePlanApiState, who: FakePrincipal, planId: string)
   return json(200, planViewOf(plan, who))
 }
 
-const itemAnswer = (state: FakePlanApiState, who: FakePrincipal, ids: readonly string[]): Response => {
+const itemAnswer = (
+  state: FakePlanApiState,
+  who: FakePrincipal,
+  ids: readonly string[],
+): Response => {
   const planId = ids[0] ?? ''
   const itemId = ids[1] ?? ''
   if (!reaches(who, planId)) return problemAnswer(403, 'Not permitted: plan:read')
@@ -149,16 +207,11 @@ const belowPlans = (
   return problemAnswer(404, 'Not found')
 }
 
-const route = (
-  state: FakePlanApiState,
-  method: string,
-  path: string,
-  who: FakePrincipal,
-): Response => {
-  if (method !== 'GET') return problemAnswer(405, 'Not allowed')
-  if (path === MACROPLAN_PLANS_PATH) return listAnswer(state, who)
-  if (path === MACROPLAN_CURRENT_SHARE_PATH) return shareAnswer(state, who)
-  return belowPlans(state, who, below(path))
+const route = (state: FakePlanApiState, asked: Asked): Response => {
+  if (asked.method !== 'GET') return problemAnswer(405, 'Not allowed')
+  if (asked.path === MACROPLAN_PLANS_PATH) return listAnswer(state, asked.who)
+  if (asked.path === MACROPLAN_CURRENT_SHARE_PATH) return shareAnswer(state, asked)
+  return belowPlans(state, asked.who, below(asked.path))
 }
 
 /** A fresh, empty fake: no principal is known, so every bearer is answered 401. */
@@ -175,7 +228,15 @@ export const holdingAdmin = (state: FakePlanApiState, token = ADMIN_TOKEN): void
   state.principals.set(token, { kind: 'admin' })
 }
 
-/** Seeds one plan seat: the plan it is rooted in, the role it holds, and its token. */
+/**
+ * Seeds one plan seat as a **resolved principal**: the plan it is rooted in, the role it holds, and
+ * its token.
+ *
+ * The role given here is the one every authorization decision is made from, and it may legitimately
+ * differ from the role the plan's manifest stores for that token — that is what a seat re-roled
+ * between resolution and read looks like, and `shares/current` is the route that shows it. When no
+ * such disagreement is wanted, use {@link holdingStoredSeat}, which cannot produce one.
+ */
 export const holdingSeat = (
   state: FakePlanApiState,
   planId: string,
@@ -183,6 +244,25 @@ export const holdingSeat = (
   token = SEAT_TOKEN,
 ): void => {
   state.principals.set(token, { kind: 'link', planId, role })
+}
+
+/**
+ * Seeds the seat `token` exactly as `plan`'s manifest stores it, and throws if it holds no such
+ * seat.
+ *
+ * This is the seeder to reach for. It is impossible to desynchronise the principal's role from the
+ * stored seat's with it, which is the trap {@link holdingSeat} leaves open: a fake that answered
+ * `shares/current` from the principal would hide such a mismatch, and this one does not, so a test
+ * that means "a `manage` seat of Atlas" says so once rather than twice.
+ */
+export const holdingStoredSeat = (
+  state: FakePlanApiState,
+  plan: StoredPlan,
+  token = SEAT_TOKEN,
+): void => {
+  const stored = plan.shareLinks.find((seat) => seat.token === token)
+  if (stored === undefined) throw new Error(`plan ${plan.id} holds no seat ${token}`)
+  state.principals.set(token, { kind: 'link', planId: plan.id, role: stored.role })
 }
 
 /** Every request as `METHOD path bearer`, which is the one line a test asserts the wire by. */
@@ -195,16 +275,27 @@ export const trace = (state: FakePlanApiState): readonly string[] =>
  *
  * It is stubbed at `globalThis.fetch` and never at the client, which is the whole point of it: the
  * real `createMacroplanAdminClient`, the real transport, the real contract schemas and the real
- * `ApiError` all run, so a response this file gets wrong fails the parse rather than the assertion,
- * and `state.received` records the actual bearer per request rather than an intention.
+ * `ApiError` all run, and `state.received` records the actual bearer per request rather than an
+ * intention. What that does **not** buy is correctness of the answers: every divergence worth
+ * fearing here — a block withheld from a caller the API grants it to, a role taken from the wrong
+ * place — produces a document the contract schema accepts, so it fails as a wrong answer and never
+ * as a parse error. `fake-plan-api.test.ts` is what holds the answers to the API's behaviour; the
+ * schemas only catch a shape.
  *
- * The gate mirrors the handlers rather than being lenient in the direction of green: `plans.list()`
- * is `workspace:list-plans` and admin-only, so a seat is refused 403 here and not handed a filtered
- * list (ADR 0009); `shares/current` answers a seat and 404s an admin, which names no seat; and a
- * seat reading another plan is refused before the plan is looked up, so a 403 never leaks whether
- * that plan exists. `shareLinks` and `shareLinkCount` are **withheld** from a seat rather than
- * zeroed, one decision asked once, because an empty array says a plan has no seats and absence says
- * the caller was not told (ADR 0013, ADR 0033).
+ * Every authorization decision is asked of `mayReach` from `@repo/contracts`, against the same
+ * action names and target kinds the handlers pass `can` — so `workspace:list-plans` is refused to
+ * every seat because its minimum is `admin` (ADR 0009), and `share:read` is granted to a `manage`
+ * seat and refused a `view` or `write` one, which is what `visibleLinks` decides in the API. That
+ * is one record shared with the kernel's policy and with this app's own `planCapabilities`, rather
+ * than a `kind === 'admin'` shortcut that would answer a `manage` seat wrongly. A refused block is
+ * **absent**, never zeroed or emptied: an empty array says a plan has no seats, and absence says the
+ * caller was not told (ADR 0013, ADR 0033). What identity alone decides is which plan a seat
+ * reaches: a seat asking about another plan is refused before the plan is looked up, so a 403 never
+ * says whether that plan exists.
+ *
+ * `shares/current` looks the seat up in the plan's manifest by the token presented and answers the
+ * **stored** role, 404ing when no seat holds that token — the handler's own rule, and the reason a
+ * revoked seat and an unknown one answer alike rather than one of them 500ing.
  */
 export const fakePlanFetch =
   (state: FakePlanApiState) =>
@@ -222,5 +313,6 @@ export const fakePlanFetch =
     const override = state.answers.get(`${method} ${path}`)
     if (override !== undefined) return Promise.resolve(override())
     const who = bearer === undefined ? undefined : state.principals.get(bearer)
-    return Promise.resolve(who === undefined ? problemAnswer(401) : route(state, method, path, who))
+    if (who === undefined || bearer === undefined) return Promise.resolve(problemAnswer(401))
+    return Promise.resolve(route(state, { method, path, bearer, who }))
   }
