@@ -69,6 +69,8 @@ in the working tree.
 | [0051](0051-estimate-authored-at-any-level-children-win.md) | Estimate is authored at any level; children win, and the gap is shown | Accepted |
 | [0053](0053-a-plan-is-shared-at-plan-scope.md) | A plan is shared at plan scope, by the share-link system that already exists | Accepted |
 | [0054](0054-one-token-index-identity-stays-a-capability.md) | One token index for both products, and identity stays a capability until there are users | Accepted |
+| [0055](0055-canvas-geometry-is-its-own-pure-package.md) | Canvas geometry is its own pure package, because a measurement cannot be tested here | Accepted |
+| [0056](0056-the-table-is-the-second-rendering.md) | The table is the second rendering of a plan, not the accessible fallback | Accepted |
 
 **0052 is reserved, not missing.** It belongs to the phase-4 bridge — an epic binding to a
 Microtask project by a sealed share token — and phase 1 reserved the fields for it while deciding
@@ -117,6 +119,13 @@ Amended on 2026-09-12, from four fixes measured against the running containers:
 | [0006](0006-write-ordering-not-transactions.md) | "Containers are killed on every deploy" was true and not inevitable: the API installed no `SIGTERM`/`SIGINT` handler, so every deploy killed it where it stood. Measured three ways against the built image — 10.9 s and exit 137 with node as PID 1, 1.0 s and exit 143 with tini as PID 1 (`init: true`, which compose sets), 0.9 s and exit **0** with the handler — so `init: true` buys a fast kill rather than a clean one, and only the handler makes the stop ordered. The amendment also pins what "drained" can mean when `QueueLock` has no observable idle: every `lock.run` is awaited inside a route handler, so waiting for the request waits for the write, and a test parks a write inside the lock rather than sleeping |
 | [0026](0026-docker-turbo-prune-standalone.md) | The "does it build in Docker" check this ADR asks for was unreachable: the suite the image build runs read a gitignored production file, so a fresh clone, a CI runner and every container build errored. It now reads a derived fixture, proven portable in a fresh worktree. Also: `restart: unless-stopped` did nothing for a bad environment, because Docker restarts on exit and never on unhealthy; and `docker stop` "always ended in SIGKILL" only with node as PID 1 — `init: true` plus the `CMD` exec form get the signal to node, which then dies fast rather than cleanly until the handler exists (ADR 0006 carries the measurements) |
 | [0032](0032-two-cookies-url-wins.md) | Amendment (d) left `register()` throwing and called a health check the thing that turns a bad environment into a failed deploy. Nothing acted on it — Docker restarts on exit, never on unhealthy — so a deploy with a bad `COOKIE_SECRET` came up and served 500s. `register()` now exits 1 |
+
+Amended on 2026-09-23, from what the Macroplan canvas measured against two records:
+
+| ADR | What was wrong |
+| --- | --- |
+| [0027](0027-code-style-solid-enforced.md) | The app import rule was written as an allowlist — "may import `contracts`, `api-client`, `ui` — **nothing else**" — and enforced as a denylist of `@repo/store`, `@repo/kernel` and the two `*-domain` packages in each app's own config. Phase 2 added `@repo/canvas` and `@repo/schedule` to `apps/macroplan` with no config change at all, so the written rule had violations CI would always pass. Settled as the denylist, with the reason on the merits and the cost of the allowlist measured rather than asserted |
+| [0049](0049-per-rail-forward-pass-in-one-pure-package.md) | Three predictions falsified by phase 2: ADR 0027's list gained **two** entries rather than one and the mechanism changed instead of growing; the browser calls `schedule()` **nowhere** in phase 2 — it draws the schedule the API served and imports the package for the derived order and the estimate arithmetic, with the second derivation deferred to phase 3; and `ScheduleEpic` being `{ id, railOrder }` with no hue is what forced the canvas to extend it (ADR 0055) |
 
 Also on 2026-09-12, from the records audit, and **no ADR was factually wrong in that pass**. What
 was wrong is the design spec, in six places, and two behaviours had no record at all. So the spec is

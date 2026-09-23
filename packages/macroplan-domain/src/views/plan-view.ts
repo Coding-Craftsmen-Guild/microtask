@@ -97,8 +97,12 @@ const spansOf = (days: ReadonlyMap<string, Span>): readonly PlanSpan[] =>
  *
  * Exported from this module and deliberately **not** from the package barrel, though
  * {@link PlanScheduleView} and {@link PlanSpan} are: no consumer has ever wanted the function —
- * `apps/api` and `apps/macroplan` take `planView` and read `PlanView['schedule']` off it, and the
- * only caller of this one is in this package. The reason to keep it that way is the agreement test in
+ * `apps/api` takes `planView` and reads `PlanView['schedule']` off it, and the only caller of this one
+ * is in this package. `apps/macroplan` is not a consumer of either and cannot be: its own eslint
+ * config bans `@repo/macroplan-domain` by name, so the app never sees this {@link PlanView} at all. It
+ * reads the one in `@repo/contracts` — a separately declared Zod schema of a structurally similar
+ * shape, which is what `@repo/api-client` decodes a response into. The reason to keep the function off
+ * the barrel is the agreement test in
  * `apps/api`, which asserts that the schedule a client receives equals `schedule()` from
  * `@repo/schedule` flattened by the test itself. This is the function the route already calls, so a
  * test reaching for it would compare a value to itself and could never fail; a barrel export puts

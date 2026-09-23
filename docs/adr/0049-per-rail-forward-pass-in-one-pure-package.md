@@ -12,7 +12,9 @@ Two consumers need it, and they are on opposite sides of the API. `apps/api` der
 answer a read, in phase 1, today. The browser derives it to draw the canvas in phase 2 and to show a
 drag before the round trip completes in phase 3. If those are two implementations they will
 disagree, and the disagreement presents as a bar that jumps when you let go of it — a defect whose
-unit tests all pass on both sides.
+unit tests all pass on both sides. (**Amended 2026-09-23:** phase 2's browser calls `schedule()`
+nowhere — it draws the schedule the API served and imports this package for the derived order and the
+estimate arithmetic. The second derivation is phase 3's. See the amendment at the end.)
 
 ## Decision
 
@@ -130,7 +132,8 @@ is worse than a refusal.
   and `ui` — and each app's lint block is a denylist of `store`, `kernel` and the two `*-domain`
   packages, so nothing currently blocks the import. Phase 2 is when the dependency is added and when
   that list, as ADR 0027 writes it, has to grow. The reason it may grow safely is the purity test
-  above: this package can reach nothing an app is banned from.
+  above: this package can reach nothing an app is banned from. **Amended 2026-09-23 — it gained two
+  entries, and the mechanism changed instead.** See the section at the end of this record.
 - **A conflict has four channels on the wire, not one.**
   `packages/contracts/src/schedule-view.ts` publishes `ScheduleSpan`, `ScheduleCycle`,
   `UnscheduledEntry` and `IgnoredEdge` as separate shapes, and `plan-views.test.ts` pins that an
@@ -180,3 +183,40 @@ notion of a rail at all. Rejected: it would let a feature's position on its own 
 decided by another epic's dependencies, so a rail could run backwards against its stated order. Rail
 order is the one thing a reader is entitled to trust on sight, and `forward-pass.property.test.ts`
 asserts it holds for every seeded plan.
+
+## Amended · 2026-09-23 — what phase 2 did instead of what this record predicted
+
+Three things in the body are now falsified by the code phase 2 shipped. Each is corrected here rather
+than rewritten above, so nobody reads a prediction as a fact.
+
+**ADR 0027's written list gained two entries, not one, and the mechanism changed rather than growing.**
+`apps/macroplan/package.json` now depends on `@repo/canvas` as well as `@repo/schedule`, because the
+timeline's geometry became a second pure package (ADR 0055) rather than joining this one. And the list
+did not have to grow at all: ADR 0027's amendment of the same date measured the enforcement and found
+it was a denylist of `store`, `kernel` and the two `*-domain` packages the whole time, so neither new
+import touched a config. That record now states the denylist as the decision and stops claiming an
+allowlist, which means the "fifth entry" this consequence asked for is a sentence in prose and not a
+lint change. **The reasoning in it stands and is now the load-bearing part:** both packages may be
+imported by an app because each carries a `purity.test.ts` that can reach nothing an app is banned
+from, and under a denylist that guarantee is the only thing doing the work.
+
+**The browser does not derive the schedule, and in phase 2 it never calls `schedule()`.** The Context
+above says "the browser derives it to draw the canvas in phase 2", and that is not what happened: the
+API derives the schedule, `planView` hangs it off the response (ADR 0048), and `apps/macroplan` draws
+from `plan.schedule` as served. What the app imports from this package is the *ordering* and *estimate*
+half — `railsOf` in `components/plan/canvas/view.ts`, and `railsOf`, `itemsByFeature`, `breakdown`,
+`effectiveEstimate` and `sprintOf` in `components/plan/table/rows.ts`, plus `isWorkingDay` for a hover
+— and it imports `schedule` itself nowhere. The prediction is deferred to phase 3, where an optimistic
+drag has to answer before the round trip completes; the agreement test is still what will catch a
+second implementation when it does.
+
+That changes nothing about why this package is pure, and sharpens why it had to be: the browser needs
+`railsOf` to be **the same total order the pass used**, which is the argument `@repo/canvas` repeats
+when it refuses to re-derive it. A second consumer of the ordering arrived a phase before a second
+consumer of the pass.
+
+**`ScheduleEpic` turned out to be the narrowest shape in the product, and that was load-bearing rather
+than incidental.** It is `{ id, railOrder }` — the forward pass never needed a hue — so the canvas had
+to extend it to carry an epic's colour. Recorded here because the temptation on first reading is to add
+`colour` to this package's input type, which would put a presentation field into `apps/api` and into
+the agreement test for the benefit of a package neither imports. ADR 0055 refuses it for that reason.

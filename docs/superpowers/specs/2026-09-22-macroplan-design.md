@@ -4,7 +4,7 @@
 **Date:** 2026-09-22
 **Branch:** `feat/macroplan-timeline`
 **Follows:** [the shell design](2026-09-22-macroplan-shell-design.md), whose §6 left this undesigned
-**Decisions this spec creates:** ADRs 0048–0054 (§11) — six written; 0052 deferred to phase 4
+**Decisions this spec creates:** ADRs 0048–0056 (§11) — eight written; 0052 deferred to phase 4
 **Amended:** 2026-09-22 — §7 split into the outward link and the inward one. The first draft had no
 notion of sharing a plan at all, and the phase 1 plan had written "every Macroplan action is
 admin-only" on the strength of that silence.
@@ -449,6 +449,8 @@ links already issued. §7.3's behaviour is phase 4; the actions and scopes it de
 | 0052 | An epic binds to a Microtask project by a sealed share token | **Deferred to phase 4.** Phase 1 reserves the bridge fields and decides nothing about the bridge, and §12 leaves who mints the token undecided — an ADR recording a decision nobody has taken is worse than an absent one. |
 | 0053 | A plan is shared at plan scope, by the share-link system that already exists | **Written.** |
 | 0054 | One token index for both products, and identity stays a capability until there are users | **Written.** |
+| 0055 | Canvas geometry is its own pure package, because a measurement cannot be tested here | **Written** in phase 2. §4's table put "layout maths" in `@repo/schedule` and §4.1 published that package's surface without any; the layout is `@repo/canvas`, and §4.1's surface is the half that was right. |
+| 0056 | The table is the second rendering of a plan, not the accessible fallback | **Written** in phase 2. §5's table view, with the data-parity test that keeps it a peer and the six of seven columns phase 2 can fill. |
 
 ## 12. What this spec does not decide
 
