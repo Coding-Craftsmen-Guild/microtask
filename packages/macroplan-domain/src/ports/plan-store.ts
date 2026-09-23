@@ -75,6 +75,12 @@ export interface PlanStore {
    * An id the manifest does not name is removed if a file is there and passed over if none is:
    * a caller assembling the list from the manifest it is about to write has nothing to reconcile,
    * and a repeated delete is not an error.
+   *
+   * **The whole `itemIds` list is validated before the manifest is written.** An id that is not a
+   * ULID is refused, as it is everywhere else here, and refused with nothing yet published — so a
+   * bad id in the list leaves the plan exactly as it was rather than half-applied, with the new
+   * manifest on disk and the files it no longer names still there. Both adapters validated as they
+   * swept and therefore agreed with each other, which is what let the contract miss it.
    */
   deleteItems(product: Product, manifest: PlanManifest, itemIds: readonly string[]): Promise<void>
 

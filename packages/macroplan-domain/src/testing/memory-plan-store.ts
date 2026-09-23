@@ -1,5 +1,6 @@
 import { Invalid, isProduct, isUlid, type Product } from '@repo/kernel'
 import type { ItemDocument } from '../entities/item.js'
+import { newestUpdateFirst } from '../entities/plan-order.js'
 import type { PlanManifest } from '../entities/plan.js'
 import type { PlanStore } from '../ports/plan-store.js'
 
@@ -7,9 +8,6 @@ const containerKey = (product: Product, name: string): string => `${product}/${n
 
 const itemKey = (product: Product, planId: string, itemId: string): string =>
   `${containerKey(product, planId)}/${itemId}`
-
-const newestFirst = (a: PlanManifest, b: PlanManifest): number =>
-  b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id)
 
 function assertProduct(product: Product): void {
   if (!isProduct(product)) throw new Invalid('Unknown product')
@@ -79,7 +77,7 @@ export class MemoryPlanStore implements PlanStore {
       const manifest = await this.readManifest(product, id)
       if (manifest) found.push(manifest)
     }
-    return found.sort(newestFirst)
+    return found.sort(newestUpdateFirst)
   }
 
   /** Reads one plan manifest, or null when the plan is absent or its content will not parse. */
@@ -108,17 +106,22 @@ export class MemoryPlanStore implements PlanStore {
     await this.saveManifest(product, manifest)
   }
 
-  /** Writes the manifest, then drops every named item, matching the order the port documents. */
+  /**
+   * Writes the manifest, then drops every named item, matching the order the port documents.
+   *
+   * Every id is checked before the manifest write, not inside the drop loop: validating as it went
+   * published the manifest and then threw `Invalid` on the first bad item id, leaving a half-applied
+   * delete that the filesystem adapter matched exactly.
+   */
   async deleteItems(
     product: Product,
     manifest: PlanManifest,
     itemIds: readonly string[],
   ): Promise<void> {
+    assertIds(product, manifest.id)
+    for (const itemId of itemIds) assertIds(product, manifest.id, itemId)
     await this.saveManifest(product, manifest)
-    for (const itemId of itemIds) {
-      assertIds(product, manifest.id, itemId)
-      this.#items.delete(itemKey(product, manifest.id, itemId))
-    }
+    for (const itemId of itemIds) this.#items.delete(itemKey(product, manifest.id, itemId))
   }
 
   /** Removes a plan and everything under it, reporting whether it existed. */

@@ -1,11 +1,9 @@
 import { isUlid, type FileSystem, type Product } from '@repo/kernel'
 import type { ItemDocument } from '../entities/item.js'
+import { newestUpdateFirst } from '../entities/plan-order.js'
 import type { PlanManifest } from '../entities/plan.js'
 import type { PlanStore } from '../ports/plan-store.js'
 import { itemFile, manifestFile, planDir, plansDir } from './paths.js'
-
-const newestFirst = (a: PlanManifest, b: PlanManifest): number =>
-  b.updatedAt.localeCompare(a.updatedAt) || b.id.localeCompare(a.id)
 
 /** How an FsPlanStore reaches the disk and where it puts its data. */
 export interface FsPlanStoreOptions {
@@ -49,7 +47,7 @@ export class FsPlanStore implements PlanStore {
       const manifest = await this.readManifest(product, id)
       if (manifest) found.push(manifest)
     }
-    return found.sort(newestFirst)
+    return found.sort(newestUpdateFirst)
   }
 
   /** Reads one plan manifest, or null when its file is missing or will not parse. */
@@ -79,16 +77,21 @@ export class FsPlanStore implements PlanStore {
    * One manifest write for the whole list is the reason this takes a list at all, and it is why the
    * unlinks come after: an interrupted sweep leaves files nothing references, which is harmless
    * garbage, where the other order would leave the manifest naming files that are gone.
+   *
+   * **Every path is built before the manifest is written**, which is how this method validates ahead
+   * of storage like every other one: `itemFile` is where a non-ULID item id is refused, so building
+   * the paths inside the unlink loop published the manifest and *then* threw `Invalid`, leaving a
+   * half-applied delete. Both adapters did it, so nothing contradicted the contract either — which
+   * is why the contract now has a case for it.
    */
   async deleteItems(
     product: Product,
     manifest: PlanManifest,
     itemIds: readonly string[],
   ): Promise<void> {
+    const files = itemIds.map((itemId) => itemFile(this.#root(), product, manifest.id, itemId))
     await this.saveManifest(product, manifest)
-    for (const itemId of itemIds) {
-      await this.#files.remove(itemFile(this.#root(), product, manifest.id, itemId))
-    }
+    for (const file of files) await this.#files.remove(file)
   }
 
   /** Removes a plan and everything under it, reporting whether it existed. */

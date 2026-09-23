@@ -12,6 +12,9 @@ const withRail = () => planManifest(PLAN, { epics: [epic(EPIC, { name: 'Discover
 
 const withItem = () => planManifest(PLAN, { items: [item(ITEM, FEATURE)] })
 
+const withBoth = () =>
+  planManifest(PLAN, { epics: [epic(EPIC, { name: 'Discovery' })], items: [item(ITEM, FEATURE)] })
+
 function renameInPlace(target: { readonly name: string } | undefined, name: string): void {
   if (!target) throw new Error('nothing to rename: the store did not hand back what it was given')
   const mutable = target as { name: string }
@@ -25,11 +28,18 @@ function redescribeInPlace(target: ItemDocument | null, description: string): vo
 }
 
 /**
- * Registers the four copy cases, which are what make two adapters interchangeable.
+ * Registers the copy cases, which are what make two adapters interchangeable.
  *
  * Each one mutates a value the store either handed over or was handed, and then reads again. A
  * manifest is reached through `epics[0]`, a **nested array element**, because a top-level field
  * would pass against a store that copied one level deep and kept the caller's arrays.
+ *
+ * A manifest goes in through **three** methods, not one, so the in-direction is pinned at all three.
+ * Pinning `saveManifest` alone left the hole open: `saveItem` and `deleteItems` each take a manifest
+ * too, and an adapter that serialised on the first path while retaining the caller's reference on
+ * either of the others would have passed. The cases therefore hold the manifest they handed over and
+ * mutate `epics[0]` after the call, which is the same shape as the `saveManifest` case and the same
+ * reason for reaching into a nested array.
  *
  * An `ItemDocument` has no nested structure at all — four scalar fields — so its two cases mutate
  * `description`, which is the deepest thing there is to reach. They still bind the halves that
@@ -72,5 +82,22 @@ export function describePlanCopying(harness: PlanStoreHarness): void {
     await store.saveItem('macroplan', withItem(), saved)
     redescribeInPlace(saved, 'Corrupted')
     expect((await store.readItem('macroplan', PLAN, ITEM))?.description).toBe('As written')
+  })
+
+  it('copies the manifest saveItem was handed too, not only the one saveManifest was', async () => {
+    await fresh()
+    const saved = withBoth()
+    await store.saveItem('macroplan', saved, itemDocument(ITEM))
+    renameInPlace(saved.epics[0], 'Corrupted')
+    expect((await store.readManifest('macroplan', PLAN))?.epics[0]?.name).toBe('Discovery')
+  })
+
+  it('copies the manifest deleteItems was handed too, which is the third way one goes in', async () => {
+    await fresh()
+    await store.saveItem('macroplan', withBoth(), itemDocument(ITEM))
+    const saved = withRail()
+    await store.deleteItems('macroplan', saved, [ITEM])
+    renameInPlace(saved.epics[0], 'Corrupted')
+    expect((await store.readManifest('macroplan', PLAN))?.epics[0]?.name).toBe('Discovery')
   })
 }

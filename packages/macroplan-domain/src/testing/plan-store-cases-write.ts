@@ -25,7 +25,16 @@ const callsCarrying = (store: PlanStore, planId: string): readonly (() => Promis
   () => store.deletePlan('macroplan', planId),
 ]
 
-/** Registers the writing half of the contract: the deletes, and the ULID guard on a plan id. */
+/**
+ * Registers the cases that assert what a **write** leaves behind: the two deletes, and the guards.
+ *
+ * The guards ride with the writes rather than sitting in a file of their own. A guard case drives
+ * every method that takes a plan id — the two reads included — so it belongs to no one half, and one
+ * case is not worth a fourth file; what it has in common with the deletes is that it is about a
+ * mutation being refused before it lands. The reads file arranges with `saveItem` for the same kind
+ * of reason: what a file here is named for is what its cases *assert*, never which methods they
+ * call.
+ */
 export function describePlanWrites(harness: PlanStoreHarness): void {
   const { store } = harness
   const fresh = async () => {
@@ -81,5 +90,18 @@ export function describePlanWrites(harness: PlanStoreHarness): void {
         await expect(call()).rejects.toThrow(Invalid)
       }
     }
+  })
+
+  it('rejects a bad item id before publishing the manifest, so no delete is left half-applied', async () => {
+    await fresh()
+    await store.saveItem('macroplan', named([ITEM, KEPT]), itemDocument(ITEM))
+    await store.saveItem('macroplan', named([ITEM, KEPT]), itemDocument(KEPT))
+    for (const badId of BAD_IDS) {
+      await expect(store.deleteItems('macroplan', named([]), [ITEM, badId])).rejects.toThrow(Invalid)
+    }
+    const left = await store.readManifest('macroplan', PLAN)
+    expect(left?.items.map((one) => one.id)).toEqual([ITEM, KEPT])
+    expect(await store.readItem('macroplan', PLAN, ITEM)).not.toBeNull()
+    expect(await store.readItem('macroplan', PLAN, KEPT)).not.toBeNull()
   })
 }

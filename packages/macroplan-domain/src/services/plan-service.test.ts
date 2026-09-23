@@ -18,6 +18,7 @@ const NOW = '2026-09-23T12:00:00.000Z'
 const EARLIER = '2026-01-01T00:00:00.000Z'
 const TOKEN = 'tok_launchlaunchlau'
 const ABSENT = marked('PN', 999)
+const FIRST_ID = '5GGGGGJ0000000000000000000'
 
 const ref = (planId: string): PlanRef => ({ product: 'macroplan', planId })
 
@@ -45,7 +46,8 @@ describe('PlanService.create', () => {
     const plan = await service.create('macroplan', { name: 'Launch', startDate: '2026-01-05' })
     expect(plan.createdAt).toBe(NOW)
     expect(plan.updatedAt).toBe(NOW)
-    expect(plan.id).not.toBe('')
+    expect(sequentialIds().entityId()).toBe(FIRST_ID)
+    expect(plan.id).toBe(FIRST_ID)
   })
 
   it('applies the two defaults when neither is supplied', async () => {

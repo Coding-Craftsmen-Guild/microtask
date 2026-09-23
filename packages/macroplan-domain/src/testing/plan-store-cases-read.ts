@@ -9,7 +9,13 @@ const ITEM = marked('TM', 1)
 const TRUNCATED = '{ "epics": [ truncated'
 const SAME_STAMP = '2026-04-01T00:00:00.000Z'
 
-/** Registers the reading half of the PlanStore contract: round trips, listing order, absence. */
+/**
+ * Registers the cases that assert what a **read** answers: round trips, listing order, absence.
+ *
+ * Several of them write first, `saveItem` included, because a read has to be given something to
+ * read. That is arranging and not asserting, which is the line the three case files are divided on:
+ * none of them is a half of the port, and none owns a method.
+ */
 export function describePlanReads(harness: PlanStoreHarness): void {
   const { store } = harness
   const fresh = async () => {
