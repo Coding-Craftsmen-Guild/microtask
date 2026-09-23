@@ -1,5 +1,5 @@
 import type { RouteHandler } from '@hono/zod-openapi'
-import type { FeatureChanges, FeatureService } from '@repo/macroplan-domain'
+import type { FeatureService } from '@repo/macroplan-domain'
 import { planView } from '@repo/macroplan-domain'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
@@ -11,11 +11,6 @@ import type {
   setDependenciesRoute,
   updateFeatureRoute,
 } from './routes.js'
-
-const SIZING = ['estimateDays', 'pinSprint'] as const
-
-const sizes = (changes: FeatureChanges): boolean =>
-  SIZING.some((key) => changes[key] !== undefined)
 
 /** Adds a feature to the end of a rail and answers the whole plan. */
 export const createFeature =
@@ -31,32 +26,43 @@ export const createFeature =
 /**
  * Renames, re-estimates or re-pins one feature, and answers the recomputed timeline.
  *
- * It asks for each action the body's **present** keys imply and never for one the body omitted: a
- * `name` needs `feature:rename`, and an `estimateDays` or a `pinSprint` needs `feature:estimate`.
- * Both sit under `write` today, so the distinction buys nothing yet — it is declared because this
- * pair is the obvious first place a later role split would land, and a handler that authorizes on the
- * union of what its body actually touches cannot be wrong later.
+ * It asks for each action the body's **present** keys imply and never for one the body omitted, and
+ * the three keys it accepts carry three authorities: a `name` needs `feature:rename`, an
+ * `estimateDays` needs `feature:estimate` — both of them `write` — and a `pinSprint` needs
+ * `feature:pin`, which only `manage` holds. A body carrying two or three of them meets each of
+ * their gates in turn, so a `write` seat sending an estimate and a pin together is refused and
+ * writes **neither**: every gate runs before `features.update` is reached, and the first refusal
+ * throws.
  *
- * `pinSprint` is grouped with the estimate rather than with `feature:place`, because both decide when
- * the bar is drawn where `feature:place` decides which rail it is drawn on — and because this route
- * carries exactly the two authorities the plan's table gives it.
+ * The pin is its own action rather than a second key under `feature:estimate`, because an estimate
+ * says what the work costs and a pin says where the bar sits — which is exactly the line spec §7.1
+ * draws between `write` and `manage`. It is not `feature:place` either: that moves a feature
+ * along its rail or onto another, where a pin names the sprint before which it may not start. Every
+ * authority in this policy is a named entry in the kernel's `ACTIONS` rather than folded into the
+ * nearest neighbour that happens to share a role, and ADR 0053 records why this one had to be split
+ * out: grouped under `feature:estimate` it was `write`-held, and a `write` seat could move a bar.
  *
- * With no `name` it asks `feature:estimate`, which is the conservative branch rather than a claim
- * about the body: `UpdateFeaturePayload` refuses an empty object, and zod strips unknown keys before
- * that refinement runs, so a body reaching here with none of the three does not exist. Were one to,
- * it would be refused rather than written unguarded.
+ * With neither a `name` nor an `estimateDays` it asks `feature:pin`, which is the conservative
+ * branch rather than a claim about the body: `UpdateFeaturePayload` refuses an empty object, and zod
+ * strips unknown keys before that refinement runs, so a body reaching here with none of the three does
+ * not exist. Were one to, it would meet the strongest of the three gates rather than be written
+ * unguarded.
  */
 export const updateFeature =
   (features: FeatureService): RouteHandler<typeof updateFeatureRoute, ApiEnv> =>
   async (c) => {
     const { planId, featureId } = c.req.valid('param')
     const changes = c.req.valid('json')
-    const principal =
-      changes.name === undefined
+    const renames = changes.name !== undefined
+    const sizes = changes.estimateDays !== undefined
+    const principal = renames
+      ? authorize(c, 'feature:rename', { kind: 'feature', planId })
+      : sizes
         ? authorize(c, 'feature:estimate', { kind: 'feature', planId })
-        : authorize(c, 'feature:rename', { kind: 'feature', planId })
-    if (changes.name !== undefined && sizes(changes)) {
-      authorize(c, 'feature:estimate', { kind: 'feature', planId })
+        : authorize(c, 'feature:pin', { kind: 'feature', planId })
+    if (renames && sizes) authorize(c, 'feature:estimate', { kind: 'feature', planId })
+    if (changes.pinSprint !== undefined && (renames || sizes)) {
+      authorize(c, 'feature:pin', { kind: 'feature', planId })
     }
     const updated = await features.update({ product: PRODUCT, planId }, featureId, changes)
     return c.json(planView(updated, principal), 200)

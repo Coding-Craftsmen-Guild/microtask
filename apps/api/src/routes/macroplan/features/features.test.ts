@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { LIMITS, PlanView } from '@repo/contracts'
 import type { ApiDeps } from '../../../deps.js'
 import { feature, marked } from '@repo/macroplan-domain/testing'
-import { admin, adminJson, body } from '../../../testing/harness.js'
+import { admin, adminJson, body, linkJson } from '../../../testing/harness.js'
 import {
   MACROPLAN_PREFIX,
   PLAN_IDS,
+  PLAN_TOKENS,
   buildMacroplanApp,
   buildMacroplanFixture,
 } from '../../../testing/macroplan-harness.js'
@@ -160,6 +161,18 @@ describe('PATCH /v1/macroplan/plans/{planId}/features/{featureId}', () => {
 
   it('moves a pinned feature to sprint times sprint length, and everything after it on its rail', async () => {
     const found = await body(await patch(PLAN_IDS.f1, { pinSprint: 3 }))
+    expect(spanOf(found, PLAN_IDS.f1)).toEqual({ id: PLAN_IDS.f1, startDay: 30, endDay: 34 })
+    expect(spanOf(found, PLAN_IDS.f2)).toEqual({ id: PLAN_IDS.f2, startDay: 34, endDay: 37 })
+  })
+
+  it('moves it the same way for a manage seat, the pin being a manage authority now', async () => {
+    const response = await (await buildMacroplanApp()).request(`${FEATURES}/${PLAN_IDS.f1}`, {
+      method: 'PATCH',
+      headers: linkJson(PLAN_TOKENS.manage),
+      body: JSON.stringify({ pinSprint: 3 }),
+    })
+    expect(response.status).toBe(200)
+    const found = await body(response)
     expect(spanOf(found, PLAN_IDS.f1)).toEqual({ id: PLAN_IDS.f1, startDay: 30, endDay: 34 })
     expect(spanOf(found, PLAN_IDS.f2)).toEqual({ id: PLAN_IDS.f2, startDay: 34, endDay: 37 })
   })

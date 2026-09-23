@@ -50,6 +50,7 @@ const MANAGE = [
   'epic:reorder',
   'feature:delete',
   'feature:place',
+  'feature:pin',
   'feature:depend',
   'item:delete',
   'item:place',

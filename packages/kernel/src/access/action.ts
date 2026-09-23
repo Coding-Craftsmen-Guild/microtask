@@ -45,6 +45,7 @@ const PLAN_FAMILY_ACTIONS = [
   'feature:estimate',
   'feature:delete',
   'feature:place',
+  'feature:pin',
   'feature:depend',
   'item:create',
   'item:rename',
@@ -64,8 +65,8 @@ const PLAN_FAMILY_ACTIONS = [
  * admin-only authority — is what the policy turns on.
  *
  * So the two groups are not a product split, and neither length is a product's action count. There
- * are **24** Macroplan actions: the 22 in the plan-family list plus those two. Counting
- * `PLAN_FAMILY_ACTIONS` alone answers 22 and is the mistake this note exists to stop.
+ * are **25** Macroplan actions: the 23 in the plan-family list plus those two. Counting
+ * `PLAN_FAMILY_ACTIONS` alone answers 23 and is the mistake this note exists to stop.
  */
 export const ACTIONS = [...MICROTASK_AND_WORKSPACE_ACTIONS, ...PLAN_FAMILY_ACTIONS] as const
 

@@ -74,7 +74,7 @@ const byPrefix = (...prefixes: readonly string[]): readonly Action[] =>
   ACTIONS.filter((action) => prefixes.some((prefix) => action.startsWith(prefix)))
 
 /**
- * The same 22 actions as `action.ts`'s private constant of this name, and deliberately not that
+ * The same 23 actions as `action.ts`'s private constant of this name, and deliberately not that
  * constant: it is filtered out of the exported `ACTIONS` by prefix, so it would still group
  * `plan:archive` with the plan family on the day someone typed that into the workspace list in
  * `action.ts` — which is the drift an import of the kernel's own grouping could never see.
@@ -105,6 +105,7 @@ const PLAN_MANAGE_ADDITIONS: readonly Action[] = [
   'epic:reorder',
   'feature:delete',
   'feature:place',
+  'feature:pin',
   'feature:depend',
   'item:delete',
   'item:place',
@@ -361,8 +362,8 @@ describe('can — a plan-scoped write link cannot become a manage link', () => {
     }
   })
 
-  it('refuses it each of the twelve manage additions, named one by one', () => {
-    expect(PLAN_MANAGE_ADDITIONS).toHaveLength(12)
+  it('refuses it each of the thirteen manage additions, named one by one', () => {
+    expect(PLAN_MANAGE_ADDITIONS).toHaveLength(13)
     for (const action of PLAN_MANAGE_ADDITIONS) {
       expect(can(planLink('write'), action, planTargetFor(action)), action).toBe(false)
     }
@@ -374,7 +375,7 @@ describe('can — a plan-scoped write link cannot become a manage link', () => {
     }
   })
 
-  it('clears a plan-scoped manage link for those same twelve, so the refusal is role not scope', () => {
+  it('clears a plan-scoped manage link for those same thirteen, so the refusal is role not scope', () => {
     for (const action of PLAN_MANAGE_ADDITIONS) {
       expect(can(planLink('manage'), action, planTargetFor(action)), action).toBe(true)
     }
@@ -480,9 +481,9 @@ describe('can — the two workspace plan actions are the admin alone', () => {
     }
   })
 
-  it('clears an admin for every action this task adds, all twenty-four of them', () => {
+  it('clears an admin for every action this task adds, all twenty-five of them', () => {
     const added = [...PLAN_FAMILY_ACTIONS, ...WORKSPACE_PLAN_ACTIONS]
-    expect(added).toHaveLength(24)
+    expect(added).toHaveLength(25)
     for (const action of added) {
       expect(can(admin, action, targetFor(action)), action).toBe(true)
     }

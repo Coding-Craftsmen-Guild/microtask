@@ -191,23 +191,26 @@ const handlerCount = async (): Promise<number> =>
 /**
  * Gates beyond one per guarded operation, counted rather than allowed for.
  *
- * Three `PATCH` routes carry two authorities in one body, and each costs **two** extra textual
- * `authorize(` calls: the branch that asks a single action, and the second gate a body doing both
- * runs into. `PATCH /v1/macroplan/plans/{planId}` is one — a `name` needs `plan:rename` and a
- * calendar field needs `plan:retime`. The other two are `PATCH .../features/{featureId}`, where a
- * `name` needs `feature:rename` and an `estimateDays` or `pinSprint` needs `feature:estimate`, and
- * `PATCH .../items/{itemId}`, where a `name` needs `item:rename` and an `estimateDays` needs
- * `item:estimate`. Each handler asks for each action the body's present keys imply and never for one
- * the body omitted, which is what makes three routes cost six.
+ * Three `PATCH` routes carry more than one authority in one body. Two of them carry two and cost
+ * **two** extra textual `authorize(` calls each: the branch that asks a single action, and the second
+ * gate a body doing both runs into. `PATCH /v1/macroplan/plans/{planId}` is one — a `name` needs
+ * `plan:rename` and a calendar field needs `plan:retime` — and `PATCH .../items/{itemId}` the
+ * other, where a `name` needs `item:rename` and an `estimateDays` needs `item:estimate`.
+ *
+ * `PATCH .../features/{featureId}` carries **three**: a `name` needs `feature:rename`, an
+ * `estimateDays` needs `feature:estimate`, and a `pinSprint` needs `feature:pin`, which only
+ * `manage` holds. It costs **four** — a three-way branch and the two follow-up gates a body carrying
+ * more than one of the three runs into. Each handler asks for each action the body's present keys
+ * imply and never for one the body omitted, which is what makes three routes cost eight.
  *
  * Counted here rather than turned into a `>=`, because the equality is the whole guard: a handler
  * that forgot its gate makes the total fall **short** of this sum, and a `>=` would let one
  * handler's second gate pay for another handler's missing first.
  */
-const EXTRA_GATES = 6
+const EXTRA_GATES = 8
 
 describe('guard (3): one authorize( per handler, and one can() in the app', () => {
-  it('counts one authorize( per guarded operation, plus the six two-authority bodies add', async () => {
+  it('counts one authorize( per guarded operation, plus the eight the branching bodies add', async () => {
     expect(await matchesIn(await under('./routes/'), GATE())).toBe(
       (await handlerCount()) + EXTRA_GATES,
     )

@@ -118,6 +118,7 @@ const ROWS = {
   'feature:estimate': { minimum: 'write', target: 'feature' },
   'feature:delete': { minimum: 'manage', target: 'feature' },
   'feature:place': { minimum: 'manage', target: 'feature' },
+  'feature:pin': { minimum: 'manage', target: 'feature' },
   'feature:depend': { minimum: 'manage', target: 'feature' },
   'item:create': { minimum: 'write', target: 'item' },
   'item:rename': { minimum: 'write', target: 'item' },
