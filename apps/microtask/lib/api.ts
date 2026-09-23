@@ -11,12 +11,21 @@ export type SessionClient = AdminClient | LinkClient
 /**
  * Builds the client a principal is entitled to, and no other.
  *
- * The two constructors are non-interchangeable branded types, so this is the only place in the
- * app where a principal turns into authority — and it turns into exactly the authority the
- * principal names. A component cannot reach `createAdminClient` with a share token in hand, which
- * is the confused deputy ADR 0012 exists to close: a Server Action is reachable independently of
- * the page that rendered it, so a read-only visitor could otherwise have driven a call the API
- * read as "admin".
+ * This is the only place in the app where a principal turns into authority, and it turns into
+ * exactly the authority the principal names: the branch is on the principal's own discriminant, so
+ * a caller holding a `Principal` cannot take the arm that does not match it. That is what closes
+ * the confused deputy ADR 0012 exists to close — a Server Action is reachable independently of the
+ * page that rendered it, so a read-only visitor could otherwise have driven a call the API read as
+ * "admin".
+ *
+ * The brands are on the clients this **returns**, not on the tokens the constructors take, so what
+ * the type system enforces is that the two clients are mutually unassignable: a call typed for one
+ * cannot be handed the other. It does not stop `createAdminClient(options, shareToken)` from
+ * compiling — both constructors take the token as a bare `string` — and nothing bans a component
+ * importing one, this app's lint restricting only `@repo/store`, `@repo/kernel` and the domain
+ * packages. So the funnel is a convention with a single enforcement point rather than a compile
+ * error, and this app renders a live share surface with real tokens in a component's hands: it
+ * holds exactly as long as this function stays the sole caller of either constructor.
  *
  * Both branches stay here rather than in `@repo/app-session`, which has the admin one only: a
  * shared module that could mint a link client would be a share token's way into an app that has
