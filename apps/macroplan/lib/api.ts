@@ -13,12 +13,19 @@ export { apiOptions, loginWith } from '@repo/app-session/api'
 /**
  * Builds the client a principal is entitled to, and no other.
  *
- * The two constructors are non-interchangeable branded types, so this is the only place in the
- * app where a principal turns into authority — and it turns into exactly the authority the
- * principal names. A component cannot reach `createMacroplanAdminClient` with a share token in
- * hand, which is the confused deputy ADR 0012 exists to close: a Server Action is reachable
- * independently of the page that rendered it, so a plan seat could otherwise have driven a call
- * the API read as "admin".
+ * This is the only place in the app where a principal turns into authority, and it turns into
+ * exactly the authority the principal names: the branch is on the principal's own discriminant, so
+ * a caller holding a `Principal` cannot take the arm that does not match it. That is what closes
+ * the confused deputy ADR 0012 exists to close — a Server Action is reachable independently of the
+ * page that rendered it, so a plan seat could otherwise have driven a call the API read as "admin".
+ *
+ * The brands are on the clients this **returns**, not on the tokens the constructors take, so what
+ * the type system enforces is that the two clients are mutually unassignable: a call typed for one
+ * cannot be handed the other. It does not stop `createMacroplanAdminClient(options, shareToken)`
+ * from compiling — both constructors take the token as a bare `string` — and nothing bans importing
+ * one, this app's lint restricting only `@repo/store`, `@repo/kernel` and the domain packages. So
+ * the funnel is a convention with a single enforcement point rather than a compile error, and it
+ * holds exactly as long as this function stays the sole caller of either constructor.
  *
  * There is no shared constructor for the link half. `@repo/app-session` has the admin one only,
  * because a module both apps import that could mint a link client would be a share token's way
@@ -41,6 +48,13 @@ export function clientFor(principal: Principal, options: ClientOptions): Macropl
  *
  * A `/s/*` route has no session to ask for, because its credential is in its URL (ADR 0040) — it
  * calls {@link apiForLink} instead, and that is the whole of the split.
+ *
+ * It takes no `audience` parameter, where Microtask's takes one typed to `'admin'` alone. That
+ * parameter guards a branch that function used to have: ADR 0040 deleted its link half, and the
+ * literal type is what turns a `/s/*` route asking for a session into a compile error rather than a
+ * `null`. This one never had a link half to delete — {@link apiForLink} was written beside it rather
+ * than inside it — so a parameter admitting one value would guard nothing, and would oblige every
+ * call site to repeat the only answer there is.
  *
  * `null` means this browser presents no admin session — a cookie that was absent, or one that
  * would not open — and `lib/problem.ts` turns that into `/login?next=`.

@@ -119,9 +119,13 @@ describe('clientFor — the one place a principal turns into authority', () => {
     expect(headerOf('authorization')).toBe(`Bearer ${TOKEN}`)
   })
 
-  it('takes options as a parameter, so a test can say where the call goes', () => {
-    const options = { baseUrl: 'https://elsewhere.test', serviceKey: 'other' }
-    expect(clientFor({ kind: 'admin', token: 'a' }, options).credential).toBe('admin')
+  it('takes options as a parameter, so a test can say where the call goes', async () => {
+    const options = { baseUrl: 'https://elsewhere.test', serviceKey: 'a-key-of-its-own' }
+    await clientFor({ kind: 'admin', token: 'admin.1.sig' }, options).plans.list()
+    expect(sent).toHaveLength(1)
+    expect(sent[0]?.url.startsWith('https://elsewhere.test/')).toBe(true)
+    expect(headerOf('x-api-key')).toBe('a-key-of-its-own')
+    expect(headerOf('authorization')).toBe('Bearer admin.1.sig')
   })
 })
 
