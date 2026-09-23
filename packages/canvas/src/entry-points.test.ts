@@ -16,7 +16,7 @@ describe('@repo/canvas entry points', () => {
     expect(exports['.']).toEqual({ types: './dist/index.d.ts', default: './dist/index.js' })
   })
 
-  it('ships an empty barrel for now, because geometry lands module by module starting with scale.ts', () => {
-    expect(Object.keys(main)).toEqual([])
+  it('ships the scale module first, because geometry lands module by module starting with it', () => {
+    expect(Object.keys(main).sort()).toEqual(['dayToX', 'scaleFor', 'widthOfDays', 'xToDay'])
   })
 })
