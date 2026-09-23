@@ -262,7 +262,13 @@ describe('the blocked-by cell', () => {
   })
 })
 
-describe('the table at this product’s own cap', () => {
+// Rendering 2 200 rows through happy-dom is intrinsically slow, and vitest's 5s default is not
+// calibrated for it: this test passes in isolation and timed out under `turbo run … --force`, where
+// a dozen packages transform and build at once on one machine. The allowance is per-test rather than
+// per-package so a hang anywhere in the other 572 still fails fast.
+const CAP_RENDER_MS = 60_000
+
+describe('the table at this product’s own cap', { timeout: CAP_RENDER_MS }, () => {
   it('renders a row per feature and per item at the 2 000-item cap, and no wrapper per row', () => {
     render(<PlanTable plan={planAtCap()} />)
     const rows = all('[data-slot="plan-table-row"]')

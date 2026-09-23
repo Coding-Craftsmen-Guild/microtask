@@ -342,7 +342,13 @@ describe('the rung the canvas is drawing at', () => {
   })
 })
 
-describe('the canvas at this product’s own cap', () => {
+// Each test below renders 2 000 item marks through happy-dom, which is intrinsically slow, and
+// vitest's 5s default is not calibrated for it: the table's equivalent passes in isolation and timed
+// out under `turbo run … --force`, where a dozen packages transform and build at once on one
+// machine. The allowance is scoped to this block so a hang anywhere else still fails fast.
+const CAP_RENDER_MS = 60_000
+
+describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, () => {
   it('renders at the 2 000-item cap without exceeding one element per item', () => {
     render(<PlanCanvas at={AT} plan={planAtCap()} />)
     const marks = slot('item-mark')
