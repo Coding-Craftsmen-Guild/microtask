@@ -18,8 +18,6 @@ describe('@repo/canvas entry points', () => {
 
   it('ships the scale, the rails, the marks, the chrome, the rungs and the treatments, and nothing a later module has not landed yet', () => {
     expect(Object.keys(main).sort()).toEqual([
-      'FEATURE_RUNG_MIN_PX_PER_DAY',
-      'ITEM_RUNG_MIN_PX_PER_DAY',
       'SPRINTS_PER_QUARTER',
       'dayToX',
       'itemsToMarks',
@@ -30,9 +28,15 @@ describe('@repo/canvas entry points', () => {
       'sprintTicks',
       'todayLine',
       'treatmentOf',
+      'treatmentsOf',
       'widthOfDays',
       'xToDay',
     ])
+  })
+
+  it('keeps the rung bounds off the barrel, since a caller passes a range and reads no threshold', () => {
+    expect(Object.keys(main)).not.toContain('ITEM_RUNG_MAX_DAYS')
+    expect(Object.keys(main)).not.toContain('FEATURE_RUNG_MAX_DAYS')
   })
 
   it('keeps the span lookup off the barrel, so two modules share one map instead of exporting it', () => {

@@ -59,6 +59,29 @@ const TREATMENTS: Readonly<Record<UnscheduledReason, Treatment>> = {
 }
 
 /**
+ * Every mark whose treatment is **not** `'solid'`, keyed by the id it belongs to, built once per
+ * layout and shared — the treatment half of what `spansById` is for geometry.
+ *
+ * A missing id is `'solid'`, so the read is `treatments.get(id) ?? 'solid'`, and that absence is the
+ * whole point rather than a gap to fill: a map holding a `'solid'` entry for all 2 000 placed items
+ * would be 2 000 entries saying what the default already says, and building it would mean walking
+ * `spans` — which nothing here does, for the reason {@link treatmentOf} argues.
+ *
+ * Build this **once per layout and thread it through**, exactly as `spansById` is threaded through
+ * `railLayout` and `itemsToMarks`. A renderer drawing a whole canvas has an id per mark and needs a
+ * treatment per mark; with this the total cost is one pass over `unscheduled` plus a hash lookup per
+ * mark, where calling {@link treatmentOf} per mark is a scan of `unscheduled` per mark.
+ *
+ * Ids are assumed unique, as the forward pass assumes it. A repeated id keeps the last entry, and a
+ * plan with duplicate ids is corrupt rather than a case to defend against here.
+ */
+export function treatmentsOf(
+  schedule: CanvasScheduleWithStatus,
+): ReadonlyMap<string, Treatment> {
+  return new Map(schedule.unscheduled.map((entry) => [entry.id, TREATMENTS[entry.reason]]))
+}
+
+/**
  * How to draw the mark for one feature or item id.
  *
  * Takes an **id**, not a `FeatureBar` or an `ItemMark`, and that is what makes one function serve
@@ -75,10 +98,19 @@ const TREATMENTS: Readonly<Record<UnscheduledReason, Treatment>> = {
  * `unscheduled`** rather than present in `spans`. The forward pass puts every feature and item it
  * walked in exactly one of the two — `writeFeature` either records a span or pushes an unscheduled
  * entry for the feature and each of its items, never both — so the two collections are disjoint and
- * either one decides the question. Reading the short list is the whole point: `spans` holds up to
- * 200 features and 2 000 items (spec §4.3), `unscheduled` holds only what failed, and a treatment
- * asked for once per mark must not walk the long array once per mark. Nothing here touches `spans`,
- * so no caller pays a second pass over it, and `spansById` stays the one lookup built per layout.
+ * either one decides the question. Nothing here touches `spans`, so no caller pays a second pass
+ * over it, and `spansById` stays the one lookup built per layout.
+ *
+ * ### One id at a time, and what that costs
+ *
+ * This scans `unscheduled` per call, which is right for a handful of ids and **wrong for a whole
+ * canvas**. `unscheduled` is not a short list in general: it is bounded by features plus items, the
+ * same 200 and 2 000 that bound `spans` (spec §4.3), and a plan with no estimates authored anywhere
+ * puts every one of them there — so the worst case is a scan of 2 200 per mark, 2 200 times. It is
+ * short only for a *healthy* plan, which is not a property to build a renderer on. A caller drawing
+ * more than a few marks builds {@link treatmentsOf} once instead and reads it per mark. Note that a
+ * fixture in which everything is placed leaves `unscheduled` empty and cannot show this at all, so
+ * a render-at-the-cap test is not evidence either way.
  *
  * An id the schedule mentions nowhere answers `'solid'`, which keeps the function total. It is not a
  * claim about a drawing: an item whose `featureId` names no feature "appears in neither `days` nor

@@ -1,7 +1,5 @@
 import { SPRINTS_PER_QUARTER } from './bands.js'
-import type { PlanScale } from './scale.js'
-
-const REFERENCE_WIDTH_PX = 900
+import type { DayRange } from './bands.js'
 
 const SPRINT_DAYS = 10
 
@@ -17,8 +15,8 @@ const ITEM_RUNG_SPRINTS = 2
  *
  * So this is an *answer*, never an input. {@link rungFor} is the only way to obtain one, there is no
  * rung prop anywhere in the product, and nothing accepts a rung a caller chose: a component that
- * took one could be handed `'item'` at a scale where an item bar is a third of a pixel wide, and
- * the two controls §5 refuses would be back with one of them hidden inside a prop.
+ * took one could be handed `'item'` at a view where an item bar is a third of a pixel wide, and the
+ * two controls §5 refuses would be back with one of them hidden inside a prop.
  *
  * `'epic'` draws epic rails, feature nodes, dependency arcs and milestone diamonds; `'feature'`
  * draws feature bars sized by estimate with items inside where they fit; `'item'` draws item bars
@@ -27,75 +25,79 @@ const ITEM_RUNG_SPRINTS = 2
 export type Rung = 'epic' | 'feature' | 'item'
 
 /**
- * The px-per-working-day at which the canvas reaches the feature rung, and below which it is at the
- * epic rung.
+ * The widest view still on the item rung, in working days.
  *
- * ### Where the number comes from
- *
- * §5's table measures rungs in **time visible on screen**, not in px per day — `~1–2 years` for
- * epic, `~1 quarter` for feature, `~1–2 sprints` for item — so a threshold on `pxPerDay` is that
- * table divided by a width. The width is 900px, and it is not a guess: `@repo/ui`'s `Page` caps
- * every page body at `max-w-[900px]`, and Macroplan's own admin layout wraps its children in that
- * `Page`. It is the width a canvas actually gets in this product.
- *
- * A quarter is {@link SPRINTS_PER_QUARTER} sprints — imported rather than written again here, so
- * this threshold and a quarter band cannot disagree about what a quarter is — against the default
- * `sprintLengthDays` of 10 (`macroplan-domain`'s `DEFAULT_SPRINT_LENGTH_DAYS`), which is the one
- * assumption this file makes that `bands.ts` does not have to: `rungFor` is a function of the scale
- * alone and is handed no `PlanCalendar`, so it cannot read a plan's real sprint length. Six ten-day
- * sprints are 60 working days, and `900 / 60 = 15`. Note that 60 working days is deliberately *not*
- * three calendar months (about 65 working days): it is `bands.ts`'s quarter, counted in sprints
- * from the plan's own start, because a rung boundary that meant a calendar quarter while the bands
- * beside it meant six sprints would be two different quarters on one screen.
- *
- * ### Why the gutter is not subtracted
- *
- * `PlanScale` carries a `gutter` and this ignores it, though the axis proper is narrower than 900px
- * by exactly that inset. Deliberate: widening a rail label is a chrome decision, and a rung that
- * moved when someone did it would re-layout the whole canvas — the unpredictable re-layout §5 is
- * arguing against — for a reason no user could connect to what they changed.
- */
-export const FEATURE_RUNG_MIN_PX_PER_DAY = REFERENCE_WIDTH_PX / (SPRINTS_PER_QUARTER * SPRINT_DAYS)
-
-/**
- * The px-per-working-day at which the canvas reaches the item rung.
- *
- * §5's item row is `~1–2 sprints`, and the **wider** end of a row is what bounds it: the row names
+ * §5's item row is `~1–2 sprints`, and the **wider** end of a row is what bounds it: a row names
  * the widest view still served at that rung, so two sprints visible is the item rung and anything
- * wider has left it. Two ten-day sprints are 20 working days, and `900 / 20 = 45`. Read
- * {@link FEATURE_RUNG_MIN_PX_PER_DAY} for where the 900 and the ten-day sprint come from.
+ * wider has left it. Two sprints at the default `sprintLengthDays` of 10 (`macroplan-domain`'s
+ * `DEFAULT_SPRINT_LENGTH_DAYS`) are 20 working days.
+ *
+ * Ten is the one assumption this file makes that `bands.ts` does not have to. {@link rungFor} is
+ * handed a {@link DayRange} and no `PlanCalendar`, so it cannot read a plan's real sprint length;
+ * a plan on week-long sprints reaches the item rung at four of its sprints rather than two. That is
+ * the price of a rung that is a function of the view alone, and it is the right price — a rung that
+ * changed when someone retimed a plan would re-layout the canvas for a reason no one could see.
  */
-export const ITEM_RUNG_MIN_PX_PER_DAY = REFERENCE_WIDTH_PX / (ITEM_RUNG_SPRINTS * SPRINT_DAYS)
+export const ITEM_RUNG_MAX_DAYS = ITEM_RUNG_SPRINTS * SPRINT_DAYS
 
 /**
- * The rung a scale is at: §5's detail level, derived and never passed in.
+ * The widest view still on the feature rung, in working days; wider than this is the epic rung.
  *
- * Pure arithmetic on `pxPerDay`, and **total** — every positive `pxPerDay` answers one of the three
- * rungs, because the last branch is unconditional. No zoom level renders nothing, which is the
- * property that makes it safe for the canvas to have no rung of its own to fall back on.
- *
- * Both thresholds are **inclusive at their lower end**: exactly
- * {@link ITEM_RUNG_MIN_PX_PER_DAY} is the item rung, and exactly
- * {@link FEATURE_RUNG_MIN_PX_PER_DAY} is the feature rung. That is what puts each of §5's three
- * rows on the rung §5 names it for: two sprints visible lands on `'item'`, one quarter lands on
- * `'feature'`, and a year — `900 / 260` working days, about 3.5px per day — lands well inside
- * `'epic'`, as do two years at about 1.7.
- *
- * The comparison is written as a multiplication rather than as `REFERENCE_WIDTH_PX / pxPerDay`, so
- * a whole-number `pxPerDay` is compared in exact integer arithmetic. `scale.ts` already argues that
- * a fractional `pxPerDay` makes `xToDay` name the wrong day; a boundary decided by a float division
- * would be the same class of quiet error, one rung wide.
- *
- * ### The band between a quarter and a year
- *
- * §5 names three views and leaves the stretches between them unassigned — nothing in the table
- * says which rung shows five months. Everything wider than a quarter is the epic rung here, which
- * follows from reading each row as the widest view it serves rather than as a midpoint to round to.
- * The alternative, snapping to the nearest named view, would put a four-month view on the feature
- * rung with feature bars a few px wide, and would need two more numbers §5 never gives.
+ * §5's feature row is `~1 quarter`. A quarter is {@link SPRINTS_PER_QUARTER} sprints — imported
+ * rather than written again here, so this boundary and a quarter band cannot disagree about what a
+ * quarter is — which at ten working days a sprint is 60 working days. Deliberately *not* three
+ * calendar months, about 65 working days: a rung boundary that meant a calendar quarter while the
+ * bands beside it meant six sprints would be two different quarters on one screen.
  */
-export function rungFor(scale: PlanScale): Rung {
-  if (scale.pxPerDay * ITEM_RUNG_SPRINTS * SPRINT_DAYS >= REFERENCE_WIDTH_PX) return 'item'
-  if (scale.pxPerDay * SPRINTS_PER_QUARTER * SPRINT_DAYS >= REFERENCE_WIDTH_PX) return 'feature'
+export const FEATURE_RUNG_MAX_DAYS = SPRINTS_PER_QUARTER * SPRINT_DAYS
+
+/**
+ * The rung a viewport is at: §5's detail level, derived from the view and never passed in.
+ *
+ * ### Which range each rung wants
+ *
+ * A caller chooses its rung by choosing its range, so this is the table to read before picking one.
+ * **A range of at most {@link ITEM_RUNG_MAX_DAYS} (20) working days is `'item'`; wider, up to and
+ * including {@link FEATURE_RUNG_MAX_DAYS} (60), is `'feature'`; anything wider than 60 is
+ * `'epic'`.** So `{ fromDay: 0, toDay: 20 }` is the widest item-rung viewport, `{ fromDay: 0,
+ * toDay: 60 }` the widest feature-rung one, and `{ fromDay: 0, toDay: 61 }` the narrowest epic-rung
+ * one. A screen or a test that means to draw **feature bars** must pass a range wider than 20 and
+ * no wider than 60 — a quarter, `{ fromDay: 0, toDay: 60 }`, is the obvious choice — because a
+ * canvas gated on this rung draws rails, nodes and arcs and **no bars at all** at the epic rung,
+ * and a plan's whole span is almost always epic.
+ *
+ * ### Why a range rather than a `PlanScale`
+ *
+ * §5 specifies rungs as *time visible on screen* — `~1–2 years`, `~1 quarter`, `~1–2 sprints` — and
+ * time on screen is a width divided by a `pxPerDay`, not a `pxPerDay`. A rung derived from the scale
+ * alone would have to assume a canvas width, and would then be wrong on every canvas of a different
+ * width: at 45px per day a 900px canvas shows two sprints and a 1600px canvas shows three and a
+ * half, which are two different rows of §5's table. `bands.ts` already made this decision for every
+ * other chrome function in the package — a viewport was left off `PlanScale` on purpose "so every
+ * chrome function here is told its range explicitly rather than guessing one from a px width" — and
+ * this is a chrome function. `quarterBands`, `sprintTicks` and `todayLine` all demand a
+ * {@link DayRange}, so every caller already holds one and nothing is added to a call site.
+ *
+ * It also leaves nothing to get stale. There is no width constant here to be falsified by a layout
+ * change, and no gutter to subtract: a `DayRange` is working-day offsets and never had one, so
+ * widening a rail label cannot move the rung.
+ *
+ * ### Totality, and a range showing nothing
+ *
+ * Pure arithmetic on `toDay - fromDay`, and **total** — the last branch is unconditional, so every
+ * range answers one of the three rungs and no viewport renders nothing. Both bounds sit on whole
+ * days and both are inclusive at the narrow end, so each boundary is decided by an integer
+ * comparison from either side.
+ *
+ * A degenerate range — `toDay <= fromDay`, zero days or inverted, which `bands.ts` answers with no
+ * bands and no ticks — answers `'item'`. That falls out of the arithmetic rather than being special
+ * cased, and it is the right way round: the rung is monotone in the width of the view, so the
+ * narrowest possible view gets the finest rung with no discontinuity at zero. It is also
+ * unobservable, because a viewport showing no working days has nothing in it to draw at any rung.
+ */
+export function rungFor(range: DayRange): Rung {
+  const days = range.toDay - range.fromDay
+  if (days <= ITEM_RUNG_MAX_DAYS) return 'item'
+  if (days <= FEATURE_RUNG_MAX_DAYS) return 'feature'
   return 'epic'
 }

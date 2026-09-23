@@ -5,7 +5,7 @@ import type { CanvasPlan } from './plan.js'
 import { railLayout } from './rails.js'
 import { scaleFor } from './scale.js'
 import type { CanvasScheduleWithStatus, Treatment } from './treatment.js'
-import { treatmentOf } from './treatment.js'
+import { treatmentOf, treatmentsOf } from './treatment.js'
 
 const E1 = 'epic-1'
 const E2 = 'epic-2'
@@ -152,5 +152,40 @@ describe('treatmentOf answers §5\'s status channel, which is the one hue never 
 
   it('takes a wire schedule that only widens CanvasSchedule with unscheduled', () => {
     expect(Object.keys(WIRE).sort()).toEqual(['spans', 'unscheduled'])
+  })
+})
+
+describe('treatmentsOf builds the treatment lookup once per layout, as spansById does for geometry', () => {
+  it('agrees with treatmentOf for every id the schedule mentions, and for one it does not', () => {
+    const treatments = treatmentsOf(WIRE)
+    const ids = [FT1, BACKDEP, NOEST, CYC_A, CYC_B, IT_OK, IT_NOEST, IT_CYC, 'feature-nobody-authored']
+    expect(ids.map((id) => treatments.get(id) ?? 'solid')).toEqual(ids.map(treatment))
+  })
+
+  it('holds only the marks that are not solid, so a placed id is absent rather than mapped', () => {
+    const treatments = treatmentsOf(WIRE)
+    expect([...treatments.keys()].sort()).toEqual([NOEST, CYC_A, CYC_B, IT_NOEST, IT_CYC].sort())
+    expect(treatments.has(FT1)).toBe(false)
+    expect(treatments.has(IT_OK)).toBe(false)
+  })
+
+  it('carries the same three treatments, keyed by the reason each id was left off the axis', () => {
+    const treatments = treatmentsOf(WIRE)
+    expect(treatments.get(NOEST)).toBe('hollow')
+    expect(treatments.get(IT_NOEST)).toBe('hollow')
+    expect(treatments.get(CYC_A)).toBe('contradicted')
+    expect(treatments.get(IT_CYC)).toBe('contradicted')
+  })
+
+  it('never reads spans either: a spanless schedule builds the same map', () => {
+    const spanless: CanvasScheduleWithStatus = { spans: [], unscheduled: RESULT.unscheduled }
+    expect([...treatmentsOf(spanless)]).toEqual([...treatmentsOf(WIRE)])
+  })
+
+  it('answers an empty map for a plan with nothing left off the axis, which reads as all solid', () => {
+    const clean: CanvasScheduleWithStatus = { spans: WIRE.spans, unscheduled: [] }
+    const treatments = treatmentsOf(clean)
+    expect(treatments.size).toBe(0)
+    expect(WIRE.spans.map((span) => treatments.get(span.id) ?? 'solid')).not.toContain('hollow')
   })
 })
