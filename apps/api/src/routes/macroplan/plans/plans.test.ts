@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { PlanListItem, PlanView } from '@repo/contracts'
-import { admin, adminJson, body } from '../../../testing/harness.js'
+import { admin, adminJson, asLink, body } from '../../../testing/harness.js'
 import {
   MACROPLAN_PREFIX,
   PLAN_IDS,
   PLAN_TIMEZONE,
+  PLAN_TOKENS,
   buildMacroplanApp,
   buildMacroplanFixture,
 } from '../../../testing/macroplan-harness.js'
@@ -196,6 +197,38 @@ describe('GET /v1/macroplan/plans/{planId}', () => {
     })
     expect(response.status).toBe(422)
     expect(await body(response)).toMatchObject({ in: 'param' })
+  })
+})
+
+describe('the share block of a plan response, which is absent rather than empty', () => {
+  const readAs = async (headers: Record<string, string>): Promise<Response> =>
+    (await buildMacroplanApp()).request(ONE, { headers })
+
+  it('carries all three fixture seats for the admin', async () => {
+    expect((await body(await readAs(admin())))['shareLinks']).toHaveLength(3)
+  })
+
+  it('carries them for a manage holder, which holds share:read', async () => {
+    const found = await body(await readAs(asLink(PLAN_TOKENS.manage)))
+    expect(found['shareLinks']).toHaveLength(3)
+  })
+
+  it.each([['view'], ['write']] as const)(
+    'leaves the block off a %s holder, absent and not an empty array',
+    async (role) => {
+      const response = await readAs(asLink(PLAN_TOKENS[role]))
+      expect(response.status).toBe(200)
+      expect(Object.keys(await body(response))).not.toContain('shareLinks')
+    },
+  )
+
+  it('states no scope on a seat, the plan being the one the path already named', async () => {
+    const seats = (await body(await readAs(admin())))['shareLinks'] as Record<string, unknown>[]
+    expect(seats).toHaveLength(3)
+    for (const one of seats) {
+      expect(Object.keys(one)).toContain('token')
+      expect(Object.keys(one)).not.toContain('scope')
+    }
   })
 })
 

@@ -1,9 +1,8 @@
 import type { RouteHandler } from '@hono/zod-openapi'
 import type { PlanChanges, PlanService } from '@repo/macroplan-domain'
-import { planListItem } from '@repo/macroplan-domain'
+import { planListItem, planView } from '@repo/macroplan-domain'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
-import { planBody } from '../plan-body.js'
 import { PRODUCT } from '../product.js'
 import type {
   createPlanRoute,
@@ -25,7 +24,7 @@ const retimes = (changes: PlanChanges): boolean =>
  * a collection route has no per-resource target, and `workspace:list-plans` is admin-only, so a seat
  * holder is refused here rather than handed a filtered list.
  *
- * Shaped by `planListItem` and not `planBody`: the contents of 200 plans are not what a list screen
+ * Shaped by `planListItem` and not `planView`: the contents of 200 plans are not what a list screen
  * renders, and a list carrying every plan's live tokens is a credential dump to a caller with no use
  * for one of them. The `shareLinkCount` it carries instead is gated on the same `share:read`
  * decision the block would have been, so a caller refused the seats is refused their number too.
@@ -53,7 +52,7 @@ export const createPlan =
     const settings = c.req.valid('json')
     const principal = authorize(c, 'workspace:create-plan', { kind: 'workspace' })
     const created = await plans.create(PRODUCT, settings)
-    return c.json(planBody(created, principal), 201)
+    return c.json(planView(created, principal), 201)
   }
 
 /**
@@ -70,7 +69,7 @@ export const readPlan =
     const { planId } = c.req.valid('param')
     const principal = authorize(c, 'plan:read', { kind: 'plan', planId })
     const found = await plans.read({ product: PRODUCT, planId })
-    return c.json(planBody(found, principal), 200)
+    return c.json(planView(found, principal), 200)
   }
 
 /**
@@ -100,7 +99,7 @@ export const updatePlan =
       authorize(c, 'plan:retime', { kind: 'plan', planId })
     }
     const updated = await plans.update({ product: PRODUCT, planId }, changes)
-    return c.json(planBody(updated, principal), 200)
+    return c.json(planView(updated, principal), 200)
   }
 
 /**

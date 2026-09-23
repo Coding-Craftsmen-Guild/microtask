@@ -9,9 +9,9 @@ export const Role = z
 /**
  * What a share link may reach.
  *
- * The union `capabilities()` decides over, rather than a shape any route parses: every route
- * schema takes {@link ProjectScope} or {@link PlanScope}, and this one survives to derive
- * `ScopeValue` from.
+ * The union `capabilities()` decides over, rather than a shape any route parses: every schema here
+ * that names a scope — {@link ShareLink} and {@link CreateShareLinkPayload} — takes the narrower
+ * {@link ProjectScope}. This one survives because `ScopeValue` is inferred from it.
  */
 export const Scope = z
   .discriminatedUnion('kind', [
@@ -36,21 +36,6 @@ export const ProjectScope = z
   ])
   .meta({ id: 'ProjectScope', description: 'What a Microtask share link may reach' })
 
-/**
- * A {@link Scope} rooted at a Macroplan plan, which is the whole plan and never part of one.
- *
- * The symmetric half of {@link ProjectScope}, and narrow for the same reason: a plan's links are
- * stored in its own manifest, and a project-shaped scope arriving there would be data the schema
- * should never have accepted. A plan has exactly one shareable scope — spec §7.1 defers epic scope
- * rather than foreclosing it, and a union of one is written so that adding that variant is one more
- * element in this array rather than a restructuring of the declaration. It buys nothing about
- * already-issued tokens: a plain `z.object` widened into a union later would parse the data it
- * had accepted identically, so the compatibility is in the shape of the data, not in this form.
- */
-export const PlanScope = z
-  .discriminatedUnion('kind', [z.object({ kind: z.literal('plan'), planId: EntityId })])
-  .meta({ id: 'PlanScope', description: 'What a Macroplan share link may reach' })
-
 const seat = {
   token: ShareToken,
   name: EntityName.or(z.literal('')),
@@ -65,12 +50,26 @@ export const ShareLink = z
   .meta({ id: 'ShareLink', description: 'One person’s access, and who granted it' })
 
 /**
- * One person's access to a plan.
+ * One person's access to a plan: every field of {@link ShareLink}, and no scope.
  *
- * Every field of {@link ShareLink} but the scope, because a seat is a seat: the same token shape,
- * the same three roles, the same `createdBy` chain that makes revocation cascade (ADR 0010). Only
- * what it reaches differs, so only that is restated — the rest is shared rather than copied, which
- * is what stops the two drifting into two different notions of a seat.
+ * A seat is a seat, so the fields are shared rather than copied — the same token shape, the same
+ * three roles, the same `createdBy` chain that makes revocation cascade (ADR 0010). That is what
+ * stops the two drifting into two different notions of a seat.
+ *
+ * There is **no** `scope`, and that is the decision rather than an omission. A plan has exactly one
+ * shareable scope, the whole plan, so a seat's scope is implied by the container it is stored in: a
+ * stored copy would be a second home for a fact already settled by where the record lives, free to
+ * disagree with it. `@repo/macroplan-domain`'s own `PlanShareLink` carries none for that reason, and
+ * the API derives the scope from the plan whose manifest the token was found in. {@link ShareLink}
+ * genuinely needs one, because a Microtask link may be project- **or** task-scoped and ADR 0011
+ * requires the wider of the two be asked for by name; a plan offers no such pair to choose between.
+ *
+ * So there is no one-variant `PlanScope` schema standing beside {@link ProjectScope} either: with no
+ * field to validate it would have no parse site and no inferred type. Spec §7.1 defers epic scope
+ * rather than foreclosing it — should it arrive, a plan seat gains a `scope` then, with two variants
+ * and a real choice to state, which is an addition to this object and not a reversal of it. The
+ * kernel's `PlanScope` **type** is a separate thing, narrowed out of its own `Scope` union, and is
+ * untouched by any of this.
  *
  * `name` admits `''`, and that is load-bearing here rather than inherited from Microtask's legacy
  * data: Macroplan reuses {@link UpdateShareLinkPayload}, which permits an empty name, so a plan
@@ -78,7 +77,7 @@ export const ShareLink = z
  * result. Tightening it would refuse to store a seat the rename endpoint has already accepted.
  */
 export const PlanShareLink = z
-  .object({ ...seat, scope: PlanScope })
+  .object(seat)
   .meta({ id: 'PlanShareLink', description: 'One person’s access to a plan, and who granted it' })
 
 /**

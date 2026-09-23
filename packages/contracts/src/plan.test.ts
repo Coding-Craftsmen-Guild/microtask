@@ -58,7 +58,6 @@ const shareLink = (over: Record<string, unknown> = {}): Record<string, unknown> 
   token: 'yjKq3Zc1vHt8Lm0Pw5Rb2Nd7',
   name: 'Client',
   role: 'view',
-  scope: { kind: 'plan', planId: ID },
   createdBy: null,
   createdAt: STAMP,
   ...over,
@@ -154,27 +153,44 @@ describe('fields phase 4 fills in without a migration', () => {
   })
 })
 
-describe('a plan seat reaches a plan, and no seat of another shape reaches one', () => {
+describe('a plan seat carries no scope, a plan having exactly one to carry', () => {
   const PROJECT_SCOPE = { kind: 'project', projectId: ID }
   const TASK_SCOPE = { kind: 'task', projectId: ID, taskId: ulid(2) }
+  const PLAN_SCOPE = { kind: 'plan', planId: ID }
 
-  it('accepts the plan-scoped seat, which is the only seat a plan has room for', () => {
-    expect(PlanShareLink.safeParse(shareLink()).success).toBe(true)
+  it('accepts the seat as stored, which is a seat with no scope on it at all', () => {
+    const parsed = PlanShareLink.safeParse(shareLink())
+    expect(parsed.error?.issues ?? []).toEqual([])
+    expect(Object.keys(parsed.data ?? {}).sort()).toEqual([
+      'createdAt',
+      'createdBy',
+      'name',
+      'role',
+      'token',
+    ])
   })
 
   it.each([
-    ['project-scoped', PROJECT_SCOPE],
-    ['task-scoped', TASK_SCOPE],
-  ])('refuses a %s seat, a plan holding no project and no task', (_label, scope) => {
-    expect(PlanShareLink.safeParse(shareLink({ scope })).success).toBe(false)
+    ['project-shaped', PROJECT_SCOPE],
+    ['task-shaped', TASK_SCOPE],
+    ['plan-shaped', PLAN_SCOPE],
+  ])('strips a %s scope key rather than carrying it', (_label, scope) => {
+    const parsed = PlanShareLink.safeParse(shareLink({ scope }))
+    expect(parsed.success).toBe(true)
+    expect(Object.keys(parsed.data ?? {})).toContain('token')
+    expect(Object.keys(parsed.data ?? {})).not.toContain('scope')
   })
 
   it.each([
-    ['project-scoped', PROJECT_SCOPE],
-    ['task-scoped', TASK_SCOPE],
-  ])('refuses a %s seat inside shareLinks, where a manifest is parsed', (_label, scope) => {
-    const manifest = manifestWith({ shareLinks: [shareLink({ scope })] })
-    expect(PlanManifest.safeParse(manifest).success).toBe(false)
+    ['project-shaped', PROJECT_SCOPE],
+    ['task-shaped', TASK_SCOPE],
+    ['plan-shaped', PLAN_SCOPE],
+  ])('strips a %s scope inside shareLinks too, where a manifest is parsed', (_label, scope) => {
+    const parsed = PlanManifest.safeParse(manifestWith({ shareLinks: [shareLink({ scope })] }))
+    expect(parsed.error?.issues ?? []).toEqual([])
+    const seats = parsed.data?.shareLinks ?? []
+    expect(seats).toHaveLength(1)
+    expect(Object.keys(seats[0] ?? {})).not.toContain('scope')
   })
 
   it('accepts a renamed-to-empty seat, UpdateShareLinkPayload permitting one', () => {

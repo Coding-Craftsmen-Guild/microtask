@@ -1877,9 +1877,6 @@
           },
           "createdAt": {
             "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/PlanScope"
           }
         },
         "required": [
@@ -1887,33 +1884,9 @@
           "name",
           "role",
           "createdBy",
-          "createdAt",
-          "scope"
+          "createdAt"
         ],
         "description": "One person’s access to a plan, and who granted it"
-      },
-      "PlanScope": {
-        "oneOf": [
-          {
-            "type": "object",
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "plan"
-                ]
-              },
-              "planId": {
-                "$ref": "#/components/schemas/EntityId"
-              }
-            },
-            "required": [
-              "kind",
-              "planId"
-            ]
-          }
-        ],
-        "description": "What a Macroplan share link may reach"
       },
       "ScheduleView": {
         "type": "object",
