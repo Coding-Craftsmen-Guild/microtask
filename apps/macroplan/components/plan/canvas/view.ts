@@ -53,6 +53,12 @@ export const CANVAS_SCALE: PlanScale = scaleFor({ pxPerDay: 14, gutter: 160 })
  * - `labelBaseline` is how far a `<text>` baseline sits below the top of whatever band it labels.
  * - `labelInset` is the inset a `<text>` is drawn at, so a label never touches the edge it is
  *   clamped to.
+ * - `stubWidth` and `stubGap` size and space the off-axis stubs {@link stubX} lays out.
+ *
+ * `stubWidth` and `stubGap` are here rather than local to the component that draws a stub, because
+ * they are **shared geometry**: {@link stubX} needs both to know where the next stub starts, so a
+ * value changed in one place and not the other is a row of overlapping rects. A purely cosmetic
+ * number that nothing else reads — a corner radius — stays local to its own component.
  */
 export const LAYOUT = {
   chromeHeight: 46,
@@ -63,6 +69,8 @@ export const LAYOUT = {
   markTop: 38,
   labelBaseline: 12,
   labelInset: 6,
+  stubWidth: 22,
+  stubGap: 5,
 } as const
 
 /**
@@ -123,6 +131,40 @@ export interface RailFrame {
 /** The y of one rail's own band, from its index in the order `railLayout` returned. */
 export const railTop = (index: number): number => LAYOUT.chromeHeight + index * LAYOUT.railHeight
 
+const WITHIN_RAIL: Readonly<Record<'label' | 'bar' | 'mark', number>> = {
+  label: LAYOUT.labelBaseline,
+  bar: LAYOUT.barTop,
+  mark: LAYOUT.markTop,
+}
+
+/**
+ * The y of one part of a rail's band, from the band's own top.
+ *
+ * The three offsets are one decision — where a name, a bar and an item strip sit inside a 58px band —
+ * and four components were each adding their own `top + LAYOUT.<field>`. A record keyed on a closed
+ * three-case union puts the decision in this file, where the rest of the geometry is, and makes a
+ * fourth part a compile error rather than a fifth call site to find.
+ */
+export const insideRail = (top: number, part: 'label' | 'bar' | 'mark'): number =>
+  top + WITHIN_RAIL[part]
+
+/**
+ * The x of the nth off-axis stub, laid out leftward from the axis's own left edge.
+ *
+ * Here and not in the component that draws one, for the reason every other number on this canvas is
+ * here: it is stacking arithmetic, and arithmetic in a render function is arithmetic `happy-dom`
+ * cannot check — `getBBox` and `getBoundingClientRect` both answer a zero `DOMRect`, so a stub drawn
+ * on top of its neighbour looks identical to one beside it from a test's side. As a function it is
+ * asserted directly, next to {@link railTop}, {@link gutterX} and {@link labelX}, which exist for the
+ * same reason.
+ *
+ * Leftward, so `index` 0 is nearest the axis and the overflow of a rail with more unplaced features
+ * than the gutter holds falls off the `viewBox`'s left edge rather than across the timeline.
+ * `UnplacedFeatures` argues why that is the right way for it to fail.
+ */
+export const stubX = (frame: RailFrame, index: number): number =>
+  frame.axisX - LAYOUT.labelInset - (index + 1) * (LAYOUT.stubWidth + LAYOUT.stubGap)
+
 /** The height of a canvas holding `rails` rails, never shorter than one rail's band. */
 export const canvasHeight = (rails: number): number => railTop(Math.max(rails, 1))
 
@@ -179,12 +221,6 @@ export const railNames = (plan: Plan): ReadonlyMap<string, string> =>
   new Map(plan.epics.map((epic) => [epic.id, epic.name]))
 
 /**
- * Item marks grouped by the feature they flow under, built once per canvas.
- *
- * `itemsToMarks` answers a flat array carrying `featureId` on each mark, and argues why: grouping in
- * the package "would have to invent a group for exactly the case above — an id that names no real
- * feature". A renderer does need the grouping, because it draws a bar and then the items inside it,
- * and at the 2,000-item cap doing that by filtering the flat array once per feature is 200 scans of
  * Each rail's features the forward pass left off the axis, keyed on the epic id the rail is keyed on.
  *
  * `railLayout` answers only the features that got a span, so the unplaced ones have to come from the

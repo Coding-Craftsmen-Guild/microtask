@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { Page } from './page'
+import { COLUMN, Page } from './page'
 
 describe('Page', () => {
   it('renders its children inside the one width-and-padding container', () => {
@@ -34,6 +34,18 @@ describe('Page', () => {
     expect(main).toBeTruthy()
     expect(main?.className).not.toContain('max-w-[900px]')
     expect(main?.className).toBe('mx-auto w-full px-5 pb-20 max-sm:px-3.5')
+  })
+
+  it('caps the column with the same tokens the exported COLUMN carries, so neither can move alone', () => {
+    const { container } = render(<Page>body</Page>)
+    const classes = (container.querySelector('main')?.className ?? '').split(' ')
+    for (const token of COLUMN.split(' ')) expect(classes, token).toContain(token)
+    expect(COLUMN).toContain('max-w-[900px]')
+  })
+
+  it('leaves the exported COLUMN out of the wide width, which is the whole point of it', () => {
+    const { container } = render(<Page width="wide">body</Page>)
+    expect(container.querySelector('main')?.className).not.toContain('max-w-[900px]')
   })
 
   it('renders the main landmark for width="wide" too', () => {

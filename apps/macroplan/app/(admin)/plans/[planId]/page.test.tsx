@@ -113,14 +113,20 @@ describe('the plan page', () => {
     expect(document.querySelectorAll('[data-slot="item-mark"]')).toHaveLength(3)
   })
 
+  it('heads the page with the plan’s name as a real heading, not merely as text', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    await show()
+    expect(screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })).toBeTruthy()
+  })
+
   it('says how the plan is timed, which is what its whole axis is derived from', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     await show()
-    expect(screen.getByTestId('plan-name').textContent).toBe('Atlas rollout')
-    expect(screen.getByTestId('plan-settings').textContent).toBe(
-      'starts 2026-09-28 · 14-day sprints · Europe/Belgrade',
-    )
+    expect(
+      screen.getByText('starts 2026-09-28 · 14-day sprints · Europe/Belgrade'),
+    ).toBeTruthy()
   })
 
   it('carries no share token into the page, however senior the caller', async () => {

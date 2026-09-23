@@ -24,6 +24,11 @@ export interface PlanScreenProps {
  * and padding and deliberately no `overflow-x`, so a timeline wider than the column has to bring its
  * own scroller; a page-level one would scroll the plan's name and settings line with the bars.
  *
+ * Neither the name nor the settings line carries a `data-testid`. The name is the page's `h1` and the
+ * settings line is one unambiguous sentence, so a role query and a text query reach both — and those
+ * catch a regression a test hook cannot: an `h1` demoted to a `div` keeps its hook and loses its
+ * heading. The list row keeps its own hooks, because a list has many rows and no headings.
+ *
  * The settings line repeats what the list row said, because this is the first page that can be
  * reached by its own URL and an admin who arrived here from a link has seen no row. The three values
  * are also the three the canvas's whole axis is derived from — the `startDate` day 0 counts from, the
@@ -34,10 +39,8 @@ export function PlanScreen({ plan, at }: PlanScreenProps) {
   return (
     <div className="grid gap-4 pt-6">
       <div className="grid gap-1">
-        <h1 className="text-xl font-semibold" data-testid="plan-name">
-          {plan.name}
-        </h1>
-        <p className="text-[13px] text-muted-foreground" data-testid="plan-settings">
+        <h1 className="text-xl font-semibold">{plan.name}</h1>
+        <p className="text-[13px] text-muted-foreground">
           {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
         </p>
       </div>

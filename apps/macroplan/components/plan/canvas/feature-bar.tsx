@@ -1,6 +1,6 @@
 import type { FeatureBar, Treatment } from '@repo/canvas'
 import { hueStyle, TREATMENT_CLASS } from './treatments'
-import { LAYOUT } from './view'
+import { insideRail, LAYOUT } from './view'
 
 const BAR_RADIUS = 3
 
@@ -49,7 +49,7 @@ export function FeatureBarMark({ bar, colour, treatment, top }: FeatureBarMarkPr
       style={hueStyle(treatment, colour)}
       width={bar.width}
       x={bar.x}
-      y={top + LAYOUT.barTop}
+      y={insideRail(top, 'bar')}
     />
   )
 }

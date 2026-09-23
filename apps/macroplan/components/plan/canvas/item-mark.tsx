@@ -1,6 +1,6 @@
 import type { ItemMark, Treatment } from '@repo/canvas'
 import { hueStyle, TREATMENT_CLASS } from './treatments'
-import { LAYOUT } from './view'
+import { insideRail, LAYOUT } from './view'
 
 /** Props for {@link ItemMarkShape}. */
 export interface ItemMarkShapeProps {
@@ -29,9 +29,14 @@ export interface ItemMarkShapeProps {
  * It takes its epic's colour from the rail it was drawn under, not from a lookup of its own: an item
  * has a `featureId` and no `epicId`, and the rail already knows which epic's hue it is painting.
  *
- * An item the forward pass never placed has no mark at all, the same way an unplaced feature has no
- * bar — `itemsToMarks` omits it, so `'hollow'` and `'contradicted'` reach a mark here only for an
- * item that *was* placed and whose feature's cycle is what is being said.
+ * **The treatment is always `'solid'` here, and the prop is still right.** The forward pass puts an
+ * item in `spans` or in `unscheduled` and never both — `writeFeature` pushes an entry for an unplaced
+ * feature *and each of its items*, and `writeItems` pushes one for each estimateless item of a placed
+ * feature — and `itemsToMarks` produces a mark only for an id it finds in `spans`. So no mark can
+ * carry `'hollow'` or `'contradicted'`, and `UnplacedFeatures` is the one place either is ever seen.
+ * The prop stays because `Rail` reads one treatment map for bars and marks alike, because a total
+ * component cannot be handed a state it does not draw, and because phase 4 widens the union with
+ * states a *placed* item will have.
  */
 export function ItemMarkShape({ mark, colour, treatment, top }: ItemMarkShapeProps) {
   return (
@@ -44,7 +49,7 @@ export function ItemMarkShape({ mark, colour, treatment, top }: ItemMarkShapePro
       style={hueStyle(treatment, colour)}
       width={mark.width}
       x={mark.x}
-      y={top + LAYOUT.markTop}
+      y={insideRail(top, 'mark')}
     />
   )
 }

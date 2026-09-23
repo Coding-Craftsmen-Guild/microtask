@@ -1,9 +1,5 @@
 import { hueStyle, TREATMENT_CLASS } from './treatments'
-import { LAYOUT, type RailFrame } from './view'
-
-const STUB_WIDTH = 22
-
-const STUB_GAP = 5
+import { insideRail, LAYOUT, stubX, type RailFrame } from './view'
 
 const STUB_RADIUS = 3
 
@@ -41,10 +37,15 @@ export interface UnplacedFeaturesProps {
  * holds loses them off the `viewBox`'s left edge rather than pushing a row of stubs across the
  * timeline where they would read as placed work.
  *
- * That clipping is a real limit of this rendering and not a complete answer: spec §5's answer is the
- * conflict list, which phase 3 ships and which enumerates every one of them with the reason. What
- * this buys until then is that an unestimated feature is visible at all, in its epic's own hue, on
- * its own rail.
+ * That clipping is a real limit of this rendering and not a complete answer: the complete answer is
+ * the **conflict list**, which spec §6 names — "a cycle that arrives some other way … is reported by
+ * `schedule()` and shown in the conflict list rather than breaking the page" — and which §9 puts in
+ * phase 3. §5, the canvas section, does not mention one. What this buys until then is that an
+ * unestimated feature is visible at all, in its epic's own hue, on its own rail.
+ *
+ * Where each stub goes is {@link stubX}, not arithmetic written here: a stacking offset computed in a
+ * render function is one no test can check, because `happy-dom` measures every element as a zero
+ * `DOMRect`.
  */
 export function UnplacedFeatures({ featureIds, colour, frame, top }: UnplacedFeaturesProps) {
   return (
@@ -62,9 +63,9 @@ export function UnplacedFeatures({ featureIds, colour, frame, top }: UnplacedFea
             key={id}
             rx={STUB_RADIUS}
             style={hueStyle(treatment, colour)}
-            width={STUB_WIDTH}
-            x={frame.axisX - LAYOUT.labelInset - (index + 1) * (STUB_WIDTH + STUB_GAP)}
-            y={top + LAYOUT.barTop}
+            width={LAYOUT.stubWidth}
+            x={stubX(frame, index)}
+            y={insideRail(top, 'bar')}
           />
         )
       })}

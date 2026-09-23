@@ -32,6 +32,12 @@ export const TREATMENT_CLASS: Readonly<Record<Treatment, string>> = {
   contradicted: 'fill-destructive/15 stroke-destructive stroke-2 [stroke-dasharray:5_3]',
 }
 
+const HUE_CHANNEL: Readonly<Record<Treatment, (colour: string) => CSSProperties>> = {
+  solid: (colour) => ({ fill: colour }),
+  hollow: (colour) => ({ stroke: colour }),
+  contradicted: (colour) => ({ fill: colour, fillOpacity: CONTRADICTED_FILL_OPACITY }),
+}
+
 /**
  * The inline paint one mark's epic hue becomes, on the channel its treatment leaves free.
  *
@@ -44,10 +50,13 @@ export const TREATMENT_CLASS: Readonly<Record<Treatment, string>> = {
  * `null` — the rail whose `epicId` names no epic in the plan — yields **no style at all**, so the
  * class fallback shows through. An invented default hue here would make an unclaimed rail look like
  * a claimed one.
+ *
+ * The channel comes from a `Readonly<Record<Treatment, …>>` and **not** from a chain of `if`s ending
+ * in an unconditional return, which is what this was. Both halves of the split must fail the same
+ * way: a fourth treatment is already a compile error in {@link TREATMENT_CLASS}, and under a chain it
+ * would have compiled here and been painted like `'solid'` — a filled bar for a state that may well
+ * mean the opposite, arriving silently. Phase 4 widens this union, so that is a real edit and not a
+ * hypothetical one.
  */
-export const hueStyle = (treatment: Treatment, colour: string | null): CSSProperties => {
-  if (colour === null) return {}
-  if (treatment === 'hollow') return { stroke: colour }
-  if (treatment === 'contradicted') return { fill: colour, fillOpacity: CONTRADICTED_FILL_OPACITY }
-  return { fill: colour }
-}
+export const hueStyle = (treatment: Treatment, colour: string | null): CSSProperties =>
+  colour === null ? {} : HUE_CHANNEL[treatment](colour)

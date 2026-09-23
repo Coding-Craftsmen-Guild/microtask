@@ -2,7 +2,7 @@ import type { RailBox } from '@repo/canvas'
 import { FeatureBarMark } from './feature-bar'
 import { ItemMarkShape } from './item-mark'
 import { UnplacedFeatures } from './unplaced-features'
-import { LAYOUT, type RailFrame } from './view'
+import { insideRail, type RailFrame } from './view'
 
 const RAIL_LABEL = 'fill-foreground text-[12px] font-semibold'
 
@@ -47,7 +47,7 @@ export interface RailProps {
 export function Rail({ rail, name, unplaced, frame, top }: RailProps) {
   return (
     <g data-epic-id={rail.epicId} data-slot="rail">
-      <text className={RAIL_LABEL} x={frame.labelX} y={top + LAYOUT.labelBaseline}>
+      <text className={RAIL_LABEL} x={frame.labelX} y={insideRail(top, 'label')}>
         {name ?? UNCLAIMED}
       </text>
       {frame.draws.bars ? (

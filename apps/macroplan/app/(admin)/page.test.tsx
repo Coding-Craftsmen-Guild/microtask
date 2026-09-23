@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { seal } from '@repo/app-session/crypto'
+import { COLUMN } from '@repo/ui/shell/page'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { payloadOf } from '../../lib/principal'
 import { ACTION_REFUSALS } from '../../lib/refusal'
@@ -115,12 +116,11 @@ describe('the admin landing page', () => {
     )
   })
 
-  it('caps itself at legacy’s 900px column, which the now-wide layout no longer does for it', async () => {
+  it('caps itself with @repo/ui’s own COLUMN, which the now-wide layout no longer does for it', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const { container } = await show()
-    expect(container.firstElementChild?.className).toContain('max-w-[900px]')
-    expect(container.firstElementChild?.className).toContain('mx-auto')
+    expect(container.firstElementChild?.className).toBe(COLUMN)
   })
 
   it('carries the seat count an admin is told, and no plan contents at all', async () => {

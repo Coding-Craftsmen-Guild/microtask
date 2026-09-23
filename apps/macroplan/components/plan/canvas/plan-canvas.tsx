@@ -70,8 +70,9 @@ export interface PlanCanvasProps {
  * to audit a plan someone else drew." Task 13 builds that table as this canvas's accessible peer.
  *
  * There is no `eslint-plugin-jsx-a11y` and no `axe` in this repo, so a role-based assertion is the
- * whole mechanism — `plan-canvas.test.tsx` finds this canvas by its role and its name and by nothing
- * else.
+ * whole mechanism: `plan-canvas.test.tsx` asserts the accessible name **only** through
+ * `getByRole('img', { name })`, never by reading `aria-label` off the node. Its `data-slot` queries
+ * are for geometry and counts, which no role describes.
  */
 export function PlanCanvas({
   plan,

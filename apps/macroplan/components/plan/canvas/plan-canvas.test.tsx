@@ -2,17 +2,21 @@ import type { Plan } from '@repo/api-client'
 import { dayToX, railLayout, rungFor } from '@repo/canvas'
 import type { DayRange } from '@repo/canvas'
 import { LIMITS } from '@repo/contracts'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { atlasPlan, EPIC_1, FEATURE_1, FEATURE_2, ITEM_1, ITEM_2, ITEM_3 } from '../testing/plan-fixture'
 import { PlanCanvas } from './plan-canvas'
-import { CANVAS_RANGE, CANVAS_SCALE, DRAWS, LAYOUT } from './view'
+import { CANVAS_RANGE, CANVAS_SCALE, DRAWS, insideRail, LAYOUT, stubX, type RailFrame } from './view'
 
 const ORANGE = '#ff8833'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
 const UNRESOLVABLE_ZONE = 'Mars/Phobos'
+
+const ONE_QUARTER_BAND = 1
+
+const CHROME_ALLOWANCE = 100
 
 const all = (selector: string): readonly Element[] => [...document.querySelectorAll(selector)]
 
@@ -119,6 +123,37 @@ describe('the range the admin canvas draws', () => {
   it('is a constant and never a measurement, because a server component has no viewport', () => {
     expect(CANVAS_RANGE).toEqual({ fromDay: 0, toDay: 60 })
     expect(CANVAS_SCALE).toEqual({ pxPerDay: 14, gutter: 160 })
+  })
+})
+
+describe('the geometry the components are kept thin by', () => {
+  const frame: RailFrame = {
+    marks: new Map(),
+    treatments: new Map(),
+    draws: DRAWS.feature,
+    labelX: 0,
+    axisX: dayToX(0, CANVAS_SCALE),
+  }
+
+  it('stacks each off-axis stub leftward by its own width plus a gap, so none overlaps a neighbour', () => {
+    const step = LAYOUT.stubWidth + LAYOUT.stubGap
+    expect([0, 1, 2].map((index) => frame.axisX - stubX(frame, index))).toEqual(
+      [1, 2, 3].map((place) => LAYOUT.labelInset + place * step),
+    )
+    expect(step).toBeGreaterThan(LAYOUT.stubWidth)
+  })
+
+  it('puts a rail’s label above its bars and its marks below them, all inside one band', () => {
+    expect(insideRail(0, 'label')).toBeLessThan(insideRail(0, 'bar'))
+    expect(insideRail(0, 'bar')).toBeLessThan(insideRail(0, 'mark'))
+    expect(insideRail(0, 'mark') + LAYOUT.markHeight).toBeLessThanOrEqual(LAYOUT.railHeight)
+    expect(insideRail(0, 'bar') + LAYOUT.barHeight).toBeLessThanOrEqual(LAYOUT.railHeight)
+  })
+
+  it('measures every part from the rail’s own top, so a second rail is the first one shifted', () => {
+    for (const part of ['label', 'bar', 'mark'] as const) {
+      expect(insideRail(LAYOUT.railHeight, part), part).toBe(LAYOUT.railHeight + insideRail(0, part))
+    }
   })
 })
 
@@ -261,6 +296,23 @@ describe('the chrome the canvas draws around its rails', () => {
     expect(numberOf(only('[data-slot="today"] line'), 'x1')).toBe(dayToX(5, CANVAS_SCALE))
   })
 
+  it('rounds a weekend onto Monday’s offset, so three dates share one x and only the date differs', () => {
+    const seen = ['2026-10-03', '2026-10-04', '2026-10-05'].map((date) => {
+      render(<PlanCanvas at={new Date(`${date}T09:00:00.000Z`)} plan={atlasPlan()} />)
+      const today = only('[data-slot="today"]')
+      const read = {
+        date: today.getAttribute('data-date'),
+        day: today.getAttribute('data-day'),
+        x: numberOf(only('[data-slot="today"] line'), 'x1'),
+      }
+      cleanup()
+      return read
+    })
+    expect(seen.map((one) => one.date)).toEqual(['2026-10-03', '2026-10-04', '2026-10-05'])
+    expect(seen.map((one) => one.day)).toEqual(['5', '5', '5'])
+    expect(seen.map((one) => one.x)).toEqual([5, 5, 5].map((day) => dayToX(day, CANVAS_SCALE)))
+  })
+
   it('draws the plan and no today line at all when this runtime cannot resolve its zone', () => {
     render(<PlanCanvas at={AT} plan={atlasPlan({ timezone: UNRESOLVABLE_ZONE })} />)
     expect(slot('today')).toHaveLength(0)
@@ -294,6 +346,17 @@ describe('the canvas at this product’s own cap', () => {
     expect(marks).toHaveLength(LIMITS.itemsPerPlan)
     for (const mark of marks) expect(mark.children).toHaveLength(0)
     expect(slot('feature-bar')).toHaveLength(LIMITS.featuresPerPlan)
+  })
+
+  it('draws no wrapper around a mark either, which a count of marks alone would not notice', () => {
+    render(<PlanCanvas at={AT} plan={planAtCap()} />)
+    const canvas = only('[data-slot="plan-canvas"]')
+    expect(canvas.querySelectorAll('rect')).toHaveLength(
+      LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + ONE_QUARTER_BAND,
+    )
+    expect(canvas.querySelectorAll('*').length).toBeLessThan(
+      LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + CHROME_ALLOWANCE,
+    )
   })
 
   it('still draws one rail, because 2 000 items on one rail are still one rail', () => {

@@ -33,9 +33,15 @@ export interface TodayMarkProps {
  * read as a tz mismatch when the real cause was a bad clock read is a bug no deploy would fix.
  *
  * The date is on the group as a `data-date`, not drawn. It is the one calendar date on the canvas and
- * §5 keeps calendar dates off the permanent chrome; the attribute is what Task 14's hover reads and
- * what a test asserts the weekend rounding through — `dateToDay` gives a Saturday, a Sunday and the
- * Monday after them one offset, so a line drawn at the weekend lands on the left edge of Monday.
+ * §5 keeps calendar dates off the permanent chrome; the attribute is what Task 14's hover will read,
+ * and carrying it **beside** `data-day` rather than deriving it from the offset is the point. Three
+ * calendar dates share each weekend-adjacent offset: `dateToDay` rounds a Saturday, a Sunday and the
+ * Monday after them onto one day, so a line drawn at the weekend lands on the left edge of Monday,
+ * where no work has started. That reads as an off-by-one to anyone who has not been told and is the
+ * correct answer, because the axis is working days and a Saturday has no offset to occupy. A tooltip
+ * that stored the offset and rendered a date back from it would say Monday for a Saturday hover, and
+ * `plan-canvas.test.tsx` pins both halves: the three instants share one `data-day` and one x, and each
+ * keeps its own `data-date`.
  */
 export function TodayMark({ plan, scale, at, height }: TodayMarkProps) {
   const today = todayLine(plan, at, scale)
