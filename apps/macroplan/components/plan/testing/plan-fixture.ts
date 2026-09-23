@@ -182,6 +182,39 @@ export const atlasPlan = (overrides: Partial<StoredPlan> = {}): StoredPlan => ({
 })
 
 /**
+ * `Atlas rollout` with its second feature left off the axis, and its one item dragged down with it.
+ *
+ * One fixture rather than one per test file: the canvas draws this state as a gutter stub, the table
+ * gives it a row saying why it has no sprint, and the class sweep renders it to reach the hollow and
+ * dashed paint — three files asserting three different things about **one** plan, which only holds if
+ * it is literally one plan. It was written out three times before this existed, and two of the three
+ * copies were byte-identical.
+ *
+ * `reason` is the forward pass's own `UnscheduledReason`, and the two are not interchangeable:
+ * `'no-estimate'` is nothing was sized, `'in-cycle'` is the plan contradicting itself, and
+ * `@repo/canvas` draws them hollow and dashed-red respectively. The feature's own `estimateDays` is
+ * cleared either way, so the manifest and the schedule agree for the `'no-estimate'` case; a cycle is
+ * not also written into `cycles`, because `treatmentOf` reads `unscheduled` alone and says why —
+ * "reading `cycles` too would let two derivations of one mark's treatment disagree".
+ */
+export const unplacedPlan = (reason: 'no-estimate' | 'in-cycle'): StoredPlan => {
+  const base = atlasPlan()
+  return atlasPlan({
+    features: base.features.map((one) =>
+      one.id === FEATURE_2 ? { ...one, estimateDays: null } : one,
+    ),
+    schedule: {
+      ...base.schedule,
+      spans: base.schedule.spans.filter((one) => one.id !== FEATURE_2 && one.id !== ITEM_3),
+      unscheduled: [
+        { id: FEATURE_2, reason },
+        { id: ITEM_3, reason },
+      ],
+    },
+  })
+}
+
+/**
  * `Beacon migration`: a plan with no rails, no work and no seats.
  *
  * It exists so a list is seen to hold more than one row, so the zero counts a brand-new plan

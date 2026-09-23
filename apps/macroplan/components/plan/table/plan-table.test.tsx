@@ -5,7 +5,15 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PlanCanvas } from '../canvas/plan-canvas'
 import { CANVAS_SCALE } from '../canvas/view'
-import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, ITEM_2, ITEM_3 } from '../testing/plan-fixture'
+import {
+  atlasPlan,
+  FEATURE_1,
+  FEATURE_2,
+  ITEM_1,
+  ITEM_2,
+  ITEM_3,
+  unplacedPlan,
+} from '../testing/plan-fixture'
 import { PlanTable } from './plan-table'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
@@ -21,23 +29,20 @@ const rowFor = (id: string): HTMLElement => screen.getByTestId(`row-${id}`)
 const cells = (id: string): readonly string[] =>
   [...rowFor(id).children].map((cell) => cell.textContent ?? '')
 
-const unplacedPlan = (reason: 'no-estimate' | 'in-cycle'): Plan => {
-  const base = atlasPlan()
-  return {
-    ...base,
-    features: base.features.map((one) =>
-      one.id === FEATURE_2 ? { ...one, estimateDays: null } : one,
-    ),
-    schedule: {
-      ...base.schedule,
-      spans: base.schedule.spans.filter((one) => one.id !== FEATURE_2 && one.id !== ITEM_3),
-      unscheduled: [
-        { id: FEATURE_2, reason },
-        { id: ITEM_3, reason },
-      ],
-    },
-  }
-}
+const GHOST = '01MPFFFFFFFFFFFFFFFFFFFFF9'
+
+const withDependsOn = (base: Plan, id: string, dependsOn: readonly string[]): Plan => ({
+  ...base,
+  features: base.features.map((one) => (one.id === id ? { ...one, dependsOn } : one)),
+})
+
+const withIgnoredEdge = (base: Plan, featureId: string, dependsOnId: string): Plan => ({
+  ...base,
+  schedule: { ...base.schedule, ignoredEdges: [{ featureId, dependsOnId }] },
+})
+
+const edgeIn = (rowId: string): Element | null =>
+  rowFor(rowId).querySelector('[data-slot="blocked-by"]')
 
 const stamps = { createdAt: '2026-09-01T09:00:00.000Z', updatedAt: '2026-09-01T09:00:00.000Z' }
 
@@ -95,15 +100,24 @@ describe('the parity that makes the table a second rendering of the same data', 
   })
 
   it('names every id the canvas actually emits an element for, bars, marks and stubs alike', () => {
-    for (const plan of [atlasPlan(), unplacedPlan('no-estimate'), unplacedPlan('in-cycle')]) {
-      render(<PlanCanvas at={AT} plan={plan} />)
+    const cases = [
+      { plan: atlasPlan(), stubs: [] as readonly string[] },
+      { plan: unplacedPlan('no-estimate'), stubs: [FEATURE_2] },
+      { plan: unplacedPlan('in-cycle'), stubs: [FEATURE_2] },
+    ]
+    for (const one of cases) {
+      render(<PlanCanvas at={AT} plan={one.plan} />)
       const drawn = all('[data-feature-id], [data-item-id]').map(
         (mark) => mark.getAttribute('data-feature-id') ?? mark.getAttribute('data-item-id') ?? '',
       )
+      const stubbed = all('[data-placed="false"]').map(
+        (stub) => stub.getAttribute('data-feature-id') ?? '',
+      )
       cleanup()
-      render(<PlanTable plan={plan} />)
+      expect(stubbed, 'the off-axis stubs the canvas drew').toEqual(one.stubs)
       expect(drawn.length).toBeGreaterThan(2)
-      for (const id of drawn) expect(rowFor(id), id).toBeTruthy()
+      render(<PlanTable plan={one.plan} />)
+      for (const id of [...drawn, ...stubbed]) expect(rowFor(id), id).toBeTruthy()
       cleanup()
     }
   })
@@ -204,21 +218,41 @@ describe('the blocked-by cell', () => {
   })
 
   it('says in words that an edge was set aside, and carries the same fact as an attribute', () => {
-    const base = atlasPlan()
-    render(
-      <PlanTable
-        plan={{
-          ...base,
-          schedule: {
-            ...base.schedule,
-            ignoredEdges: [{ featureId: FEATURE_2, dependsOnId: FEATURE_1 }],
-          },
-        }}
-      />,
-    )
-    const edge = rowFor(FEATURE_2).querySelector('[data-slot="blocked-by"]')
-    expect(edge?.textContent).toBe('Auth rewrite · set aside to keep rail order')
-    expect(edge?.getAttribute('data-edge')).toBe('set-aside')
+    render(<PlanTable plan={withIgnoredEdge(atlasPlan(), FEATURE_2, FEATURE_1)} />)
+    expect(edgeIn(FEATURE_2)?.textContent).toBe('Auth rewrite · set aside to keep rail order')
+    expect(edgeIn(FEATURE_2)?.getAttribute('data-edge')).toBe('set-aside')
+  })
+
+  it('says in words that an edge names nothing in this plan, which the pass never reports at all', () => {
+    render(<PlanTable plan={withDependsOn(atlasPlan(), FEATURE_2, [GHOST])} />)
+    expect(edgeIn(FEATURE_2)?.textContent).toBe(`${GHOST} · names nothing in this plan`)
+    expect(edgeIn(FEATURE_2)?.getAttribute('data-edge')).toBe('unknown')
+  })
+
+  it('says in words that an edge points at something unplaced, which the pass also never reports', () => {
+    render(<PlanTable plan={withDependsOn(unplacedPlan('no-estimate'), FEATURE_1, [FEATURE_2])} />)
+    expect(edgeIn(FEATURE_1)?.textContent).toBe('Billing · not placed, so it gave this no date')
+    expect(edgeIn(FEATURE_1)?.getAttribute('data-edge')).toBe('unplaced')
+  })
+
+  it('gives each of the four states its own sentence, so a reordered table cannot go unnoticed', () => {
+    const atlas = atlasPlan()
+    const cases = [
+      { plan: atlas as Plan, row: FEATURE_2 },
+      { plan: withIgnoredEdge(atlas, FEATURE_2, FEATURE_1), row: FEATURE_2 },
+      { plan: withDependsOn(atlas, FEATURE_2, [GHOST]), row: FEATURE_2 },
+      { plan: withDependsOn(unplacedPlan('no-estimate'), FEATURE_1, [FEATURE_2]), row: FEATURE_1 },
+    ]
+    const said: string[] = []
+    const states: string[] = []
+    for (const one of cases) {
+      render(<PlanTable plan={one.plan} />)
+      said.push(edgeIn(one.row)?.textContent ?? '')
+      states.push(edgeIn(one.row)?.getAttribute('data-edge') ?? '')
+      cleanup()
+    }
+    expect(states).toEqual(['honoured', 'set-aside', 'unknown', 'unplaced'])
+    expect(new Set(said).size).toBe(4)
   })
 
   it('leaves the cell empty for a feature nothing blocks, and for every item row', () => {

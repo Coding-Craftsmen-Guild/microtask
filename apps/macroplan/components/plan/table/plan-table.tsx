@@ -41,9 +41,11 @@ export interface PlanTableProps {
  * a counted number" — and nothing is linked in phase 2. `linkedTaskId` is reserved on every item and
  * is `null`, and §9 puts "derived progress" in phase 4 with the Microtask bridge. The three choices
  * were a column of 2,000 identical dashes, an invented number, or the honest one: leave it out and
- * **say so in the table itself**, which {@link PROGRESS_NOTE} does in the `<caption>` — read to a
- * screen reader as part of the table and visible to the admin auditing the plan. Phase 4 adds the
- * column and deletes the caption.
+ * **say so in the table itself**, which the `<caption>` below does — where an admin auditing the plan
+ * reads it, and where it travels with the table rather than in a release note. It is not claimed as
+ * the announcement a screen reader is guaranteed: a caption paired with an `aria-label` loses the name
+ * computation, and some readers then skip it. The record for a reader of the code is this note. Phase
+ * 4 adds the column and deletes the caption.
  *
  * `blocked-by` **is** here, because `dependsOn` is on the wire — but never as a bare list of names:
  * `rows.ts` argues the four things a stated dependency can turn out to be.

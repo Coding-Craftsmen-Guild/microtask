@@ -18,11 +18,25 @@ import { railNames } from '../canvas/view'
  * bar ignores a dependency' from 'this bar could not be placed' would have to guess which sentence to
  * show."
  *
- * - `honoured` — the named feature was placed, and this feature starts no earlier than its end.
+ * - `honoured` — the named feature got a span, and the pass reported no edge dropped between the two.
  * - `set-aside` — named in `ignoredEdges`: rail order and this edge contradicted each other, rail
  *   order won, and the edge was dropped rather than discarded silently.
  * - `unknown` — the id names no feature in this plan, so there was never anything to wait for.
  * - `unplaced` — the named feature exists and got no span, so it could contribute no date.
+ *
+ * `honoured` is **membership in `spans` and an absence from `ignoredEdges`, and nothing more**. It
+ * deliberately does not check that this feature starts no earlier than its dependency ends, which an
+ * earlier wording of this list claimed: that comparison would be a second opinion about a plan the
+ * forward pass has already scheduled, and re-deriving a scheduling decision on the client is the
+ * mistake `railLayout` names in `tableRows`' own note below. The state says what the schedule
+ * **reports**, not what a recomputation here would conclude.
+ *
+ * One consequence is worth stating rather than discovering. When the **declaring** feature is itself
+ * unplaced — unestimated, or in a cycle — `relax` never gets to its edges, so they reach neither
+ * `ignoredEdges` nor anything else, and they read `honoured` here while that same row's sprint cell
+ * reads `not placed`. Nothing waited on anything, and the column that owns the question says so;
+ * `rows.test.ts` pins the pair, so a later reading of `honoured` cannot quietly change what a row
+ * claims about itself.
  */
 export type EdgeState = 'honoured' | 'set-aside' | 'unknown' | 'unplaced'
 
@@ -170,11 +184,16 @@ const context = (plan: Plan): Rows => ({
  * ### The order is the canvas's, and is not derived a second time
  *
  * `railsOf` and `itemsByFeature` come from `@repo/schedule` and are the same two functions
- * `railLayout` and `itemsToMarks` walk. `railsOf` states why that matters: "a second total order
- * written in this package could disagree with the first on any tie — which is a bar drawn on the
- * wrong rail, silently, at exactly the zoom level nobody tested." A table ordered by a sort of its
- * own would put its rows in an order the bars are not in, which is the one thing that makes two
- * renderings of one plan impossible to check against each other by eye.
+ * `railLayout` and `itemsToMarks` walk. `railsOf` is exported for exactly that, in its own words:
+ * "so `@repo/canvas` can draw against the exact order the forward pass placed spans in, rather than
+ * re-deriving a total order that a second package's tests cannot check against the first's — a
+ * mismatch there is a bar drawn on the wrong rail" (`packages/schedule/src/derived-order.ts`).
+ * `railLayout` is where what such a mismatch costs is written out: "a second total order written in
+ * this package could disagree with the first on any tie — which is a bar drawn on the wrong rail,
+ * silently, at exactly the zoom level nobody tested" (`packages/canvas/src/rails.ts`; `view.ts`'s
+ * `unplacedByRail` cites the same sentence). A table ordered by a sort of its own would put its rows
+ * in an order the bars are not in, which is the one thing that makes two renderings of one plan
+ * impossible to check against each other by eye.
  *
  * Names are **joined back to the plan**, because the derived order answers `ScheduleFeature` and
  * `ScheduleItem` — the forward pass's own shapes, which carry ids, positions and estimates and no
@@ -195,8 +214,18 @@ const context = (plan: Plan): Rows => ({
  * one the canvas has: `itemsByFeature` groups it under an id "simply never asked for", and the
  * forward pass places it in "neither `days` nor `unscheduled`". Nothing here can name the rail or the
  * feature such a row would belong to, and inventing one would be a claim about where the work sits.
- * The conflict list phase 3 brings — spec §6 — is where a plan's unreachable parts are reported, and
- * `UnplacedFeatures` makes the same argument for what falls off the gutter.
+ * Spec §6 names the conflict list for **cycles** — "a cycle that arrives some other way … is reported
+ * by `schedule()` and shown in the conflict list rather than breaking the page" — and says nothing
+ * about an item naming no feature; that the same list is where this belongs is an inference, and it
+ * is the one `UnplacedFeatures` already draws for what falls off the gutter.
+ *
+ * ### This file, if it grows
+ *
+ * Four concerns share it — the derived walk, the four edge states, §3.2's estimate wording and the
+ * sprint label — and that is deliberate while it sits well under the 150-line cap with every function
+ * pure and directly tested. If phase 3's conflict list or phase 4's progress column pushes it near
+ * the cap, the split is the answer, and it splits by **column** rather than by row kind: a feature
+ * row and an item row must keep answering the same seven questions in one place.
  *
  * @param plan - The plan and the schedule derived from it, exactly as `GET /plans/{planId}` answered.
  * @returns One row per feature and per item, features before their own items.

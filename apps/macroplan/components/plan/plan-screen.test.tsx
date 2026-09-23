@@ -49,6 +49,16 @@ describe('the switch between them', () => {
     expect(screen.getAllByRole('radio')).toHaveLength(2)
   })
 
+  it('describes the choice on both radios, rather than claiming a group the markup is not', () => {
+    show()
+    const hint = document.getElementById('plan-view-hint')
+    expect(hint?.textContent).toContain('which rendering of this plan is on screen')
+    for (const one of screen.getAllByRole('radio')) {
+      expect(one.getAttribute('aria-describedby')).toBe('plan-view-hint')
+    }
+    expect(document.querySelectorAll('fieldset, [role="radiogroup"]')).toHaveLength(0)
+  })
+
   it('starts on the timeline, which is the rendering §5 makes this product’s own', () => {
     show()
     expect(radio('Timeline').checked).toBe(true)

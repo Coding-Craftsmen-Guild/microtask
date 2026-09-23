@@ -12,6 +12,7 @@ import {
   ITEM_2,
   ITEM_3,
   STAMP,
+  unplacedPlan,
 } from '../testing/plan-fixture'
 import { tableRows, type TableRow } from './rows'
 
@@ -39,20 +40,6 @@ const withFeature = (over: Partial<Plan['features'][number]>, id = FEATURE_2): P
   return plan({ features: base.features.map((one) => (one.id === id ? { ...one, ...over } : one)) })
 }
 
-const unplaced = (reason: 'no-estimate' | 'in-cycle'): Plan => {
-  const base = withFeature({ estimateDays: null })
-  return plan({
-    features: base.features,
-    schedule: scheduleOf(base, {
-      spans: base.schedule.spans.filter((one) => one.id !== FEATURE_2 && one.id !== ITEM_3),
-      unscheduled: [
-        { id: FEATURE_2, reason },
-        { id: ITEM_3, reason },
-      ],
-    }),
-  })
-}
-
 describe('what the table has a row for', () => {
   it('names every feature and every item, so the table is a second rendering and not a summary', () => {
     const rows = tableRows(atlasPlan())
@@ -78,7 +65,7 @@ describe('what the table has a row for', () => {
   })
 
   it('names an unplaced feature too, which the canvas can only draw as an off-axis stub', () => {
-    const one = unplaced('no-estimate')
+    const one = unplacedPlan('no-estimate')
     expect(rowOf(tableRows(one), FEATURE_2).treatment).toBe('hollow')
     expect(railLayout(one, one.schedule, SCALE)[0]?.bars).toHaveLength(1)
   })
@@ -228,13 +215,13 @@ describe('the sprint column, which is arithmetic and never an assignment', () =>
   })
 
   it('says why a row has no sprint at all, and says the two reasons differently', () => {
-    expect(rowOf(tableRows(unplaced('no-estimate')), FEATURE_2).sprint).toBe(
+    expect(rowOf(tableRows(unplacedPlan('no-estimate')), FEATURE_2).sprint).toBe(
       'not placed · no estimate',
     )
-    expect(rowOf(tableRows(unplaced('in-cycle')), FEATURE_2).sprint).toBe(
+    expect(rowOf(tableRows(unplacedPlan('in-cycle')), FEATURE_2).sprint).toBe(
       'not placed · in a dependency cycle',
     )
-    expect(rowOf(tableRows(unplaced('in-cycle')), ITEM_3).treatment).toBe('contradicted')
+    expect(rowOf(tableRows(unplacedPlan('in-cycle')), ITEM_3).treatment).toBe('contradicted')
   })
 })
 
@@ -264,7 +251,7 @@ describe('the blocked-by column, which reads dependsOn and ignoredEdges together
   })
 
   it('says an edge points at something unplaced, which the pass also never reports', () => {
-    const base = unplaced('no-estimate')
+    const base = unplacedPlan('no-estimate')
     const one = plan({
       features: base.features.map((f) =>
         f.id === FEATURE_1 ? { ...f, dependsOn: [FEATURE_2] } : f,
@@ -272,6 +259,12 @@ describe('the blocked-by column, which reads dependsOn and ignoredEdges together
       schedule: base.schedule,
     })
     expect(rowOf(tableRows(one), FEATURE_1).blockedBy[0]?.state).toBe('unplaced')
+  })
+
+  it('reads honoured as what the schedule reports, never as a comparison of days it re-derives', () => {
+    const row = rowOf(tableRows(unplacedPlan('no-estimate')), FEATURE_2)
+    expect(row.blockedBy).toEqual([{ id: FEATURE_1, name: 'Auth rewrite', state: 'honoured' }])
+    expect(row.sprint).toBe('not placed · no estimate')
   })
 
   it('reads the epic a rail belongs to from the plan, so the rail id is never shown as a name', () => {

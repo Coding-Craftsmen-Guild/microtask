@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { PlanCanvas } from './canvas/plan-canvas'
 import { PlanScreen } from './plan-screen'
 import { PlanTable } from './table/plan-table'
-import { atlasPlan, FEATURE_2, ITEM_3 } from './testing/plan-fixture'
+import { atlasPlan, unplacedPlan } from './testing/plan-fixture'
 
 // Ported from packages/ui/src/transfer/module-boundaries.test.tsx, because neither app had an
 // equivalent and a canvas is exactly where a composed class name is tempting. Tailwind's scanner
@@ -15,6 +15,7 @@ import { atlasPlan, FEATURE_2, ITEM_3 } from './testing/plan-fixture'
 // the ones packages/ui/src/styles/globals.css declares with @source for this app — minus test files,
 // which Tailwind does scan and this deliberately does not: a production class whose only literal is in
 // a test is one a deleted test would silently unpaint, so this sweep is stricter than the scanner.
+// That exclusion is the check, not a bug in it: widening it to match the scanner trades the guard away.
 
 const APP = resolve(process.cwd())
 
@@ -49,33 +50,15 @@ const declaresUseClient = (source: string) => {
   return /^["']use client["'];?$/.test(first.trim())
 }
 
-const unplaced = (reason: 'no-estimate' | 'in-cycle'): Plan => {
-  const base = atlasPlan()
-  return {
-    ...base,
-    features: base.features.map((one) =>
-      one.id === FEATURE_2 ? { ...one, estimateDays: null } : one,
-    ),
-    schedule: {
-      ...base.schedule,
-      spans: base.schedule.spans.filter((one) => one.id !== FEATURE_2 && one.id !== ITEM_3),
-      unscheduled: [
-        { id: FEATURE_2, reason },
-        { id: ITEM_3, reason },
-      ],
-    },
-  }
-}
-
 const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
 
 const TREES = [
   <PlanScreen at={AT} key="a" plan={atlasPlan()} />,
-  <PlanScreen at={AT} key="b" plan={unplaced('no-estimate')} />,
-  <PlanScreen at={AT} key="c" plan={unplaced('in-cycle')} />,
+  <PlanScreen at={AT} key="b" plan={unplacedPlan('no-estimate')} />,
+  <PlanScreen at={AT} key="c" plan={unplacedPlan('in-cycle')} />,
   <PlanScreen at={AT} key="d" plan={unclaimed()} />,
   <PlanCanvas at={AT} key="e" plan={atlasPlan()} range={{ fromDay: 0, toDay: 61 }} />,
-  <PlanTable key="f" plan={unplaced('in-cycle')} />,
+  <PlanTable key="f" plan={unplacedPlan('in-cycle')} />,
 ]
 
 describe('the class-literal reader this sweep is built on', () => {

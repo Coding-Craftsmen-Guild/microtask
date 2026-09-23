@@ -8,6 +8,10 @@ const TIMELINE_ID = 'plan-view-timeline'
 
 const TABLE_ID = 'plan-view-table'
 
+const HINT_ID = 'plan-view-hint'
+
+const HINT = 'Choose which rendering of this plan is on screen. The table stays readable either way.'
+
 const TIMELINE_RADIO = 'peer/timeline sr-only'
 
 const TABLE_RADIO = 'peer/table sr-only'
@@ -56,12 +60,16 @@ export interface PlanScreenProps {
  *
  * ### The switch, and why it is two radios and no JavaScript
  *
- * `@repo/ui`'s vendored `components/tabs` is `'use client'` and wraps Radix's `Tabs`, which mounts
- * only the selected panel and marks the other `hidden` — so it would take the table **out of the
- * accessibility tree** exactly when the timeline is on screen, which is the one thing §5 says must not
- * happen, and it would ship a runtime to do it. Two `<input type="radio">` and their labels express
- * the same choice natively: the browser owns the state, this whole screen stays a Server Component,
- * and there is nothing to hydrate.
+ * `@repo/ui`'s vendored `components/tabs` is `'use client'` and wraps Radix's `Tabs`. Its
+ * `TabsContent` computes `present = forceMount || isSelected` and then renders through `Presence`
+ * with `hidden: !present` (`@radix-ui/react-tabs@1.1.21`), so the unselected panel is **either
+ * unmounted or carries the `hidden` attribute** — one or the other, never both, and out of the
+ * accessibility tree in each case. §5 does not itself forbid that; what §5 says is that "an SVG-only
+ * plan is unreadable to a screen reader". The prohibition is **this file's inference** from it: if the
+ * table is the only rendering a reader can read, a switch that takes it away leaves that reader with
+ * a picture and a label. Two `<input type="radio">` and their labels express the same choice natively:
+ * the browser owns the state, this whole screen stays a Server Component, and there is nothing to
+ * hydrate.
  *
  * Both renderings are **always mounted**, and the asymmetry between them is deliberate. The canvas is
  * `display:none` when the table is chosen — it is one `role="img"` graphic, so hiding it costs a
@@ -71,10 +79,15 @@ export interface PlanScreenProps {
  * always sent — 2,200 rows at this product's cap, which is what `plan-table.test.tsx` renders — and
  * that a reader hears both renderings at once. The second is the point rather than a defect.
  *
- * The four controls and the two panels are **siblings under one flex parent**, because a `peer-*`
- * variant is a sibling selector: a wrapper around the radios for layout would break the only
- * connection that makes the switch work. The radios are `sr-only`, so they are out of flow and cost
- * the layout nothing, and each panel is `w-full`, so it takes a line of its own under the two tabs.
+ * The controls and the two panels are **siblings under one flex parent**, because a `peer-*` variant is
+ * a sibling selector: a wrapper around the radios for layout would break the only connection that
+ * makes the switch work. That is also why the group is not a `<fieldset>` with a `<legend>` and why
+ * nothing here claims `role="radiogroup"` — the only element containing both radios also contains both
+ * panels, and calling that a radio group would be false. What the two radios get instead is a shared
+ * `aria-describedby` pointing at one `sr-only` sentence, which says what the choice does without
+ * asserting a structure that is not there. The radios and that sentence are `sr-only`, so they are out
+ * of flow and cost the layout nothing, and each panel is `w-full`, so it takes a line of its own under
+ * the two tabs.
  */
 export function PlanScreen({ plan, at }: PlanScreenProps) {
   return (
@@ -86,7 +99,11 @@ export function PlanScreen({ plan, at }: PlanScreenProps) {
         </p>
       </div>
       <div className={VIEWS}>
+        <p className="sr-only" id={HINT_ID}>
+          {HINT}
+        </p>
         <input
+          aria-describedby={HINT_ID}
           className={TIMELINE_RADIO}
           defaultChecked
           id={TIMELINE_ID}
@@ -96,7 +113,13 @@ export function PlanScreen({ plan, at }: PlanScreenProps) {
         <label className={TIMELINE_TAB} htmlFor={TIMELINE_ID}>
           Timeline
         </label>
-        <input className={TABLE_RADIO} id={TABLE_ID} name="plan-view" type="radio" />
+        <input
+          aria-describedby={HINT_ID}
+          className={TABLE_RADIO}
+          id={TABLE_ID}
+          name="plan-view"
+          type="radio"
+        />
         <label className={TABLE_TAB} htmlFor={TABLE_ID}>
           Table
         </label>

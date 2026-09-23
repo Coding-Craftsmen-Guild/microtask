@@ -27,12 +27,15 @@ export interface PlanTableRowProps {
  * ### What a screen reader announces, and why the row header moves
  *
  * The cell naming the row's **own subject** is a `<th scope="row">` — the feature's name on a feature
- * row, the item's name on an item row — so a reader moving across a row is told what the row is about
- * before each value, and the two kinds of row are distinguishable by structure rather than by
- * indentation, which is paint. The epic and the feature are then repeated on every row rather than
- * spanned with `rowspan`: a spanned cell is announced once and then silently inherited, so a reader
- * landing mid-table on "3d, S1" has no way to ask which feature it belongs to. Repetition is verbose
- * and unambiguous, and unambiguous is what an audit needs.
+ * row, the item's name on an item row — so every value in the row is associated with what the row is
+ * about as well as with its column, and the two kinds of row are distinguishable by structure rather
+ * than by indentation, which is paint. The header is in column two or column three depending on which
+ * kind of row it is, so on an item row the epic and feature cells are read before it; `scope="row"`
+ * governs association and not order, and the repetition below is what makes that harmless. The epic
+ * and the feature are repeated on every row rather than spanned with `rowspan`: a spanned cell is
+ * announced once and then silently inherited, so a reader landing mid-table on "3d, S1" has no way to
+ * ask which feature it belongs to. Repetition is verbose and unambiguous, and unambiguous is what an
+ * audit needs.
  *
  * A feature row's item cell is **empty** rather than a dash. The row is about a feature; a dash is a
  * glyph a reader has to interpret, and `data-kind` already says what the row is for a test.
