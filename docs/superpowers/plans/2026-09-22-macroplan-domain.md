@@ -2202,7 +2202,12 @@ holder that is the same plan, so the check is `{kind:'plan', planId}` — but it
 caller's own scope so the rule stays true if an epic variant is ever added.
 
 `/shares/current` is the route a client calls to learn what it may do before drawing anything. It
-returns the caller's role, scope and the `capabilities()` projection. **Mirror
+returns the caller's role, its scope, and the plan it reaches — a `PlanShareView`, mirroring
+Microtask's `ShareView` in shape. It does **not** carry the `capabilities()` projection. An earlier
+draft of this sentence asked for one, which contradicted the instruction beside it to mirror Microtask
+exactly: no API response carries that record, and serving one would contradict ADR 0038's premise,
+that `@repo/contracts` computes the projection **in the browser** precisely because an app may not
+import `@repo/kernel`. A client calls `capabilities(role, scope)` on what this route returns. **Mirror
 `microtask/shares/handlers.ts` exactly — including its `authorize` call**, which is
 `authorize(c, 'plan:read', { kind: 'plan', planId })` against the caller's own scope root.
 
@@ -2428,3 +2433,20 @@ the leak [ADR 0033](../../adr/0033-list-ships-no-share-tokens.md) is about, and 
 out of its way to avoid echoing a token for that reason. Phase 1 does not touch it: the consolidation
 moved the message, it did not widen who can read it. Fixing it means deciding what an import refusal
 may say about a token it will not name, which is a decision, not a rename.
+
+## Two more things phase 1 taught, recorded at the end rather than in a task
+
+**`@repo/contracts` is not optional for a new route's success body.**
+`apps/api/src/routes/response-shapes.test.ts` asserts every success response resolves to a
+`@repo/contracts` component, so any task adding an operation with a new body shape must add the schema
+there — even where that task's own file list does not mention contracts. Task 16b hit this with
+`PlanShareView`.
+
+**`alsoGatedOn` is the mechanism for an action two products gate on different containers.** The share
+actions belong to the share system rather than to either product: `GRANTS` serves both from one row and
+the scope check is what separates them, so `target` can name only one container and the other goes in
+`alsoGatedOn`. `share:read`, `share:update` and `share:revoke` all need it. `share:read` was the one no
+route scan could force, because Macroplan decides it inside `visibleLinks` rather than at a route —
+a plan's seats arrive inside `PlanView.shareLinks` rather than from a list endpoint. Any future action
+gated on a plan in one product and a project in the other needs the same row, and the agreement test
+will not ask for it.
