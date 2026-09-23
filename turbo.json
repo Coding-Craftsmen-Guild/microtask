@@ -27,6 +27,7 @@
     "//#check-exports": {
       "dependsOn": [
         "@repo/api-client#build",
+        "@repo/canvas#build",
         "@repo/contracts#build",
         "@repo/kernel#build",
         "@repo/macroplan-domain#build",
