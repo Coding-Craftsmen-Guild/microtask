@@ -27,9 +27,9 @@ export type SessionClient = AdminClient | LinkClient
  * error, and this app renders a live share surface with real tokens in a component's hands: it
  * holds exactly as long as this function stays the sole caller of either constructor.
  *
- * Both branches stay here rather than in `@repo/app-session`, which has the admin one only: a
+ * Both branches stay here rather than in `@repo/app-session`, which mints no client at all: a
  * shared module that could mint a link client would be a share token's way into an app that has
- * no share links (ADR 0014).
+ * no share links, and the admin half it used to hold went when its last caller did (ADR 0014).
  *
  * `options` is a parameter rather than read from {@link apiOptions} inside, so a test can inject
  * a fetcher and assert what actually goes on the wire.

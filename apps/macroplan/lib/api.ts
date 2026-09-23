@@ -27,9 +27,10 @@ export { apiOptions, loginWith } from '@repo/app-session/api'
  * the funnel is a convention with a single enforcement point rather than a compile error, and it
  * holds exactly as long as this function stays the sole caller of either constructor.
  *
- * There is no shared constructor for the link half. `@repo/app-session` has the admin one only,
- * because a module both apps import that could mint a link client would be a share token's way
- * into whichever of them had not decided to hold one (ADR 0014). This app has decided: ADR 0053
+ * There is no shared constructor for either half. `@repo/app-session` mints no client at all: it
+ * never had a link one, because a module both apps import that could mint a link client would be a
+ * share token's way into whichever of them had not decided to hold one (ADR 0014), and the admin
+ * one it did have went when this function stopped calling it. This app has decided: ADR 0053
  * puts Macroplan's sharing on the existing share-link system at plan scope, and phase 1 shipped
  * the seat routes it describes. What survives of the older note is the half that was never about
  * timing — authority is minted here from a principal and from nothing else.

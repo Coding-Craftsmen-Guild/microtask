@@ -1,6 +1,4 @@
-import { ApiError, type ClientOptions } from '@repo/api-client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { adminClientFor } from './api'
 
 interface Sent {
   readonly url: string
@@ -9,58 +7,6 @@ interface Sent {
 
 const headerOf = (sent: Sent, name: string): string | undefined =>
   (sent.init.headers as Record<string, string> | undefined)?.[name]
-
-const optionsAnswering = (sent: Sent[], response: () => Response): ClientOptions => ({
-  baseUrl: 'http://api.internal:4321',
-  serviceKey: 'the-service-key',
-  fetch: (url, init) => {
-    sent.push({ url, init })
-    return Promise.resolve(response())
-  },
-})
-
-const ok = (): Response =>
-  new Response(JSON.stringify({ projects: [] }), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
-  })
-
-const refusal = (): Response =>
-  new Response(
-    JSON.stringify({
-      type: 'about:blank',
-      title: 'Unauthorized',
-      status: 401,
-      code: 'no_principal',
-      detail: 'This request carried no bearer token.',
-      instance: '/v1/microtask/projects',
-    }),
-    { status: 401, headers: { 'content-type': 'application/problem+json' } },
-  )
-
-describe('adminClientFor', () => {
-  it('sends the service key and the bearer together, never the key alone', async () => {
-    const sent: Sent[] = []
-    const client = adminClientFor({ kind: 'admin', token: 'admin.99.sig' }, optionsAnswering(sent, ok))
-    await client.projects.list()
-    const only = sent[0]
-    if (only === undefined) throw new Error('no request was sent')
-    expect(headerOf(only, 'x-api-key')).toBe('the-service-key')
-    expect(headerOf(only, 'authorization')).toBe('Bearer admin.99.sig')
-  })
-
-  it('brands the client admin, so it cannot stand in for a link client', () => {
-    const client = adminClientFor({ kind: 'admin', token: 'a' }, optionsAnswering([], ok))
-    expect(client.credential).toBe('admin')
-  })
-
-  it('lets a 401 reach the caller instead of papering over it', async () => {
-    const client = adminClientFor({ kind: 'admin', token: 'a' }, optionsAnswering([], refusal))
-    const failure = await client.projects.list().catch((error: unknown) => error)
-    expect(failure).toBeInstanceOf(ApiError)
-    expect(failure).toMatchObject({ status: 401, code: 'no_principal' })
-  })
-})
 
 describe('apiOptions and loginWith read the environment and nothing else', () => {
   beforeEach(() => {

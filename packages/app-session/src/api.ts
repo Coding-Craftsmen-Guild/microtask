@@ -1,6 +1,5 @@
-import { createAdminClient, login, type AdminClient, type AdminSessionValue, type ClientOptions } from '@repo/api-client'
+import { login, type AdminSessionValue, type ClientOptions } from '@repo/api-client'
 import { appEnv } from './env'
-import type { AdminPrincipal } from './principal'
 
 /**
  * Where the API is and which app is calling, assembled from the one environment reader.
@@ -15,16 +14,6 @@ import type { AdminPrincipal } from './principal'
 export function apiOptions(): ClientOptions {
   const env = appEnv()
   return { baseUrl: env.apiBaseUrl, serviceKey: env.apiKey }
-}
-
-/**
- * The admin client a principal read out of the admin cookie is entitled to, and no other.
- *
- * `options` is a parameter rather than read from {@link apiOptions} inside, so a test can inject
- * a fetcher and assert what actually goes on the wire.
- */
-export function adminClientFor(principal: AdminPrincipal, options: ClientOptions): AdminClient {
-  return createAdminClient(options, principal.token)
 }
 
 /**
