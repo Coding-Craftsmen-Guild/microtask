@@ -37,6 +37,11 @@ export {
   type NewItem,
 } from './services/item-service.js'
 export {
+  PlanShareLinkService,
+  type NewSeat,
+  type SeatChanges,
+} from './services/share-link-service.js'
+export {
   itemView,
   planListItem,
   planSchedule,
