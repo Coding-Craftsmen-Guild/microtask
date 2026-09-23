@@ -16,7 +16,17 @@ describe('@repo/canvas entry points', () => {
     expect(exports['.']).toEqual({ types: './dist/index.d.ts', default: './dist/index.js' })
   })
 
-  it('ships the scale module first, because geometry lands module by module starting with it', () => {
-    expect(Object.keys(main).sort()).toEqual(['dayToX', 'scaleFor', 'widthOfDays', 'xToDay'])
+  it('ships the scale and the rails, and nothing a later geometry module has not landed yet', () => {
+    expect(Object.keys(main).sort()).toEqual([
+      'dayToX',
+      'railLayout',
+      'scaleFor',
+      'widthOfDays',
+      'xToDay',
+    ])
+  })
+
+  it('keeps the span lookup off the barrel, so two modules share one map instead of exporting it', () => {
+    expect(Object.keys(main)).not.toContain('spansById')
   })
 })
