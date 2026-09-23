@@ -5,6 +5,7 @@ import { cleanup, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PlanCanvas } from './canvas/plan-canvas'
 import { PlanScreen } from './plan-screen'
+import { planScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
 import { atlasPlan, unplacedPlan } from './testing/plan-fixture'
 
@@ -52,11 +53,16 @@ const declaresUseClient = (source: string) => {
 
 const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
 
+// `PlanScreen.plan` is `PlanScreenModel`, whose type cannot hold a share token, and every fixture
+// here is a `StoredPlan` that carries three. So each screen is handed the plan through the same
+// reducer both surfaces' reads use — which is stricter than a cast would be, since it renders the
+// object a page really hands over. `PlanCanvas` and `PlanTable` still take a whole `Plan`, so their
+// trees below are unwrapped on purpose: the ceiling is `PlanScreen`'s, one level up.
 const TREES = [
-  <PlanScreen at={AT} key="a" plan={atlasPlan()} />,
-  <PlanScreen at={AT} key="b" plan={unplacedPlan('no-estimate')} />,
-  <PlanScreen at={AT} key="c" plan={unplacedPlan('in-cycle')} />,
-  <PlanScreen at={AT} key="d" plan={unclaimed()} />,
+  <PlanScreen at={AT} key="a" plan={planScreenModel(atlasPlan())} />,
+  <PlanScreen at={AT} key="b" plan={planScreenModel(unplacedPlan('no-estimate'))} />,
+  <PlanScreen at={AT} key="c" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
+  <PlanScreen at={AT} key="d" plan={planScreenModel(unclaimed())} />,
   <PlanCanvas at={AT} key="e" plan={atlasPlan()} range={{ fromDay: 0, toDay: 61 }} />,
   <PlanTable key="f" plan={unplacedPlan('in-cycle')} />,
 ]

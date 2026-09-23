@@ -22,15 +22,18 @@ export async function generateMetadata({ params }: PlanPageProps): Promise<Metad
  * read and never stores one (ADR 0048, spec §3.4), so there is no second call to make and nothing for
  * this page to recompute. Nothing here re-derives a span, a rail order or an x.
  *
- * `Date.now()` is read once, here, and threaded down as the instant the today line is drawn at. The
+ * The clock is read once, here — `new Date()`, which is what `PlanScreen.at` takes — and threaded
+ * down as the instant the today line is drawn at, as the `/s/<token>` page does. The
  * canvas takes it as a prop rather than reading the clock itself, which is what `todayLine` in
  * `@repo/canvas` asks of a caller — "A caller reads the clock; this reads the caller" — and is why a
  * test can pin a date and get one answer.
  *
  * What it hands down is **not** what the API answered. `plans.read()` serves an admin every seat on
- * the plan and its live token, and `read-plan.ts` reduces that to a `PlanPageModel` whose type
+ * the plan and its live token, and `read-plan.ts` reduces that to a `PlanScreenModel` whose type
  * cannot hold one — so there is no share token in this page's props for the Flight payload to carry,
- * and none for a client component added inside `PlanScreen` to drag into the HTML (ADR 0033).
+ * and none for a client component added inside `PlanScreen` to drag into the HTML (ADR 0033). That is
+ * the same type `PlanScreen` takes and the same one `/s/<token>` reduces to, so the guarantee is one
+ * compiler check on both surfaces rather than a mechanism per page.
  *
  * A plan the API does not hold, and an id that is not a ULID, are both `not-found.tsx`; `read-plan.ts`
  * is where that is argued. Every other refusal is said in place of the timeline, in this surface's own

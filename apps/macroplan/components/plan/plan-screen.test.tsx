@@ -1,11 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PlanScreen } from './plan-screen'
+import { planScreenModel } from './plan-screen-model'
 import { atlasPlan, FEATURE_1, ITEM_1 } from './testing/plan-fixture'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
-const show = () => render(<PlanScreen at={AT} plan={atlasPlan()} />)
+// The fixture is a `StoredPlan`, where `shareLinks` is required, and `PlanScreen.plan` is the type a
+// token cannot be represented in — so the fixture is reduced by the component's own reducer rather
+// than cast past it. That the unwrapped call no longer compiles is the narrowing working.
+const show = () => render(<PlanScreen at={AT} plan={planScreenModel(atlasPlan())} />)
 
 const radio = (name: string): HTMLInputElement => {
   const found = screen.getByRole('radio', { name })

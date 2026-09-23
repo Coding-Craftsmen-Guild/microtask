@@ -1,5 +1,5 @@
-import type { Plan } from '@repo/api-client'
 import { PlanCanvas } from './canvas/plan-canvas'
+import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
 
 const VIEWS = 'flex flex-wrap items-center gap-x-2 gap-y-4'
@@ -30,8 +30,11 @@ const TABLE_PANEL =
 
 /** Props for {@link PlanScreen}. */
 export interface PlanScreenProps {
-  /** The plan and the schedule derived from it, exactly as `GET /plans/{planId}` answered. */
-  readonly plan: Plan
+  /**
+   * The plan and the schedule derived from it — reduced by `planScreenModel`, so the type cannot
+   * hold a share token and neither surface can hand this component one (ADR 0033).
+   */
+  readonly plan: PlanScreenModel
 
   /** The instant the page was rendered, threaded down so the whole screen dates itself alike. */
   readonly at: Date
@@ -46,6 +49,14 @@ export interface PlanScreenProps {
  * own scroller; a page-level one would scroll the plan's name and settings line with the bars. The
  * table sits **outside** that scroller: it is as wide as the column and wraps, and a table inside a
  * horizontal scroller would be reachable only by scrolling past a picture.
+ *
+ * Its `plan` is a {@link PlanScreenModel} and not a `Plan`, which is the one place both surfaces'
+ * guarantee about share tokens is spent. The admin page and `/s/<token>` each reduce the view their
+ * read answered before anything sees it, and this prop is what makes that a **compile** error to skip
+ * rather than a leak sweep away from shipping: a plan carrying `shareLinks` is not assignable here, so
+ * no page can hand this subtree a token and no client component added inside it later can drag one
+ * into the Flight payload (ADR 0033). The canvas and the table below still take a whole `Plan`,
+ * because the model is assignable to one — the narrowing is a ceiling and costs them nothing.
  *
  * Neither the name nor the settings line carries a `data-testid`. The name is the page's `h1` and the
  * settings line is one unambiguous sentence, so a role query and a text query reach both — and those
