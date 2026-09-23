@@ -7,11 +7,20 @@ import { placeAmong } from './positions.js'
 import type { ItemRef, PlanRef } from './refs.js'
 import { assertFeature, densifiedItems, featureItems, pickItem } from './structure-mapper.js'
 
-/** What a new item is created from. A new item is linked to no Microtask task. */
+/**
+ * What a new item is created from. A new item is linked to no Microtask task.
+ *
+ * `estimateDays` spells `| undefined` beside its `null`, for the reason
+ * `@repo/microtask-domain`'s `ScopeRequest` and this package's own `NewPlan` already record: under
+ * `exactOptionalPropertyTypes` a validated request body infers
+ * `estimateDays?: number | null | undefined`, and would otherwise not be assignable here. The three
+ * spellings are two meanings — `undefined` and absent both mean "say nothing", `null` means "no
+ * estimate" — which is what the `?? null` in {@link ItemService.add} reads them as.
+ */
 export interface NewItem {
   readonly featureId: string
   readonly name: string
-  readonly estimateDays?: number | null
+  readonly estimateDays?: number | null | undefined
 }
 
 /**
@@ -22,10 +31,14 @@ export interface NewItem {
  * one optional would leave "clear it" with no spelling at all. `linkedTaskId` is absent from this
  * interface for the reason `binding` is absent from `EpicChanges`: it is the bridge, phase 4 writes
  * it, and nothing reachable from here may.
+ *
+ * Both members spell `| undefined` for the reason {@link NewItem}'s estimate does: a validated
+ * `PATCH` body infers `name?: string | undefined`, and {@link ItemService.update} tests each key
+ * against `undefined`, so present-and-undefined leaves the field exactly as absent does.
  */
 export interface ItemChanges {
-  readonly name?: string
-  readonly estimateDays?: number | null
+  readonly name?: string | undefined
+  readonly estimateDays?: number | null | undefined
 }
 
 /** Where an item is going: which feature, and where inside it. */

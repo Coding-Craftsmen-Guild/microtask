@@ -225,6 +225,74 @@ describe('a plan seat reaches exactly what its role grants, and the gate decides
   })
 })
 
+describe('a write seat edits a plan but cannot restructure it, which is spec §10 on the wire', () => {
+  const FEATURES = `${ONE}/features`
+  const draftedFeature = JSON.stringify({ epicId: PLAN_IDS.e1, name: 'A feature' })
+
+  const addFeatureAs = async (token: string): Promise<number> =>
+    (await (await buildMacroplanApp()).request(FEATURES, {
+      method: 'POST',
+      headers: linkJson(token),
+      body: draftedFeature,
+    })).status
+
+  const deleteFeatureAs = async (token: string): Promise<number> =>
+    (await (await buildMacroplanApp()).request(`${FEATURES}/${PLAN_IDS.f1}`, {
+      method: 'DELETE',
+      headers: asLink(token),
+    })).status
+
+  it('clears the write seat on POST /features, feature:create being a write action', async () => {
+    expect(await addFeatureAs(PLAN_TOKENS.write)).toBe(200)
+  })
+
+  it('refuses the write seat on DELETE /features/{featureId}, so write cannot become manage', async () => {
+    expect(await deleteFeatureAs(PLAN_TOKENS.write)).toBe(403)
+  })
+
+  it('clears the manage seat on both, which is what makes that refusal mean something', async () => {
+    const statuses = [
+      await addFeatureAs(PLAN_TOKENS.manage),
+      await deleteFeatureAs(PLAN_TOKENS.manage),
+    ]
+    expect(statuses).toEqual([200, 200])
+  })
+
+  it('refuses the view seat on both, a read holder restructuring nothing', async () => {
+    const statuses = [
+      await addFeatureAs(PLAN_TOKENS.view),
+      await deleteFeatureAs(PLAN_TOKENS.view),
+    ]
+    expect(statuses).toEqual([403, 403])
+  })
+
+  it('refuses the colliding plan manage seat on both, one plan being no other', async () => {
+    const statuses = [
+      await addFeatureAs(PLAN_TOKENS.collidingManage),
+      await deleteFeatureAs(PLAN_TOKENS.collidingManage),
+    ]
+    expect(statuses).toEqual([403, 403])
+  })
+
+  it('validates the body before the in-product gate, so a valid body is what a sweep must send', async () => {
+    const response = await (await buildMacroplanApp()).request(FEATURES, {
+      method: 'POST',
+      headers: linkJson(PLAN_TOKENS.view),
+      body: JSON.stringify({ nonsense: true }),
+    })
+    expect(response.status).toBe(422)
+  })
+
+  it('refuses a Microtask seat before that, so the other product gets no schema oracle at all', async () => {
+    const response = await (await buildMacroplanApp()).request(FEATURES, {
+      method: 'POST',
+      headers: linkJson(TOKENS.p1Manage),
+      body: JSON.stringify({ nonsense: true }),
+    })
+    expect(response.status).toBe(403)
+  })
+})
+
 describe('the admin is cleared on all five plan routes', () => {
   it('reaches the two collections', async () => {
     const app = await buildMacroplanApp()

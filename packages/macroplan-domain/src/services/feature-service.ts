@@ -9,12 +9,21 @@ import { placeAmong } from './positions.js'
 import type { PlanRef } from './refs.js'
 import { assertEpic, assertFeature, densifiedFeatures, pickFeature, railFeatures } from './structure-mapper.js'
 
-/** What a new feature is created from. It starts with no dependencies at all. */
+/**
+ * What a new feature is created from. It starts with no dependencies at all.
+ *
+ * The two optional members spell `| undefined` beside their `null`, for the reason
+ * `@repo/microtask-domain`'s `ScopeRequest` and this package's own `NewPlan` already record: under
+ * `exactOptionalPropertyTypes` a validated request body infers
+ * `estimateDays?: number | null | undefined`, and would otherwise not be assignable here. The three
+ * spellings are two meanings — `undefined` and absent both mean "say nothing", `null` means "no
+ * estimate" — which is what the `?? null` in {@link FeatureService.add} reads them as.
+ */
 export interface NewFeature {
   readonly epicId: string
   readonly name: string
-  readonly estimateDays?: number | null
-  readonly pinSprint?: number | null
+  readonly estimateDays?: number | null | undefined
+  readonly pinSprint?: number | null | undefined
 }
 
 /**
@@ -26,11 +35,15 @@ export interface NewFeature {
  * it" with no spelling of its own. `dependsOn` is absent here: replacing an edge list is checked
  * against the plan-wide edge budget and refused when it closes a cycle, which is a different
  * operation and is {@link FeatureService.setDependencies}.
+ *
+ * Every member spells `| undefined` for the reason {@link NewFeature}'s two do: a validated `PATCH`
+ * body infers `name?: string | undefined`, and {@link FeatureService.update} tests each key against
+ * `undefined`, so present-and-undefined leaves the field exactly as absent does.
  */
 export interface FeatureChanges {
-  readonly name?: string
-  readonly estimateDays?: number | null
-  readonly pinSprint?: number | null
+  readonly name?: string | undefined
+  readonly estimateDays?: number | null | undefined
+  readonly pinSprint?: number | null | undefined
 }
 
 /** Where a feature is going: which rail, and where along it. */

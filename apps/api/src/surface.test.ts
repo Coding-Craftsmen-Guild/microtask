@@ -14,6 +14,9 @@ const SAMPLES: Readonly<Record<string, string>> = {
   token: TOKENS.p1View,
   sessionId: IDS.missing,
   planId: PLAN_IDS.plan,
+  epicId: PLAN_IDS.e1,
+  featureId: PLAN_IDS.f1,
+  itemId: PLAN_IDS.i1,
 }
 
 /**
@@ -89,9 +92,12 @@ describe('guard (2): the credential matrix, per route group', () => {
     const groups = (await oneCallPerGroup()).map((call) => call.group).sort()
     expect(groups).toEqual([
       'auth',
+      'epics',
       'export',
+      'features',
       'folders',
       'import',
+      'items',
       'meta',
       'plans',
       'projects',
@@ -185,20 +191,23 @@ const handlerCount = async (): Promise<number> =>
 /**
  * Gates beyond one per guarded operation, counted rather than allowed for.
  *
- * `PATCH /v1/macroplan/plans/{planId}` carries two authorities in one body: a `name` needs
- * `plan:rename` and a calendar field needs `plan:retime`. Its handler asks for each action the
- * body's present keys imply and never for one the body omitted, which costs two extra textual
- * `authorize(` calls — the branch that asks a single action, and the second gate a body doing both
- * runs into.
+ * Three `PATCH` routes carry two authorities in one body, and each costs **two** extra textual
+ * `authorize(` calls: the branch that asks a single action, and the second gate a body doing both
+ * runs into. `PATCH /v1/macroplan/plans/{planId}` is one — a `name` needs `plan:rename` and a
+ * calendar field needs `plan:retime`. The other two are `PATCH .../features/{featureId}`, where a
+ * `name` needs `feature:rename` and an `estimateDays` or `pinSprint` needs `feature:estimate`, and
+ * `PATCH .../items/{itemId}`, where a `name` needs `item:rename` and an `estimateDays` needs
+ * `item:estimate`. Each handler asks for each action the body's present keys imply and never for one
+ * the body omitted, which is what makes three routes cost six.
  *
  * Counted here rather than turned into a `>=`, because the equality is the whole guard: a handler
  * that forgot its gate makes the total fall **short** of this sum, and a `>=` would let one
  * handler's second gate pay for another handler's missing first.
  */
-const EXTRA_GATES = 2
+const EXTRA_GATES = 6
 
 describe('guard (3): one authorize( per handler, and one can() in the app', () => {
-  it('counts one authorize( per guarded operation, plus the two a two-authority body adds', async () => {
+  it('counts one authorize( per guarded operation, plus the six three two-authority bodies add', async () => {
     expect(await matchesIn(await under('./routes/'), GATE())).toBe(
       (await handlerCount()) + EXTRA_GATES,
     )

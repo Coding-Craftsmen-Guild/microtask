@@ -1,5 +1,11 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import { PlanService, type PlanContext } from '@repo/macroplan-domain'
+import {
+  EpicService,
+  FeatureService,
+  ItemService,
+  PlanService,
+  type PlanContext,
+} from '@repo/macroplan-domain'
 import { AdminVerifier } from '../../auth/admin-verifier.js'
 import type { ApiEnv } from '../../auth/env.js'
 import { linkDirectories } from '../../auth/link-directory.js'
@@ -11,6 +17,7 @@ import { createPlanScoped } from './plan-scoped.js'
 import { createPlan, listPlans } from './plans/handlers.js'
 import { createPlanRoute, listPlansRoute } from './plans/routes.js'
 import { PRODUCT } from './product.js'
+import type { PlanServices } from './services.js'
 
 const resolverFor = (deps: ApiDeps): PrincipalResolver =>
   new PrincipalResolver({
@@ -25,6 +32,13 @@ const contextFor = (deps: ApiDeps): PlanContext => ({
   clock: deps.clock,
   ids: deps.ids,
   tokens: deps.tokens,
+})
+
+const servicesFor = (ctx: PlanContext): PlanServices => ({
+  plans: new PlanService(ctx),
+  epics: new EpicService(ctx),
+  features: new FeatureService(ctx),
+  items: new ItemService(ctx),
 })
 
 /**
@@ -67,9 +81,9 @@ export function createMacroplan(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
   app.use('*', requirePrincipal(resolverFor(deps), deps.config.serviceKeys))
   app.use('*', requireProduct(PRODUCT))
-  const plans = new PlanService(contextFor(deps))
-  app.openapi(listPlansRoute, listPlans(plans))
-  app.openapi(createPlanRoute, createPlan(plans))
-  app.route('/plans/:planId', createPlanScoped(plans))
+  const services = servicesFor(contextFor(deps))
+  app.openapi(listPlansRoute, listPlans(services.plans))
+  app.openapi(createPlanRoute, createPlan(services.plans))
+  app.route('/plans/:planId', createPlanScoped(services))
   return app
 }

@@ -1,8 +1,11 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
-import type { PlanService } from '@repo/macroplan-domain'
 import type { ApiEnv } from '../../auth/env.js'
+import { createEpics } from './epics/app.js'
+import { createFeatures } from './features/app.js'
+import { createItems } from './items/app.js'
 import { deletePlan, readPlan, updatePlan } from './plans/handlers.js'
 import { deletePlanRoute, readPlanRoute, updatePlanRoute } from './plans/routes.js'
+import type { PlanServices } from './services.js'
 
 /**
  * The subtree addressed by one plan id.
@@ -13,11 +16,14 @@ import { deletePlanRoute, readPlanRoute, updatePlanRoute } from './plans/routes.
  *
  * It is returned fully populated. A route added to a child after its parent has served is not an
  * error and not a warning — it is silently unreachable, and absent from the document besides — so
- * every route this subtree will ever have is registered before `createMacroplan` mounts it.
+ * every route this subtree will ever have is registered before `createMacroplan` mounts it. That
+ * applies to the three children below as well: each is complete when it arrives.
  *
- * It is handed the service rather than `ApiDeps`, because the `PlanContext` a Macroplan service is
+ * It is handed the services rather than `ApiDeps`, because the `PlanContext` a Macroplan service is
  * built from is assembled once at the mount above: that is the one place the two domains' differing
- * `store` members are told apart, and nothing below here should have to know there are two.
+ * `store` members are told apart, and nothing below here should have to know there are two. The
+ * record it takes rather than a parameter per service is what keeps that property affordable as the
+ * subtree grows — and each child receives only the services its own routes call.
  *
  * It carries **no guard of its own**. `createMacroplan` registers `requirePrincipal` and
  * `requireProduct` as `'*'` above this mount, and a parent's middleware runs for every path beneath
@@ -25,10 +31,13 @@ import { deletePlanRoute, readPlanRoute, updatePlanRoute } from './plans/routes.
  * not is authorized: each handler still builds a target from its validated `planId` and calls
  * `authorize`, and that call is the only thing standing between a seat on one plan and another.
  */
-export function createPlanScoped(plans: PlanService): OpenAPIHono<ApiEnv> {
+export function createPlanScoped(services: PlanServices): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
-  app.openapi(readPlanRoute, readPlan(plans))
-  app.openapi(updatePlanRoute, updatePlan(plans))
-  app.openapi(deletePlanRoute, deletePlan(plans))
+  app.openapi(readPlanRoute, readPlan(services.plans))
+  app.openapi(updatePlanRoute, updatePlan(services.plans))
+  app.openapi(deletePlanRoute, deletePlan(services.plans))
+  app.route('/epics', createEpics(services.epics))
+  app.route('/features', createFeatures(services.features))
+  app.route('/items', createItems(services.items, services.plans))
   return app
 }

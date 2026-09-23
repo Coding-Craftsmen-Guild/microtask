@@ -39,7 +39,12 @@ interface Sample {
 
 const json = (value: unknown): string => JSON.stringify(value)
 
-const FIRST_SESSION = sequentialIds().entityId()
+const MINTED = sequentialIds()
+
+const FIRST_SESSION = MINTED.entityId()
+const FIRST_EPIC = MINTED.entityId()
+const FIRST_FEATURE = MINTED.entityId()
+const FIRST_ITEM = MINTED.entityId()
 
 const OPEN_SESSION: Step = {
   method: 'POST',
@@ -64,6 +69,44 @@ const DRAFT_A_PLAN: Step = {
 }
 
 const FIRST_PLAN_PATH = `${MACROPLAN_PREFIX}/plans/${FIRST_SESSION}`
+
+/**
+ * The structural routes need a rail, a feature on it and an item under that, in that order.
+ *
+ * Each builds on the one before it and each mints the next id from the same generator the plan draft
+ * started, so `FIRST_EPIC`, `FIRST_FEATURE` and `FIRST_ITEM` are the second, third and fourth ids a
+ * fresh app hands out. Sound for the same reason `FIRST_SESSION` is: every sample gets its own app,
+ * and these steps are the only things in it minting ids before the sample runs.
+ */
+const ADD_AN_EPIC: Step = {
+  method: 'POST',
+  path: `${FIRST_PLAN_PATH}/epics`,
+  headers: adminJson(),
+  body: JSON.stringify({ name: 'Checkout' }),
+}
+
+const ADD_A_FEATURE: Step = {
+  method: 'POST',
+  path: `${FIRST_PLAN_PATH}/features`,
+  headers: adminJson(),
+  body: JSON.stringify({ epicId: FIRST_EPIC, name: 'Basket', estimateDays: 4 }),
+}
+
+const ADD_AN_ITEM: Step = {
+  method: 'POST',
+  path: `${FIRST_PLAN_PATH}/items`,
+  headers: adminJson(),
+  body: JSON.stringify({ featureId: FIRST_FEATURE, name: 'Add to basket', estimateDays: 1 }),
+}
+
+const ON_A_PLAN = [DRAFT_A_PLAN] as const
+const ON_A_RAIL = [DRAFT_A_PLAN, ADD_AN_EPIC] as const
+const ON_A_FEATURE = [DRAFT_A_PLAN, ADD_AN_EPIC, ADD_A_FEATURE] as const
+const ON_AN_ITEM = [DRAFT_A_PLAN, ADD_AN_EPIC, ADD_A_FEATURE, ADD_AN_ITEM] as const
+
+const EPIC_PATH = `${FIRST_PLAN_PATH}/epics/${FIRST_EPIC}`
+const FEATURE_PATH = `${FIRST_PLAN_PATH}/features/${FIRST_FEATURE}`
+const ITEM_PATH = `${FIRST_PLAN_PATH}/items/${FIRST_ITEM}`
 
 const STAGE_ARCHIVE: Step = {
   method: 'POST',
@@ -129,6 +172,80 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     setup: [DRAFT_A_PLAN],
   },
   [`DELETE ${PLAN}`]: { path: FIRST_PLAN_PATH, headers: admin(), setup: [DRAFT_A_PLAN] },
+  [`POST ${PLAN}/epics`]: {
+    path: `${FIRST_PLAN_PATH}/epics`,
+    headers: adminJson(),
+    body: json({ name: 'Billing' }),
+    setup: ON_A_PLAN,
+  },
+  [`PATCH ${PLAN}/epics/{epicId}`]: {
+    path: EPIC_PATH,
+    headers: adminJson(),
+    body: json({ name: 'Renamed', colour: '#ff8833' }),
+    setup: ON_A_RAIL,
+  },
+  [`PATCH ${PLAN}/epics/{epicId}/placement`]: {
+    path: `${EPIC_PATH}/placement`,
+    headers: adminJson(),
+    body: json({ railOrder: 0 }),
+    setup: ON_A_RAIL,
+  },
+  [`DELETE ${PLAN}/epics/{epicId}`]: { path: EPIC_PATH, headers: admin(), setup: ON_A_RAIL },
+  [`POST ${PLAN}/features`]: {
+    path: `${FIRST_PLAN_PATH}/features`,
+    headers: adminJson(),
+    body: json({ epicId: FIRST_EPIC, name: 'Checkout page', estimateDays: 3 }),
+    setup: ON_A_RAIL,
+  },
+  [`PATCH ${PLAN}/features/{featureId}`]: {
+    path: FEATURE_PATH,
+    headers: adminJson(),
+    body: json({ name: 'Renamed', estimateDays: 5, pinSprint: 1 }),
+    setup: ON_A_FEATURE,
+  },
+  [`PATCH ${PLAN}/features/{featureId}/placement`]: {
+    path: `${FEATURE_PATH}/placement`,
+    headers: adminJson(),
+    body: json({ epicId: FIRST_EPIC, position: 0 }),
+    setup: ON_A_FEATURE,
+  },
+  [`PUT ${PLAN}/features/{featureId}/dependencies`]: {
+    path: `${FEATURE_PATH}/dependencies`,
+    headers: adminJson(),
+    body: json({ dependsOn: [] }),
+    setup: ON_A_FEATURE,
+  },
+  [`DELETE ${PLAN}/features/{featureId}`]: {
+    path: FEATURE_PATH,
+    headers: admin(),
+    setup: ON_A_FEATURE,
+  },
+  [`POST ${PLAN}/items`]: {
+    path: `${FIRST_PLAN_PATH}/items`,
+    headers: adminJson(),
+    body: json({ featureId: FIRST_FEATURE, name: 'Basket totals', estimateDays: 3 }),
+    setup: ON_A_FEATURE,
+  },
+  [`GET ${PLAN}/items/{itemId}`]: { path: ITEM_PATH, headers: admin(), setup: ON_AN_ITEM },
+  [`PATCH ${PLAN}/items/{itemId}`]: {
+    path: ITEM_PATH,
+    headers: adminJson(),
+    body: json({ name: 'Renamed', estimateDays: 2 }),
+    setup: ON_AN_ITEM,
+  },
+  [`PATCH ${PLAN}/items/{itemId}/placement`]: {
+    path: `${ITEM_PATH}/placement`,
+    headers: adminJson(),
+    body: json({ featureId: FIRST_FEATURE, position: 0 }),
+    setup: ON_AN_ITEM,
+  },
+  [`PUT ${PLAN}/items/{itemId}/description`]: {
+    path: `${ITEM_PATH}/description`,
+    headers: adminJson(),
+    body: json({ description: 'Sum the lines, then apply the discount.' }),
+    setup: ON_AN_ITEM,
+  },
+  [`DELETE ${PLAN}/items/{itemId}`]: { path: ITEM_PATH, headers: admin(), setup: ON_AN_ITEM },
   [`GET ${PROJECT}`]: { path: P1, headers: admin() },
   [`PATCH ${PROJECT}`]: { path: P1, headers: adminJson(), body: json({ name: 'Renamed' }) },
   [`DELETE ${PROJECT}`]: { path: P1, headers: admin() },

@@ -10,11 +10,15 @@ import { ACTIONS, type Action } from '@repo/kernel'
  *
  * Task 2 widened `ACTIONS` with twenty-four of these; the routes that gate them land in Tasks 15, 16
  * and 16b, and each of those empties its own rows out of this set. Task 15 struck off the six the
- * plan routes now gate — the two workspace collections and the four `plan:` actions — leaving the
- * rails and what sits on them. Task 17 is where the plan commits to asserting the set is finally
- * empty — a commitment, not yet an enforcement: until that step is written, nothing here fails if
- * the last rows are never struck off. What the assertion below does enforce today is that no row
- * outlives its own route.
+ * plan routes gate — the two workspace collections and the four `plan:` actions. Task 16 struck off
+ * the sixteen its epic, feature and item routes gate, which is every remaining action a phase-1
+ * route can reach.
+ *
+ * The two left are the bridge, and **no phase-1 route gates either**: `epic:bind` writes an epic's
+ * binding and `item:link` writes an item's `linkedTaskId`, both of which spec §9 reserves for phase
+ * 4 — `UpdateEpicPayload` and `UpdateItemPayload` do not even declare those fields, and Task 16's
+ * suites assert the stored values stay `null` after a body that names one. So this set does not
+ * become empty at the end of Task 16b: it holds these two until the bridge is built.
  *
  * Written out one by one rather than matched by prefix: a `plan:`/`epic:`/`feature:`/`item:` rule
  * would silently swallow the next Macroplan action somebody adds without a route, and the whole
@@ -29,26 +33,7 @@ import { ACTIONS, type Action } from '@repo/kernel'
  * passes its action through a variable leaves its row here green and unremoved. Gate the new
  * routes on literals, or remove their rows by hand when you do not.
  */
-const PENDING_ROUTES: ReadonlySet<Action> = new Set([
-  'epic:create',
-  'epic:rename',
-  'epic:delete',
-  'epic:reorder',
-  'epic:bind',
-  'feature:create',
-  'feature:rename',
-  'feature:estimate',
-  'feature:delete',
-  'feature:place',
-  'feature:depend',
-  'item:create',
-  'item:rename',
-  'item:estimate',
-  'item:describe',
-  'item:delete',
-  'item:place',
-  'item:link',
-])
+const PENDING_ROUTES: ReadonlySet<Action> = new Set(['epic:bind', 'item:link'])
 
 const ROUTES = dirname(fileURLToPath(import.meta.url))
 

@@ -15,10 +15,16 @@ const DEFAULT_COLOUR = '#3355ff'
  * `colour` is optional and falls back to one fixed value rather than to a rotating palette: a
  * palette would decide what the canvas looks like from inside the domain, and rail colour becomes a
  * visual decision in phase 2. A caller that wants a hue sends one.
+ *
+ * It spells `| undefined` rather than relying on the `?` alone, for the reason
+ * `@repo/microtask-domain`'s `ScopeRequest` and this package's own `NewPlan` already record:
+ * under `exactOptionalPropertyTypes` a validated request body infers `colour?: string | undefined`,
+ * and would otherwise not be assignable here. Present-and-undefined means the same thing as absent,
+ * which is what {@link EpicService.add} reads it as.
  */
 export interface NewEpic {
   readonly name: string
-  readonly colour?: string
+  readonly colour?: string | undefined
 }
 
 /**
@@ -29,10 +35,14 @@ export interface NewEpic {
  * ceiling on what a link holder reaches in Microtask through the bridge, so raising or re-rolling it
  * is `epic:bind`, an admin-only action (ADR 0009), and phase 4 is what writes it. No edit reachable
  * from here may touch it.
+ *
+ * Both members spell `| undefined` for the reason {@link NewEpic}'s `colour` does: a validated
+ * `PATCH` body infers `name?: string | undefined`, and {@link EpicService.update} treats
+ * present-and-undefined exactly as it treats absent.
  */
 export interface EpicChanges {
-  readonly name?: string
-  readonly colour?: string
+  readonly name?: string | undefined
+  readonly colour?: string | undefined
 }
 
 const applied = (current: PlanEpic, changes: EpicChanges, updatedAt: string): PlanEpic => ({
