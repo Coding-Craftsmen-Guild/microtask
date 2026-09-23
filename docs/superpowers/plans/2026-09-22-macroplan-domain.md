@@ -1640,6 +1640,12 @@ before sprint 5", and sprint 5 is wherever sprint 5 now is.
 - Create: `packages/macroplan-domain/src/services/{epic,feature,item}-service.test.ts`
 - Create: `packages/macroplan-domain/src/services/cascade.test.ts`
 - Create: `packages/macroplan-domain/src/views/plan-view.ts`, `src/views/plan-view.test.ts`
+- Create: `packages/macroplan-domain/src/services/structure-mapper.ts` — pick, assert and group,
+  plus the `railOrder`↔`position` translation, so each service does not restate them
+- Create: `packages/macroplan-domain/src/services/cascade.ts` — the two removals, so the epic and
+  feature deletes do not hold two copies of the edge-strip
+- Create: `packages/macroplan-domain/src/views/view-leaks.test.ts` — the plan-shaped equivalent of
+  Microtask's, walking six callers over all three view functions
 - Modify: `packages/macroplan-domain/src/index.ts`
 
 Three classes rather than one, because ADR 0027 caps a file at 150 lines and one `StructureService`
@@ -1680,6 +1686,13 @@ export interface ItemPlacement { readonly featureId: string; readonly position: 
 Every `changes` interface distinguishes **absent** from **null**, matching the payloads:
 `estimateDays?: number | null` where `undefined` leaves it and `null` clears it. This is the single
 most bug-prone line in the group; it gets its own test in each of the three suites.
+
+**One exception, and it is in the entities rather than the rule:** `EpicChanges` has no such pair to
+distinguish. An epic's `name` and `colour` are always present, and `binding` is untouchable — so
+there is no nullable editable field and no `null` spelling to test. The epic suite asserts the
+reachable half (absent leaves a field, a value sets it) and spends the rest of its attention on what
+*is* at risk there: that an epic's `binding` survives a rename, a recolour, a `place`, a sibling
+`add` and a sibling `remove`, unchanged.
 
 `positions.ts` holds the one renumbering rule both `place` methods and every `add` use:
 
@@ -2203,9 +2216,13 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
 - Create: `docs/adr/0054-one-token-index-identity-stays-a-capability.md`
 - Modify: `docs/adr/0014-namespace-products-now.md` — an amendment retracting its consequence that
   "share tokens stay globally unique across products, so the token index needs no product dimension".
-  The index now **must** carry one: `TokenOwner`'s `product` is what selects the store the live link
-  is read from, so the dimension is load-bearing rather than absent. Tokens are still globally unique;
-  it is the *resolution* that needs to know the product, which is not what that sentence claimed.
+  Keep the **premise** intact: tokens *are* still globally unique, and the index is what enforces it,
+  its map being keyed by the token alone. Only the inference fails, and the dimension it denied is
+  load-bearing **twice**: `TokenOwner`'s `product` selects the store the live link is read from, and
+  it is half the **ownership key** for `add`, `remove` and `collisions` — which is what stops a plan
+  and a project of the same ULID evicting each other's tokens. Record the standing constraint that
+  falls out of the second role: one product tag must name exactly one kind of token-owning container,
+  because `add` replaces an owner's whole set and would evict silently, raising no `Conflict`.
 - Modify: `docs/adr/0038-capabilities-role-and-scope.md` — an amendment noting the plan scope and the
   widened cross product, since that ADR's agreement argument is what now covers twenty-four more actions
 - Modify: `docs/superpowers/specs/2026-09-22-macroplan-design.md` — §11's table marks 0048–0051, 0053
