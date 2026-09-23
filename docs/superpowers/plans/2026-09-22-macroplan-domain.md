@@ -2205,9 +2205,15 @@ caller's own scope so the rule stays true if an epic variant is ever added.
 returns the caller's role, its scope, and the plan it reaches — a `PlanShareView`, mirroring
 Microtask's `ShareView` in shape. It does **not** carry the `capabilities()` projection. An earlier
 draft of this sentence asked for one, which contradicted the instruction beside it to mirror Microtask
-exactly: no API response carries that record, and serving one would contradict ADR 0038's premise,
-that `@repo/contracts` computes the projection **in the browser** precisely because an app may not
-import `@repo/kernel`. A client calls `capabilities(role, scope)` on what this route returns. **Mirror
+exactly: no API response carries that record today. But the reason is **not** a premise about the
+browser, which is what an earlier draft of this paragraph claimed. ADR 0038 calls serving the set
+"genuinely the cleanest" option and rejects it **on reach, not on principle** — the set is needed to
+render Server Components that have made no bootstrap call, so serving it threads the capability set
+as a prop through the whole tree — and it records that the decision is "worth revisiting if
+`shares/current` becomes a hard dependency of every page anyway". The API *can* import
+`@repo/kernel`; that is exactly why the ADR says serving it would leave **one** implementation and
+not two. So what keeps it out of this response is reach and the mirror, and phase 2 or 3 may well
+reopen it. A client calls `capabilities(role, scope)` on what this route returns. **Mirror
 `microtask/shares/handlers.ts` exactly — including its `authorize` call**, which is
 `authorize(c, 'plan:read', { kind: 'plan', planId })` against the caller's own scope root.
 
@@ -2399,6 +2405,16 @@ undecided, and an ADR recording a decision that has not been taken is worse than
       source tree for `ADR 00(4[89]|5[0-4])` and confirm each number has a file in `docs/adr/`. A
       TSDoc citing an ADR that was never written is a dead reference a reader cannot follow, and it
       is invisible until someone tries.
+- [ ] **Step 6b2: every ADR citation in the Macroplan tree says what its ADR says.** Step 6b catches
+      a citation pointing at *nothing*. It cannot catch one pointing at the *wrong* ADR, and review
+      found three of those in one afternoon: `require-product.ts` credited ADR 0013 for a
+      cross-product claim that belongs to ADR 0014's amendment; `epic-service.ts` credited ADR 0009
+      for `epic:bind` being admin-only, when 0009 is about actions with **no single target** and
+      `epic:bind` has one; and `plan-views.ts` credited ADR 0017, an import/export decision, for a
+      claim about what a bootstrap view may carry. Every one of those numbers resolves to a real
+      file, so the grep passes and the reader is misled anyway. So: list every `ADR 00NN` in the
+      Macroplan source, open each ADR, and confirm it makes the claim attributed to it. Report a
+      verdict per citation rather than a count — a count is what let these three through.
 - [ ] **Step 6c: `packages/kernel/src/storage/` holds more than one module, or it is flattened.**
       Task 1 created that directory for `contained.ts` alone. The kernel's two existing
       subdirectories (`access/`, `ports/`) each launched with five files, while its single-purpose
