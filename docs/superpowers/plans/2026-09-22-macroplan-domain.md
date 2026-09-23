@@ -131,7 +131,7 @@ packages/macroplan-domain/src/
   index.ts                      the barrel
 
 apps/api/src/
-  deps.ts                       + planStore
+  deps.ts                       + plans
   runtime.ts                    + FsPlanStore; warmTokenIndex walks both stores
   auth/link-directory.ts        LinkDirectory + one adapter per product
   auth/principal-resolver.ts    takes a directory per product, indexed by owner.product
@@ -1890,7 +1890,7 @@ semantics in one monorepo is how one of them ends up wrong:
 - Modify: `apps/api/package.json` — `@repo/macroplan-domain` joins `dependencies`; `@repo/schedule`
   joins **`devDependencies`**, because the API never calls `schedule()` itself — the domain's
   `planView` does — and the only file here that imports it is `agreement.test.ts`
-- Modify: `apps/api/src/deps.ts` — `readonly planStore: PlanStore`
+- Modify: `apps/api/src/deps.ts` — `readonly plans: PlanStore` (already present — verify rather than add)
 - Modify: `apps/api/src/runtime.ts` — construct `FsPlanStore` beside `FsProjectStore`
 - Modify: `apps/api/src/routes/v1.ts` — `app.route('/macroplan', createMacroplan(deps))`
 - Create: `apps/api/src/routes/macroplan/{index,product,params,plan-scoped}.ts`
@@ -1917,7 +1917,7 @@ Where that happens, the guard owns the refusal and the check owns the type, and 
 `Forbidden` is unreachable through the app. Say so rather than implying it still refuses anyone.
 
 `PrincipalResolver` resolves a bearer for **both** products. Since Task 2c it takes a `LinkDirectory`
-per product, so a Macroplan token resolves against `deps.planStore` and a Microtask one against
+per product, so a Macroplan token resolves against `deps.plans` and a Microtask one against
 `deps.store` — and a principal rooted in the other product is then refused at the mount, below.
 `PlanContext` carries `tokens` because `PlanService.remove` drops a deleted plan's seats from the
 index; leaving it out does not typecheck.
@@ -1927,7 +1927,7 @@ mount, which is the one place the two domains' differing `store` members are tol
 
 ```ts
 const ctx: PlanContext = {
-  store: deps.planStore,
+  store: deps.plans,
   lock: deps.lock,
   clock: deps.clock,
   ids: deps.ids,
@@ -2033,6 +2033,28 @@ checked against spans a unit test already pinned.
 
 ### Task 16: epics, features and items
 
+**Three things Task 15 discovered that this task inherits.**
+
+`guard.test.ts` was written in Task 15 and its Step 1 enumerates routes **this** task creates:
+`POST /features` cleared for a `write` seat, `DELETE /features/{featureId}` refused for one. Those
+were unimplementable there — the paths 404 for a credentialed seat — so **extend
+`apps/api/src/routes/macroplan/guard.test.ts` here**, with the `manage` seat cleared on the same
+routes so each refusal means something. Spec §10's "`write` cannot become `manage`" is only asserted
+over the wire once both halves exist.
+
+`exactOptionalPropertyTypes` is on. A validated body gives `number | undefined`, which a member
+declared `sprintLengthDays?: number` cannot accept, so Task 15 widened every optional member of
+`NewPlan` and `PlanChanges` to `| undefined` — the idiom `@repo/microtask-domain`'s `ScopeRequest`
+already records verbatim. `EpicChanges`, `FeatureChanges` and `ItemChanges` need the same widening
+before a handler can pass a parsed body to them. It is semantically identical: the services test
+`!== undefined`.
+
+A `PATCH` that gates on **two** actions breaks `surface.test.ts`'s rule that the `authorize(` count
+in `src/routes/` **equals** the guarded operation count. Task 15 kept every action a **literal** — so
+`authorize-targets.test.ts` can still read them and `PENDING_ROUTES` still self-clears truthfully —
+and added a named `EXTRA_GATES` to the census instead. Raise that constant rather than relaxing the
+assertion to `>=`: a `>=` would let one handler's second gate pay for another's missing first.
+
 **Files:**
 - Create: `apps/api/src/routes/macroplan/epics/{routes,handlers,app}.ts`
 - Create: `apps/api/src/routes/macroplan/features/{routes,handlers,app}.ts`
@@ -2103,6 +2125,12 @@ Each subtree is its own `OpenAPIHono<ApiEnv>` mounted by `plan-scoped.ts`, mirro
 - [ ] **Step 5: the gate**, then commit `"Edit a plan over HTTP, and answer with the whole timeline"`.
 
 ### Task 16b: the share-link routes, and the bootstrap call
+
+**Extend `guard.test.ts` here too.** Task 15's Step 1 asked it to refuse a plan `write` seat on
+"every `share-links` route" — unimplementable there, since those paths did not exist. Assert it now:
+a `write` seat is refused **403** on `POST`, `PATCH` and `DELETE` under `/plans/{planId}/share-links`,
+with the `manage` seat cleared on the same three so the refusals mean something. That is the wire
+half of spec §10's "`write` cannot become `manage`", and the kernel half is already asserted.
 
 **Files:**
 - Create: `apps/api/src/routes/macroplan/share-links/{routes,handlers,app}.ts`
