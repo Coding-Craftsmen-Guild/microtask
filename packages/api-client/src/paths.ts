@@ -48,3 +48,23 @@ export const projectExportPath = (projectId: string): string => `${projectPath(p
 /** One import session's path, which every upload, preview and confirm is built from. */
 export const importSessionPath = (sessionId: string): string =>
   `${IMPORT_SESSIONS_PATH}/${encodeURIComponent(sessionId)}`
+
+/**
+ * The collection every plan path is built from.
+ *
+ * The `/v1/macroplan` prefix is the whole reason the Macroplan clients are siblings rather than the
+ * existing ones widened: every root above hard-codes `/v1/microtask`, and ADR 0014 puts the product
+ * dimension in the path itself, so one client cannot address both products.
+ */
+export const MACROPLAN_PLANS_PATH = '/v1/macroplan/plans'
+
+/** Where a plan seat asks about the credential it presented. */
+export const MACROPLAN_CURRENT_SHARE_PATH = '/v1/macroplan/shares/current'
+
+/** One plan, by id, with the id encoded for the reason {@link projectPath} gives. */
+export const planPath = (planId: string): string =>
+  `${MACROPLAN_PLANS_PATH}/${encodeURIComponent(planId)}`
+
+/** One item of one plan, built from the plan that owns it. */
+export const planItemPath = (planId: string, itemId: string): string =>
+  `${planPath(planId)}/items/${encodeURIComponent(itemId)}`

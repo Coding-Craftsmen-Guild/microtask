@@ -49,8 +49,12 @@ export const IgnoredEdge = z
  * ignored edge the forward pass produced.
  *
  * A schedule is computed from a plan, never stored beside one (spec §3.4) — this schema exists to
- * validate a response the API hands out, not a write it accepts, so nothing routes it yet and
- * nothing but this package's own tests parses one.
+ * validate a response the API hands out, not a write it accepts. No route answers one on its own:
+ * it travels nested in `PlanView`, the declared body of `GET /plans/{planId}`, of the plan create
+ * and retime, and of each of the fourteen edits to a plan's rails and items — all of which answer
+ * the whole plan precisely so its bars cannot disagree with what produced them. `@repo/api-client`
+ * parses it through `PlanView` on every one of those; nothing parses one directly but this
+ * package's own tests.
  */
 export const ScheduleView = z
   .object({

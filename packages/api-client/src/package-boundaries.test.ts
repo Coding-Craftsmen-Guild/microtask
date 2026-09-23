@@ -57,6 +57,25 @@ describe('the barrel is the whole public surface', () => {
     }
   })
 
+  it('exports the other product constructors, so an app need not reach past the map for one', () => {
+    expect(Object.keys(api)).toContain('createMacroplanAdminClient')
+    expect(Object.keys(api)).toContain('createMacroplanLinkClient')
+    expect(Object.keys(api)).toContain('createMacroplanSurface')
+  })
+
+  it('exports the plan path builders and roots as well, for the same reason (ADR 0036)', () => {
+    const named = Object.keys(api)
+    for (const builder of ['planPath', 'planItemPath']) expect(named).toContain(builder)
+    for (const root of ['MACROPLAN_PLANS_PATH', 'MACROPLAN_CURRENT_SHARE_PATH']) {
+      expect(named).toContain(root)
+    }
+  })
+
+  it('builds the same plan path through the barrel as the plan operations build internally', () => {
+    expect(api.planItemPath('p 1', 'i 2')).toBe(`${api.MACROPLAN_PLANS_PATH}/p%201/items/i%202`)
+    expect(api.MACROPLAN_CURRENT_SHARE_PATH).toBe('/v1/macroplan/shares/current')
+  })
+
   it('builds the same path through the barrel as the operations build internally', () => {
     expect(api.projectPath('01M240ERCRWWCN16Q5AHP1FZAQ')).toBe(
       `${api.PROJECTS_PATH}/01M240ERCRWWCN16Q5AHP1FZAQ`,

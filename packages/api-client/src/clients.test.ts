@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createAdminClient, type AdminClient } from './admin-client.js'
 import { createLinkClient, type LinkClient } from './link-client.js'
+import { createMacroplanAdminClient } from './macroplan-clients.js'
 import type { Fetcher } from './types.js'
 
 interface Recorded {
@@ -175,6 +176,32 @@ describe('every operation addresses the path the API actually serves', () => {
   it('asks the bootstrap route about the caller own credential', async () => {
     expect((await sent(() => client.currentShare())).url).toBe(
       'https://api.example.test/v1/microtask/shares/current',
+    )
+  })
+
+  const macroplan = createMacroplanAdminClient(OPTIONS, 'admin-token')
+
+  it('lists plans under the other product prefix, not this one', async () => {
+    expect((await sent(() => macroplan.plans.list())).url).toBe(
+      'https://api.example.test/v1/macroplan/plans',
+    )
+  })
+
+  it('percent-encodes a plan id rather than letting it change the path', async () => {
+    expect((await sent(() => macroplan.plans.read('p 1'))).url).toBe(
+      'https://api.example.test/v1/macroplan/plans/p%201',
+    )
+  })
+
+  it('addresses one item through the plan that owns it, encoding both segments', async () => {
+    expect((await sent(() => macroplan.plans.readItem('p 1', 'i 2'))).url).toBe(
+      'https://api.example.test/v1/macroplan/plans/p%201/items/i%202',
+    )
+  })
+
+  it('asks the plan bootstrap route, which is its own product and not a shared one', async () => {
+    expect((await sent(() => macroplan.currentShare())).url).toBe(
+      'https://api.example.test/v1/macroplan/shares/current',
     )
   })
 })
