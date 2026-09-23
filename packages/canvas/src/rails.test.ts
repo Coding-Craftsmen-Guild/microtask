@@ -116,9 +116,8 @@ describe('railLayout turns a plan and its wire schedule into one box per rail', 
   })
 
   it('orders bars within a rail by (position, id), which is what railsOf already decided', () => {
-    expect(layout()[0]?.bars.map((bar) => bar.id)).toEqual(
-      railsOf(PLAN)[0]?.map((one) => one.id),
-    )
+    expect(layout()[0]?.bars.map((bar) => bar.id)).toEqual([FT1, MILESTONE])
+    expect(railsOf(PLAN)[0]?.map((one) => one.id)).toEqual([FT1, MILESTONE])
   })
 })
 

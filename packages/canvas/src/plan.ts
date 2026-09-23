@@ -1,4 +1,4 @@
-import type { PlanStructure, ScheduleEpic } from '@repo/schedule'
+import type { PlanStructure, ScheduleEpic, Span } from '@repo/schedule'
 
 /**
  * A rail's record as the canvas reads it: `@repo/schedule`'s `ScheduleEpic` plus the one field the
@@ -23,9 +23,11 @@ export interface CanvasEpic extends ScheduleEpic {
  * rail. Only `epics` is narrowed, and `readonly CanvasEpic[]` is assignable to
  * `readonly ScheduleEpic[]`, so a `CanvasPlan` is a `PlanStructure` by construction.
  *
- * A contracts-shaped `PlanView` satisfies this structurally and needs no adapter: every member here
- * is the narrowest type the layout reads, and `PlanEpic`, `PlanFeature` and `PlanItem` are each
- * wider than their counterpart.
+ * A contracts-shaped `PlanView` satisfies this structurally and needs no adapter: `PlanEpic`,
+ * `PlanFeature` and `PlanItem` are each wider than their counterpart here, and nothing in this shape
+ * is optional, so `exactOptionalPropertyTypes` cannot bite. Not every member is one the layout
+ * reads — `pinSprint` and `dependsOn` are read by the forward pass and by nothing here — they are
+ * present because `railsOf` takes a whole `PlanStructure`, which is the paragraph above.
  */
 export interface CanvasPlan extends PlanStructure {
   readonly epics: readonly CanvasEpic[]
@@ -40,18 +42,14 @@ export interface CanvasPlan extends PlanStructure {
  * than an import of it, for the reason `packages/ui/src/transfer/vocabulary.ts` restates its own: the
  * declaration lives in `@repo/contracts`, which depends on Zod, and this package's purity test
  * asserts it declares no runtime dependency beyond `@repo/schedule`.
+ *
+ * The **pair of offsets** is not restated, though: it extends `@repo/schedule`'s `Span`, so the one
+ * pair of numbers both packages have to agree about is declared once. `endDay` is exclusive there,
+ * which is what makes a width `endDay - startDay` with no `+ 1` and gives a zero-day milestone
+ * `startDay === endDay`. Only the `id` is added, for the reason above.
  */
-export interface CanvasSpan {
+export interface CanvasSpan extends Span {
   readonly id: string
-
-  readonly startDay: number
-
-  /**
-   * Exclusive: the first working-day offset **not** included in this span, matching the forward
-   * pass. A width is `endDay - startDay` with no `+ 1`, and a zero-day milestone has
-   * `startDay === endDay`.
-   */
-  readonly endDay: number
 }
 
 /**
