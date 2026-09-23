@@ -108,6 +108,31 @@ const EPIC_PATH = `${FIRST_PLAN_PATH}/epics/${FIRST_EPIC}`
 const FEATURE_PATH = `${FIRST_PLAN_PATH}/features/${FIRST_FEATURE}`
 const ITEM_PATH = `${FIRST_PLAN_PATH}/items/${FIRST_ITEM}`
 
+/**
+ * The token a seat minted straight after the plan draft receives.
+ *
+ * `sequentialIds` counts entity ids and tokens off one counter, so this is the second value a fresh
+ * generator hands out — read from a generator of its own rather than written as a literal, so a
+ * change to how the double mints tokens moves this with it.
+ */
+const seatAfterTheDraft = (): string => {
+  const ids = sequentialIds()
+  ids.entityId()
+  return ids.token()
+}
+
+const FIRST_SEAT = seatAfterTheDraft()
+
+const MINT_A_SEAT: Step = {
+  method: 'POST',
+  path: `${FIRST_PLAN_PATH}/share-links`,
+  headers: adminJson(),
+  body: JSON.stringify({ name: 'Acme', role: 'manage' }),
+}
+
+const ON_A_SEAT = [DRAFT_A_PLAN, MINT_A_SEAT] as const
+const SEAT_PATH = `${FIRST_PLAN_PATH}/share-links/${FIRST_SEAT}`
+
 const STAGE_ARCHIVE: Step = {
   method: 'POST',
   path: `${GUARDED_PREFIX}/import/sessions/${FIRST_SESSION}/files?path=drop.zip&offset=0`,
@@ -246,6 +271,28 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     setup: ON_AN_ITEM,
   },
   [`DELETE ${PLAN}/items/{itemId}`]: { path: ITEM_PATH, headers: admin(), setup: ON_AN_ITEM },
+  [`POST ${PLAN}/share-links`]: {
+    path: `${FIRST_PLAN_PATH}/share-links`,
+    headers: adminJson(),
+    body: json({ name: 'Acme', role: 'view' }),
+    setup: ON_A_PLAN,
+  },
+  [`PATCH ${PLAN}/share-links/{token}`]: {
+    path: SEAT_PATH,
+    headers: adminJson(),
+    body: json({ name: 'Jane at ACME', role: 'view' }),
+    setup: ON_A_SEAT,
+  },
+  [`DELETE ${PLAN}/share-links/{token}`]: {
+    path: SEAT_PATH,
+    headers: admin(),
+    setup: ON_A_SEAT,
+  },
+  [`GET ${MACROPLAN_PREFIX}/shares/current`]: {
+    path: `${MACROPLAN_PREFIX}/shares/current`,
+    headers: asLink(FIRST_SEAT),
+    setup: ON_A_SEAT,
+  },
   [`GET ${PROJECT}`]: { path: P1, headers: admin() },
   [`PATCH ${PROJECT}`]: { path: P1, headers: adminJson(), body: json({ name: 'Renamed' }) },
   [`DELETE ${PROJECT}`]: { path: P1, headers: admin() },

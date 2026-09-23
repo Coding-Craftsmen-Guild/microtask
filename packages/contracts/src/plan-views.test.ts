@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { EntityId } from './document.js'
+import { capabilities } from './capabilities.js'
 import { LIMITS } from './limits.js'
 import { PlanManifest } from './plan.js'
 import { UpdateEpicPayload, UpdatePlanPayload } from './plan-payloads.js'
 import { CreatePlanShareLinkPayload } from './plan-share-payloads.js'
-import { ItemView, PlanList, PlanListItem, PlanView } from './plan-views.js'
+import { ItemView, PlanList, PlanListItem, PlanShareView, PlanView } from './plan-views.js'
 import { IgnoredEdge, ScheduleView, UnscheduledEntry } from './schedule-view.js'
 import { DependenciesPayload, UpdateFeaturePayload, UpdateItemPayload } from './structure-payloads.js'
 
@@ -204,5 +205,40 @@ describe('ScheduleView, the schedule as it crosses the wire', () => {
 
   it('names IgnoredEdge’s fields featureId and dependsOnId, not any other spelling', () => {
     expect(Object.keys(IgnoredEdge.shape)).toEqual(['featureId', 'dependsOnId'])
+  })
+})
+
+describe('PlanShareView, the answer a plan seat gets about itself', () => {
+  const view = {
+    role: 'write',
+    scope: { kind: 'plan', planId: ID },
+    plan: { id: ID, name: 'Roadmap' },
+  }
+
+  it('parses a role, a plan scope and the plan that scope names', () => {
+    expect(PlanShareView.safeParse(view).success).toBe(true)
+  })
+
+  it('has no token field of any kind, so no answer can carry a live credential (ADR 0017)', () => {
+    expect(Object.keys(PlanShareView.shape)).toEqual(['role', 'scope', 'plan'])
+  })
+
+  it('strips a token a caller somehow provoked, absence being the guarantee rather than a filter', () => {
+    expect(PlanShareView.parse({ ...view, token: 'shr_a_live_credential_x' })).not.toHaveProperty('token')
+  })
+
+  it('refuses a project scope, this being the answer of the product that has none', () => {
+    const scope = { kind: 'project', projectId: ID }
+    expect(PlanShareView.safeParse({ ...view, scope }).success).toBe(false)
+  })
+
+  it('refuses a role the policy does not name', () => {
+    expect(PlanShareView.safeParse({ ...view, role: 'owner' }).success).toBe(false)
+  })
+
+  it('carries what capabilities() takes, which is why the projection itself is not served', () => {
+    const parsed = PlanShareView.parse(view)
+    expect(capabilities(parsed.role, parsed.scope)['feature:create']).toBe(true)
+    expect(capabilities(parsed.role, parsed.scope)['epic:create']).toBe(false)
   })
 })

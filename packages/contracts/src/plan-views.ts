@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { EntityId, EntityName } from './document.js'
+import { Role } from './share-link.js'
 import { IsoDate, PlanItem, PlanManifest, Timezone } from './plan.js'
 import { ScheduleView } from './schedule-view.js'
 
@@ -54,3 +55,34 @@ export const ItemView = PlanItem.extend({ description: z.string() }).meta({
   id: 'ItemView',
   description: "One item, its description included",
 })
+
+/**
+ * What the plan seat that asked holds: the answer `GET /v1/macroplan/shares/current` gives.
+ *
+ * It carries **no token**, its own included, for the reason `ShareView` carries none: the caller
+ * sent its token to ask the question, so echoing it back tells nobody anything and only puts a live
+ * credential into another response body — and having no token field at all is what makes "never
+ * another seat's token" true by construction rather than by filtering (ADR 0017).
+ *
+ * `role` and `scope` are the two inputs `capabilities()` takes, and they are here rather than
+ * the projection itself: this package computes that record in the browser, which is the whole reason
+ * ADR 0038 admits it, so a served copy would be a second answer free to disagree with the one the
+ * client already has. No API response carries one today.
+ *
+ * `scope` is spelled inline rather than through a shared `PlanScope` schema, because a plan seat
+ * stores no scope to validate — `PlanShareLink` has no such field, and the API derives this value
+ * from the plan whose manifest the token was found in. Spec §7.1 defers an epic variant rather than
+ * foreclosing it; should one arrive, a scope with a real choice to state earns a schema of its own.
+ *
+ * `plan` mirrors `ShareView`'s `project` block and stops there. A Microtask seat is told its
+ * folders and tasks because a task scope reaches part of a project; a plan seat reaches the whole
+ * plan, so the reachable tree is `GET /plans/{planId}` and repeating it here would be a second copy
+ * of the largest response in the product.
+ */
+export const PlanShareView = z
+  .object({
+    role: Role,
+    scope: z.object({ kind: z.literal('plan'), planId: EntityId }),
+    plan: z.object({ id: EntityId, name: EntityName }),
+  })
+  .meta({ id: 'PlanShareView', description: 'What the plan seat that asked holds' })

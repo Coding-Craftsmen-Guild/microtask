@@ -51,11 +51,19 @@ export interface ActionDecision {
   /**
    * Further targets the API gates the same action on, which a caller must ask about by name.
    *
-   * Only `project:read` has one. Reading a project is gated on the project; reading its **folder
-   * list** is the same action gated on a `folder` target, which a task scope refuses outright —
-   * that refusal is the breadcrumb ADR 0011 withholds. So a control drawn from
-   * `capabilities()['project:read']` must be the project read and never the folder tree; for the
-   * tree, ask {@link mayReach} with `'folder'`.
+   * `project:read` has one for a reason inside one product: reading a project is gated on the
+   * project; reading its **folder list** is the same action gated on a `folder` target, which a
+   * task scope refuses outright — that refusal is the breadcrumb ADR 0011 withholds. So a control
+   * drawn from `capabilities()['project:read']` must be the project read and never the folder
+   * tree; for the tree, ask {@link mayReach} with `'folder'`.
+   *
+   * `share:update` and `share:revoke` have one for a different reason: the share actions are the
+   * share system's rather than either product's, so `GRANTS` serves both from one row, and what
+   * separates the products is the scope check. Microtask gates the pair on the `project` whose
+   * seats they administer and Macroplan on the `plan` whose seats they administer — the same
+   * action, a different container. `target` can name only one, so a plan-scoped caller reads
+   * `capabilities()['share:revoke']` as **false** and has to ask {@link mayReach} with `'plan'`.
+   * `share:create` needs no entry: it is decided against `own-scope` in both products.
    */
   readonly alsoGatedOn?: readonly CapabilityTarget[]
 }
@@ -81,8 +89,8 @@ const ROWS = {
   'tab:write': { minimum: 'write', target: 'tab' },
   'share:read': { minimum: 'manage', target: 'project' },
   'share:create': { minimum: 'manage', target: 'own-scope' },
-  'share:revoke': { minimum: 'manage', target: 'project' },
-  'share:update': { minimum: 'manage', target: 'project' },
+  'share:revoke': { minimum: 'manage', target: 'project', alsoGatedOn: ['plan'] },
+  'share:update': { minimum: 'manage', target: 'project', alsoGatedOn: ['plan'] },
   'export:run': { minimum: 'manage', target: 'project' },
   'workspace:list-projects': { minimum: 'admin', target: 'workspace' },
   'workspace:create-project': { minimum: 'admin', target: 'workspace' },
@@ -136,16 +144,16 @@ export type CapabilityAction = keyof typeof ROWS
  * five is the count `authorize-targets.test.ts` asserts, gate by gate, rather than a number read
  * off this comment.
  *
- * Twenty-five rows are left that the scan cannot confirm, for two different reasons.
+ * Three rows are left that the scan cannot confirm, for two different reasons.
  * `workspace:search` has a route and will never be confirmable from it: its gate names a computed
- * action and a computed target, so there is no literal in the source to read. The other
- * twenty-four are the Macroplan rows, which have no route yet at all —
+ * action and a computed target, so there is no literal in the source to read. The other two are
+ * `epic:bind` and `item:link`, the phase-4 bridge actions, which have no route at all —
  * `authorize-targets.test.ts` records those by name in `PENDING_ROUTES` and fails the moment one
- * of them is gated without being struck off, so that set shrinks to empty as the routes land
- * while `workspace:search` stays outside the scan for good.
+ * of them is gated without being struck off, which is how the Macroplan rows that *did* acquire
+ * routes left that set while `workspace:search` stays outside the scan for good.
  *
  * Declared at the widened type rather than left as the literal the rows infer, so a caller may
- * read `alsoGatedOn` off any row instead of off the one row that happens to carry it.
+ * read `alsoGatedOn` off any row instead of only off the three that carry one.
  */
 export const ACTION_DECISIONS: Readonly<Record<CapabilityAction, ActionDecision>> = ROWS
 
@@ -185,7 +193,8 @@ const inScope = (
  *
  * The whole projection lives here; {@link capabilities} is the record over it. A caller needs
  * this directly only for an action the API gates on more than one target — see
- * {@link ActionDecision.alsoGatedOn}, which today means the folder tree.
+ * {@link ActionDecision.alsoGatedOn}, which today means the folder tree and the plan a Macroplan
+ * seat is administered from.
  *
  * The target is taken to sit **inside the project `scope` names**, because a
  * {@link CapabilityTarget} is a bare kind with no id to compare. The kernel compares the id as

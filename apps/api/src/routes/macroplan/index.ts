@@ -4,6 +4,7 @@ import {
   FeatureService,
   ItemService,
   PlanService,
+  PlanShareLinkService,
   type PlanContext,
 } from '@repo/macroplan-domain'
 import { AdminVerifier } from '../../auth/admin-verifier.js'
@@ -18,6 +19,8 @@ import { createPlan, listPlans } from './plans/handlers.js'
 import { createPlanRoute, listPlansRoute } from './plans/routes.js'
 import { PRODUCT } from './product.js'
 import type { PlanServices } from './services.js'
+import { readCurrentPlanShare } from './shares/handlers.js'
+import { currentPlanShareRoute } from './shares/routes.js'
 
 const resolverFor = (deps: ApiDeps): PrincipalResolver =>
   new PrincipalResolver({
@@ -39,6 +42,7 @@ const servicesFor = (ctx: PlanContext): PlanServices => ({
   epics: new EpicService(ctx),
   features: new FeatureService(ctx),
   items: new ItemService(ctx),
+  seats: new PlanShareLinkService(ctx),
 })
 
 /**
@@ -58,15 +62,20 @@ const servicesFor = (ctx: PlanContext): PlanServices => ({
  * **inside** this app rather than at the `/macroplan` prefix in `v1.ts` because a parent's `use()`
  * runs first and there would be no principal to read yet.
  *
- * **No handler below re-checks the scope's product**, and none needs a narrowing to do its work: a
- * plan route's target is built from its validated `planId`, never from the caller's own scope. What
+ * **No handler below re-checks the scope's product.** Every plan route builds its target from its
+ * validated `planId`, so none of them needs a narrowing either. The exception is `/shares/current`,
+ * whose whole subject is the caller's own credential: it has no path to read a plan from, so it
+ * narrows the scope to a plan-rooted one — a **checked** narrowing and not a cast, because a
+ * middleware refusal is invisible to the compiler and `scope.planId` needs the narrower type. What
  * neither guard decides is what a caller may reach *within* this product — a seat scoped to one plan
  * reaches every path here, and what stops it reading another plan is the `authorize` call in the
  * handler and nothing else.
  *
- * The two routes registered here rather than in the plan-scoped child are the ones with no plan in
- * their address, and ADR 0009 reserves both to the admin. The child is mounted at `/plans/:planId`,
- * a path neither of them has a value for.
+ * The three routes registered here rather than in the plan-scoped child are the ones with no plan in
+ * their address. ADR 0009 reserves the two collections to the admin; the third is the opposite, the
+ * bootstrap a seat holder calls about itself, which an admin is answered 404 for because an admin
+ * credential names no seat. The child is mounted at `/plans/:planId`, a path none of the three has a
+ * value for.
  *
  * The `PlanContext` the services are built from is assembled here and nowhere else, because this is
  * the one seam that tells the two domains' stores apart: `deps.store` is Microtask's and `deps.plans`
@@ -84,6 +93,7 @@ export function createMacroplan(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const services = servicesFor(contextFor(deps))
   app.openapi(listPlansRoute, listPlans(services.plans))
   app.openapi(createPlanRoute, createPlan(services.plans))
+  app.openapi(currentPlanShareRoute, readCurrentPlanShare(services.plans))
   app.route('/plans/:planId', createPlanScoped(services))
   return app
 }

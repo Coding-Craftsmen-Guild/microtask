@@ -1,5 +1,5 @@
 import { z } from '@hono/zod-openapi'
-import { EntityId } from '@repo/contracts'
+import { EntityId, ShareToken } from '@repo/contracts'
 
 /**
  * A route mounted under `/plans/{planId}`.
@@ -21,3 +21,17 @@ export const featureParams = planParams.extend({ featureId: EntityId })
 
 /** A route under `/plans/{planId}/items/{itemId}`. */
 export const itemParams = planParams.extend({ itemId: EntityId })
+
+/**
+ * A route under `/plans/{planId}/share-links/{token}`.
+ *
+ * The one address in this subtree that is not a ULID: a seat is named by the token it hands out, so
+ * acting on one needs no second identifier. That token is a path segment because it names the
+ * **seat being acted on**, never the caller — whose own credential stays in the `Authorization`
+ * header, which is what keeps it out of server logs and `Referer` (ADR 0013).
+ *
+ * The token is validated as a {@link ShareToken} rather than taken as any string, so a malformed one
+ * is a 422 from the validator rather than a lookup that misses and answers 404 — and that 404 would
+ * be claiming a well-formed seat is absent when the request never named one.
+ */
+export const planShareLinkParams = planParams.extend({ token: ShareToken })

@@ -8,8 +8,8 @@ import { ACTIONS, type Action } from '@repo/kernel'
 /**
  * The Macroplan actions the kernel declares before any route exists to reach them.
  *
- * Task 2 widened `ACTIONS` with twenty-four of these; the routes that gate them land in Tasks 15, 16
- * and 16b, and each of those empties its own rows out of this set. Task 15 struck off the six the
+ * Task 2 widened `ACTIONS` with twenty-four of these; the routes that gate them land in Tasks 15 and
+ * 16, and each of those empties its own rows out of this set. Task 15 struck off the six the
  * plan routes gate — the two workspace collections and the four `plan:` actions. Task 16 struck off
  * the sixteen its epic, feature and item routes gate, which is every remaining action a phase-1
  * route can reach.
@@ -84,9 +84,10 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
     expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])
   })
 
-  it('names the two gates whose target is a variable, which are the two special cases', () => {
+  it('names the three gates whose target is a variable, which are the special cases', () => {
     const computed = gates().filter((gate) => gate.target.startsWith('<'))
     expect(computed).toEqual([
+      { action: 'share:create', target: '<scope>' },
       { action: '<action>', target: '<target>' },
       { action: 'share:create', target: '<scope>' },
     ])
@@ -94,6 +95,19 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
 
   it('records share:create against the caller own scope, which is what that variable holds', () => {
     expect(ACTION_DECISIONS['share:create'].target).toBe('own-scope')
+  })
+
+  it('finds one minting gate per product, both passing the scope being minted rather than a kind', () => {
+    const minting = gates().filter((gate) => gate.action === 'share:create')
+    expect(minting.map((gate) => gate.target)).toEqual(['<scope>', '<scope>'])
+  })
+
+  it('finds the two seat actions gated on a plan, which is the target their rows also record', () => {
+    for (const action of ['share:update', 'share:revoke'] as const) {
+      const targets = gates().filter((gate) => gate.action === action).map((gate) => gate.target)
+      expect([action, [...targets].sort()]).toEqual([action, ['plan', 'project']])
+      expect(ACTION_DECISIONS[action].alsoGatedOn).toEqual(['plan'])
+    }
   })
 
   it('leaves only the action whose gate names no literal to read: workspace:search', () => {

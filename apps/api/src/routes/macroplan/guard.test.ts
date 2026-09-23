@@ -317,3 +317,82 @@ describe('the admin is cleared on all five plan routes', () => {
     expect([read.status, patched.status, removed.status]).toEqual([200, 200, 204])
   })
 })
+
+describe('a write seat cannot hand out a seat, which is spec §10 at its most dangerous point', () => {
+  const SEATS = `${ONE}/share-links`
+  const draftedSeat = JSON.stringify({ name: 'Acme', role: 'manage' })
+  const renamedSeat = JSON.stringify({ name: 'Jane at ACME' })
+
+  const mintAs = async (token: string): Promise<number> =>
+    (await (await buildMacroplanApp()).request(SEATS, {
+      method: 'POST',
+      headers: linkJson(token),
+      body: draftedSeat,
+    })).status
+
+  const renameAs = async (token: string): Promise<number> =>
+    (await (await buildMacroplanApp()).request(`${SEATS}/${PLAN_TOKENS.view}`, {
+      method: 'PATCH',
+      headers: linkJson(token),
+      body: renamedSeat,
+    })).status
+
+  const revokeAs = async (token: string): Promise<number> =>
+    (await (await buildMacroplanApp()).request(`${SEATS}/${PLAN_TOKENS.view}`, {
+      method: 'DELETE',
+      headers: asLink(token),
+    })).status
+
+  const statuses = async (token: string): Promise<readonly number[]> => [
+    await mintAs(token),
+    await renameAs(token),
+    await revokeAs(token),
+  ]
+
+  it('refuses the write seat 403 on the mint, the rename and the revoke alike', async () => {
+    expect(await statuses(PLAN_TOKENS.write)).toEqual([403, 403, 403])
+  })
+
+  it('clears the manage seat on the same three, which is what makes those refusals mean something', async () => {
+    expect(await statuses(PLAN_TOKENS.manage)).toEqual([201, 200, 204])
+  })
+
+  it('refuses the view seat on all three as well, a reader handing out nothing', async () => {
+    expect(await statuses(PLAN_TOKENS.view)).toEqual([403, 403, 403])
+  })
+
+  it('refuses the colliding plan manage seat on all three, one plan being no other', async () => {
+    expect(await statuses(PLAN_TOKENS.collidingManage)).toEqual([403, 403, 403])
+  })
+
+  it('sends a valid body deliberately: the in-product gate runs after body validation', async () => {
+    const response = await (await buildMacroplanApp()).request(SEATS, {
+      method: 'POST',
+      headers: linkJson(PLAN_TOKENS.write),
+      body: JSON.stringify({ nonsense: true }),
+    })
+    expect(response.status).toBe(422)
+  })
+
+  it('refuses a Microtask seat before that, the other product getting no schema oracle at all', async () => {
+    const response = await (await buildMacroplanApp()).request(SEATS, {
+      method: 'POST',
+      headers: linkJson(TOKENS.p1Manage),
+      body: JSON.stringify({ nonsense: true }),
+    })
+    expect(response.status).toBe(403)
+  })
+
+  it('refuses a plan seat the bootstrap of the other product, and the reverse, on the same wording', async () => {
+    const app = await buildMacroplanApp()
+    const outward = await app.request(`${GUARDED_PREFIX}/shares/current`, {
+      headers: asLink(PLAN_TOKENS.manage),
+    })
+    const inward = await app.request(`${MACROPLAN_PREFIX}/shares/current`, {
+      headers: asLink(TOKENS.p1Manage),
+    })
+    expect([outward.status, inward.status]).toEqual([403, 403])
+    expect(await body(outward)).toMatchObject({ detail: 'Not permitted: project:read' })
+    expect(await body(inward)).toMatchObject({ detail: 'Not permitted: plan:read' })
+  })
+})

@@ -1,12 +1,22 @@
-import type { EpicService, FeatureService, ItemService, PlanService } from '@repo/macroplan-domain'
+import type {
+  EpicService,
+  FeatureService,
+  ItemService,
+  PlanService,
+  PlanShareLinkService,
+} from '@repo/macroplan-domain'
 
 /**
- * The four services the plan-scoped subtree is mounted over.
+ * The five services this product's routes are mounted over.
  *
- * A record rather than four parameters, because `createPlanScoped` would otherwise take more
+ * A record rather than five parameters, because `createPlanScoped` would otherwise take more
  * arguments than ADR 0027's cap allows and every subtree added later would push it further. Naming
  * them also means a subtree app is handed only the service it needs: the epics app never sees
- * `FeatureService`, so it cannot start editing features from an epic route.
+ * `FeatureService`, so it cannot start editing features from an epic route. `seats` is the sharpest
+ * case — only the `share-links` app receives it, so no structural route can mint a credential.
+ *
+ * `plans` is the one member reached from both mounts: the plan-scoped routes read and write it, and
+ * `/shares/current` above them answers from the plan its caller's own scope names.
  *
  * It is an interface and nothing else — no construction here. The `PlanContext` these are built from
  * is assembled in `index.ts` and nowhere else, because that is the one seam that tells the two
@@ -18,4 +28,5 @@ export interface PlanServices {
   readonly epics: EpicService
   readonly features: FeatureService
   readonly items: ItemService
+  readonly seats: PlanShareLinkService
 }

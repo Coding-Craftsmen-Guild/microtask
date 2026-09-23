@@ -282,16 +282,34 @@ describe('the projection answers about the caller own project and no other', () 
   })
 })
 
-describe('the one action the API gates on two targets (ADR 0011)', () => {
+describe('the three actions the API gates on two targets (ADR 0011)', () => {
   it('records the second target rather than leaving it unsaid', () => {
     expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])
   })
 
-  it('is the only action with a second target, so nothing else needs asking by name', () => {
+  it('names all three, so an action gaining a second target cannot arrive unrecorded', () => {
     const doubled = CAPABILITY_ACTIONS.filter(
       (action) => (ACTION_DECISIONS[action].alsoGatedOn ?? []).length > 0,
     )
-    expect(doubled).toEqual(['project:read'])
+    expect(doubled).toEqual(['project:read', 'share:revoke', 'share:update'])
+  })
+
+  it('records the plan for the two seat actions, which Macroplan gates on a plan and not a project', () => {
+    expect(ACTION_DECISIONS['share:revoke'].alsoGatedOn).toEqual(['plan'])
+    expect(ACTION_DECISIONS['share:update'].alsoGatedOn).toEqual(['plan'])
+  })
+
+  it('clears a plan manage seat on that second target and refuses it the first, the row naming one', () => {
+    for (const action of ['share:revoke', 'share:update'] as const) {
+      expect(mayReach('manage', planScope, action, 'plan')).toBe(true)
+      expect(mayReach('manage', planScope, action, 'project')).toBe(false)
+      expect(capabilities('manage', planScope)[action]).toBe(false)
+    }
+  })
+
+  it('refuses a plan view seat that same second target, so the pair is manage and not scope', () => {
+    expect(mayReach('view', planScope, 'share:revoke', 'plan')).toBe(false)
+    expect(mayReach('write', planScope, 'share:update', 'plan')).toBe(false)
   })
 
   it('tells a task-scoped holder it may read its project and not its folder list', () => {
