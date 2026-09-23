@@ -77,13 +77,21 @@ The path-based `import/no-restricted-paths` is deliberately not used: its `files
 relative to the config file's own directory, so a rule written once in the shared config is silently
 inert in every package that consumes it. Each package therefore carries its own block:
 
-- `apps/microtask` and `apps/macroplan` may not import `@repo/store`, `@repo/kernel` or either
-  `*-domain` package, each banned by name with its own reason. Importing `packages/store` from a Next
-  app would create a second writer to the data volume and break the single-writer assumption ADR 0002
-  depends on, and a domain barrel reaches `node:path` and `node:crypto`. This was written as an
-  allowlist — "may import `contracts`, `api-client`, `ui` — **nothing else**" — and it was never
-  enforced as one; the amendment of 2026-09-23 below measures both halves and settles it as the
-  denylist it has always been.
+- `apps/microtask` and `apps/macroplan` each carry **two lists in one block**, and each list is that
+  app's own. The **allowlist** is the rule: `apps/microtask` may import `@repo/api-client`,
+  `@repo/app-session`, `@repo/contracts` and `@repo/ui` and **nothing else**; `apps/macroplan` may
+  import those four plus `@repo/canvas` and `@repo/schedule` and **nothing else**. It is a single
+  `no-restricted-imports` pattern group per app — `@repo/*` and `@repo/*/*` with a negated pair for
+  each permitted package — so a new shared package is refused until somebody edits that file, which
+  is where the decision to admit it becomes visible. The **denylist** stays underneath it:
+  `@repo/store`, `@repo/kernel` and both `*-domain` packages, each banned by name with its own
+  reason. Importing `packages/store` from a Next app would create a second writer to the data volume
+  and break the single-writer assumption ADR 0002 depends on, and a domain barrel reaches `node:path`
+  and `node:crypto`. Both lists exist because they carry different things: an allowlist refusal can
+  only ever say *not on the list*, where a denylist entry says which invariant the import would
+  break. Both groups match, so a banned import is reported twice — once with the count, once with
+  the reason. This rule was written as an allowlist from the start and enforced as a denylist alone
+  for thirteen days; the two amendments of 2026-09-23 below measure that gap and close it.
 - `packages/kernel` imports no adapter and no framework.
 - `packages/contracts` imports no server framework.
 - Package internals are reachable only through each package's `exports`, so no deep-path imports.
@@ -227,8 +235,9 @@ reaches is compiled for two runtimes**, so it may use only what both provide.
 
 The rule above read "`apps/microtask` and `apps/macroplan` may import `contracts`, `api-client`,
 `ui` — **nothing else**". It is now `contracts`, `api-client`, `ui` and **`app-session`**. (That list
-grew twice more in phase 2, and the amendment below settles the larger problem: it was never the
-thing being enforced. Read this section for why `app-session` is admitted, not for what the rule is.)
+grew twice more in phase 2, for `apps/macroplan` alone, and the two amendments below settle the
+larger problem: the list was never the thing being enforced, and now is. Read this section for why
+`app-session` is admitted, not for what the rule is.)
 
 `@repo/app-session` holds the admin session both apps sign in through — the environment reader, the
 sealed cookie, the sign-in refusal rules, the `?next=` sanitiser and the shape a Server Action
@@ -245,10 +254,15 @@ workspace, `packages/app-session/src/env.ts`, and in no app at all. Each app car
 `environment.test.ts` that fails if a file in it reads the environment, or if its lint config ever
 lifts `n/no-process-env`.
 
-## Amended · 2026-09-23 — the app import rule is a denylist, and now says so
+## Amended · 2026-09-23 — the app import rule was enforced as a denylist, and nobody had noticed
 
 This ADR wrote the app boundary as an allowlist and enforced it as a denylist for thirteen days.
 Both halves were measured against the working tree before this amendment was written.
+
+**This section's own resolution was then overturned the same day.** It settled on the denylist, and
+the reason given was a scope restriction on the agent that wrote it rather than a cost — it was
+forbidden from editing `apps/`. The measurements below stand; read the second 2026-09-23 amendment at
+the end of this record for what is enforced now.
 
 **The written rule was an allowlist.** "may import `contracts`, `api-client`, `ui` — **nothing
 else**", amended once on 2026-09-22 to admit `app-session`.
@@ -275,9 +289,11 @@ with the `ignore` package and asks `matcher.ignores(importSource)`, so gitignore
 and one group expresses the whole allowlist. Checked against every specifier the two apps actually
 use, deep subpaths included, a group of `@repo/*` and `@repo/*/*` with a `!` entry for each of
 `contracts`, `api-client`, `ui`, `app-session`, `canvas` and `schedule` admits exactly those six and
-refuses `@repo/kernel`, `@repo/store` and both `*-domain` packages. Six entries is the whole list:
-those are the only `@repo/*` packages either Next app imports, and `apps/macroplan/package.json`
-depends on precisely them.
+refuses `@repo/kernel`, `@repo/store` and both `*-domain` packages. Six entries is the union of the
+two apps: those are the only `@repo/*` packages either Next app imports, and
+`apps/macroplan/package.json` depends on precisely them. (`apps/microtask` depends on four of the six,
+which is why the enforced allowlists are **per app** rather than this union — see the second
+2026-09-23 amendment.)
 
 **What cannot be done is apply it from `packages/eslint-config`,** which is the place this ADR's own
 generalisation — "a path-scoped rule is decided centrally and applied locally" — sends you first.
@@ -287,7 +303,7 @@ Two reasons, and the first is already written down in the shared config itself:
   it: "the rule's options do not merge across flat-config objects, and a second matching block
   replaces the first outright." Each app's trailing block matches `**/*.ts` and `**/*.tsx`, so any
   `no-restricted-imports` added to `base` is replaced by it and silently does nothing.
-- **The one shared export the apps do spread is spread by six other packages.**
+- **The one shared export the apps do spread is spread by nine other packages.**
   `productImportPatterns` reaches `api-client`, `app-session`, `contracts`, `kernel` and `store`
   directly and `canvas`, `macroplan-domain`, `schedule` and `ui` through `noProductImports`. Their
   legitimate imports differ from an app's and from each other's — `@repo/store` imports
@@ -298,10 +314,12 @@ Two reasons, and the first is already written down in the shared config itself:
 A per-app allowlist therefore belongs in each app's own `eslint.config.js`, in the block that already
 exists, as one more pattern group.
 
-### Resolution: the denylist is the decision
+### What the denylist is for — which is not the same as what the rule is
 
-**This record stops claiming an allowlist.** The body's bullet is rewritten above to state what is
-enforced, and the reason is on the merits rather than only on the cost.
+**This subsection originally resolved on the denylist, and that resolution is withdrawn.** The
+argument below is why the denylist is kept rather than replaced; it is not why the allowlist was
+declined. The allowlist is enforced as of the second 2026-09-23 amendment, and the body's bullet
+states both lists.
 
 A denylist entry here carries a **reason**, and both of the ones in the config do: `store` and
 `kernel` because the API is the single writer, the `*-domain` packages because their barrels reach
@@ -314,18 +332,107 @@ name, with the ADR numbers attached.
 are pure by enforcement rather than by intention: each carries a `purity.test.ts` that fails on any
 `node:` specifier in any quote style or import form and pins its `dependencies` object exactly — empty
 for `schedule`, exactly `{ "@repo/schedule": "workspace:*" }` for `canvas`. Neither can reach anything
-an app is banned from, so admitting them needed no decision, and an allowlist would have failed the
-build in both apps and forced a config edit whose rationale would have lived in a diff.
+an app is banned from, so admitting them was safe — and an allowlist would have failed the build in
+`apps/macroplan`, the only app that imports either, and forced the config edit that records the
+decision. That edit is what the second amendment makes, and the rationale is in the config and in
+this record rather than only in a diff.
 
-The cost is accepted and named: **a new `@repo/*` package is admitted into both apps by default.** The
-thing that has to be true for that to stay safe is that a package an app may import carries its own
-purity guarantee, and the mechanism is the one `schedule` and `canvas` already use. Anybody adding a
-shared package an app will import should add that test with it; anybody who instead wants the
-allowlist has the verified pattern group above and two files to put it in.
+The cost the denylist alone carried is worth keeping on the page, because it is what the allowlist
+buys: **any new `@repo/*` package was admitted into both apps by default.** Nothing would have
+stopped an app importing a package nobody had thought about, and the failure was silent — `pnpm add`
+and a green gate. What had to be true for that to stay safe was that every package an app may import
+carries its own purity guarantee, which is not a property a lint rule could check. That requirement
+has not gone away — anybody adding a shared package an app will import should still add the
+`purity.test.ts` that `schedule` and `canvas` carry — but it is no longer the *only* thing standing
+between an app and an arbitrary package.
 
-One thing found while measuring and **not** fixed here, because it is in `apps/` and this amendment is
-not: both apps' configs carry a leading comment claiming "The shared config applies react-hooks to
-`**/*.tsx` only", and then re-enable the two hook rules for `**/*.ts`. `base` applies them to
-`['**/*.ts', '**/*.tsx']` already, so those blocks are redundant restatements rather than the widening
-they say they are. Harmless — the rules are on either way — but the comment is false and the next
-person to trust it will conclude a `.ts` hook is unchecked somewhere it is not.
+One thing found while measuring and not fixed in this amendment, because it is in `apps/` and this
+amendment was not: both apps' configs carried a leading comment claiming "The shared config applies
+react-hooks to `**/*.tsx` only", and then re-enabled the two hook rules for `**/*.ts`. `base` applies
+them to `['**/*.ts', '**/*.tsx']` already, so those blocks were redundant restatements rather than the
+widening they said they were. Harmless — the rules were on either way — but the comment was false and
+the next person to trust it would conclude a `.ts` hook is unchecked somewhere it is not. Fixed in the
+second amendment below.
+
+## Amended again · 2026-09-23 — the allowlist is enforced, and the denylist stays
+
+The amendment above settled on the denylist. That resolution is withdrawn, and the reason it has to
+be is that the blocker it named was not a cost: the agent that wrote it was forbidden from editing
+`apps/`, which is the only place the allowlist can live. Priced honestly, the allowlist is **one
+pattern group per app**, added to a `no-restricted-imports` block that already existed. So it is
+enforced, and this ADR now says what the config does for the first time since it was written.
+
+**Both lists stand, and they are not redundant.** Everything the previous amendment argues about
+reasons is kept, because it is the reason the denylist is not deleted: a denylist entry names the
+invariant an import would break — the API is the single writer, the barrel reaches `node:path` — where
+an allowlist entry can only carry a count and refuse with *not on the list*. The allowlist is what
+makes admitting a package a deliberate edit; the denylist is what keeps the reasons attached to the
+four packages that must never be imported. ESLint evaluates every pattern group, so a banned import is
+reported **twice**, once from each list — measured, not assumed (lint output, wrapped to fit):
+
+```
+apps/microtask/allowlist-probe.ts
+  2:1  error  '@repo/store' import is restricted from being used by a pattern. the app reads and
+              writes only through @repo/api-client, so the API stays the single writer (ADR 0002,
+              ADR 0027)
+  2:1  error  '@repo/store' import is restricted from being used by a pattern. this app may import
+              only @repo/api-client, @repo/app-session, @repo/contracts and @repo/ui; anything else
+              is a decision to record before it is a dependency (ADR 0027)
+```
+
+### Each app's allowlist is its own
+
+The previous amendment's six-package list is the **union** of the two apps, and enforcing a union
+would repeat, per app, the mistake it diagnoses in `packages/eslint-config`: a union of allowlists is
+a weaker denylist wearing the name. So each app gets the set it actually imports, determined from its
+`package.json` `dependencies` and confirmed by grepping every `@repo/*` specifier in its sources:
+
+| App | May import | Refused by the allowlist alone |
+| --- | --- | --- |
+| `apps/microtask` | `api-client`, `app-session`, `contracts`, `ui` | `canvas`, `schedule`, `eslint-config`, `typescript-config`, and any future `@repo/*` |
+| `apps/macroplan` | those four plus `canvas`, `schedule` | `eslint-config`, `typescript-config`, and any future `@repo/*` |
+
+`@repo/schedule` in `apps/microtask` is the case that shows the two apps are now genuinely different,
+and that the allowlist bites where no denylist entry exists:
+
+```
+apps/microtask/allowlist-probe.ts
+  1:1  error  '@repo/schedule' import is restricted from being used by a pattern. this app may
+              import only @repo/api-client, @repo/app-session, @repo/contracts and @repo/ui;
+              anything else is a decision to record before it is a dependency (ADR 0027)
+```
+
+`@repo/eslint-config` and `@repo/typescript-config` are on neither allowlist and need no exception:
+both are devDependencies reached from `eslint.config.js` and `tsconfig.json`, and the block is scoped
+to `**/*.ts` and `**/*.tsx`, so no `.js` or `.json` file is matched by it.
+
+### The negation behaviour, re-measured here
+
+The mechanism the previous amendment records was verified again before relying on it, because a rule
+that silently admits everything is the failure mode this ADR is most exposed to. In ESLint 9.39.5,
+`no-restricted-imports` builds each group's matcher as
+`ignore({ allowRelativePaths: true, ignorecase: !caseSensitive }).add(group)` and tests
+`group.matcher.ignores(importSource)` (`lib/rules/no-restricted-imports.js`, lines 311 and 761),
+against `ignore@5.3.2`. Driven through `Linter#verify` with each app's real group, over every
+`@repo/*` specifier in both apps plus fabricated deeper ones, the group admits exactly the permitted
+set including **every depth of subpath** — `@repo/ui/components/button`,
+`@repo/ui/transfer/vocabulary.js`, `@repo/ui/components/ui/tabs`, `@repo/app-session/api` — and
+refuses `@repo/kernel/ids`, `@repo/store/fs/node` and
+`@repo/macroplan-domain/views/plan-view.js`. Two wildcards cover arbitrary
+depth because gitignore semantics ignore a matched directory's whole subtree; `!@repo/ui` plus
+`!@repo/ui/*` re-admits it, subpaths included. Relative and third-party specifiers are untouched.
+
+Proved both ways by mutation rather than by reading: a real `@repo/store` import added to a scratch
+file in each app fails `pnpm --filter <app> lint` with both messages above, and a scratch file
+importing only permitted deep subpaths passes with no output. Both scratch files were then deleted.
+
+### The redundant hook blocks are gone
+
+The false comment the previous amendment reported is fixed by deletion rather than by rewording, since
+what it described was the block's only justification. Both apps' `.ts` `react-hooks` blocks are removed;
+`base` already applies `react-hooks/rules-of-hooks` and `react-hooks/exhaustive-deps` to
+`['**/*.ts', '**/*.tsx']`, which is where the incident those comments remembered — a dropped dependency
+in a `.ts` hook sending every save to the wrong tab with lint green — is actually paid for. Verified by
+mutation in both apps: a `.ts` file with a conditional `useState` and a `useEffect` missing a
+dependency still reports `react-hooks/rules-of-hooks` and `react-hooks/exhaustive-deps` with the app
+blocks deleted. Removing them also removed each app's `base.find(...)` lookup for the plugin instance.

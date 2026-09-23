@@ -1,26 +1,17 @@
 import base, { productImportPatterns } from '@repo/eslint-config'
 
-// The shared config applies react-hooks to `**/*.tsx` only. This app keeps the rule on `.ts`
-// files too, before it has a hook in one: a dropped dependency in a `.ts` hook once sent every
-// save in apps/microtask to the wrong tab with lint green. The plugin object is taken from the
-// shared config rather than imported, so it is the same instance and this package declares no
-// dependency of its own for it.
-const hooksBlock = base.find((block) => block.plugins?.['react-hooks'] !== undefined)
-
 export default [
   { ignores: ['.next/**', 'next-env.d.ts'] },
   ...base,
   {
-    files: ['**/*.ts'],
-    plugins: { 'react-hooks': hooksBlock.plugins['react-hooks'] },
-    rules: {
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'error',
-    },
-  },
-  {
     files: ['**/*.ts', '**/*.tsx'],
     rules: {
+      // Two lists, on purpose. The allowlist is the rule ADR 0027 always stated: only the
+      // packages named here may be imported, so admitting a new one is a deliberate edit to this
+      // file rather than something a `pnpm add` does silently. The denylist below it is what keeps
+      // the *reasons* attached — an allowlist refusal can only ever say "not on the list", where a
+      // denylist entry names why that package in particular must never be reached. Both fire, so a
+      // banned import is reported twice, once with the reason.
       'no-restricted-imports': ['error', {
         patterns: [
           ...productImportPatterns,
@@ -31,6 +22,29 @@ export default [
           {
             group: ['@repo/microtask-domain', '@repo/microtask-domain/*', '@repo/macroplan-domain', '@repo/macroplan-domain/*'],
             message: 'the domain barrel reaches node:path and node:crypto, and the app must not bypass the API (ADR 0014, ADR 0027)',
+          },
+          {
+            // ESLint builds each group's matcher with the `ignore` package and asks
+            // `matcher.ignores(specifier)`, so these are gitignore rules: the two wildcards ban
+            // every @repo package and everything under it, and each `!` pair admits one package
+            // back, subpaths included.
+            group: [
+              '@repo/*',
+              '@repo/*/*',
+              '!@repo/api-client',
+              '!@repo/api-client/*',
+              '!@repo/app-session',
+              '!@repo/app-session/*',
+              '!@repo/canvas',
+              '!@repo/canvas/*',
+              '!@repo/contracts',
+              '!@repo/contracts/*',
+              '!@repo/schedule',
+              '!@repo/schedule/*',
+              '!@repo/ui',
+              '!@repo/ui/*',
+            ],
+            message: 'this app may import only @repo/api-client, @repo/app-session, @repo/canvas, @repo/contracts, @repo/schedule and @repo/ui; anything else is a decision to record before it is a dependency (ADR 0027)',
           },
         ],
       }],

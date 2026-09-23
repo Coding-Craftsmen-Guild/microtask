@@ -133,7 +133,8 @@ is worse than a refusal.
   packages, so nothing currently blocks the import. Phase 2 is when the dependency is added and when
   that list, as ADR 0027 writes it, has to grow. The reason it may grow safely is the purity test
   above: this package can reach nothing an app is banned from. **Amended 2026-09-23 — it gained two
-  entries, and the mechanism changed instead.** See the section at the end of this record.
+  entries rather than one, and they are real lint entries in `apps/macroplan/eslint.config.js`.** See
+  the section at the end of this record.
 - **A conflict has four channels on the wire, not one.**
   `packages/contracts/src/schedule-view.ts` publishes `ScheduleSpan`, `ScheduleCycle`,
   `UnscheduledEntry` and `IgnoredEdge` as separate shapes, and `plan-views.test.ts` pins that an
@@ -189,16 +190,21 @@ asserts it holds for every seeded plan.
 Three things in the body are now falsified by the code phase 2 shipped. Each is corrected here rather
 than rewritten above, so nobody reads a prediction as a fact.
 
-**ADR 0027's written list gained two entries, not one, and the mechanism changed rather than growing.**
+**ADR 0027's written list gained two entries, not one, and it is `apps/macroplan`'s list alone.**
 `apps/macroplan/package.json` now depends on `@repo/canvas` as well as `@repo/schedule`, because the
-timeline's geometry became a second pure package (ADR 0055) rather than joining this one. And the list
-did not have to grow at all: ADR 0027's amendment of the same date measured the enforcement and found
-it was a denylist of `store`, `kernel` and the two `*-domain` packages the whole time, so neither new
-import touched a config. That record now states the denylist as the decision and stops claiming an
-allowlist, which means the "fifth entry" this consequence asked for is a sentence in prose and not a
-lint change. **The reasoning in it stands and is now the load-bearing part:** both packages may be
-imported by an app because each carries a `purity.test.ts` that can reach nothing an app is banned
-from, and under a denylist that guarantee is the only thing doing the work.
+timeline's geometry became a second pure package (ADR 0055) rather than joining this one. The two
+imports landed without touching any config, which is how ADR 0027's first amendment of the same date
+came to measure the enforcement and find it had been a denylist of `store`, `kernel` and the two
+`*-domain` packages the whole time — the written allowlist was never the thing being checked. Its
+second amendment of that date enforces the allowlist, per app, so the "fifth entry" this consequence
+asked for is a real lint entry after all: `!@repo/schedule` and `!@repo/schedule/*` in
+`apps/macroplan/eslint.config.js`, alongside `@repo/canvas`, and in `apps/microtask` neither — that
+app imports neither package, and importing one now fails its lint. **The reasoning in this consequence
+stands:** both packages may be imported by an app because each carries a `purity.test.ts` that can
+reach nothing an app is banned from. That guarantee is what makes admitting them safe, and it is not
+something a lint rule can check — the allowlist governs *whether a package is admitted at all*, and
+the purity test is still the only thing saying *what an admitted package can reach*. Anybody adding a
+shared package an app will import owes it that test as well as the config entry.
 
 **The browser does not derive the schedule, and in phase 2 it never calls `schedule()`.** The Context
 above says "the browser derives it to draw the canvas in phase 2", and that is not what happened: the

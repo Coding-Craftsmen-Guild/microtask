@@ -22,8 +22,8 @@ export type SessionClient = AdminClient | LinkClient
  * the type system enforces is that the two clients are mutually unassignable: a call typed for one
  * cannot be handed the other. It does not stop `createAdminClient(options, shareToken)` from
  * compiling — both constructors take the token as a bare `string` — and nothing bans a component
- * importing one, this app's lint restricting only `@repo/store`, `@repo/kernel` and the domain
- * packages. So the funnel is a convention with a single enforcement point rather than a compile
+ * importing one, `@repo/api-client` being on this app's import allowlist by necessity (ADR 0027).
+ * So the funnel is a convention with a single enforcement point rather than a compile
  * error, and this app renders a live share surface with real tokens in a component's hands: it
  * holds exactly as long as this function stays the sole caller of either constructor.
  *
