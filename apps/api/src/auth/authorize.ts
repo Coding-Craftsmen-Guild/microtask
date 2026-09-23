@@ -3,6 +3,19 @@ import { can, Forbidden, type Action, type Principal, type Target } from '@repo/
 import type { ApiEnv } from './env.js'
 
 /**
+ * How every 403 this app raises is worded, built in one place.
+ *
+ * `requireProduct` refuses a request before any handler has built a target, so it has no `can()`
+ * call of its own to word a refusal from — and it must still be indistinguishable from the gate’s,
+ * because two spellings of the same 403 would tell a client which layer refused it. Exported so the
+ * other refusal sites call this rather than transcribing the template, which is what
+ * `routes/microtask/shares/handlers.ts` did while nothing tied its copy to this original.
+ *
+ * It names the action and never the target, for the reason {@link authorize} gives below.
+ */
+export const notPermitted = (action: Action): string => `Not permitted: ${action}`
+
+/**
  * The one gate: the single place `apps/api` asks the policy whether a request may proceed.
  *
  * Throwing rather than returning a boolean is what makes forgetting it visible. A handler that
@@ -26,6 +39,6 @@ import type { ApiEnv } from './env.js'
  */
 export function authorize(c: Context<ApiEnv>, action: Action, target: Target): Principal {
   const principal = c.get('principal')
-  if (!can(principal, action, target)) throw new Forbidden(`Not permitted: ${action}`)
+  if (!can(principal, action, target)) throw new Forbidden(notPermitted(action))
   return principal
 }

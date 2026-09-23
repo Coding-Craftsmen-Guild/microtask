@@ -31,6 +31,14 @@ const scopeAction = (scope: Scope): Action => (scope.kind === 'task' ? 'task:rea
  * gate cannot demonstrate from outside: every principal that reaches the handler holds the
  * authority its own scope root implies, so no request can be refused here and only a direct test
  * of this table can show it asks the right question.
+ *
+ * That it cannot refuse anybody is why the **product** is not its business. Handed a plan scope it
+ * asked `project:read` about a `plan` target and `can()` said yes — a question with no meaning,
+ * permitted only because `view` grants `project:read` and `plan:read` together. Nothing was
+ * disclosed beyond the 200 itself, because `visibleTo` clears each candidate against a project-,
+ * folder- or task-shaped target and a plan scope reaches none of them. The scope this receives is
+ * project-rooted because `requireProduct` refused the other product at the mount, and the fix
+ * belongs there rather than here: a check in this table would be the third copy of one rule.
  */
 export const searchGate = (principal: Principal): SearchGate =>
   principal.kind === 'admin'
