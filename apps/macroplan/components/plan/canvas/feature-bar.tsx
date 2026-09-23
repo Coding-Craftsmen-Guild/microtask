@@ -32,6 +32,15 @@ export interface FeatureBarMarkProps {
  * place — that one has no span, so `railLayout` omits it from `bars` altogether and the sentence it
  * needs is a `'hollow'` treatment rather than a rect of zero width.
  *
+ * **A bar names no date on hover, and that is a scope decision rather than an oversight.** §5 puts
+ * the dates on the quarter bands' sprint ticks, which `SprintTickLayer` draws, and a bar would need
+ * two things it has not got: a `FeatureBar` carries `startDay` and `endDay` and no calendar date at
+ * all, so `@repo/canvas` would have to grow them — and the app must not convert an offset back to a
+ * date itself, because a weekend-adjacent one does not survive the round trip. The second thing is
+ * cheaper to say: a `<title>` per bar and per mark is one extra node per bar and per mark, which at
+ * this product's 2 000-item cap is the doubling `ItemMarkShape` exists to refuse. The sprint target
+ * behind every bar already names the days that bar sits in.
+ *
  * The hue is an inline `style` and the treatment is a class, and {@link TREATMENT_CLASS} is where that
  * split is argued: a `#rrggbb` from the API is one of an unbounded set and no Tailwind class can be
  * chosen by a runtime value, while a treatment is a closed three-case union whose every class is

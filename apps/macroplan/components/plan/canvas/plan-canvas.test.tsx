@@ -1,5 +1,5 @@
 import type { Plan } from '@repo/api-client'
-import { dayToX, railLayout, rungFor } from '@repo/canvas'
+import { dayToX, railLayout, rungFor, sprintTicks } from '@repo/canvas'
 import type { DayRange } from '@repo/canvas'
 import { LIMITS } from '@repo/contracts'
 import { cleanup, render, screen } from '@testing-library/react'
@@ -285,7 +285,9 @@ describe('the chrome the canvas draws around its rails', () => {
     const ticks = slot('sprint-tick')
     expect(ticks.length).toBeGreaterThan(1)
     expect(ticks[0]?.textContent).toBe('W1–3')
-    for (const tick of ticks) expect(tick.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/)
+    const drawn = all('[data-slot="plan-canvas"] text')
+    expect(drawn.length).toBeGreaterThan(ticks.length)
+    for (const text of drawn) expect(text.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/)
   })
 
   it('draws today in the plan’s own zone, at the instant it was handed', () => {
@@ -351,8 +353,10 @@ describe('the canvas at this product’s own cap', () => {
   it('draws no wrapper around a mark either, which a count of marks alone would not notice', () => {
     render(<PlanCanvas at={AT} plan={planAtCap()} />)
     const canvas = only('[data-slot="plan-canvas"]')
+    const hoverTargets = sprintTicks(planAtCap(), CANVAS_SCALE, CANVAS_RANGE).length
+    expect(hoverTargets).toBeGreaterThan(1)
     expect(canvas.querySelectorAll('rect')).toHaveLength(
-      LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + ONE_QUARTER_BAND,
+      LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + ONE_QUARTER_BAND + hoverTargets,
     )
     expect(canvas.querySelectorAll('*').length).toBeLessThan(
       LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + CHROME_ALLOWANCE,

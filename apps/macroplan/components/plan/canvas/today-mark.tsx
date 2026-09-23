@@ -1,6 +1,7 @@
 import type { Plan } from '@repo/api-client'
 import { todayLine } from '@repo/canvas'
 import type { PlanScale } from '@repo/canvas'
+import { todayHover } from './hover'
 
 const TODAY_STROKE = 'stroke-gold-deep stroke-2'
 
@@ -33,8 +34,8 @@ export interface TodayMarkProps {
  * read as a tz mismatch when the real cause was a bad clock read is a bug no deploy would fix.
  *
  * The date is on the group as a `data-date`, not drawn. It is the one calendar date on the canvas and
- * §5 keeps calendar dates off the permanent chrome; the attribute is what Task 14's hover will read,
- * and carrying it **beside** `data-day` rather than deriving it from the offset is the point. Three
+ * §5 keeps calendar dates off the permanent chrome; the attribute is what the hover reads, and
+ * carrying it **beside** `data-day` rather than deriving it from the offset is the point. Three
  * calendar dates share each weekend-adjacent offset: `dateToDay` rounds a Saturday, a Sunday and the
  * Monday after them onto one day, so a line drawn at the weekend lands on the left edge of Monday,
  * where no work has started. That reads as an off-by-one to anyone who has not been told and is the
@@ -42,12 +43,24 @@ export interface TodayMarkProps {
  * that stored the offset and rendered a date back from it would say Monday for a Saturday hover, and
  * `plan-canvas.test.tsx` pins both halves: the three instants share one `data-day` and one x, and each
  * keeps its own `data-date`.
+ *
+ * The `<title>` is that same `data-date` read out as a sentence, and it is the reveal §5 asks for:
+ * a browser's own hover tooltip, which draws nothing until pointed at and needs no client boundary
+ * to do it. It is built by {@link todayHover} from the **date string alone** — `today.day` is never
+ * handed to it — so the Saturday case cannot come back as Monday, and the sentence says outright
+ * why the line is not under the date it names. `SprintTickLayer` argues why a `<title>` inside a
+ * `role="img"` adds nothing a screen reader hears.
+ *
+ * Its hover target is the line itself, which is two px wide and is a small thing to hit. The
+ * sprint's own full-height target sits directly behind it and names the same stretch of days, so
+ * the pointer that misses the line still lands on a date.
  */
 export function TodayMark({ plan, scale, at, height }: TodayMarkProps) {
   const today = todayLine(plan, at, scale)
   if (today === null) return null
   return (
     <g data-date={today.date} data-day={today.day} data-slot="today">
+      <title>{todayHover(today.date)}</title>
       <line className={TODAY_STROKE} x1={today.x} x2={today.x} y1={0} y2={height} />
     </g>
   )
