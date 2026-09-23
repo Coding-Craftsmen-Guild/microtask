@@ -3,6 +3,7 @@ import type { PlanCalendar } from '@repo/schedule'
 import { describe, expect, it } from 'vitest'
 import type { DayRange, QuarterBand, SprintTick, TodayLine } from './bands.js'
 import { SPRINTS_PER_QUARTER, quarterBands, sprintTicks, todayLine } from './bands.js'
+import type { PlanScale } from './scale.js'
 import { dayToX, scaleFor, widthOfDays } from './scale.js'
 
 const SCALE = scaleFor({ pxPerDay: 8, gutter: 120 })
@@ -14,6 +15,12 @@ const plan: PlanCalendar = {
 }
 
 const weekly: PlanCalendar = { ...plan, sprintLengthDays: 5 }
+
+const odd: PlanCalendar = { ...plan, sprintLengthDays: 7 }
+
+const daily: PlanCalendar = { ...plan, sprintLengthDays: 1 }
+
+const longest: PlanCalendar = { ...plan, sprintLengthDays: 60 }
 
 const range = (fromDay: number, toDay: number): DayRange => ({ fromDay, toDay })
 
@@ -87,6 +94,29 @@ describe('sprintTicks', () => {
     expect(sprints(ticks)).toEqual([-1])
     expect(ticks[0]?.x).toBe(dayToX(-10, SCALE))
     expect(ticks[0]?.x).toBeLessThan(SCALE.gutter)
+  })
+
+  it('labels a sprint before the plan started from the same arithmetic, rather than renumbering it to W1', () => {
+    expect(labels(sprintTicks(plan, SCALE, range(-10, 0)))).toEqual(['W-1–0'])
+    expect(labels(sprintTicks(daily, SCALE, range(-1, 0)))).toEqual(['W0'])
+    expect(labels(sprintTicks(plan, SCALE, range(-10, 10)))).toEqual(['W-1–0', 'W1–2'])
+  })
+
+  it('shares a week number between adjacent labels at a length that is not a multiple of five', () => {
+    expect(labels(sprintTicks(odd, SCALE, range(0, 21)))).toEqual(['W1–2', 'W2–3', 'W3–5'])
+    expect(sprints(sprintTicks(odd, SCALE, range(0, 21)))).toEqual([0, 1, 2])
+  })
+
+  it('repeats W1 across five one-day sprints, because five of them fit in the plan first week', () => {
+    expect(labels(sprintTicks(daily, SCALE, range(0, 7)))).toEqual([
+      'W1', 'W1', 'W1', 'W1', 'W1', 'W2', 'W2',
+    ])
+  })
+
+  it('keeps every band a full sprintLengthDays wide at the longest length contracts allows', () => {
+    const ticks = sprintTicks(longest, SCALE, range(0, 120))
+    expect(labels(ticks)).toEqual(['W1–12', 'W13–24'])
+    expect(ticks.map((tick) => tick.width)).toEqual([widthOfDays(60, SCALE), widthOfDays(60, SCALE)])
   })
 })
 
@@ -163,10 +193,27 @@ describe('todayLine', () => {
     expect(todayLine({ ...plan, timezone: 'Mars/Olympus_Mons' }, noon('2026-01-07'), SCALE)).toBeNull()
   })
 
-  it('never answers null for a zone this runtime can resolve, so null names one cause only', () => {
+  it('answers a line for every zone this runtime can resolve, over a spread of offsets', () => {
     const at = noon('2026-01-07')
     for (const timezone of ['UTC', 'Europe/Belgrade', 'America/Los_Angeles', 'Asia/Kolkata']) {
       expect(todayLine({ ...plan, timezone }, at, SCALE)).not.toBeNull()
     }
+  })
+
+  it('throws on an invalid instant rather than answering null, so null names the zone and nothing else', () => {
+    expect(() => new Date('oops').toISOString()).toThrow(RangeError)
+    expect(() => todayLine(plan, new Date('oops'), SCALE)).toThrow(RangeError)
+    expect(() => todayLine(plan, new Date(Number.NaN), SCALE)).toThrow(/invalid instant/)
+  })
+
+  it('checks the instant before the zone, so a call wrong in both ways throws rather than nulls', () => {
+    const wrongBoth = (): TodayLine | null =>
+      todayLine({ ...plan, timezone: 'Mars/Olympus_Mons' }, new Date('oops'), SCALE)
+    expect(wrongBoth).toThrow(/invalid instant/)
+  })
+
+  it('rejects an absent instant loudly, which is what an untyped caller can still reach todayIn with', () => {
+    const untyped = todayLine as (plan: PlanCalendar, at?: Date, scale?: PlanScale) => TodayLine | null
+    expect(() => untyped(plan)).toThrow()
   })
 })

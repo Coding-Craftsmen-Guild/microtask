@@ -87,6 +87,19 @@ export interface QuarterBand {
  * labels as `W1`, not `W1–1`. **No calendar date is ever in the label.** Spec §5: "real calendar
  * dates appear on hover, never as permanent chrome."
  *
+ * A `sprintLengthDays` that is not a multiple of five makes **adjacent labels share a week number**,
+ * and that is arithmetic rather than a rounding bug: at 7 the first three sprints are `W1–2`,
+ * `W2–3`, `W3–5`, because a sprint boundary falls mid-week and the week it falls in is genuinely
+ * part of both sprints. At 1, five consecutive ticks all read `W1` — five one-day sprints inside one
+ * week, each a distinct tick with distinct geometry. `@repo/contracts` allows any
+ * `int().min(1).max(60)`, so every one of these is reachable through the API and none is special
+ * cased; a label names the weeks a sprint touches, and nothing more.
+ *
+ * A **negative** sprint labels from the same arithmetic, so the sprint before the plan's own first
+ * reads `W-1–0` at a ten-day length and `W0` at a one-day length. Ugly, and deliberate, for the
+ * reason {@link QuarterBand} commits to `Q0`: chrome that renumbered itself to look tidier would
+ * print `W1` in two places, and a week before the plan's first week is not week one of anything.
+ *
  * `from` and `to` are those dates, carried here for Task 14's hover to reveal and for nothing to
  * draw. They come straight from `rangeOfSprint`, so **`to` is inclusive** — it is the sprint's
  * last working day, not the day after it. That is the one inclusive range in the codebase and it
@@ -143,7 +156,7 @@ function indicesIn(range: DayRange, indexOf: (day: number) => number): readonly 
   if (range.toDay <= range.fromDay) return []
   const first = indexOf(range.fromDay)
   const count = indexOf(range.toDay - 1) - first + 1
-  return Array.from({ length: Math.max(0, count) }, (_, step) => first + step)
+  return Array.from({ length: count }, (_, step) => first + step)
 }
 
 /**
@@ -157,6 +170,13 @@ function indicesIn(range: DayRange, indexOf: (day: number) => number): readonly 
  * viewport only partly shows is returned **whole and unclipped**: the range selects which bands
  * exist, and clipping is the renderer's job — an SVG `viewBox` already does it, and a band clipped
  * here would report a `width` that is not the width of a quarter.
+ *
+ * One thing the `viewBox` does **not** clip for you: the band's own label. A partly-visible band has
+ * an `x` left of the viewport, so a `<text>` anchored at `band.x` renders off-screen and the visible
+ * half of the band reads as unlabelled. A renderer must clamp the label's x into the viewport
+ * — `Math.max(band.x, dayToX(range.fromDay, scale))` — rather than clamp the band's. This is stated
+ * here because it is invisible to a test: `happy-dom` stubs `getBBox` and `getBoundingClientRect` to
+ * a zero `DOMRect`, so nothing that measures text can discover it, and nothing here can.
  *
  * Pure arithmetic over `sprintLengthDays`. Nothing is read from the plan's zone, no calendar date
  * is computed, and neither argument is mutated.
@@ -213,13 +233,21 @@ export function sprintTicks(
   }))
 }
 
-function dateIn(timezone: string, at: Date): string | null {
+function resolvesZone(timezone: string): boolean {
   try {
-    return todayIn(timezone, at)
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone })
+    return true
   } catch (error) {
-    if (error instanceof RangeError) return null
+    if (error instanceof RangeError) return false
     throw error
   }
+}
+
+function dateIn(timezone: string, at: Date): string | null {
+  if (Number.isNaN(at.getTime())) {
+    throw new RangeError('todayLine was given an invalid instant')
+  }
+  return resolvesZone(timezone) ? todayIn(timezone, at) : null
 }
 
 /**
@@ -242,21 +270,40 @@ function dateIn(timezone: string, at: Date): string | null {
  * told, and it is the correct answer — there is no offset for a Saturday to occupy, because the
  * axis is working days.
  *
- * ### Why `null`, and why only here
+ * ### `null` means one thing: this runtime cannot resolve the plan's zone
  *
- * A `Timezone` that reached this through `PlanView.parse` was refined against `Intl` by
- * `@repo/contracts`, so it **cannot** make this answer `null` on the runtime that parsed it. The
- * case that remains is a zone one runtime resolves and another does not — a tz database that
- * differs between the Node that wrote the plan and the browser that draws it, or between two
- * deploys — not a value that arrived unvalidated.
+ * Nothing else. An unresolvable `timezone` is probed for **before** the instant is read, with the
+ * same `new Intl.DateTimeFormat('en-US', { timeZone })` that `@repo/contracts` refines `Timezone`
+ * with, and that probe is the only thing inside the only `try`. So a caller who lost the today line
+ * can act on one diagnosis rather than three.
+ *
+ * A `Timezone` that reached this through `PlanView.parse` was refined against `Intl` by that same
+ * probe, so it **cannot** make this answer `null` on the runtime that parsed it. The case that
+ * remains is a zone one runtime resolves and another does not — a tz database that differs between
+ * the Node that wrote the plan and the browser that draws it, or between two deploys — not a value
+ * that arrived unvalidated.
  *
  * `todayIn` lets that `RangeError` through, "because a plan silently drawn a day off is worse than
- * a refusal", and this catches it anyway. The two are not in tension: `todayIn` has only two
+ * a refusal", and this returns `null` instead. The two are not in tension: `todayIn` has only two
  * answers available, the right date or a wrong one, and refuses rather than return the wrong one.
  * This has a third — **draw the plan and draw no today line** — which is neither a wrong date nor
  * a lost canvas, and is visible as an absence rather than silent as an error. Every bar, band and
- * tick on the axis is still correct, because none of them reads a zone. Only `RangeError` is
- * caught, and only around the zone lookup; anything else is a defect and is rethrown.
+ * tick on the axis is still correct, because none of them reads a zone.
+ *
+ * ### What throws instead
+ *
+ * An **invalid instant** — `new Date('oops')`, or the `undefined` an untyped caller can still get
+ * past the signature. It throws a `RangeError` naming this function, and it is checked first, so a
+ * defect beats a graceful degradation when a call is wrong in both ways at once. Widening `null` to
+ * cover it would be the exact failure this whole note exists to prevent: an absent today line read
+ * as a tz-database mismatch when the real cause was a bad clock read, which no deploy will fix.
+ * `Date.prototype.toISOString` and `Intl`'s own `formatToParts` both answer a bad instant with a
+ * `RangeError`, so this is their convention and not a new one.
+ *
+ * And `todayIn`'s own hand-thrown `RangeError` for an `Intl` that resolved the zone but produced no
+ * date part. That is a defect in a runtime, not a plan a UI should quietly draw half of, and it now
+ * propagates — the earlier form of this function caught it, because its `try` wrapped the whole
+ * call rather than the zone probe.
  */
 export function todayLine(plan: PlanCalendar, at: Date, scale: PlanScale): TodayLine | null {
   const date = dateIn(plan.timezone, at)
