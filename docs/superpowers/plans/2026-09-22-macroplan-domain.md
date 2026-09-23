@@ -2258,32 +2258,48 @@ handler. The bootstrap stays reachable — a holder asking about *its own* scope
       `pnpm --filter api build && pnpm --filter api openapi:emit`
       It writes nothing and exits 1 on a schema-generation failure — an unnamed component or a
       duplicate `.meta({ id })` across two schemas is the usual cause.
+      **Expect no diff.** Tasks 15, 16 and 16b each regenerated it as they went, so the
+      committed document already carries all sixteen macroplan paths as of `7f7e9ea`. Run it
+      anyway and report whether the file changed: a clean run confirms the emitted document, and
+      a dirty one says an earlier task committed a stale copy, which is a finding in itself.
 - [ ] **Step 2: run the emit test.** `pnpm --filter api test -- emit-openapi` — the committed
       document must match a freshly generated one. A stale `openapi.json` is a lie a client is built
       from.
-- [ ] **Step 3: write `agreement.test.ts`**, three assertions that no single-package suite can make:
+- [ ] **Step 3: write `agreement.test.ts`**, four assertions that no single-package suite can make:
       - **the API's schedule and the package's schedule agree.** Take the fixture plan's manifest
         from the harness store, call `schedule()` on it directly, and assert the flattened result is
         deeply equal to the `schedule` block of `GET /plans/{planId}`'s body. §4.1's whole argument
         for a shared package is that two implementations would disagree; this is the test that would
         catch one appearing
-      - **every macroplan handler calls `authorize`.** `grep -c 'authorize(' src/routes/macroplan`
-        equals the handler count, asserted by reading the files. `authorize` throws rather than
-        returning a boolean precisely so that *not calling it* is the only remaining way to be
-        unguarded, and that is greppable
-      - **`ProblemCode` still covers every code these routes emit.** The existing contract test
-        enumerates `MEANINGS` plus the three 401s; assert the macroplan routes introduce no code
-        outside `PROBLEM_CODES`
+      - **every macroplan handler calls `authorize` at least once.** Not "the call count equals
+        the handler count": there are **25** exported handlers and **30** calls, because three of
+        them — `updatePlan`, `updateFeature`, `updateItem` — choose their action from the body, a
+        retime being a different grant from a rename (ADR 0011). So assert that the set of handler
+        blocks containing no call is **empty**, which is the claim that actually matters, and let
+        the two numbers differ. `authorize` throws rather than returning a boolean precisely so
+        that *not calling it* is the only remaining way to be unguarded, and that is greppable
+      - **`ProblemCode` still covers every code these routes emit.** `problem-codes.test.ts`
+        already makes that census both ways over `MEANINGS`, `UNMAPPED` and `CREDENTIAL_REFUSALS`,
+        and the census is status-based, so it covers these routes already. Do not copy it. Make
+        this one **behavioural** instead: drive a real 401, 403, 404, 409 and 422 out of macroplan
+        paths, and assert each body parses against `Problem` or `ValidationProblem` and carries a
+        `code` that is in `PROBLEM_CODES`. A census over a table cannot see a route answering a
+        status the table has no row for; a response can
       - **`PENDING_ROUTES` holds exactly `epic:bind` and `item:link`, and nothing else.**
         `authorize-targets.test.ts` carries a set of actions with no route yet, so its target-table
         cross-check passes while those rows are unconfirmed. It began at 24. The scan reads the whole
         `routes/` tree, so a handler gating on a **literal** action clears its own entry, and Tasks 15
         and 16 cleared 22 that way. The last two are **not** oversights and must not be deleted from
         the set: `epic:bind` and `item:link` are the phase-4 bridge actions, spec §9 reserves the
-        fields they write, and Task 16 asserts those fields stay `null`. So assert the set's exact
-        contents rather than its emptiness — an allowance that outlives its debt is indistinguishable
-        from a hole, but an allowance whose debt is a *later phase* has to be named as such or the
-        next reader deletes a guard to make a test pass.
+        fields they write, and Task 16 asserts those fields stay `null`. Do **not** assert the
+        set's contents against a literal in the same file: that is a line comparing a constant to
+        itself, and it goes on passing after the guard it was meant to protect is gone. Assert
+        instead what *keeps* each row pending — `UpdateEpicPayload.parse` strips `binding` and
+        `UpdateItemPayload.parse` strips `linkedTaskId`, so no phase-1 body can write either field
+        and neither action has a route to gate. That fails the day somebody adds the field, which
+        is the day the row must go. `authorize-targets.test.ts` already asserts the other half,
+        that no pending row has since been gated, so between the two an allowance can neither
+        outlive its debt nor hide a hole.
 - [ ] **Step 4: run the API suite.** Green.
 - [ ] **Step 5: the gate**, then commit `"Publish the document, and prove both schedules agree"`.
 
