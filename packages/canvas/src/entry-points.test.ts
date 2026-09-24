@@ -36,6 +36,11 @@ describe('@repo/canvas entry points', () => {
     ])
   })
 
+  it('ships the drop query as a type, because a caller has to name the one object it passes', () => {
+    const unasked: main.DropQuery | null = null
+    expect(unasked).toBeNull()
+  })
+
   it('keeps the rung bounds off the barrel, since a caller passes a range and reads no threshold', () => {
     expect(Object.keys(main)).not.toContain('ITEM_RUNG_MAX_DAYS')
     expect(Object.keys(main)).not.toContain('FEATURE_RUNG_MAX_DAYS')
