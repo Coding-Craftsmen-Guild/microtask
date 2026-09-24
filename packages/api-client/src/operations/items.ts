@@ -51,10 +51,8 @@ export interface ItemsApi {
   /**
    * Adds an item at the end of the feature the body names.
    *
-   * The feature's span grows by this item's estimate — a feature holding estimated items is worth
-   * the sum of them — so the plan that comes back has already moved everything after it on that rail
-   * and everything waiting on it across rails. That is the clearest case in this subtree for why an
-   * item write answers the plan rather than the item.
+   * The feature's span grows by this item's estimate, so the plan that comes back has already moved
+   * everything downstream of it — the clearest case in this subtree of what {@link Plan} records.
    */
   create(planId: string, item: NewItem): Promise<Plan>
 
@@ -126,10 +124,7 @@ export interface ItemsApi {
    * while every other write here is `write`, so a seat that can add an item cannot remove one.
    *
    * Its feature's span shrinks by exactly this item's estimate, so it answers the **plan that
-   * remains** rather than `void`. `apps/api/src/routes/macroplan/plan-response.ts` holds that rule
-   * and names its own exceptions; no item write is among them. `transport.empty` and
-   * a `Promise<void>` would compile and throw the timeline away, so this return type is the only
-   * thing holding the difference.
+   * remains** rather than `void`, for the reason {@link Plan} records.
    */
   remove(planId: string, itemId: string): Promise<Plan>
 }

@@ -71,7 +71,15 @@ describe('apiForSession', () => {
   it('reaches this product own routes and no project route, the surface holding none', async () => {
     held.admin = { kind: 'admin', token: 'admin.1.sig' }
     const client = await apiForSession()
-    expect(Object.keys(client ?? {}).sort()).toEqual(['credential', 'currentShare', 'plans'])
+    expect(Object.keys(client ?? {}).sort()).toEqual([
+      'credential',
+      'currentShare',
+      'epics',
+      'features',
+      'items',
+      'plans',
+      'shareLinks',
+    ])
     await client?.plans.list()
     expect(sent[0]?.url).toContain('/v1/macroplan/')
     expect(sent[0]?.url).not.toContain('/v1/microtask/')

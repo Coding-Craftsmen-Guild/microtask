@@ -109,8 +109,7 @@ export interface FeaturesApi {
    * The edge strip runs across every rail, because an edge pointing at a feature that no longer
    * exists is one the pass drops silently — after which a bar is placed as though the dependency
    * had never been stated. Like every structural route it answers the **plan that remains** rather
-   * than `void`, for the reason `epics.ts` gives: the write re-derives every span, so the
-   * authoritative timeline comes back with it.
+   * than `void`, for the reason {@link Plan} records.
    */
   remove(planId: string, featureId: string): Promise<Plan>
 }

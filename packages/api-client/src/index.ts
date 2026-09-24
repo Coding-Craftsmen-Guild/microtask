@@ -43,7 +43,12 @@ export type {
 } from './operations/features.js'
 export type { FoldersApi } from './operations/folders.js'
 export type { ItemChange, ItemPlacement, ItemsApi, NewItem } from './operations/items.js'
-export type { Plan, PlansApi } from './operations/plans.js'
+export type {
+  NewPlanSeat,
+  PlanSeatChange,
+  PlanShareLinksApi,
+} from './operations/plan-share-links.js'
+export type { NewPlan, Plan, PlanChange, PlansApi } from './operations/plans.js'
 export type { Project, ProjectsApi } from './operations/projects.js'
 export type { NewShareLink, ShareLinkChange, ShareLinksApi } from './operations/share-links.js'
 export type { Document, TabsApi } from './operations/tabs.js'

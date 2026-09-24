@@ -91,7 +91,7 @@ describe('each macroplan client presents its own principal token and the shared 
 })
 
 describe('the macroplan surface reaches no microtask operation', () => {
-  it('holds plans, their rails and the bootstrap, and nothing a project could be read through', () => {
+  it('holds plans, their rails, their seats and the bootstrap, and nothing a project reaches through', () => {
     const admin: Record<string, unknown> = { ...createMacroplanAdminClient(OPTIONS, 'a') }
     expect(Object.keys(admin).sort()).toEqual([
       'credential',
@@ -100,10 +100,11 @@ describe('the macroplan surface reaches no microtask operation', () => {
       'features',
       'items',
       'plans',
+      'shareLinks',
     ])
   })
 
-  it('reads a plan through GET, the only method phase 2 needs', async () => {
+  it('reads a plan through GET', async () => {
     calls.length = 0
     await createMacroplanAdminClient(OPTIONS, 'a')
       .plans.read('p1')

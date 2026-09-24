@@ -2,6 +2,7 @@ import { PlanShareView } from '@repo/contracts'
 import { epicsApi, type EpicsApi } from './operations/epics.js'
 import { featuresApi, type FeaturesApi } from './operations/features.js'
 import { itemsApi, type ItemsApi } from './operations/items.js'
+import { planShareLinksApi, type PlanShareLinksApi } from './operations/plan-share-links.js'
 import { plansApi, type PlansApi } from './operations/plans.js'
 import { MACROPLAN_CURRENT_SHARE_PATH } from './paths.js'
 import type { Transport } from './transport.js'
@@ -22,15 +23,16 @@ import type { Decoded } from './types.js'
  * copy of that policy. A call outside a seat's plan comes back as {@link ApiError} with `status` 403.
  */
 export interface MacroplanApi {
-  /** Plans: the collection, one plan with its schedule, and one item with its description. */
+  /**
+   * Plans: the collection, one plan with its schedule, one item's description, and the plan's own
+   * settings created, changed and removed.
+   *
+   * `Plan` in `operations/plans.ts` is where the reason every group below answers a whole plan is
+   * written down, and the two calls that answer nothing say why they are the exceptions.
+   */
   readonly plans: PlansApi
 
-  /**
-   * Epics: the rails of one plan, added, renamed, reordered and removed.
-   *
-   * Every one of them answers the whole plan, because a structural edit can move every bar on the
-   * canvas — so the authoritative timeline arrives in the same round trip as the write.
-   */
+  /** Epics: the rails of one plan, added, renamed, reordered and removed. */
   readonly epics: EpicsApi
 
   /**
@@ -49,6 +51,14 @@ export interface MacroplanApi {
    * refusing it, answering 200 either way. Read its TSDoc before wiring it to a text field.
    */
   readonly items: ItemsApi
+
+  /**
+   * Share links: the seats one plan hands out, minted, re-roled and revoked.
+   *
+   * It has **no `list`**, and that is the group's one surprise: a plan's seats come back inside the
+   * plan `plans.read` answers. Read {@link PlanShareLinksApi} before building a manager on it.
+   */
+  readonly shareLinks: PlanShareLinksApi
 
   /**
    * Describes the plan seat the caller presented, and the plan it opens.
@@ -70,6 +80,7 @@ export function createMacroplanSurface(transport: Transport): MacroplanApi {
     epics: epicsApi(transport),
     features: featuresApi(transport),
     items: itemsApi(transport),
+    shareLinks: planShareLinksApi(transport),
     currentShare: () =>
       transport.json({ method: 'GET', path: MACROPLAN_CURRENT_SHARE_PATH }, PlanShareView),
   }

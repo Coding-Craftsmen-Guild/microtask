@@ -67,13 +67,8 @@ export interface EpicsApi {
    * Removes one rail, the features on it and the items under those, in one write.
    *
    * It answers the **plan that remains** and not `void`, which is the one thing here that surprises
-   * a reader: deleting a rail cascades wide enough to re-derive every span, so the route answers 200
-   * with the whole plan rather than 204. `apps/api/src/routes/macroplan/plan-response.ts` holds that
-   * rule and names its own exceptions; an epic delete is not among them. Read it there rather than
-   * from a list restated here, which is how a count drifts.
-   *
-   * `transport.empty` and a `Promise<void>` would compile and throw the timeline away, so this
-   * return type is the only thing holding the difference.
+   * a reader: deleting a rail cascades wide enough to re-derive every span. {@link Plan} records why
+   * that is what the whole subtree answers, and names the file the rule belongs to.
    */
   remove(planId: string, epicId: string): Promise<Plan>
 }
