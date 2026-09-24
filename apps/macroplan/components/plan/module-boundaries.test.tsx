@@ -145,19 +145,34 @@ const subjectOf = (kind: 'feature' | 'item', id: string) => {
 
 const ITEM = subjectOf('item', ITEM_1)
 
-const CLIENT_FILES = [
-  'components/plan/drawer/description-field.tsx',
-  'components/plan/drawer/estimate-field.tsx',
-  'components/plan/drawer/name-field.tsx',
-] as const
-
+// **One list, and the two uses cannot disagree.** The allowlist below is derived from this map rather
+// than written beside it, because the two answer the same question and a file named in one and missing
+// from the other is a hole rather than an inconsistency: the walk stops only at what this map holds,
+// and *calls* anything else that is a function. A client component the allowlist admitted and this map
+// had never heard of would therefore be walked **through** — a hookless one, which is exactly what a
+// delete control is, renders when called and its own props are never inspected, so a plan-shaped prop
+// on it would pass this file in silence. Deriving one from the other makes that state unreachable: a
+// new client file fails the allowlist until it is a key here, and being a key here is what stops the
+// walk at it.
 const CLIENT_BY_FILE = new Map<unknown, string>([
   [DescriptionField, 'description-field.tsx'],
   [EstimateField, 'estimate-field.tsx'],
   [NameField, 'name-field.tsx'],
 ])
 
-const PRIMITIVE = new Set(['string', 'number', 'boolean', 'function'])
+const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/drawer/${name}`)
+
+const PRIMITIVE = new Set(['string', 'number', 'boolean'])
+
+// What a client component may be handed, which is where this file and `testing/handed.ts` had drifted
+// apart: that walker and both drawer page tests reject a function whose name starts with `bound `,
+// being what `Function.prototype.bind` names its result and the one mechanism ADR 0040 describes for
+// smuggling a token into a component — and this check admitted any function at all. Now both refuse
+// the same thing, so a bound action carrying a token fails here as well as there.
+const handedOk = (value: unknown): boolean => {
+  if (typeof value === 'function') return !value.name.startsWith('bound ')
+  return value === null || PRIMITIVE.has(typeof value)
+}
 
 interface HandedToClient {
   readonly file: string
@@ -165,8 +180,13 @@ interface HandedToClient {
 }
 
 // Server components are **called** rather than rendered, so the walk reaches the elements they build
-// with the props still on them; the three client components are where it stops, those props being
+// with the props still on them; the client components named above are where it stops, those props being
 // exactly what crosses into the browser.
+//
+// Recursion follows **every** prop and not `children` alone: a component handed through any other prop
+// — a `drawer` slot, a `header`, a list of panels — was invisible to a walk that only descended into
+// `children`, and this app already passes one that way (`PlanScreen`'s `drawer`). Nothing else is
+// reached differently by it: a prop that is not an element and not an array of them contributes none.
 const clientProps = (node: unknown): readonly HandedToClient[] => {
   if (Array.isArray(node)) return node.flatMap((one) => clientProps(one))
   if (!isValidElement<Record<string, unknown>>(node)) return []
@@ -176,7 +196,7 @@ const clientProps = (node: unknown): readonly HandedToClient[] => {
     const build = node.type as (props: Record<string, unknown>) => unknown
     return clientProps(build(node.props))
   }
-  return clientProps(node.props['children'])
+  return Object.values(node.props).flatMap((one) => clientProps(one))
 }
 
 const TREES = [
@@ -266,7 +286,7 @@ describe('the plan subtree', () => {
   // directions — a new client file fails until it is named here, and a name left behind by a file that
   // stopped being one fails too. So the sweep still reports every client component this subtree gains,
   // which is the thing it was really for.
-  it('declares use client only in the three field files, and nowhere else under the plan', () => {
+  it('declares use client only in the allowlisted files, and nowhere else under the plan', () => {
     const declared = walk(PLAN)
       .filter((file) => declaresUseClient(read(file)))
       .map((file) => relative(APP, file).split('\\').join('/'))
@@ -282,28 +302,42 @@ describe('the plan subtree', () => {
   // The assertion the old sweep implied and never had to state. A client component's props are
   // serialised into the Flight payload and land in the HTML, and the admin's own plan read carries every
   // live seat token — so what a client file may be handed is the question, and the answer here is
-  // **primitives and functions only**. That rules out the plan, the reduced model, a `TableRow`, a
+  // **primitives and unbound functions**. That rules out the plan, the reduced model, a `TableRow`, a
   // `PlanShareLink` and the whole actions object by shape rather than by name, which is what keeps it
-  // from rotting: a prop added later is checked without this list being edited. The tree is expanded by
-  // calling each server component, so what is inspected is what `DrawerPanel` really hands over rather
+  // from rotting: a prop added later is checked without this list being edited. Every tree is expanded by
+  // calling each server component, so what is inspected is what each surface really hands over rather
   // than what this file passed in.
-  it('hands its client files nothing but primitives and functions, so no plan and no token can ride', () => {
-    const handed = clientProps(panel({ description: 'Ship behind a flag', key: 'x', row: ITEM.row, values: ITEM.values }))
-    expect(handed.map((one) => one.file).sort()).toEqual([
-      'description-field.tsx',
-      'estimate-field.tsx',
-      'name-field.tsx',
-    ])
-    for (const { file, props } of handed) {
-      for (const [name, value] of Object.entries(props)) {
-        expect(PRIMITIVE.has(typeof value) || value === null, `${file}: ${name}`).toBe(true)
+  //
+  // **Every tree, and not only the drawer's.** The drawer holds the only client files today, so walking
+  // the panel alone was not yet a hole — but the trees beside it are where the next one lands, and a
+  // sweep that names the surface it checks would have to be edited by whoever adds one. Expanding all of
+  // them costs one more pass over fixtures this file already renders, and the assertion below is what
+  // makes the generalisation real: every component the map names must be reached by *some* tree, so a
+  // client file mounted on a surface nothing here renders fails rather than passing unchecked.
+  it('reaches every client component it names, so none of them is checked by nothing', () => {
+    const files = TREES.flatMap((tree) => clientProps(tree)).map((one) => one.file)
+    expect([...new Set(files)].sort()).toEqual([...CLIENT_BY_FILE.values()].sort())
+  })
+
+  it('hands its client files nothing but primitives and unbound functions, in every tree it draws', () => {
+    for (const tree of TREES) {
+      for (const { file, props } of clientProps(tree)) {
+        for (const [name, value] of Object.entries(props)) {
+          expect(handedOk(value), `${file}: ${name}`).toBe(true)
+        }
       }
     }
   })
 
+  it('refuses a bound function the way testing/handed.ts does, that being how a token would ride', () => {
+    const plain = (token: string | undefined) => token
+    expect(handedOk(plain)).toBe(true)
+    expect(handedOk(plain.bind(null, atlasPlan().shareLinks[0]?.token))).toBe(false)
+    expect(handedOk(atlasPlan())).toBe(false)
+  })
+
   it('hands them no string holding a token, checked against the three the fixture really has', () => {
-    const handed = clientProps(panel({ description: 'Ship behind a flag', key: 'x', row: ITEM.row, values: ITEM.values }))
-    const strings = handed.flatMap(({ props }) =>
+    const strings = TREES.flatMap((tree) => clientProps(tree)).flatMap(({ props }) =>
       Object.values(props).filter((value): value is string => typeof value === 'string'),
     )
     expect(strings.length).toBeGreaterThan(3)

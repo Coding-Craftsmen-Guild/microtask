@@ -4,6 +4,7 @@ import {
   budgetLine,
   descriptionBytes,
   estimateEntry,
+  normalisedDescription,
   overBudget,
   OVER_BUDGET,
 } from './field'
@@ -90,5 +91,31 @@ describe('counting a description in the unit the cap is written in', () => {
   it('refuses in terms of what the API would otherwise do, since it answers 200 either way', () => {
     expect(OVER_BUDGET).toContain('8192')
     expect(OVER_BUDGET).toContain('drops the rest without saying so')
+  })
+})
+
+describe('the two normalisations the domain applies that a byte cap does not cover', () => {
+  const chr = (code: number): string => String.fromCharCode(code)
+
+  it('strips exactly the set cleanDescription strips: every C0 code but tab and newline, plus DEL', () => {
+    for (let code = 0; code < 32; code += 1) {
+      const kept = code === 9 || code === 10 ? chr(code) : ''
+      const becomes = code === 13 ? '\n' : kept
+      expect(normalisedDescription(`a${chr(code)}b`), String(code)).toBe(`a${becomes}b`)
+    }
+    expect(normalisedDescription(`a${chr(127)}b`)).toBe('ab')
+  })
+
+  it('keeps every printable character, including the ones a byte count cares about', () => {
+    expect(normalisedDescription('Ship it 😀 é')).toBe('Ship it 😀 é')
+    expect(normalisedDescription('')).toBe('')
+  })
+
+  // The order is the domain's, and it is load-bearing: `\r` is itself in the stripped set, so a
+  // strip-first implementation would delete the lone `\r` the server turns into a newline.
+  it('normalises CRLF and a lone CR to a newline rather than stripping them', () => {
+    expect(normalisedDescription('one\r\ntwo')).toBe('one\ntwo')
+    expect(normalisedDescription('one\rtwo')).toBe('one\ntwo')
+    expect(normalisedDescription(`one${chr(13)}${chr(10)}two`)).toBe('one\ntwo')
   })
 })

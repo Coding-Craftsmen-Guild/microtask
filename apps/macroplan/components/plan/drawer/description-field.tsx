@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   budgetLine,
   descriptionBytes,
+  normalisedDescription,
   overBudget,
   paintUnfocused,
   FIELD,
@@ -14,6 +15,8 @@ import {
 import { FieldShell } from './field-shell'
 
 const FIELD_ID = 'plan-drawer-description'
+
+const bytesOf = (typed: string): number => descriptionBytes(normalisedDescription(typed))
 
 /** Props for {@link DescriptionField}. */
 export interface DescriptionFieldProps {
@@ -57,10 +60,18 @@ export interface DescriptionFieldProps {
  * `describeItem` answers the **plan**, and a plan carries no descriptions — `PlanManifest` is
  * "everything about a plan except its item descriptions", which live in each item's own file. So
  * unlike the name and the estimate beside it, this field cannot show what the server stored: it shows
- * what it sent, and it is only entitled to do that because it refuses everything the server would have
- * changed. Whitespace is not trimmed and nothing is collapsed here for the same reason — the domain
- * does not either, beyond normalising CRLF and stripping control characters, and a textarea's own
- * value is already newline-normalised.
+ * what it sent, and it is only entitled to do that while it sends nothing the server would change.
+ *
+ * `cleanDescription` changes three things and the byte cap is only the third. The other two are a CRLF
+ * normalisation and a stripped control-character set, and they are what `normalisedDescription`
+ * (`./field.ts`) applies here **before** the comparison, the count and the send: a pasted `U+000B` was
+ * otherwise stored stripped while this box went on showing it and reporting success, which is the exact
+ * failure this rule exists to prevent. What is sent is what the box is then repainted with, so the two
+ * cannot disagree. The truncation is the one of the three that is refused rather than applied, because
+ * it is the one that loses what somebody wrote.
+ *
+ * Whitespace is still neither trimmed nor collapsed, and that is unchanged: the domain does not either,
+ * so there is nothing to disagree about.
  *
  * It commits on blur and **not on Enter**, which in a `<textarea>` is a newline the user meant. That
  * is the one place this field departs from the drawer's field idiom (`./name-field.tsx`).
@@ -75,9 +86,12 @@ export function DescriptionField({ planId, itemId, description, describe }: Desc
     paintUnfocused(box.current, description)
     setBytes(descriptionBytes(description))
   }, [description])
-  const commit = async (next: string) => {
+  const commit = async (typed: string) => {
+    const next = normalisedDescription(typed)
+    setBytes(descriptionBytes(next))
     if (next === stored.current) {
       setProblem('')
+      paintUnfocused(box.current, next)
       return
     }
     if (overBudget(descriptionBytes(next))) {
@@ -85,7 +99,10 @@ export function DescriptionField({ planId, itemId, description, describe }: Desc
       return
     }
     const result = await orNoAnswer(describe)(planId, itemId, next)
-    if (result.ok) stored.current = next
+    if (result.ok) {
+      stored.current = next
+      paintUnfocused(box.current, next)
+    }
     setProblem(result.ok ? '' : result.detail)
   }
   return (
@@ -96,7 +113,7 @@ export function DescriptionField({ planId, itemId, description, describe }: Desc
           className={FIELD}
           defaultValue={description}
           onBlur={(event) => void commit(event.currentTarget.value)}
-          onChange={(event) => setBytes(descriptionBytes(event.currentTarget.value))}
+          onChange={(event) => setBytes(bytesOf(event.currentTarget.value))}
           ref={box}
           rows={4}
         />

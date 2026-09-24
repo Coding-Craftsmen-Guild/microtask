@@ -10,6 +10,13 @@ const WHOLE_DAYS =
 
 const TOO_MANY_DAYS = `An estimate cannot be more than ${String(MAX_ESTIMATE_DAYS)} days.`
 
+const STRIPPED_CODES = [...[...Array(32).keys()].filter((code) => code !== 9 && code !== 10), 127]
+
+const STRIPPED = new RegExp(
+  `[${STRIPPED_CODES.map((code) => String.fromCharCode(code)).join('')}]`,
+  'gu',
+)
+
 /**
  * One field of one subject, written: the plan, the subject, and the new value.
  *
@@ -135,6 +142,31 @@ export const budgetLine = (bytes: number): string =>
   overBudget(bytes)
     ? `${String(bytes - MAX_ITEM_DESCRIPTION_BYTES)} bytes over the ${String(MAX_ITEM_DESCRIPTION_BYTES)}-byte cap`
     : `${String(MAX_ITEM_DESCRIPTION_BYTES - bytes)} of ${String(MAX_ITEM_DESCRIPTION_BYTES)} bytes left`
+
+/**
+ * What `cleanDescription` would make of this text, minus the truncation the field refuses instead.
+ *
+ * The domain does **three** things to a description and the byte cap is only the third:
+ * `cleanDescription` (`packages/macroplan-domain/src/limits.ts`) normalises `\r\n` and a lone `\r` to
+ * `\n`, strips every C0 control character except `\n` and `\t` along with `U+007F`, and only then
+ * truncates. A field that refused the truncation alone was still entitled to nothing: a pasted
+ * `U+000B` was stored **stripped** while the box went on showing it and reporting success, which is the
+ * exact failure the "show what the server stored" rule exists to prevent — and this field cannot read
+ * its answer back, `describeItem` answering a plan that carries no descriptions.
+ *
+ * So the same two normalisations happen here, before the comparison, the count and the send, and the
+ * box is repainted with what went out. The set is built from character **codes** rather than a regex
+ * literal of escapes — every C0 code but tab and newline, plus DEL — which is both how the domain
+ * builds it and, per that module's own note, the spelling a tool in this pipeline cannot silently
+ * mangle into a raw control byte. It is rebuilt rather than imported because `apps/macroplan` may not
+ * import `@repo/macroplan-domain` at all (ADR 0014, ADR 0027); `field.test.ts` pins the set against
+ * the rule in words, so a change to either has to be a change to both.
+ *
+ * The order matters and is the domain's: normalise first, strip second. `\r` is itself in the stripped
+ * set, so stripping first would delete a lone `\r` the server turns into a newline.
+ */
+export const normalisedDescription = (typed: string): string =>
+  typed.replace(/\r\n|\r/gu, '\n').replace(STRIPPED, '')
 
 /** Why a description is not sent at all, said in terms of what the API would otherwise do to it. */
 export const OVER_BUDGET = `This is past the ${String(MAX_ITEM_DESCRIPTION_BYTES)}-byte cap. The API keeps what fits and drops the rest without saying so, so shorten it and try again.`

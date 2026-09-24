@@ -207,3 +207,45 @@ describe('what a reader is told about the budget and about a refusal', () => {
     expect(described(box())).toContain('drops the rest without saying so')
   })
 })
+
+// `cleanDescription` does three things and this field used to refuse only the third. A control
+// character was stored **stripped** while the box went on showing it and reporting success — the very
+// failure the "show what the server stored" rule exists to prevent, and unfixable by reading the
+// answer back, a plan carrying no descriptions. VT is the character used because happy-dom drops DEL
+// out of a textarea's value of its own accord, which a browser does not: VT survives to be stripped
+// here, and the unit test in `field.test.ts` pins the whole set the server strips.
+describe('the two things the server would change besides truncating', () => {
+  const VT = String.fromCharCode(11)
+
+  it('strips a pasted control character before comparing, counting or sending it', async () => {
+    const { onDescribe } = setup('')
+    await paste(`Ship${VT} it`)
+    expect(onDescribe).toHaveBeenCalledWith(PLAN_A, ITEM_1, 'Ship it')
+  })
+
+  it('shows what it sent rather than what was pasted, the two not being the same text', async () => {
+    setup('')
+    await paste(`Ship${VT} it`)
+    expect(box().value).toBe('Ship it')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('sends nothing when a control character is all that was added, and drops it from the box', async () => {
+    const { onDescribe } = setup('Ship it')
+    await paste(`Ship it${VT}`)
+    expect(onDescribe).not.toHaveBeenCalled()
+    expect(box().value).toBe('Ship it')
+  })
+
+  it('counts the budget against the text that would be sent, not the text that was typed', async () => {
+    setup('')
+    await paste(`ab${VT}${VT}`)
+    expect(budget()).toBe('8190 of 8192 bytes left')
+  })
+
+  it('normalises a pasted CRLF the way the server would, and keeps tabs and newlines', async () => {
+    const { onDescribe } = setup('')
+    await paste('one\r\ntwo\rthree\tfour\nfive')
+    expect(onDescribe).toHaveBeenCalledWith(PLAN_A, ITEM_1, 'one\ntwo\nthree\tfour\nfive')
+  })
+})
