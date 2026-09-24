@@ -1072,8 +1072,11 @@ so a calendar arrives as three of them.
   is the one rule Step 3c of Task 11 bought and it is the one a shortcut here would spend.
 - `pin-field.tsx` went **into** `drawer-edits.tsx` — the "cannot" this line used to assert was an artefact of the
   stale 80/80 figure above. A control group's *file* is its own; its *mount* is a child of an existing container.
-- `drawer-edits.tsx`'s remaining 18 lines buy roughly one and a half more mounts at eleven lines each, and Tasks 13,
-  15 and 16 bring four groups — the dependency editor, create, delete, and the keyboard reorder. **So a second
+- `drawer-edits.tsx`'s remaining 18 lines buy roughly one and a half more mounts at eleven lines each, and **three**
+  groups are queued for it: the dependency editor (Task 13), delete (Task 15) and the place pair (Task 16). **Create
+  is the fourth group and does not belong there at all** — `createItem` needs a parent feature and `createFeature` a
+  rail, so create is not about *this* subject; it is a sibling group the panel mounts, which is the distinction
+  Task 11's own follow-up recorded and which this paragraph previously blurred by counting four. **So a second
   container is owed during Task 13 or 15.** Do not shave the frame to fit. The cut is already latent in the code:
   `drawer-edits.tsx` holds the **`write`**-tier controls, so the second is the **`manage`** tier — `pinFeature`,
   `placeFeature`/`placeItem`, `removeFeature`/`removeItem` — one capability tier, one file, an honest boundary
