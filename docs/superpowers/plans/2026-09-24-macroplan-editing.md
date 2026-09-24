@@ -1504,6 +1504,19 @@ bridge; do not renumber into it.
         because `renameFeature` and `renameItem` have identical signatures and swapping them typechecks. If Task 8's
         seat mirror binds its token, that sweep cannot work unchanged there — a bound function's `.name` is
         `"bound renameFeature"`. Say how the seat side is checked, or why it needs no check.
+      - **7n:** `apps/macroplan/lib/admin-controls.ts` keeps a hand-written literal naming all twenty-two controls,
+        policed by a mapped type. **Microtask keeps no such literal** — `components/task-tree/controls.ts` derives
+        its admin answer by pushing an all-true record through the same projection its seat answer goes through, so
+        there is one list of names in that app and drift is impossible rather than merely a type error. Task 9's
+        quality review judged our version the weaker of the two and it is right.
+
+        The blocker is real and is one export: `@repo/contracts` publishes no all-true `Capabilities`, and this app
+        cannot build one without a type assertion. Adding `ALL_CAPABILITIES` beside `CAPABILITY_ACTIONS` — where an
+        assertion already lives, behind a contract boundary — lets `planCapabilities` and `ADMIN_CONTROLS` both come
+        out of one `planControls(can, seats)` projection, deleting the literal and the mapped type together. Deferred
+        out of Task 9 deliberately: it changes a package every app and the API load from `dist/`, so it needs its own
+        commit and a full gate rather than riding along in a UI task. Decide it here — do it, or record why the
+        second literal is worth keeping.
 
 - [ ] **Step 8: update spec §11's table** with 0057–0060, leave 0052 reserved, and add the four to
       `docs/adr/README.md`.
