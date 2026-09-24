@@ -799,18 +799,45 @@ Four things in that are load-bearing and each has a reason recorded somewhere in
       first-argument convention for the same reason.
 
 - [ ] **Step 2: a seat's refusal never becomes a password form.** `linkCall` already routes a 401 to
-      `/s/unavailable` rather than `/login`, and `lib/problem.ts:45-49` explains why at length: a holder with no
-      password must never be answered with one. Do not add a pathname argument to a seat action — there is nothing
+      `/s/unavailable` rather than `/login`, and `linkRemedyFor` in `lib/problem.ts` explains why at length: a
+      holder with no password must never be answered with one — it has no `'login'` branch at all, so a 401 there
+      can only produce `unavailable`. Do not add a pathname argument to a seat action — there is nothing
       for `?next=` to carry that would not be the credential itself, which is the leak `proxy.ts` rule 2 exists to
       prevent.
 
 - [ ] **Step 3: the seat writes are a subset, and the subset is not chosen here.** A `view` seat may write
-      nothing, a `write` seat may create and rename features and items and set their estimates, a `manage` seat
-      may do everything. That is spec §7.1's table and the kernel's `GRANTS` already encode it. The seat action
-      file exposes **all** of them and lets the API refuse — a client-side subset would be a second, drifting copy
-      of the policy. What decides whether a *control* is drawn is Task 9, and that is a rendering answer.
+      nothing, a `write` seat holds seven of the eighteen, a `manage` seat the rest. **Derive that from the
+      kernel's `GRANTS` and not from spec §7.1's table** — the two disagree, which Task 8 discovered: the table's
+      `write` row omits `item:describe`, which `GRANTS` holds. The grant is the gate; Task 18 Step 5c amends the
+      table. The seat action file exposes **all** of them and lets the API refuse — a client-side subset would be
+      a second, drifting copy of the policy. What decides whether a *control* is drawn is Task 9, and that is a
+      rendering answer.
+
+- [ ] **Step 3b: factor the shared body, as Task 7 did for the admin.** Task 7 extracted `adminWrite(planId, call)`
+      rather than repeating `if (result.ok) refresh()` eighteen times, and a reviewer judged that the right seam.
+      The seat's twin belongs beside it in `actions/plan-write.ts`, which is deliberately **not** a `'use server'`
+      module: Next registers every export of such a module as a public Server Action with its own id, and both
+      helpers take a callback no browser could serialise. Work that out before deciding where it goes, because
+      putting it in `seat-writes.ts` — which *is* `'use server'` — would publish a broken endpoint.
+
+      Decide `refresh()` for the seat **separately** rather than copying the admin's answer, and say what settled
+      it: what a seat page renders from, and whether `linkCall` can carry the refresh itself given that it is also
+      the body of `linkRead`, which a page calls while it renders.
+
+- [ ] **Step 3c: wire them into `components/plan/seat-actions.ts`,** which must produce the same
+      `PlanEditActions` the admin wiring satisfies, so one component serves both audiences. The token is bound in;
+      `apps/microtask/components/link/link-actions.ts` is the precedent and states what binding costs.
+
+      **The trap:** `admin-actions.test.ts` guards its wiring by asserting each member's `.name` equals its key —
+      the only check that catches `renameFeature` wired where `renameItem` belongs, their signatures being
+      identical. `.bind(null, token)` names a function `"bound renameFeature"`, so that sweep cannot be copied.
+      Resolve it; do not leave the seat side unguarded and do not weaken the admin's sweep to accommodate it.
 
 - [ ] **Step 4: green, then commit** `"Let a seat write what its role allows, with the token as the credential"`.
+
+Steps 3b and 3c were added **after** Task 8 shipped. They are what its Files list implied and its steps never said,
+and I handed them to the implementer as though the plan carried them. Recorded here so Task 18's audit compares
+against what was actually asked.
 
 ### Task 9: which controls to draw
 
