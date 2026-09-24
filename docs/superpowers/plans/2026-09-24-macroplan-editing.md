@@ -109,7 +109,7 @@ finds itself editing a route handler has misread the plan and should stop.
    argues at length that the API's wording is written for whoever reads the API, and because it would hand one
    status an exemption from a rule the rest of the app keeps.
 
-8. **The drawer saves one field per request.** `PATCH /plans/{planId}/features/{featureId}` runs up to five
+8. **The drawer saves one field per request.** `PATCH /plans/{planId}/features/{featureId}` runs up to three
    `authorize` calls for one body (`apps/api/src/routes/macroplan/features/handlers.ts:56-66`), and
    `feature:estimate` is a `write` action while `feature:pin` is `manage`
    (`packages/kernel/src/access/policy.ts:22,53`). A `write` seat that sends `{estimateDays, pinSprint}` in one
@@ -743,13 +743,19 @@ Four things in that are load-bearing and each has a reason recorded somewhere in
 
 - [ ] **Step 2: split every field the API authorises separately into its own action.** This is header decision 8
       and it is the one place a reasonable-looking shortcut produces a real defect. `PATCH .../features/{id}`
-      branches over `name`, `estimateDays` and `pinSprint` and issues **up to five** `authorize` calls for one
+      branches over `name`, `estimateDays` and `pinSprint` and issues **up to three** `authorize` calls for one
       body; `feature:estimate` is a `write` action and `feature:pin` is `manage`. A single `updateFeature` action
       taking all three fields therefore fails wholesale for a `write` seat that touched two of them, writing
       neither and reporting one 403.
 
       So: `renameFeature`, `estimateFeature`, `pinFeature` — three actions, three requests, each carrying exactly
-      one field. Same for items: `renameItem`, `estimateItem`, `describeItem`. **Write the test that proves it**:
+      one field. Split items the same way — `renameItem`, `estimateItem`, `describeItem` — but **not for the same
+      reason, and do not write that it is**: `item:rename` and `item:estimate` are **both** `write`
+      (`packages/kernel/src/access/policy.ts`), so no seat can be half-refused there today, and
+      `packages/api-client/src/operations/items.ts` already calls that split "a seam for a later role split rather
+      than a reason to send one field per request". An earlier draft of this step said "same for items" and implied
+      the authorisation argument carries over. It does not. `describeItem` is a different route entirely
+      (`PUT …/description`, `item:describe`) and was never mergeable. **Write the test that proves it**:
       a fake API recording every request, driven by a save of two fields, asserting two separate `PATCH`es with
       one field each. Name it for the property, not the mechanism — a `write` seat may set an estimate on a
       feature it may not re-pin, and both fields must still land.
@@ -773,7 +779,9 @@ Four things in that are load-bearing and each has a reason recorded somewhere in
       `apps/microtask/actions/tasks.test.ts:1-19` exactly: mock `../lib/api`, then
       `vi.mock('next/cache', () => ({ refresh: () => refresh() }))`, then `vi.mock('next/navigation', …)` throwing
       a `Redirected` sentinel, then `await import('./features')` **after** the mocks. Without the `next/cache`
-      mock the node-project test explodes on the import rather than failing an assertion.
+      mock, each test that reaches a `refresh()` throws `refresh can only be called from within a Server Action`
+      on Next 16.3.4 — the import itself succeeds, so the symptom is a run of individually failing tests rather
+      than the import-time explosion an earlier draft of this step claimed.
 
 - [ ] **Step 6: green, then commit** `"Write one field per request, because the API authorises one field at a time"`.
 
@@ -1329,6 +1337,29 @@ bridge; do not renumber into it.
 - [ ] **Step 5: amend ADR 0055.** It was written for layout geometry. `drag.ts` adds a second kind of pure
       function — an inverse projection, a point to a target — and the ADR's argument covers it exactly, including
       the `happy-dom` consequence. Say so, and correct anything phase 3 falsified.
+
+- [ ] **Step 5b: close the one authorisation gap this phase found, which is a real one.**
+      `POST /plans/{planId}/features` runs exactly one gate — `feature:create`, a **`write`** action — and
+      `CreateFeaturePayload` accepts `pinSprint`, whose own action `feature:pin` is **`manage`**
+      (`apps/api/src/routes/macroplan/features/handlers.ts`, `packages/contracts/src/structure-payloads.ts`,
+      `packages/kernel/src/access/policy.ts`). So a `write` seat can create a feature **already pinned to a
+      sprint**, and then be refused `pinFeature` on that same feature a second later.
+
+      That contradicts spec §7.1's own principle — "**`write` changes what the work is and what it costs; `manage`
+      changes where it sits and what the plan is**" — and §3.1 calls a pin "the *only* way a fixed point in time
+      enters the model", which is exactly the authority §7.1 reserves to the executive who owns the timeline. It is
+      not a hole this phase opened; it has been there since phase 1, and no UI could reach it until this phase.
+
+      The fix mirrors what `updateFeature` in the same file already does for the same field: when the draft carries
+      a `pinSprint` that is not `null`, ask `feature:pin` as well. Two lines, one existing pattern, and it makes
+      the create route agree with the edit route about who may fix a date. **Assert it by name** — a `write` seat
+      creating a pinned feature is refused, and creating an unpinned one is not — because this is the class of
+      thing `capabilities()` agreeing with `can()` is supposed to guarantee and does not, the target being
+      per-resource rather than a collection.
+
+      Together with the 409 declaration below this makes **two** changes to `apps/api` in the phase, against the
+      "no task touches `apps/api`" claim in this plan's header. Correct the header rather than leaving it, and say
+      why each exception earned itself.
 
 - [ ] **Step 6: declare the 409 the three plan share-link routes can already answer.** They all write through
       `PlanShareLinkService.#save` → `ShareIndex.add`, which throws `Conflict` on a cross-container token
