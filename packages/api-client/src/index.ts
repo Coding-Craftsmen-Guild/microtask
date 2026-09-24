@@ -42,6 +42,7 @@ export type {
   NewFeature,
 } from './operations/features.js'
 export type { FoldersApi } from './operations/folders.js'
+export type { ItemChange, ItemPlacement, ItemsApi, NewItem } from './operations/items.js'
 export type { Plan, PlansApi } from './operations/plans.js'
 export type { Project, ProjectsApi } from './operations/projects.js'
 export type { NewShareLink, ShareLinkChange, ShareLinksApi } from './operations/share-links.js'

@@ -1,6 +1,7 @@
 import { PlanShareView } from '@repo/contracts'
 import { epicsApi, type EpicsApi } from './operations/epics.js'
 import { featuresApi, type FeaturesApi } from './operations/features.js'
+import { itemsApi, type ItemsApi } from './operations/items.js'
 import { plansApi, type PlansApi } from './operations/plans.js'
 import { MACROPLAN_CURRENT_SHARE_PATH } from './paths.js'
 import type { Transport } from './transport.js'
@@ -42,6 +43,14 @@ export interface MacroplanApi {
   readonly features: FeaturesApi
 
   /**
+   * Items: what sits inside a feature, added, edited, moved, described and removed.
+   *
+   * `describe` replaces a whole description and the API truncates one over its byte cap rather than
+   * refusing it, answering 200 either way. Read its TSDoc before wiring it to a text field.
+   */
+  readonly items: ItemsApi
+
+  /**
    * Describes the plan seat the caller presented, and the plan it opens.
    *
    * It sends no token in the path and none in a header of its own — the answer is derived from the
@@ -60,6 +69,7 @@ export function createMacroplanSurface(transport: Transport): MacroplanApi {
     plans: plansApi(transport),
     epics: epicsApi(transport),
     features: featuresApi(transport),
+    items: itemsApi(transport),
     currentShare: () =>
       transport.json({ method: 'GET', path: MACROPLAN_CURRENT_SHARE_PATH }, PlanShareView),
   }

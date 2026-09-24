@@ -291,6 +291,58 @@ describe('every operation addresses the path the API actually serves', () => {
       'https://api.example.test/v1/macroplan/plans/p%201/features/f%201',
     ])
   })
+
+  it('adds an item with POST against the collection, naming its feature in the body', async () => {
+    const call = await sent(() => macroplan.items.create('p1', { featureId: 'f1', name: 'Sign in' }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'POST',
+      'https://api.example.test/v1/macroplan/plans/p1/items',
+      '{"featureId":"f1","name":"Sign in"}',
+    ])
+  })
+
+  it('clears an item estimate with an explicit null, which is not the same as omitting it', async () => {
+    const call = await sent(() => macroplan.items.update('p1', 'i1', { estimateDays: null }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/macroplan/plans/p1/items/i1',
+      '{"estimateDays":null}',
+    ])
+  })
+
+  it('moves an item through its own placement segment, sending the 0-based position with it', async () => {
+    const call = await sent(() =>
+      macroplan.items.place('p1', 'i1', { featureId: 'f2', position: 0 }),
+    )
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/macroplan/plans/p1/items/i1/placement',
+      '{"featureId":"f2","position":0}',
+    ])
+  })
+
+  it('replaces a description with PUT, wrapping the text in the one field the body has', async () => {
+    const call = await sent(() => macroplan.items.describe('p1', 'i1', 'Ship behind a flag'))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PUT',
+      'https://api.example.test/v1/macroplan/plans/p1/items/i1/description',
+      '{"description":"Ship behind a flag"}',
+    ])
+  })
+
+  it('removes an item with DELETE against the item itself', async () => {
+    const call = await sent(() => macroplan.items.remove('p1', 'i1'))
+    expect([call.init.method, call.url]).toEqual([
+      'DELETE',
+      'https://api.example.test/v1/macroplan/plans/p1/items/i1',
+    ])
+  })
+
+  it('percent-encodes both ids on the deepest item path it builds', async () => {
+    expect((await sent(() => macroplan.items.describe('p 1', 'i 2', 'x'))).url).toBe(
+      'https://api.example.test/v1/macroplan/plans/p%201/items/i%202/description',
+    )
+  })
 })
 
 describe('a dependency cycle reaches the caller as an ApiError it can read', () => {
