@@ -112,9 +112,14 @@ export async function placeFeature(
  * silently — the route takes no `If-Match` to catch it — so a caller that cares re-reads the plan
  * this action answers with rather than trusting the list it sent.
  *
- * A cycle is refused whole, as a 409 naming the features that would wait on each other, and nothing
- * is written. `feature:depend` is the one gate on this route, and only `manage` holds it — `write`
- * does not.
+ * A cycle is refused whole and nothing is written — every check runs before the first store call
+ * (`packages/macroplan-domain/src/services/feature-service.ts`). **Nobody should plan to show that
+ * refusal.** Its 409 detail lists raw ids (`These features would wait on each other: <ids>`), and
+ * `lib/refusal.ts` answers a 409 from its status alone, so what a user would read is "Someone else
+ * changed this at the same time" — true of a lost write and false of a cycle. A caller that wants to
+ * say which features wait on each other has to work it out before it sends.
+ *
+ * `feature:depend` is the one gate on this route, and only `manage` holds it — `write` does not.
  */
 export async function setDependencies(
   planId: string,
