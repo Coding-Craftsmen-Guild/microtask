@@ -49,8 +49,12 @@ type ItemEstimate = Exclude<ItemChange['estimateDays'], undefined>
  * and is not restated eighteen times here. What each doc below adds is the grant the API asks for
  * it, because that is the one thing a seat can be refused for and an admin cannot.
  *
- * `epic:create`, and only `manage` holds it: every `epic:*` action is a `manage` grant, because a
- * rail is the shape of the plan rather than the work on it (spec §7.1).
+ * `epic:create`, and only `manage` holds it: every `epic:*` action **this file sends** is a `manage`
+ * grant, because a rail is the shape of the plan rather than the work on it (spec §7.1). Not every
+ * `epic:*` action — `epic:bind` is in `ADMIN_ONLY_ACTIONS`, refused before any role is consulted,
+ * because an epic's binding role is the ceiling on what a link holder reaches through the bridge and
+ * a holder who could re-role it would raise its own ceiling. `policy.ts` says outright that this is
+ * the exception callers get wrong, so the generalisation is not one to make even in passing.
  */
 export async function seatCreateEpic(token: string, planId: string, epic: NewEpic): Answer {
   return seatWrite(token, (api) => api.epics.create(planId, epic))

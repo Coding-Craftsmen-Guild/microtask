@@ -191,6 +191,9 @@ describe('why this file calls every member rather than reading its name', () => 
   it('cannot compare a name to its key, because bind renames what it binds', () => {
     const seatRenameFeature = (): null => null
     expect(seatRenameFeature.bind(null).name).toBe('bound seatRenameFeature')
-    expect(actions.renameFeature.name).not.toBe('renameFeature')
+    // `bound ` and not `bound seatRenameFeature`: the mock's recorders are anonymous arrows, so the
+    // prefix is all this can show. It is the load-bearing half — a member that stopped being bound
+    // would lose it, and `admin-actions.test.ts`'s name-to-key sweep would become usable here.
+    for (const member of Object.values(actions)) expect(member.name).toMatch(/^bound /)
   })
 })
