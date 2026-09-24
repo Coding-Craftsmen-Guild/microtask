@@ -53,10 +53,15 @@ export interface PlanShareLinksApi {
    * there is no derived timeline for the response to carry.
    *
    * It is the one of these three the API decides against the **scope being minted** rather than
-   * against the plan in the path — `capabilities.ts` calls that target `own-scope` — and the two
-   * questions have the same answer for a plan-scoped holder, since the narrowest scope it can mint
-   * over is the plan it already holds. A projection built for a UI must read the two differently all
-   * the same: that file's `alsoGatedOn` is what a caller asks about the plan-gated pair below.
+   * against the plan in the path — `packages/contracts/src/capabilities.ts` calls that target
+   * `own-scope` — and the two questions have the same answer for a plan-scoped holder, since the
+   * narrowest scope it can mint over is the plan it already holds.
+   *
+   * A UI deciding whether to draw these controls still has to ask about them differently, which is
+   * the reason that distinction matters here at all: `capabilities()` answers `share:create`
+   * directly, while `share:update` and `share:revoke` come back **false** for a plan-scoped holder,
+   * their row naming the other product's target, and have to be asked again through `mayReach` with
+   * `'plan'`.
    */
   create(planId: string, seat: NewPlanSeat): Promise<Decoded<typeof PlanShareLink>>
 
