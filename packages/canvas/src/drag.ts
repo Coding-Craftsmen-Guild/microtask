@@ -7,8 +7,8 @@ import type { PlanScale } from './scale.js'
  * band are both measured in.
  *
  * Neither field is the pointer's own position: both have the offset the drag was grabbed at
- * subtracted, and the two subtractions differ because the two numbers are compared against different
- * things.
+ * subtracted, and what is left differs between them, because the two numbers are compared against
+ * different things.
  *
  * `x` is the dragged bar's **left edge**: `pointerX - (pointerDownX - bar.x)`. {@link dropTargetFor}
  * compares it against each bar's `x`, and a bar's `x` is its left edge
@@ -18,25 +18,36 @@ import type { PlanScale } from './scale.js'
  * bar grabbed at its right end, which on a dense rail is several days and several siblings.
  *
  * `y` cannot be that same sentence, because a {@link FeatureBar} has no `y` to subtract: where a bar
- * sits inside its rail's band is the renderer's own constant, and this package never sees it. So `y`
- * is the y that the dragged bar's **whole band-relative offset** has been subtracted from —
- * `pointerY - (pointerDownY - railTop(the rail the drag started on))`, with `railTop` the forward
- * direction of {@link railAtY} in `apps/macroplan/components/plan/canvas/view.ts`. A drag of zero
- * pixels then hands in that rail's own band top, and {@link railAtY} answers the rail the drag started
- * on, which is what "dropped where it began changes nothing" needs on this axis too.
+ * sits inside its rail's band is the renderer's own business — `barTop` and `barHeight` are fitted to a
+ * type size {@link RailMetrics} deliberately does not carry — and this package never sees it. So `y` is
+ * the y the dragged bar's band-relative **centre** landed at:
+ * `pointerY - (pointerDownY - railTop(the rail the drag started on)) + railHeight / 2`, with `railTop`
+ * the forward direction of {@link railAtY} in `apps/macroplan/components/plan/canvas/view.ts`. A drag of
+ * zero pixels hands in the middle of the band it began in, so {@link railAtY} answers the rail the drag
+ * started on, which is what "dropped where it began changes nothing" needs on this axis too.
  *
- * The part of the bar that decides is its **top edge**, as on `x`, and the handoff is therefore whole
- * bands of travel: the answer is the band the bar's top edge has travelled into, counted from its own
- * band's top, so a rail below is reached after a full `railHeight` down and the rail above on the
- * first pixel up. The refused alternative was handing in the top edge unadjusted and letting
- * {@link railAtY} compare it against band tops directly: the handoff is then `barTop` up and
- * `railHeight - barTop` down — 17px and 42px at that file's `LAYOUT` — which is an asymmetry set by a
- * constant this package cannot see and nobody chose. A caller wanting the handoff at half a band adds
- * `railHeight / 2` here, which rests a bar in the middle of its own band instead of on its top edge;
- * that is the choice of the component that owns `railTop`, and the round trip between the two is that
- * component's test to write.
+ * The half band is the **reason for the offset and not a fudge**: it is what puts the handoff half a
+ * band away in each direction. `railHeight / 2` of downward travel reaches the rail below, and anything
+ * more than `railHeight / 2` upward reaches the rail above — the one extra pixel going up is the
+ * half-open band, whose own top edge {@link railAtY} gives to the band below it. Two alternatives were
+ * refused for being asymmetric in ways nobody chose. Subtracting the band-relative offset and stopping
+ * there rests a bar on its band's top edge, which makes the rail below a full `railHeight` of travel
+ * away and the rail above one pixel: a bar nudged up by one would change rails. Handing in the bar's top
+ * edge unadjusted, and letting {@link railAtY} compare it against band tops, makes the handoff `barTop`
+ * up and `railHeight - barTop` down — 17px and 42px at that file's `LAYOUT` — an asymmetry set by
+ * exactly the two constants this package is not given. Half a band needs only `railHeight`, which
+ * {@link RailMetrics} does carry.
  *
- * Not a pointer event and not a rect. Turning one event into one of these — those subtractions
+ * Handing over a raw pointer y is the same class of error as handing over a raw pointer x, and the
+ * component that first turns an event into one of these is in a position to make both. The pointer sits
+ * `barTop` plus the grab offset inside the bar below its band's top, so the whole reading is shifted
+ * down by that much: the rail below is then `railHeight - barTop - grab` of travel away instead of half
+ * a band, so the same drag from the same pixel names a different rail depending on where inside the bar
+ * it was grabbed — 42px down for a bar taken by its top edge against 24px for one taken by its bottom,
+ * a whole bar's height of difference at that `LAYOUT`. On a band no taller than `barTop + barHeight` it
+ * is worse than asymmetric: a drag that moved nothing at all names the rail below.
+ *
+ * Not a pointer event and not a rect. Turning one event into one of these — that arithmetic
  * included — is the step no test in this repository can check:
  * `docs/adr/0055-canvas-geometry-is-its-own-pure-package.md` records why, and it is the same reason
  * everything here is arithmetic over numbers. Deciding what to do with the answer is a client
@@ -47,8 +58,8 @@ export interface DragPoint {
   readonly x: number
 
   /**
-   * The dragged bar's top edge less its own offset within its rail band, which is the pointer's y
-   * less the grab offset within that band. A drag of zero pixels is that band's own top.
+   * Where the dragged bar's band-relative centre landed: the pointer's y less the grab offset within
+   * the rail band, plus half a rail's height. A drag of zero pixels is the middle of its own band.
    */
   readonly y: number
 }

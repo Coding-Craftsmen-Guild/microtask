@@ -275,6 +275,21 @@ describe('railAtY gives a y to the one rail whose band holds it', () => {
     }
   })
 
+  it('keeps a bar centred in its own band for every nudge inside half a band, and hands it over half a band down and just past half a band up, which is the symmetry DragPoint adds that half band for', () => {
+    const rails = layout()
+    const half = METRICS.railHeight / 2
+    rails.forEach((rail, index) => {
+      const centred = top(index) + half
+      expect(railAtY(centred, rails, METRICS), rail.epicId).toBe(rail)
+      expect(railAtY(centred - (half - 1), rails, METRICS), rail.epicId).toBe(rail)
+      expect(railAtY(centred + (half - 1), rails, METRICS), rail.epicId).toBe(rail)
+      expect(railAtY(centred + half, rails, METRICS), rail.epicId).toBe(rails[index + 1] ?? null)
+      expect(railAtY(centred - half - 1, rails, METRICS), rail.epicId).toBe(
+        index === 0 ? null : rails[index - 1],
+      )
+    })
+  })
+
   it('answers null above the first rail, and from the last rail bottom edge downward', () => {
     const rails = layout()
     expect(railAtY(0, rails, METRICS)).toBeNull()
