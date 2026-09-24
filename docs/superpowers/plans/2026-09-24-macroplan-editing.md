@@ -140,16 +140,18 @@ finds itself editing a route handler has misread the plan and should stop.
 
 Named here so no task has to discover them. Each is prose or a test name that was true when written.
 
-- `apps/macroplan/lib/plan-capabilities.ts:27` — "Phase 2 draws none of these". Task 10 draws all of them.
+- `apps/macroplan/lib/plan-capabilities.ts:27` — "Phase 2 draws none of these". **Task 9** widens the interface,
+  and Tasks 11 onward draw them.
 - `packages/api-client/src/macroplan-clients.test.ts:99-105` — the test named "reads a plan through GET, the only
   method phase 2 needs". Task 4 makes the clause false; rename it in the same commit.
 - `apps/macroplan/app/(admin)/plans/[planId]/page.test.tsx:130-134` — "Phase 3's first bound server action
   therefore fails that assertion rather than passing it quietly, and whoever adds it has to say how its arguments
-  are proved clean." Task 11 is that moment. Honour the instruction: widen the sweep to read a bound function's
-  arguments; do not relax it.
+  are proved clean." **Task 10 Step 5** is that moment — the first task in which a *page* hands a component a
+  bound action. Honour the instruction: widen the sweep to read a bound function's arguments; do not relax it.
 - `apps/macroplan/app/s/[token]/page.test.tsx:139-143` — a stated **KNOWN GAP**: the seat surface's leak sweep
   skips functions, and "Phase 3 will [bind one], and must widen this to read a bound function's arguments before
-  it does." Task 11 closes it on the surface where a token is the credential.
+  it does." **Task 10 Step 5** closes it on the surface where a token is the credential. Task 8 builds the bound
+  object but mounts it on no page, so nothing renders one before then — verify that rather than assuming it.
 - `packages/canvas/src/plan.ts:55-62` — `CanvasSchedule` declares only `spans`, and says a later module needing
   `unscheduled`, `cycles` or `ignoredEdges` "should widen this interface rather than restate the wire shape a
   second time". Task 14 is that module.
