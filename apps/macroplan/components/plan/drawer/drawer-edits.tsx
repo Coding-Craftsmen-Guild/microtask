@@ -5,6 +5,7 @@ import { DescriptionField } from './description-field'
 import { EstimateField } from './estimate-field'
 import { EDITS } from './field'
 import { NameField } from './name-field'
+import { PinField } from './pin-field'
 import { pairFor } from './subject-writes'
 import type { DrawerValues } from './values'
 
@@ -16,7 +17,15 @@ export interface DrawerEditsProps {
   /** The subject: its `kind` chooses the actions, and its `id` is what they are sent for. */
   readonly row: TableRow
 
-  /** The same subject's editable values, resolved out of the same plan (`./subject.ts`). */
+  /**
+   * The same subject's values, resolved out of the same plan (`./subject.ts`).
+   *
+   * Three of its members are read here: the name and the estimate each seed a field, and `pinSprint`
+   * seeds the pin. `calendar` is read to be taken apart — the pin needs `rangeOfSprint` in the
+   * browser to say what sprint it names, and what crosses that boundary has to be primitives, so the
+   * three scheduling fields are handed over one at a time rather than as the object. `breakdown` is
+   * the read half's and is not read here at all (`./drawer-facts.tsx`).
+   */
   readonly values: DrawerValues
 
   /** The item's stored description, or `null` on a feature and on an item whose file went unread. */
@@ -41,6 +50,15 @@ export interface DrawerEditsProps {
  * body would lose the rename it was allowed in order to be refused the pin it was not. That is also
  * why the pin is absent here altogether — it is `manage`-only where these are `write`, so it belongs
  * to its own file drawn on its own boolean, not beside these two.
+ *
+ * The pin is the one of these three requests a `write` seat is refused, and it is drawn here rather
+ * than in a file of its own: this file's own note below is that a control group is "a four-line child
+ * here and a file of its own", and `./pin-field.tsx` is that file. What it is **not** is a fourth
+ * field in the `pairFor` pair — that helper answers the two writes **both** kinds have, and there is
+ * no `pinItem`: `PlanFeature` carries `pinSprint` and `PlanItem` does not
+ * (`packages/contracts/src/plan.ts`), so the pin is asked for as `row.kind === 'feature'` and read
+ * straight off `actions`. A `pairFor` widened to carry it would have to invent an item's pin or make
+ * the member nullable, and both are claims the contract refuses.
  *
  * Each control answers **whether the field is on screen** and nothing else. The API is the gate, asked
  * again at the instant of the click, and a seat re-roled in between meets its 403 — which arrives as
@@ -76,10 +94,21 @@ export interface DrawerEditsProps {
  *
  * ### Where this file splits next, and how a group mounts
  *
- * It splits by **control group**, one file per group, as each arrives: the pin on its own,
- * `feature:pin` being `manage` where these two are `write`; the dependency editor on its own, which is
- * where `EDGE_SUFFIX` moves to from `PlanTableRow`; delete on its own, being the only destructive one;
- * and `placeFeature` and `placeItem` together, a reorder a keyboard has to be able to drive.
+ * It splits by **control group**, one file per group, as each arrives: the pin, which has arrived and is
+ * `./pin-field.tsx`; the dependency editor on its own, which is where `EDGE_SUFFIX` moves to from
+ * `PlanTableRow`; delete on its own, being the only destructive one; and `placeFeature` and
+ * `placeItem` together, a reorder a keyboard has to be able to drive.
+ *
+ * **The next group is where this file stops holding them all, and that is arithmetic rather than
+ * taste.** The pin mounts as eleven lines and leaves this file in the high sixties of its eighty, and
+ * four more groups are queued. So the group after this one starts a `./drawer-manage.tsx` and takes the
+ * pin with it — one container per capability tier, which is the boundary the pin already makes visible:
+ * `feature:pin`, `feature:depend`, `feature:place`, `item:place`, `feature:delete` and `item:delete`
+ * are every one of them `manage`, and the three fields left here are every one of them `write`
+ * (`packages/kernel/src/access/policy.ts`). It is not done now because a container holding one control
+ * is a file with no second member to justify the shape of it, and because that file's own argument —
+ * that a seat holding `write` and not `manage` sees exactly one of the two bands — cannot be written,
+ * let alone tested, until there is more than one thing in the second band.
  *
  * A group **mounts as a child of this element** and takes the props this one takes: `planId`, `row`,
  * `values` where it edits one, `controls` and `actions`. It picks its own writes out of `actions` the
@@ -98,14 +127,7 @@ export interface DrawerEditsProps {
  * What must **not** split is this file by row kind: a feature's fields and an item's answer the same
  * questions about different subjects, and `rows.ts` refuses the same split for the same reason.
  */
-export function DrawerEdits({
-  planId,
-  row,
-  values,
-  description,
-  controls,
-  actions,
-}: DrawerEditsProps) {
+export function DrawerEdits({ planId, row, values, description, controls, actions }: DrawerEditsProps) {
   const pair = pairFor(row.kind, controls, actions)
   return (
     <div className={EDITS}>
@@ -125,6 +147,17 @@ export function DrawerEdits({
           kind={row.kind}
           planId={planId}
           subjectId={row.id}
+        />
+      ) : null}
+      {row.kind === 'feature' && controls.pinFeature ? (
+        <PinField
+          featureId={row.id}
+          pin={actions.pinFeature}
+          pinSprint={values.pinSprint}
+          planId={planId}
+          sprintLengthDays={values.calendar.sprintLengthDays}
+          startDate={values.calendar.startDate}
+          timezone={values.calendar.timezone}
         />
       ) : null}
       {row.kind === 'item' && description !== null && controls.describeItem ? (

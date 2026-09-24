@@ -1,6 +1,24 @@
+import { breakdown, type Breakdown, type PlanCalendar } from '@repo/schedule'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows, type TableRow } from '../table/rows'
 import { subjectValues, type DrawerValues, type SubjectKind } from './values'
+
+
+const calendarOf = (plan: PlanScreenModel): PlanCalendar => ({
+  startDate: plan.startDate,
+  sprintLengthDays: plan.sprintLengthDays,
+  timezone: plan.timezone,
+})
+
+const breakdownOf = (plan: PlanScreenModel, kind: SubjectKind, id: string): Breakdown | null => {
+  const feature = kind === 'feature' ? plan.features.find((one) => one.id === id) : undefined
+  return feature === undefined
+    ? null
+    : breakdown(
+        feature,
+        plan.items.filter((one) => one.featureId === id),
+      )
+}
 
 /**
  * The one feature or item a drawer is open on, in the two shapes a panel needs it in.
@@ -13,7 +31,14 @@ export interface DrawerSubject {
   /** Every column the table already worded, which is what the panel's `<dl>` reads (`../table/rows.ts`). */
   readonly row: TableRow
 
-  /** The same subject's editable values, which are numbers and names rather than sentences. */
+  /**
+   * The same subject's values: the numbers and names a control edits, and the two a fact reads.
+   *
+   * Wider than what {@link subjectValues} answers, and the difference is the point of resolving a
+   * subject here rather than in a page: the plan's calendar and this feature's breakdown are both
+   * needed by the panel and carried by neither the row nor the record, so they are added **inside the
+   * one lookup** rather than fetched beside it (`./values.ts` argues each).
+   */
   readonly values: DrawerValues
 }
 
@@ -42,6 +67,21 @@ export interface DrawerSubject {
  * and — for the admin, whose read carries every live seat — a plan is also the thing ADR 0033 forbids
  * putting in a page's props at all.
  *
+ * ### Two things the plan knows that neither half carried
+ *
+ * `breakdown(feature, items)` is called here and **nowhere else in this app**, and its answer is
+ * carried on the values rather than recomputed downstream: it is the one function ADR 0051 makes the
+ * authority on the pair, and it answers `null` exactly where there is no pair — no authored estimate,
+ * or no estimated item. `breakdownOf` asks it only for a feature, an item having no items of its own,
+ * and filters `plan.items` by `featureId` for the one feature rather than building the whole
+ * `itemsByFeature` map a second time. The delta's **sign** is not read anywhere: a part-sized
+ * breakdown under a whole-feature estimate is a real state and never an error, so nothing here
+ * branches on it (ADR 0051, and `packages/schedule/src/estimate.ts`).
+ *
+ * The calendar is the plan's three scheduling fields and never the plan. `rangeOfSprint` needs them to
+ * say what sprint a pin means in dates, and that conversion happens in the browser as the number is
+ * typed — so the fields travel, and `./pin-field.tsx` is handed the three of them as primitives.
+ *
  * ### One derivation, and one existence check
  *
  * `tableRows` is `cache()`d on the plan object and `readPlan` is `cache()`d on the plan id, so the
@@ -59,7 +99,8 @@ export interface DrawerSubject {
  * @param plan - The reduced plan the page read, whose type cannot carry a seat.
  * @param kind - Which segment is asking: `f/[featureId]` or `i/[itemId]`.
  * @param id - The id out of the URL, untrusted.
- * @returns The row and the values, or `undefined` when no row of that kind answers to that id.
+ * @returns The row, the values, the calendar and the breakdown, or `undefined` when no row of that
+ * kind answers to that id.
  */
 export function drawerSubject(
   plan: PlanScreenModel,
@@ -68,5 +109,13 @@ export function drawerSubject(
 ): DrawerSubject | undefined {
   const row = tableRows(plan).find((one) => one.kind === kind && one.id === id)
   const values = subjectValues(plan, kind, id)
-  return row === undefined || values === undefined ? undefined : { row, values }
+  if (row === undefined || values === undefined) return undefined
+  return {
+    row,
+    values: {
+      ...values,
+      breakdown: breakdownOf(plan, kind, id),
+      calendar: calendarOf(plan),
+    },
+  }
 }

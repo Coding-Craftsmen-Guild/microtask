@@ -1,5 +1,6 @@
 import type { Plan } from '@repo/api-client'
-import { render, screen } from '@testing-library/react'
+import { breakdown, effectiveEstimate } from '@repo/schedule'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
@@ -39,7 +40,22 @@ const ITEM_ROW: TableRow = {
   blockedBy: [],
 }
 
-const VALUES: DrawerValues = { name: 'Auth rewrite', estimateDays: 5 }
+const CALENDAR = {
+  startDate: atlasPlan().startDate,
+  sprintLengthDays: atlasPlan().sprintLengthDays,
+  timezone: atlasPlan().timezone,
+}
+
+const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
+  name: 'Auth rewrite',
+  estimateDays: 5,
+  pinSprint: null,
+  calendar: CALENDAR,
+  breakdown: null,
+  ...over,
+})
+
+const VALUES: DrawerValues = valuesOf()
 
 const CLOSE = `/plans/${PLAN_A}`
 
@@ -146,7 +162,7 @@ describe('the panel one selection is drawn in', () => {
 
 describe('the fields it draws, from the values rather than from the words', () => {
   it('seeds the name field with the stored name and the estimate with the stored number', () => {
-    open({ values: { name: 'Auth rewrite', estimateDays: 40 } })
+    open({ values: valuesOf({ estimateDays: 40 }) })
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Feature name' }).value).toBe(
       'Auth rewrite',
     )
@@ -161,7 +177,7 @@ describe('the fields it draws, from the values rather than from the words', () =
   it('keeps the schedule’s sentence in the list and the authored number in the field', () => {
     open({
       row: { ...FEATURE_ROW, estimate: 'planned 40d · broken down to 5d · -35d' },
-      values: { name: 'Auth rewrite', estimateDays: 40 },
+      values: valuesOf({ estimateDays: 40 }),
     })
     expect(valueOf('Estimate')).toBe('planned 40d · broken down to 5d · -35d')
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
@@ -170,7 +186,7 @@ describe('the fields it draws, from the values rather than from the words', () =
   })
 
   it('labels the name field for an item as an item’s, the actions behind the two being different', () => {
-    open({ row: ITEM_ROW, values: { name: 'Sessions', estimateDays: 3 } })
+    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
     expect(screen.getByRole('textbox', { name: 'Item name' })).toBeTruthy()
   })
 
@@ -207,7 +223,7 @@ describe('the fields it draws, from the values rather than from the words', () =
     const renameFeature = vi.fn(() => Promise.resolve(served))
     open({
       row: ITEM_ROW,
-      values: { name: 'Sessions', estimateDays: 3 },
+      values: valuesOf({ name: 'Sessions', estimateDays: 3 }),
       actions: stubActions({ renameItem, renameFeature }),
     })
     const user = userEvent.setup()
@@ -235,5 +251,134 @@ describe('the fields it draws, from the values rather than from the words', () =
     await user.type(field, 'Renamed{Enter}')
     expect(screen.getByRole('alert').textContent).toBe('Not permitted: feature:rename')
     expect(field.value).toBe('Auth rewrite')
+  })
+})
+
+const featureOne = () => {
+  const found = atlasPlan().features.find((one) => one.id === FEATURE_1)
+  if (found === undefined) throw new Error('the fixture no longer holds FEATURE_1')
+  return found
+}
+
+const itemsOfOne = () => atlasPlan().items.filter((one) => one.featureId === FEATURE_1)
+
+const pinBox = () => screen.queryByRole<HTMLInputElement>('textbox', { name: 'Pinned to sprint' })
+
+const breakdownLine = (): string | null =>
+  document.querySelector('[data-slot="drawer-breakdown"]')?.textContent ?? null
+
+// The pin is the one control on this panel a `write` seat is refused, so the thing worth pinning is
+// that it is drawn on its own boolean and on the feature kind — and that a seat holding the other two
+// still gets those. It is never a gate: the API answers the click (`lib/plan-capabilities.ts`).
+describe('the pin, which is the manage-tier control among the write-tier fields', () => {
+  it('draws it for a feature, seeded one above the stored 0-based index', () => {
+    open({ values: valuesOf({ pinSprint: 2 }) })
+    expect(pinBox()?.value).toBe('3')
+  })
+
+  it('draws an empty box for a feature nobody pinned, rather than no box at all', () => {
+    open()
+    expect(pinBox()?.value).toBe('')
+  })
+
+  it('draws none for an item, PlanItem carrying no pin to edit', () => {
+    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    expect(pinBox()).toBeNull()
+  })
+
+  it('draws none where pinFeature is false while still drawing the two write fields', () => {
+    open({ controls: drawing({ pinFeature: false }) })
+    expect(pinBox()).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Feature name' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Estimate in days' })).toBeTruthy()
+  })
+
+  it('sends pinFeature alone and never the estimate beside it, the two being two authorities', async () => {
+    const pinFeature = vi.fn(() => Promise.resolve(served))
+    const estimateFeature = vi.fn(() => Promise.resolve(served))
+    open({ actions: stubActions({ pinFeature, estimateFeature }) })
+    const user = userEvent.setup()
+    await user.type(screen.getByRole('textbox', { name: 'Pinned to sprint' }), '3{Enter}')
+    expect(pinFeature).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 2)
+    expect(estimateFeature).not.toHaveBeenCalled()
+  })
+
+  it('says the sprint’s own dates under the box rather than leaving a bare index on screen', () => {
+    open({ values: valuesOf({ pinSprint: 0 }) })
+    expect(document.body.textContent).toContain('Sprint 1 runs 2026-09-28 to 2026-10-15')
+  })
+})
+
+// §3.2's own sentence is the row's and appears in the Estimate cell. What this line adds is which of a
+// feature's two estimates the timeline used, and the assertion below is that it repeats none of the row.
+describe('the breakdown line, which says what the Estimate cell has no room to', () => {
+  it('says the timeline placed the feature by its items, whenever there is a pair', () => {
+    open({ values: valuesOf({ breakdown: { planned: 40, brokenDown: 62, delta: 22 } }) })
+    expect(breakdownLine()).toContain('places this feature by its items')
+  })
+
+  it('draws nothing where there is no pair, which is what an item always resolves to', () => {
+    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    expect(breakdownLine()).toBeNull()
+  })
+
+  it('leaves every number of the pair to the row, repeating not one of them', () => {
+    open({
+      row: { ...FEATURE_ROW, estimate: 'planned 40d · broken down to 62d · +22d' },
+      values: valuesOf({ estimateDays: 40, breakdown: { planned: 40, brokenDown: 62, delta: 22 } }),
+    })
+    expect(valueOf('Estimate')).toBe('planned 40d · broken down to 62d · +22d')
+    expect(breakdownLine()).not.toMatch(/[0-9]/)
+  })
+
+  it('renders the same sentence for a shortfall, a negative delta being reportable and not an error', () => {
+    open({ values: valuesOf({ breakdown: { planned: 40, brokenDown: 62, delta: 22 } }) })
+    const overrun = breakdownLine()
+    cleanup()
+    open({ values: valuesOf({ breakdown: { planned: 40, brokenDown: 5, delta: -35 } }) })
+    expect(breakdownLine()).toBe(overrun)
+  })
+
+  it('sits outside the facts list, a sentence with no <dt> being no part of one', () => {
+    open({ values: valuesOf({ breakdown: { planned: 5, brokenDown: 5, delta: 0 } }) })
+    expect(labels()).toEqual(['Epic', 'Estimate', 'Sprint'])
+    expect(document.querySelector('dl [data-slot="drawer-breakdown"]')).toBeNull()
+    expect(breakdownLine()).toBeTruthy()
+  })
+})
+
+// ADR 0051, asserted rather than described, because it reads as a bug to anyone who has not been told:
+// `effectiveEstimate` takes the items whenever at least one of them is estimated, so a `write` seat
+// typing into the estimate field of a broken-down feature sees the discrepancy change and the canvas
+// stay still. The panel's half of that is what this file can check — the field really sends the new
+// authored number, the row's sentence is what moves, and the spans the canvas draws come from the
+// schedule the API answered rather than from anything this field wrote.
+describe('an estimate authored on a broken-down feature: the gap moves and the bar does not', () => {
+  it('sends the authored estimate while the timeline keeps placing the feature by its items', async () => {
+    const estimateFeature = vi.fn(() => Promise.resolve(served))
+    open({
+      actions: stubActions({ estimateFeature }),
+      values: valuesOf({ estimateDays: 5, breakdown: { planned: 5, brokenDown: 5, delta: 0 } }),
+    })
+    const user = userEvent.setup()
+    const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' })
+    await user.clear(field)
+    await user.type(field, '40{Enter}')
+    expect(estimateFeature).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 40)
+    const items = itemsOfOne()
+    expect(effectiveEstimate({ ...featureOne(), estimateDays: 40 }, items)).toBe(5)
+    expect(breakdown({ ...featureOne(), estimateDays: 40 }, items)?.delta).toBe(-35)
+  })
+
+  it('leaves the authored estimate standing where no item of the feature is sized', () => {
+    const unsized = itemsOfOne().map((one) => ({ ...one, estimateDays: null }))
+    const feature = { ...featureOne(), estimateDays: 40 }
+    expect(effectiveEstimate(feature, unsized)).toBe(40)
+    expect(breakdown(feature, unsized)).toBeNull()
+  })
+
+  it('says so on screen, the line being exactly the states in which the field is inert', () => {
+    open({ values: valuesOf({ estimateDays: 5, breakdown: { planned: 5, brokenDown: 5, delta: 0 } }) })
+    expect(breakdownLine()).toContain('changing it moves no bar')
   })
 })

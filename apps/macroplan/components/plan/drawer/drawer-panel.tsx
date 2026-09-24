@@ -35,7 +35,14 @@ export interface DrawerPanelProps {
    */
   readonly row: TableRow
 
-  /** The same subject's editable values, from the same lookup of the same plan (`./subject.ts`). */
+  /**
+   * The same subject's values, from the same lookup of the same plan (`./subject.ts`).
+   *
+   * Every value the two halves below need arrives in this one prop, which is what keeps the panel's
+   * own props stable as each half grows: the breakdown goes to the facts, the name, estimate, pin and
+   * calendar go to the fields, and this file reads exactly one member itself — `values.breakdown`, on
+   * its way past.
+   */
   readonly values: DrawerValues
 
   /** The item's stored description, or `null` on a feature and on an item whose file went unread. */
@@ -60,6 +67,10 @@ export interface DrawerPanelProps {
  * is `./drawer-facts.tsx` and the fields are `./drawer-edits.tsx`, both extracted when the fields
  * arrived and in that order: the facts word nothing and decide nothing, so they left without taking an
  * argument with them, and the fields are where every remaining control group will land.
+ *
+ * The read half is two elements rather than one: the facts `<dl>` and, under it,
+ * `./breakdown-line.tsx`'s one sentence about which of a feature's two estimates the timeline used.
+ * Both are `./drawer-facts.tsx`'s, which is why this file hands it the breakdown and not the line.
  *
  * `treatment` rides along as `data-treatment` for the reason that row carries it too: two subjects may
  * legitimately render the same words, and neither the paint nor a colour may be the only thing telling
@@ -123,7 +134,7 @@ export function DrawerPanel({
       <h2 className={TITLE} id={TITLE_ID}>
         {nameOf(row)}
       </h2>
-      <DrawerFacts row={row} />
+      <DrawerFacts breakdown={values.breakdown} row={row} />
       <DrawerEdits
         actions={actions}
         controls={controls}

@@ -17,6 +17,7 @@ import { nothingDrawn, stubActions } from './testing/plan-writes'
 import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
 import { NameField } from './drawer/name-field'
+import { PinField } from './drawer/pin-field'
 import { drawerSubject } from './drawer/subject'
 
 vi.mock('next/link', async () => ({
@@ -132,7 +133,7 @@ const panel = (over: Panel) => (
     key={over.key}
     planId={PLAN_A}
     row={over.row ?? DRAWER_ROW}
-    values={over.values ?? { name: 'Auth rewrite', estimateDays: 5 }}
+    values={over.values ?? FEATURE.values}
   />
 )
 
@@ -147,6 +148,8 @@ const subjectOf = (kind: 'feature' | 'item', id: string) => {
 
 const ITEM = subjectOf('item', ITEM_1)
 
+const FEATURE = subjectOf('feature', FEATURE_1)
+
 // **One list, and the two uses cannot disagree.** The allowlist below is derived from this map rather
 // than written beside it, because the two answer the same question and a file named in one and missing
 // from the other is a hole rather than an inconsistency: the walk stops only at what this map holds,
@@ -160,6 +163,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [DescriptionField, 'description-field.tsx'],
   [EstimateField, 'estimate-field.tsx'],
   [NameField, 'name-field.tsx'],
+  [PinField, 'pin-field.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/drawer/${name}`)

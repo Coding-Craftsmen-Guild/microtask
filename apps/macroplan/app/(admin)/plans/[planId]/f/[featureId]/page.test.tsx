@@ -288,7 +288,13 @@ describe('the drawer hands no share token to a component either', () => {
       'row',
       'values',
     ])
-    expect(handed['values']).toEqual({ name: 'Auth rewrite', estimateDays: 5 })
+    expect(handed['values']).toEqual({
+      name: 'Auth rewrite',
+      estimateDays: 5,
+      pinSprint: null,
+      calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
+      breakdown: { planned: 5, brokenDown: 5, delta: 0 },
+    })
     expect(handed['description']).toBeNull()
   })
 

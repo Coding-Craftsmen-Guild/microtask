@@ -218,3 +218,83 @@ export const revertKey = (event: KeyboardEvent<HTMLTextAreaElement>, stored: str
   event.preventDefault()
   event.currentTarget.blur()
 }
+
+/**
+ * The largest sprint number the pin field accepts, counted from 1, for a plan of this sprint length.
+ *
+ * **This ceiling is the client's, because the contract does not have one.** `SprintIndex` is
+ * `z.number().int().min(0)` and nothing more (`packages/contracts/src/plan.ts`), and its own note
+ * argues for that: "a plan's sprint count falls out of the schedule it produces, it is never
+ * authored, so a pin naming a sprint past today's horizon is not a mistake to reject — it is a
+ * constraint the forward pass has not grown into yet". That is right about the **store** and wrong
+ * about a keyboard: `500` typed where `50` was meant is accepted, and a pin is the only way a fixed
+ * point in time enters the model (spec §3.1), so the feature moves a decade out and the API reports
+ * success. The server will not sanity-check it, so the field does, and it refuses rather than clamps
+ * — a silently corrected pin would be a different plan than the one that was typed.
+ *
+ * The number is derived from {@link MAX_ESTIMATE_DAYS}, the largest estimate this product accepts on
+ * a single feature — 1,000 working days, "about four years" (`packages/contracts/src/limits.ts`) —
+ * divided by **this plan's own** sprint length. So the wall-clock horizon is the same for every plan
+ * and the sprint count is not: 72 sprints for Atlas's fortnight, 1,000 for a one-day sprint. A round
+ * number would have been a guess about how far out anyone plans; this is the distance the product
+ * already refuses to estimate past, said in the unit the field is typed in.
+ *
+ * @param sprintLengthDays - The plan's own sprint length in working days, at least 1 per contract.
+ * @returns The largest 1-based sprint number this field will send, which is not a contract bound.
+ */
+export const pinCeiling = (sprintLengthDays: number): number =>
+  Math.ceil(MAX_ESTIMATE_DAYS / sprintLengthDays)
+
+/** Why a pin that is not a whole sprint counted from 1 is refused, in the field's own words. */
+export const WHOLE_SPRINTS =
+  'A pin is a whole sprint number counted from 1 — or empty for a feature that is not pinned.'
+
+/**
+ * Why a pin past the field's own ceiling is refused, naming the ceiling and whose it is.
+ *
+ * @param sprintLengthDays - The plan's own sprint length, which is what the ceiling is derived from.
+ * @returns The sentence to show under the field.
+ */
+export const tooFarOut = (sprintLengthDays: number): string =>
+  `This plan's sprints reach sprint ${String(pinCeiling(sprintLengthDays))} within the ${String(MAX_ESTIMATE_DAYS)} working days it can estimate. Anything past that is a typo more often than a plan.`
+
+/**
+ * What a pin field will send for the text it holds, or the sentence it refuses with.
+ *
+ * `sprint` is the **0-based** `pinSprint` the contract stores, and `null` is the unpin — the same
+ * two-state read {@link EstimateEntry} makes of an estimate, minus the third: there is no pin that
+ * means "pinned to nothing in particular", so an empty box is the only absence.
+ *
+ * The **text** is 1-based and the value is not, because `S1` is what the table calls the plan's first
+ * sprint (`../table/rows.ts`) and `sprintOf`'s own note says a UI adds one to label it. A field that
+ * showed the stored 0 beside a table saying `S1` would have a reader pin to 2 for a sprint the rest of
+ * the screen calls 3. So `0` is refused rather than read as sprint 0: there is no sprint 0 on this
+ * screen, and a `0` typed into a box counted from 1 is the off-by-one itself arriving.
+ */
+export type PinEntry =
+  | { readonly kind: 'pin'; readonly sprint: number | null }
+  | { readonly kind: 'refused'; readonly detail: string }
+
+/**
+ * What a pin field will send for the text it holds, or why it is sending nothing.
+ *
+ * Digits only, for the reason {@link estimateEntry} gives: the regex is what keeps `0x10`, `1e3` and
+ * `  -0 ` out — every spelling `Number()` would have accepted and no user meant — and the field is a
+ * text input rather than `type="number"` so that a typo survives to be refused instead of being
+ * emptied by the HTML sanitisation algorithm and read as an unpin.
+ *
+ * @param typed - Exactly what the field holds, untrimmed, counted from 1.
+ * @param sprintLengthDays - The plan's own sprint length, which fixes the ceiling.
+ * @returns The 0-based sprint to send — `null` for the unpin — or the refusal to show instead.
+ */
+export function pinEntry(typed: string, sprintLengthDays: number): PinEntry {
+  const trimmed = typed.trim()
+  if (trimmed === '') return { kind: 'pin', sprint: null }
+  if (!/^[0-9]+$/.test(trimmed)) return { kind: 'refused', detail: WHOLE_SPRINTS }
+  const labelled = Number(trimmed)
+  if (labelled === 0) return { kind: 'refused', detail: WHOLE_SPRINTS }
+  if (labelled > pinCeiling(sprintLengthDays)) {
+    return { kind: 'refused', detail: tooFarOut(sprintLengthDays) }
+  }
+  return { kind: 'pin', sprint: labelled - 1 }
+}

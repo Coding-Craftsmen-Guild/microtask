@@ -1,4 +1,6 @@
+import type { Breakdown } from '@repo/schedule'
 import type { TableRow } from '../table/rows'
+import { BreakdownLine } from './breakdown-line'
 import { LABEL } from './field'
 
 const FACTS = 'grid gap-3 sm:grid-cols-3'
@@ -21,6 +23,15 @@ const factsOf = (row: TableRow): readonly Fact[] => [
 export interface DrawerFactsProps {
   /** The one row this drawer is open on, every cell of it already worded (`../table/rows.ts`). */
   readonly row: TableRow
+
+  /**
+   * The authored estimate beside what the items came to, or `null` where there is no pair.
+   *
+   * `breakdown()`'s own answer, resolved in the same lookup as the row and never recomputed here
+   * (`./subject.ts`). One sentence is drawn from it and it carries no numbers, because every number
+   * the pair holds is already in the `<dd>` above it — `./breakdown-line.tsx` argues that.
+   */
+  readonly breakdown: Breakdown | null
 }
 
 /**
@@ -31,7 +42,7 @@ export interface DrawerFactsProps {
  * without taking an argument with it. What stayed behind is the landmark, the heading and the close
  * link — the frame every control group is now drawn inside.
  *
- * **It words nothing, and that is the point.** Every value here is a string `rows.ts` decided, which
+ * **The `<dl>` words nothing, and that is the point.** Every value in it is a string `rows.ts` decided, which
  * is where §3.2's estimate wording and the sprint label live. A panel that formatted `estimateDays`
  * itself would be a second opinion about the same field, and the two renderings of one plan would
  * disagree in the one place a reader compares them — `planned 40d · broken down to 5d · -35d` in the
@@ -60,16 +71,34 @@ export interface DrawerFactsProps {
  * copying them here would be the second wording the paragraph above rules out, and moving them is the
  * business of the task that draws a dependency **editor**. `row.blockedBy` is on the prop and nothing
  * reads it, which is a fact a reader can check.
+ *
+ * ### The one sentence under the list that is not the row's
+ *
+ * {@link BreakdownLine} is drawn below the `<dl>` and it is the exception that proves the rule rather
+ * than a hole in it: it carries **no numbers**, because the numbers of the pair are already in the
+ * `Estimate` cell above it — all three of them when the two disagree, and one that is both of them when
+ * they agree. What it adds is the claim the row has no room to make, that the bar came from the items
+ * and the feature's own estimate is kept and inert (ADR 0051). It lives here rather than beside the
+ * fields because it is a **read**: it has nothing to say about what was typed, and the fields' band is
+ * the one thing on this panel that does.
+ *
+ * That makes this component's return a fragment of two elements rather than one `<dl>`, so both are
+ * children of the panel's own `grid gap-3` and neither is nested inside the other's semantics — a `<p>`
+ * inside a `<dl>` is not a description list, and a reader walking the list would have been read a
+ * sentence with no `<dt>` to hang it on.
  */
-export function DrawerFacts({ row }: DrawerFactsProps) {
+export function DrawerFacts({ row, breakdown }: DrawerFactsProps) {
   return (
-    <dl className={FACTS}>
-      {factsOf(row).map((fact) => (
-        <div key={fact.label}>
-          <dt className={LABEL}>{fact.label}</dt>
-          <dd className={VALUE}>{fact.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <>
+      <dl className={FACTS}>
+        {factsOf(row).map((fact) => (
+          <div key={fact.label}>
+            <dt className={LABEL}>{fact.label}</dt>
+            <dd className={VALUE}>{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
+      <BreakdownLine breakdown={breakdown} />
+    </>
   )
 }

@@ -5,16 +5,30 @@ import { subjectValues } from './values'
 
 const plan = () => planScreenModel(atlasPlan())
 
+const pinnedPlan = (pinSprint: number | null) =>
+  planScreenModel(
+    atlasPlan({
+      features: atlasPlan().features.map((one) =>
+        one.id === FEATURE_1 ? { ...one, pinSprint } : one,
+      ),
+    }),
+  )
+
 describe('reading one subject’s stored values back out of a plan', () => {
-  it('reads a feature’s name and its authored estimate, which is the pair a field edits', () => {
+  it('reads a feature’s name, its authored estimate and its pin, which is what a field edits', () => {
     expect(subjectValues(plan(), 'feature', FEATURE_1)).toEqual({
       name: 'Auth rewrite',
       estimateDays: 5,
+      pinSprint: null,
     })
   })
 
   it('reads an item’s from the items array, the two kinds not answering for each other', () => {
-    expect(subjectValues(plan(), 'item', ITEM_1)).toEqual({ name: 'Sessions', estimateDays: 3 })
+    expect(subjectValues(plan(), 'item', ITEM_1)).toEqual({
+      name: 'Sessions',
+      estimateDays: 3,
+      pinSprint: null,
+    })
     expect(subjectValues(plan(), 'item', FEATURE_1)).toBeUndefined()
     expect(subjectValues(plan(), 'feature', ITEM_1)).toBeUndefined()
   })
@@ -42,3 +56,28 @@ describe('reading one subject’s stored values back out of a plan', () => {
   })
 })
 
+// `pinSprint` is `PlanFeature`'s and not `PlanItem`'s, so the `null` on an item is the **absence of the
+// field** and not an unpinned item. It is answered from the branch being looked in rather than from an
+// optional read, which is what stops the two records from sharing a spelling they do not share.
+describe('the pin, which one of the two kinds has and the other does not', () => {
+  it('reads a stored pin as the 0-based index the contract holds, sprint 1 being 0', () => {
+    expect(subjectValues(pinnedPlan(0), 'feature', FEATURE_1)?.pinSprint).toBe(0)
+    expect(subjectValues(pinnedPlan(4), 'feature', FEATURE_1)?.pinSprint).toBe(4)
+  })
+
+  it('tells 0 and null apart, a pin to the first sprint being a pin and not an absence', () => {
+    expect(subjectValues(pinnedPlan(0), 'feature', FEATURE_1)?.pinSprint).not.toBeNull()
+    expect(subjectValues(pinnedPlan(null), 'feature', FEATURE_1)?.pinSprint).toBeNull()
+  })
+
+  it('answers null for every item, the record having no such field to read', () => {
+    for (const item of atlasPlan().items) {
+      expect(subjectValues(plan(), 'item', item.id)?.pinSprint, item.id).toBeNull()
+    }
+    expect(Object.keys(atlasPlan().items[0] ?? {})).not.toContain('pinSprint')
+  })
+
+  it('keeps a feature’s pin out of an item’s values even where the plan holds one', () => {
+    expect(subjectValues(pinnedPlan(4), 'item', ITEM_1)?.pinSprint).toBeNull()
+  })
+})

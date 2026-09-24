@@ -6,9 +6,13 @@ import {
   estimateEntry,
   normalisedDescription,
   overBudget,
+  pinCeiling,
+  pinEntry,
+  tooFarOut,
   OVER_BUDGET,
   TOO_MANY_DAYS,
   WHOLE_DAYS,
+  WHOLE_SPRINTS,
 } from './field'
 
 const days = (typed: string): number | null | string => {
@@ -117,5 +121,70 @@ describe('the two normalisations the domain applies that a byte cap does not cov
     expect(normalisedDescription('one\r\ntwo')).toBe('one\ntwo')
     expect(normalisedDescription('one\rtwo')).toBe('one\ntwo')
     expect(normalisedDescription(`one${chr(13)}${chr(10)}two`)).toBe('one\ntwo')
+  })
+})
+
+const ATLAS_SPRINT = 14
+
+const pin = (typed: string, sprintLengthDays = ATLAS_SPRINT): number | null | string => {
+  const entry = pinEntry(typed, sprintLengthDays)
+  return entry.kind === 'pin' ? entry.sprint : entry.detail
+}
+
+describe('the two states a pin field can be in, and the off-by-one between them', () => {
+  it('sends null for an empty field, which is the unpin and the only absence a pin has', () => {
+    expect(pin('')).toBeNull()
+    expect(pin('   ')).toBeNull()
+  })
+
+  // The whole point of the conversion: the table calls the plan's first sprint `S1` and the contract
+  // stores it as 0. A field that sent what was typed would pin one sprint late, everywhere, silently.
+  it('sends the sprint before the one that was typed, the box being counted from 1', () => {
+    expect(pin('1')).toBe(0)
+    expect(pin('3')).toBe(2)
+    expect(pin(' 07 ')).toBe(6)
+  })
+
+  it('refuses a 0, there being no sprint 0 on a screen that counts from 1', () => {
+    expect(pin('0')).toBe(WHOLE_SPRINTS)
+    expect(pin('00')).toBe(WHOLE_SPRINTS)
+  })
+
+  it('refuses a fraction, a negative and a word with one sentence naming the rule', () => {
+    for (const typed of ['2.5', '-3', 'abc', 'S3', '1e3', '0x10']) {
+      expect(pin(typed), typed).toBe(WHOLE_SPRINTS)
+    }
+  })
+})
+
+// The contract has no upper bound at all — `SprintIndex` is `int().min(0)` and its own note argues
+// for that — so every case below is about a bound this field owns and the API does not.
+describe('the ceiling this field owns because the contract does not have one', () => {
+  it('is the sprints MAX_ESTIMATE_DAYS spans in this plan’s own sprint length', () => {
+    expect(pinCeiling(ATLAS_SPRINT)).toBe(Math.ceil(MAX_ESTIMATE_DAYS / ATLAS_SPRINT))
+    expect(pinCeiling(ATLAS_SPRINT)).toBe(72)
+    expect(pinCeiling(1)).toBe(MAX_ESTIMATE_DAYS)
+    expect(pinCeiling(10)).toBe(100)
+  })
+
+  it('accepts the ceiling itself and refuses the sprint after it', () => {
+    expect(pin(String(pinCeiling(ATLAS_SPRINT)))).toBe(pinCeiling(ATLAS_SPRINT) - 1)
+    expect(pin(String(pinCeiling(ATLAS_SPRINT) + 1))).toBe(tooFarOut(ATLAS_SPRINT))
+  })
+
+  // The typo the plan named: `500` where `50` was meant. The API accepts it, so the field must not.
+  it('refuses the 500 a contract with no maximum would have stored', () => {
+    expect(pin('500')).toBe(tooFarOut(ATLAS_SPRINT))
+    expect(typeof pin('50')).toBe('number')
+  })
+
+  it('moves with the plan’s sprint length rather than being a round number', () => {
+    expect(pin('120', 14)).toBe(tooFarOut(14))
+    expect(pin('120', 1)).toBe(119)
+  })
+
+  it('names the ceiling and the estimate cap it comes from, so the refusal is checkable', () => {
+    expect(tooFarOut(ATLAS_SPRINT)).toContain('72')
+    expect(tooFarOut(ATLAS_SPRINT)).toContain(String(MAX_ESTIMATE_DAYS))
   })
 })
