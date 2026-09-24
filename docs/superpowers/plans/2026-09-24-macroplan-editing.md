@@ -835,6 +835,19 @@ Four things in that are load-bearing and each has a reason recorded somewhere in
 
 - [ ] **Step 4: green, then commit** `"Let a seat write what its role allows, with the token as the credential"`.
 
+**For whoever next adds a seat write: split the file first.** `seat-writes.ts` shipped at 137 code lines against
+ADR 0027's 150, and the headroom is smaller than that gap suggests. It buys the margin with a
+`type Answer = Promise<ActionResult<Plan>>` alias that its three admin twins do not use; spelling the return type
+out the way they do adds ~21 characters to five signatures that are already 94–103 wide, breaking each across
+several lines and putting the file **over** the cap. So the alias is load-bearing rather than cosmetic, and it is
+also the one place the seat file stops mirroring the admin files its own TSDoc says it mirrors.
+
+The split is **by entity, exactly as the admin side is split** — `seat-epics.ts` (5), `seat-features.ts` (7),
+`seat-items.ts` (6), landing each at roughly its twin's size and restoring the one-file-to-one-file mirror. Not by
+"first N actions": there is no seam there. The type aliases and the import block get duplicated three ways, which
+is already this repo's habit — `features.ts` and `items.ts` each declare their own `Estimate`. The file-level
+charter needs one home rather than three copies, and that home is `seatWrite`'s own TSDoc in `plan-write.ts`.
+
 Steps 3b and 3c were added **after** Task 8 shipped. They are what its Files list implied and its steps never said,
 and I handed them to the implementer as though the plan carried them. Recorded here so Task 18's audit compares
 against what was actually asked.
@@ -851,8 +864,8 @@ against what was actually asked.
 - [ ] **Step 1: widen `PlanControls` past the four share booleans.** It exists, it is correct, and it has **no
       shipped call site** — `planCapabilities` is called only by its own test, and its TSDoc says "Phase 2 draws
       none of these". Add one boolean per control this phase draws: create, **rename**, **recolour**, reorder and
-      delete an epic; create / rename / estimate / delete / place / pin a feature; the same for an item;
-      edit dependencies; and change plan settings.
+      delete an epic; create / rename / estimate / delete / place / pin a feature; the same for an item; and
+      edit dependencies. **Eighteen booleans, one per member of `PlanEditActions`, and no nineteenth.**
 
       **Derive that list from `PlanEditActions` rather than from this sentence**, and say in the commit whether the
       two agree. An earlier draft of this step omitted rename and recolour, which would have left `renameEpic` and
@@ -861,6 +874,15 @@ against what was actually asked.
       owns hue. Status owns treatment**", so an epic's colour is the only thing making it traceable across rails,
       and a plan that cannot recolour one cannot fix a clash. One boolean each even though every `epic:*` action is
       a single `manage` grant, because a control is a rendering answer and the drawer draws these separately.
+
+      **"Change plan settings" was in that list and is now out**, which is the same mistake in the mirror. There is
+      no plan-settings action on either surface — no `actions/plans.ts`, nothing in `PlanEditActions` — and no task
+      in this phase builds one, so the boolean would have had nothing behind it. `plans.update` does exist in the
+      client from Task 4, and `plan:rename` and `plan:retime` are `manage` grants, so the *capability* is real; what
+      is missing is any UI, and spec §9's phase-3 row does not ask for one. Retiming a plan moves every bar on it,
+      which is not a control to add as a side effect of drawing a list. If a later phase wants it, it adds the
+      action, the control and the surface together. Audit item **7l** sweeps both directions so neither half can
+      ship alone again.
 
       **Read the three `share:*` rows through `mayReach(role, scope, action, 'plan')` and the rest off the
       record.** This is not stylistic: `capabilities()` answers each action against its own declared `target`, and
