@@ -1,4 +1,11 @@
-import type { PlanStructure, ScheduleEpic, Span } from '@repo/schedule'
+import type {
+  Cycle,
+  IgnoredEdge,
+  PlanStructure,
+  ScheduleEpic,
+  Span,
+  Unscheduled,
+} from '@repo/schedule'
 
 /**
  * A rail's record as the canvas reads it: `@repo/schedule`'s `ScheduleEpic` plus the one field the
@@ -59,9 +66,48 @@ export interface CanvasSpan extends Span {
  * needs `unscheduled`, `cycles` or `ignoredEdges` — a mark's treatment is a statement about those —
  * should widen this interface rather than restate the wire shape a second time. A parsed
  * `ScheduleView` is assignable here either way.
+ *
+ * Two modules have done that: `CanvasScheduleWithStatus` in `treatment.ts` adds `unscheduled`, and
+ * {@link CanvasScheduleWithConflicts} adds all three. Both extend this rather than replace it, so a
+ * caller holding either can still be passed to anything here that lays out geometry.
  */
 export interface CanvasSchedule {
   readonly spans: readonly CanvasSpan[]
+}
+
+/**
+ * The schedule widened with everything that is **not** a placement: the three ways a forward pass
+ * refuses one.
+ *
+ * This is the second module to take up {@link CanvasSchedule}'s standing invitation, and it takes it
+ * the way the first one did — `CanvasScheduleWithStatus` in `treatment.ts` extends `CanvasSchedule`
+ * with `unscheduled` alone. Widening by extension rather than by adding these three to
+ * `CanvasSchedule` itself is what keeps two things true that phase 2 wrote down and relies on.
+ * `CanvasSchedule`'s own first sentence — "Only `spans` is declared because only `spans` is read to
+ * lay out geometry" — stays true, so `railLayout`, `itemsToMarks` and `spansById` keep demanding
+ * only the collection they read. And `treatmentOf` keeps being *unable* to reach `cycles`, which is
+ * the guarantee `CanvasScheduleWithStatus` argues for itself: "`cycles` is not here because it would
+ * be a second route to the same answer … reading `cycles` too would let two derivations of one
+ * mark's treatment disagree." Putting `cycles` on the base type would hand it that second route back
+ * and leave that paragraph claiming a protection the types no longer give.
+ *
+ * The three members are `@repo/schedule`'s own `Cycle`, `Unscheduled` and `IgnoredEdge`, imported
+ * rather than restated, for the reason `CanvasScheduleWithStatus` imports `Unscheduled`: the shapes
+ * are declared once, so a reason or a field the forward pass adds cannot be one this package has
+ * never heard of. They are used directly rather than extended, unlike `CanvasSpan extends Span`,
+ * because extending adds nothing here — the wire carries a cycle, an unscheduled entry and an
+ * ignored edge exactly as the forward pass holds them, where a span had to gain the `id` its `Map`
+ * key used to carry.
+ *
+ * All four members are required, because the wire always carries all four: `ScheduleView` is
+ * `{spans, cycles, unscheduled, ignoredEdges}` and every one of them is non-optional there, so a
+ * parsed `ScheduleView` satisfies this with no adapter and an optional member here could only ever
+ * describe a value no response produces.
+ */
+export interface CanvasScheduleWithConflicts extends CanvasSchedule {
+  readonly cycles: readonly Cycle[]
+  readonly unscheduled: readonly Unscheduled[]
+  readonly ignoredEdges: readonly IgnoredEdge[]
 }
 
 /**

@@ -41,6 +41,27 @@ describe('@repo/canvas entry points', () => {
     expect(unasked).toBeNull()
   })
 
+  it('ships the conflict-bearing schedule as a type, which a parsed ScheduleView satisfies whole', () => {
+    const wire: main.CanvasScheduleWithConflicts = {
+      spans: [{ id: 'f1', startDay: 0, endDay: 2 }],
+      cycles: [{ featureIds: ['f2', 'f3'] }],
+      unscheduled: [{ id: 'f2', reason: 'in-cycle' }],
+      ignoredEdges: [{ featureId: 'f1', dependsOnId: 'f2' }],
+    }
+    expect(wire.cycles).toHaveLength(1)
+  })
+
+  it('leaves it assignable to the narrow schedule, so widening it costs geometry nothing', () => {
+    const wire: main.CanvasScheduleWithConflicts = {
+      spans: [],
+      cycles: [],
+      unscheduled: [],
+      ignoredEdges: [],
+    }
+    const geometry: main.CanvasSchedule = wire
+    expect(geometry.spans).toEqual([])
+  })
+
   it('keeps the rung bounds off the barrel, since a caller passes a range and reads no threshold', () => {
     expect(Object.keys(main)).not.toContain('ITEM_RUNG_MAX_DAYS')
     expect(Object.keys(main)).not.toContain('FEATURE_RUNG_MAX_DAYS')

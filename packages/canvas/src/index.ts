@@ -6,7 +6,13 @@ export type { DragPoint, DropQuery, DropTarget, RailMetrics } from './drag.js'
 
 export { dropTargetFor, railAtY } from './drag.js'
 
-export type { CanvasEpic, CanvasPlan, CanvasSchedule, CanvasSpan } from './plan.js'
+export type {
+  CanvasEpic,
+  CanvasPlan,
+  CanvasSchedule,
+  CanvasScheduleWithConflicts,
+  CanvasSpan,
+} from './plan.js'
 
 export type { ItemMark } from './marks.js'
 
