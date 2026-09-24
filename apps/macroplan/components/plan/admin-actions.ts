@@ -12,6 +12,7 @@ import {
   placeFeature,
   removeFeature,
   renameFeature,
+  setDependencies,
 } from '../../actions/features'
 import {
   createItem,
@@ -46,6 +47,7 @@ export const ADMIN_PLAN_ACTIONS: PlanEditActions = {
   estimateFeature,
   pinFeature,
   placeFeature,
+  setDependencies,
   removeFeature,
   createItem,
   renameItem,

@@ -1,12 +1,20 @@
 'use server'
 
-import type { FeatureChange, FeaturePlacement, NewFeature, Plan } from '@repo/api-client'
+import type {
+  FeatureChange,
+  FeaturePlacement,
+  FeaturesApi,
+  NewFeature,
+  Plan,
+} from '@repo/api-client'
 import { adminWrite } from './plan-write'
 import type { ActionResult } from './result'
 
 type Estimate = Exclude<FeatureChange['estimateDays'], undefined>
 
 type Pin = Exclude<FeatureChange['pinSprint'], undefined>
+
+type Dependencies = Parameters<FeaturesApi['setDependencies']>[2]
 
 /**
  * Adds a feature at the end of the rail the draft names, and answers the recomputed plan.
@@ -93,6 +101,27 @@ export async function placeFeature(
   to: FeaturePlacement,
 ): Promise<ActionResult<Plan>> {
   return adminWrite(planId, (api) => api.features.place(planId, featureId, to))
+}
+
+/**
+ * Replaces the whole set of features this one waits on; not an add, and not a remove.
+ *
+ * There is no narrower route to reach for: the API takes a complete `dependsOn` list, so adding one
+ * edge means reading a feature's current list out of a plan, appending to it, and sending the whole
+ * thing back. Two callers doing that from the same starting plan each overwrite the other's edge
+ * silently — the route takes no `If-Match` to catch it — so a caller that cares re-reads the plan
+ * this action answers with rather than trusting the list it sent.
+ *
+ * A cycle is refused whole, as a 409 naming the features that would wait on each other, and nothing
+ * is written. `feature:depend` is the one gate on this route, and only `manage` holds it — `write`
+ * does not.
+ */
+export async function setDependencies(
+  planId: string,
+  featureId: string,
+  dependsOn: Dependencies,
+): Promise<ActionResult<Plan>> {
+  return adminWrite(planId, (api) => api.features.setDependencies(planId, featureId, dependsOn))
 }
 
 /**

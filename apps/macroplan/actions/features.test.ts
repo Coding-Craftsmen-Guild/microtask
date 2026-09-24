@@ -1,6 +1,12 @@
 import { planPath, type MacroplanSessionClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EPIC_1, FEATURE_1, PLAN_A, atlasPlan } from '../components/plan/testing/plan-fixture'
+import {
+  EPIC_1,
+  FEATURE_1,
+  FEATURE_2,
+  PLAN_A,
+  atlasPlan,
+} from '../components/plan/testing/plan-fixture'
 import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 import { Redirected, recordingAdmin, redirectOf, type RecordingAdmin } from './testing/recording-admin'
 
@@ -16,8 +22,15 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
-const { createFeature, estimateFeature, pinFeature, placeFeature, removeFeature, renameFeature } =
-  await import('./features')
+const {
+  createFeature,
+  estimateFeature,
+  pinFeature,
+  placeFeature,
+  removeFeature,
+  renameFeature,
+  setDependencies,
+} = await import('./features')
 
 const WIRE = `${planPath(PLAN_A)}/features/${FEATURE_1}`
 
@@ -101,6 +114,13 @@ describe('the rest of the feature writes', () => {
     await removeFeature(PLAN_A, FEATURE_1)
     expect(admin.sent).toEqual([{ method: 'DELETE', path: WIRE, body: undefined }])
   })
+
+  it('replaces the whole dependency list with one PUT, never the shared PATCH the others share', async () => {
+    await setDependencies(PLAN_A, FEATURE_1, [FEATURE_2])
+    expect(admin.sent).toEqual([
+      { method: 'PUT', path: `${WIRE}/dependencies`, body: { dependsOn: [FEATURE_2] } },
+    ])
+  })
 })
 
 describe('what a refusal costs', () => {
@@ -112,6 +132,12 @@ describe('what a refusal costs', () => {
   it('leaves the page alone when the write was refused, so the sentence survives the answer', async () => {
     admin.refuse(() => true, 409)
     expect(await renameFeature(PLAN_A, FEATURE_1, 'Auth rewrite II')).toEqual(refused(409))
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  it('leaves the page alone when a dependency write is refused, exactly as any other refusal does', async () => {
+    admin.refuse(() => true, 409)
+    expect(await setDependencies(PLAN_A, FEATURE_1, [FEATURE_2])).toEqual(refused(409))
     expect(refresh).not.toHaveBeenCalled()
   })
 

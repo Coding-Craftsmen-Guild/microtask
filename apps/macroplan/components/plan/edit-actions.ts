@@ -1,6 +1,7 @@
 import type {
   FeatureChange,
   FeaturePlacement,
+  FeaturesApi,
   ItemChange,
   ItemPlacement,
   NewEpic,
@@ -15,6 +16,8 @@ type Answer = Promise<ActionResult<Plan>>
 type Estimate = Exclude<FeatureChange['estimateDays'], undefined>
 
 type Pin = Exclude<FeatureChange['pinSprint'], undefined>
+
+type Dependencies = Parameters<FeaturesApi['setDependencies']>[2]
 
 type ItemEstimate = Exclude<ItemChange['estimateDays'], undefined>
 
@@ -70,6 +73,9 @@ export interface PlanEditActions {
 
   /** Moves one feature along its rail or onto another. */
   placeFeature: (planId: string, featureId: string, to: FeaturePlacement) => Answer
+
+  /** Replaces the whole set of features one feature waits on; the API refuses a cycle as a 409. */
+  setDependencies: (planId: string, featureId: string, dependsOn: Dependencies) => Answer
 
   /** Removes one feature, its items and every edge that named it. */
   removeFeature: (planId: string, featureId: string) => Answer
