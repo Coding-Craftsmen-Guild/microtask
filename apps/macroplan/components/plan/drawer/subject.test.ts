@@ -16,7 +16,7 @@ describe('resolving the one subject a drawer is open on', () => {
       estimateDays: 5,
       pinSprint: null,
       calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
-      breakdown: { planned: 5, brokenDown: 5, delta: 0 },
+      sizedByItems: true,
     })
   })
 
@@ -65,9 +65,11 @@ describe('resolving the one subject a drawer is open on', () => {
 })
 
 // The two members the panel needs and neither the row nor the record carries, added inside the one
-// lookup rather than fetched beside it. Each is checked against `@repo/schedule`'s own answer rather
-// than against a number written here, because the whole point is that nothing in this app recomputes it.
-describe('the breakdown this lookup carries, and the states it has no pair for', () => {
+// lookup rather than fetched beside it. `sizedByItems` is `effectiveEstimate`'s own gate — at least one
+// estimated item — asked of the two exported functions rather than counted here, and every case below
+// pairs it with what the row's Estimate cell reads in that same state, because the whole point of the
+// boolean is that the cell and the estimate field can disagree and only this says why.
+describe('whether the items sized this feature, and the states in which they did not', () => {
   const authored = (estimateDays: number | null) =>
     plan({
       features: atlasPlan().features.map((one) =>
@@ -75,46 +77,89 @@ describe('the breakdown this lookup carries, and the states it has no pair for',
       ),
     })
 
-  it('answers the pair breakdown() answers for a feature authored against estimated items', () => {
+  it('answers true for a feature authored against estimated items, the two being a pair', () => {
     const subject = drawerSubject(authored(40), 'feature', FEATURE_1)
-    expect(subject?.values.breakdown).toEqual({ planned: 40, brokenDown: 5, delta: -35 })
+    expect(subject?.values.sizedByItems).toBe(true)
+    expect(subject?.row.estimate).toBe('planned 40d · broken down to 5d · -35d')
   })
 
-  it('keeps a negative delta rather than forcing it to zero, a shortfall being a real state', () => {
-    expect(drawerSubject(authored(40), 'feature', FEATURE_1)?.values.breakdown?.delta).toBe(-35)
-    expect(drawerSubject(authored(1), 'feature', FEATURE_1)?.values.breakdown?.delta).toBe(4)
+  it('answers true whether the breakdown overruns what was authored or falls short of it', () => {
+    expect(drawerSubject(authored(40), 'feature', FEATURE_1)?.values.sizedByItems).toBe(true)
+    expect(drawerSubject(authored(1), 'feature', FEATURE_1)?.values.sizedByItems).toBe(true)
   })
 
-  it('answers a pair for an agreeing breakdown, which the row’s own wording collapses to one number', () => {
+  it('answers true for an authored 0 against estimated items, 0 being a milestone and not an absence', () => {
+    expect(drawerSubject(authored(0), 'feature', FEATURE_1)?.values.sizedByItems).toBe(true)
+  })
+
+  it('answers true for an agreeing breakdown, which the row’s own wording collapses to one number', () => {
     const subject = drawerSubject(plan(), 'feature', FEATURE_1)
-    expect(subject?.values.breakdown).toEqual({ planned: 5, brokenDown: 5, delta: 0 })
+    expect(subject?.values.sizedByItems).toBe(true)
     expect(subject?.row.estimate).toBe('5d')
   })
 
-  it('answers null where the feature carries no authored estimate to pair with', () => {
-    expect(drawerSubject(authored(null), 'feature', FEATURE_1)?.values.breakdown).toBeNull()
+  // The state `breakdown()` answers `null` for and the items place all the same, which is why this
+  // boolean is not that call's answer. The row's cell is the reason it matters: `estimateOf` falls
+  // through to `effectiveEstimate`, so the cell reads the items' own sum while the estimate field
+  // beside it holds nothing at all — and this is the only thing on the panel that explains the pair.
+  it('answers true where the items are sized and nobody authored an estimate beside them', () => {
+    const subject = drawerSubject(authored(null), 'feature', FEATURE_1)
+    expect(subject?.values.sizedByItems).toBe(true)
+    expect(subject?.values.estimateDays).toBeNull()
+    expect(subject?.row.estimate).toBe('5d')
   })
 
-  it('answers null where the feature has items and not one of them is estimated', () => {
+  // Nothing here may test for truth. With nothing authored and every item a milestone the items still
+  // size the feature, at 0 — and `effectiveEstimate` answers `0`, which a truthiness check would read
+  // as the absence that leaves an authored value standing.
+  it('answers true where nothing was authored and every item is a milestone, 0 being an answer', () => {
+    const milestones = plan({
+      features: atlasPlan().features.map((one) =>
+        one.id === FEATURE_1 ? { ...one, estimateDays: null } : one,
+      ),
+      items: atlasPlan().items.map((one) => ({ ...one, estimateDays: 0 })),
+    })
+    const subject = drawerSubject(milestones, 'feature', FEATURE_1)
+    expect(subject?.values.sizedByItems).toBe(true)
+    expect(subject?.row.estimate).toBe('0d')
+  })
+
+  it('answers false where the feature has items and not one of them is estimated', () => {
     const unsized = plan({
       items: atlasPlan().items.map((one) => ({ ...one, estimateDays: null })),
     })
-    expect(drawerSubject(unsized, 'feature', FEATURE_1)?.values.breakdown).toBeNull()
+    const subject = drawerSubject(unsized, 'feature', FEATURE_1)
+    expect(subject?.values.sizedByItems).toBe(false)
+    expect(subject?.row.estimate).toBe('5d')
   })
 
-  it('answers null where the feature has no items at all, there being nothing to compare', () => {
-    expect(drawerSubject(plan({ items: [] }), 'feature', FEATURE_1)?.values.breakdown).toBeNull()
+  it('answers false where the feature has no items at all, its own estimate placing it', () => {
+    expect(drawerSubject(plan({ items: [] }), 'feature', FEATURE_1)?.values.sizedByItems).toBe(false)
   })
 
-  it('answers null for every item, an item having no items of its own', () => {
-    expect(drawerSubject(plan(), 'item', ITEM_1)?.values.breakdown).toBeNull()
+  it('answers false where neither the feature nor an item of it is sized', () => {
+    const nothing = plan({
+      features: atlasPlan().features.map((one) =>
+        one.id === FEATURE_1 ? { ...one, estimateDays: null } : one,
+      ),
+      items: atlasPlan().items.map((one) => ({ ...one, estimateDays: null })),
+    })
+    const subject = drawerSubject(nothing, 'feature', FEATURE_1)
+    expect(subject?.values.sizedByItems).toBe(false)
+    expect(subject?.row.estimate).toBe('no estimate')
   })
 
-  // The filter is by `featureId`, so a sibling feature's items may not reach this pair: FEATURE_2's
-  // one item is 3 days, and counting it would make FEATURE_1's breakdown 8.
-  it('counts this feature’s own items and not the plan’s, which is what the filter is for', () => {
-    expect(drawerSubject(plan(), 'feature', FEATURE_1)?.values.breakdown?.brokenDown).toBe(5)
-    expect(drawerSubject(plan(), 'feature', FEATURE_2)?.values.breakdown?.brokenDown).toBe(3)
+  it('answers false for every item, an item having no items of its own', () => {
+    expect(drawerSubject(plan(), 'item', ITEM_1)?.values.sizedByItems).toBe(false)
+  })
+
+  // The filter is by `featureId`, so a sibling feature's items may not answer this question: FEATURE_1
+  // keeps both of its items here and FEATURE_2 is left with none, so a read of `plan.items` would say
+  // true for a feature nothing under it sizes.
+  it('asks about this feature’s own items and not the plan’s, which is what the filter is for', () => {
+    const moved = plan({ items: atlasPlan().items.filter((one) => one.featureId === FEATURE_1) })
+    expect(drawerSubject(moved, 'feature', FEATURE_1)?.values.sizedByItems).toBe(true)
+    expect(drawerSubject(moved, 'feature', FEATURE_2)?.values.sizedByItems).toBe(false)
   })
 })
 

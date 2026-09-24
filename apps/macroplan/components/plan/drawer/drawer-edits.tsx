@@ -23,7 +23,7 @@ export interface DrawerEditsProps {
    * Three of its members are read here: the name and the estimate each seed a field, and `pinSprint`
    * seeds the pin. `calendar` is read to be taken apart — the pin needs `rangeOfSprint` in the
    * browser to say what sprint it names, and what crosses that boundary has to be primitives, so the
-   * three scheduling fields are handed over one at a time rather than as the object. `breakdown` is
+   * three scheduling fields are handed over one at a time rather than as the object. `sizedByItems` is
    * the read half's and is not read here at all (`./drawer-facts.tsx`).
    */
   readonly values: DrawerValues

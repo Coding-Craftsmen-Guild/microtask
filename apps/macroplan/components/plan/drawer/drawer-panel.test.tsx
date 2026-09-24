@@ -51,7 +51,7 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
   estimateDays: 5,
   pinSprint: null,
   calendar: CALENDAR,
-  breakdown: null,
+  sizedByItems: false,
   ...over,
 })
 
@@ -312,12 +312,12 @@ describe('the pin, which is the manage-tier control among the write-tier fields'
 // §3.2's own sentence is the row's and appears in the Estimate cell. What this line adds is which of a
 // feature's two estimates the timeline used, and the assertion below is that it repeats none of the row.
 describe('the breakdown line, which says what the Estimate cell has no room to', () => {
-  it('says the timeline placed the feature by its items, whenever there is a pair', () => {
-    open({ values: valuesOf({ breakdown: { planned: 40, brokenDown: 62, delta: 22 } }) })
+  it('says the timeline placed the feature by its items, wherever the items sized it', () => {
+    open({ values: valuesOf({ sizedByItems: true }) })
     expect(breakdownLine()).toContain('places this feature by its items')
   })
 
-  it('draws nothing where there is no pair, which is what an item always resolves to', () => {
+  it('draws nothing where the items did not, which is what an item always resolves to', () => {
     open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
     expect(breakdownLine()).toBeNull()
   })
@@ -325,22 +325,40 @@ describe('the breakdown line, which says what the Estimate cell has no room to',
   it('leaves every number of the pair to the row, repeating not one of them', () => {
     open({
       row: { ...FEATURE_ROW, estimate: 'planned 40d · broken down to 62d · +22d' },
-      values: valuesOf({ estimateDays: 40, breakdown: { planned: 40, brokenDown: 62, delta: 22 } }),
+      values: valuesOf({ estimateDays: 40, sizedByItems: true }),
     })
     expect(valueOf('Estimate')).toBe('planned 40d · broken down to 62d · +22d')
     expect(breakdownLine()).not.toMatch(/[0-9]/)
   })
 
   it('renders the same sentence for a shortfall, a negative delta being reportable and not an error', () => {
-    open({ values: valuesOf({ breakdown: { planned: 40, brokenDown: 62, delta: 22 } }) })
+    open({
+      row: { ...FEATURE_ROW, estimate: 'planned 40d · broken down to 62d · +22d' },
+      values: valuesOf({ estimateDays: 40, sizedByItems: true }),
+    })
     const overrun = breakdownLine()
     cleanup()
-    open({ values: valuesOf({ breakdown: { planned: 40, brokenDown: 5, delta: -35 } }) })
+    open({
+      row: { ...FEATURE_ROW, estimate: 'planned 40d · broken down to 5d · -35d' },
+      values: valuesOf({ estimateDays: 40, sizedByItems: true }),
+    })
     expect(breakdownLine()).toBe(overrun)
   })
 
+  // The state the line used to be silent in, end to end: the cell shows what the items came to and the
+  // field beside it is empty, because nothing was authored. Only the line accounts for the two.
+  it('is on screen where the cell reads the items’ sum and the estimate field holds nothing', () => {
+    open({
+      row: { ...FEATURE_ROW, estimate: '5d' },
+      values: valuesOf({ estimateDays: null, sizedByItems: true }),
+    })
+    expect(valueOf('Estimate')).toBe('5d')
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe('')
+    expect(breakdownLine()).toContain('changing it moves no bar')
+  })
+
   it('sits outside the facts list, a sentence with no <dt> being no part of one', () => {
-    open({ values: valuesOf({ breakdown: { planned: 5, brokenDown: 5, delta: 0 } }) })
+    open({ values: valuesOf({ sizedByItems: true }) })
     expect(labels()).toEqual(['Epic', 'Estimate', 'Sprint'])
     expect(document.querySelector('dl [data-slot="drawer-breakdown"]')).toBeNull()
     expect(breakdownLine()).toBeTruthy()
@@ -358,7 +376,7 @@ describe('an estimate authored on a broken-down feature: the gap moves and the b
     const estimateFeature = vi.fn(() => Promise.resolve(served))
     open({
       actions: stubActions({ estimateFeature }),
-      values: valuesOf({ estimateDays: 5, breakdown: { planned: 5, brokenDown: 5, delta: 0 } }),
+      values: valuesOf({ estimateDays: 5, sizedByItems: true }),
     })
     const user = userEvent.setup()
     const field = screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' })
@@ -378,7 +396,7 @@ describe('an estimate authored on a broken-down feature: the gap moves and the b
   })
 
   it('says so on screen, the line being exactly the states in which the field is inert', () => {
-    open({ values: valuesOf({ estimateDays: 5, breakdown: { planned: 5, brokenDown: 5, delta: 0 } }) })
+    open({ values: valuesOf({ estimateDays: 5, sizedByItems: true }) })
     expect(breakdownLine()).toContain('changing it moves no bar')
   })
 })

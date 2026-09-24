@@ -1,4 +1,3 @@
-import type { Breakdown } from '@repo/schedule'
 import type { TableRow } from '../table/rows'
 import { BreakdownLine } from './breakdown-line'
 import { LABEL } from './field'
@@ -25,13 +24,13 @@ export interface DrawerFactsProps {
   readonly row: TableRow
 
   /**
-   * The authored estimate beside what the items came to, or `null` where there is no pair.
+   * Whether the items sized this feature, which is when its own estimate moves no bar.
    *
-   * `breakdown()`'s own answer, resolved in the same lookup as the row and never recomputed here
+   * `effectiveEstimate`'s own gate, resolved in the same lookup as the row and never decided here
    * (`./subject.ts`). One sentence is drawn from it and it carries no numbers, because every number
-   * the pair holds is already in the `<dd>` above it — `./breakdown-line.tsx` argues that.
+   * there is to print is already in the `<dd>` above it — `./breakdown-line.tsx` argues that.
    */
-  readonly breakdown: Breakdown | null
+  readonly sizedByItems: boolean
 }
 
 /**
@@ -75,19 +74,19 @@ export interface DrawerFactsProps {
  * ### The one sentence under the list that is not the row's
  *
  * {@link BreakdownLine} is drawn below the `<dl>` and it is the exception that proves the rule rather
- * than a hole in it: it carries **no numbers**, because the numbers of the pair are already in the
- * `Estimate` cell above it — all three of them when the two disagree, and one that is both of them when
- * they agree. What it adds is the claim the row has no room to make, that the bar came from the items
- * and the feature's own estimate is kept and inert (ADR 0051). It lives here rather than beside the
- * fields because it is a **read**: it has nothing to say about what was typed, and the fields' band is
- * the one thing on this panel that does.
+ * than a hole in it: it carries **no numbers**, because every number there is to print is already in the
+ * `Estimate` cell above it — all three when an authored estimate and the items disagree, one that is
+ * both of them when they agree, and the items' own sum where nothing was authored. What it adds is the
+ * claim the row has no room to make, that the bar came from the items and the feature's own estimate is
+ * kept and inert (ADR 0051). It lives here rather than beside the fields because it is a **read**: it
+ * has nothing to say about what was typed, and the fields' band is the one thing on this panel that does.
  *
  * That makes this component's return a fragment of two elements rather than one `<dl>`, so both are
  * children of the panel's own `grid gap-3` and neither is nested inside the other's semantics — a `<p>`
  * inside a `<dl>` is not a description list, and a reader walking the list would have been read a
  * sentence with no `<dt>` to hang it on.
  */
-export function DrawerFacts({ row, breakdown }: DrawerFactsProps) {
+export function DrawerFacts({ row, sizedByItems }: DrawerFactsProps) {
   return (
     <>
       <dl className={FACTS}>
@@ -98,7 +97,7 @@ export function DrawerFacts({ row, breakdown }: DrawerFactsProps) {
           </div>
         ))}
       </dl>
-      <BreakdownLine breakdown={breakdown} />
+      <BreakdownLine sizedByItems={sizedByItems} />
     </>
   )
 }

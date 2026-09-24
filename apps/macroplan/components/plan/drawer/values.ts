@@ -1,5 +1,5 @@
 import type { Plan } from '@repo/api-client'
-import type { Breakdown, PlanCalendar } from '@repo/schedule'
+import type { PlanCalendar } from '@repo/schedule'
 import type { TableRow } from '../table/rows'
 
 /**
@@ -11,9 +11,9 @@ import type { TableRow } from '../table/rows'
  * two spellings of it, so `'feature' | 'item'` cannot mean one thing in a field and another in the
  * table. `subject.ts` is where the value side of that module meets this one, and it imports both.
  *
- * `@repo/schedule` is named twice more below and never as a value, for that same reason: `Breakdown`
- * and `PlanCalendar` are both `import type`, so the two shapes this module's wider half is written in
- * cost the browser nothing either — and it is `subject.ts`, a server module, that calls `breakdown()`.
+ * `@repo/schedule` is named once more below and never as a value, for that same reason: `PlanCalendar`
+ * is an `import type`, so the shape this module's wider half is written in costs the browser nothing
+ * either — and it is `subject.ts`, a server module, that calls `breakdown()` and `effectiveEstimate()`.
  */
 export type SubjectKind = TableRow['kind']
 
@@ -65,16 +65,21 @@ export interface SubjectValues {
  * to convert one. It is the three fields `PlanCalendar` names and never the plan, so what crosses into
  * the pin's client component is three primitives (`./pin-field.tsx`).
  *
- * `breakdown` is `breakdown(feature, items)`'s own answer, carried rather than recomputed, and `null`
- * wherever there is no **pair** to report: no authored estimate, or no estimated item, and always for
- * an item. Nothing in this app decides that condition a second time (ADR 0051).
+ * `sizedByItems` is `effectiveEstimate`'s own gate, asked of this subject on the server: **at least one
+ * estimated item**, which is when the items rather than the authored number place the bar and the
+ * estimate field beside them is inert (`packages/schedule/src/estimate.ts`). It is `false` for every
+ * item, an item having no items of its own. It is the one boolean rather than the pair because the
+ * drawer's read half prints no number of the pair — every one of them is already in the row's Estimate
+ * cell — so what it needs is which estimate the timeline used and not what the two came to
+ * (`./breakdown-line.tsx`). `subject.ts` resolves it from `breakdown()` and `effectiveEstimate()`
+ * themselves, so nothing in this app decides that condition a second time (ADR 0051).
  */
 export interface DrawerValues extends SubjectValues {
   /** The plan's own calendar: what turns a sprint index into the dates it stands for. */
   readonly calendar: PlanCalendar
 
-  /** The authored estimate beside what the items came to, or `null` where there is no pair. */
-  readonly breakdown: Breakdown | null
+  /** Whether the items sized this feature, which is when its own estimate moves no bar. */
+  readonly sizedByItems: boolean
 }
 
 /**
@@ -90,11 +95,11 @@ export interface DrawerValues extends SubjectValues {
  * this module naming the seat block at all.
  *
  * It answers {@link SubjectValues} and not {@link DrawerValues}, and that split is what keeps this
- * module out of `@repo/schedule`'s way: the wider shape's `breakdown` member would have to be
- * computed by `breakdown()`, a **value** from that package, and this module is imported by three
- * client fields — so the import would put the forward pass's estimate module in the browser bundle to
- * serve a number no field reads. `subject.ts` adds the two wider members instead, being a server
- * module that already imports `tableRows`.
+ * module out of `@repo/schedule`'s way: the wider shape's `sizedByItems` member would have to be
+ * computed by `breakdown()` and `effectiveEstimate()`, both **values** from that package, and this
+ * module is imported by three client fields — so the import would put the forward pass's estimate
+ * module in the browser bundle to serve a fact no field reads. `subject.ts` adds the two wider members
+ * instead, being a server module that already imports `tableRows`.
  *
  * The two kinds are looked up in separate branches rather than through one `found`, because the pin
  * exists on only one of them: a shared read would need `pinSprint` to be optional on both records,

@@ -293,7 +293,7 @@ describe('the drawer hands no share token to a component either', () => {
       estimateDays: 5,
       pinSprint: null,
       calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
-      breakdown: { planned: 5, brokenDown: 5, delta: 0 },
+      sizedByItems: true,
     })
     expect(handed['description']).toBeNull()
   })

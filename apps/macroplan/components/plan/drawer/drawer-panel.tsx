@@ -39,9 +39,9 @@ export interface DrawerPanelProps {
    * The same subject's values, from the same lookup of the same plan (`./subject.ts`).
    *
    * Every value the two halves below need arrives in this one prop, which is what keeps the panel's
-   * own props stable as each half grows: the breakdown goes to the facts, the name, estimate, pin and
-   * calendar go to the fields, and this file reads exactly one member itself — `values.breakdown`, on
-   * its way past.
+   * own props stable as each half grows: `sizedByItems` goes to the facts, the name, estimate, pin and
+   * calendar go to the fields, and this file reads exactly one member itself — `values.sizedByItems`,
+   * on its way past.
    */
   readonly values: DrawerValues
 
@@ -70,7 +70,7 @@ export interface DrawerPanelProps {
  *
  * The read half is two elements rather than one: the facts `<dl>` and, under it,
  * `./breakdown-line.tsx`'s one sentence about which of a feature's two estimates the timeline used.
- * Both are `./drawer-facts.tsx`'s, which is why this file hands it the breakdown and not the line.
+ * Both are `./drawer-facts.tsx`'s, which is why this file hands it that one boolean and not the line.
  *
  * `treatment` rides along as `data-treatment` for the reason that row carries it too: two subjects may
  * legitimately render the same words, and neither the paint nor a colour may be the only thing telling
@@ -134,7 +134,7 @@ export function DrawerPanel({
       <h2 className={TITLE} id={TITLE_ID}>
         {nameOf(row)}
       </h2>
-      <DrawerFacts breakdown={values.breakdown} row={row} />
+      <DrawerFacts row={row} sizedByItems={values.sizedByItems} />
       <DrawerEdits
         actions={actions}
         controls={controls}

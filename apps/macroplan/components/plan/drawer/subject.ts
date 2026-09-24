@@ -1,4 +1,4 @@
-import { breakdown, type Breakdown, type PlanCalendar } from '@repo/schedule'
+import { breakdown, effectiveEstimate, type PlanCalendar } from '@repo/schedule'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows, type TableRow } from '../table/rows'
 import { subjectValues, type DrawerValues, type SubjectKind } from './values'
@@ -10,14 +10,12 @@ const calendarOf = (plan: PlanScreenModel): PlanCalendar => ({
   timezone: plan.timezone,
 })
 
-const breakdownOf = (plan: PlanScreenModel, kind: SubjectKind, id: string): Breakdown | null => {
+const sizedByItems = (plan: PlanScreenModel, kind: SubjectKind, id: string): boolean => {
   const feature = kind === 'feature' ? plan.features.find((one) => one.id === id) : undefined
-  return feature === undefined
-    ? null
-    : breakdown(
-        feature,
-        plan.items.filter((one) => one.featureId === id),
-      )
+  if (feature === undefined) return false
+  const items = plan.items.filter((one) => one.featureId === id)
+  if (breakdown(feature, items) !== null) return true
+  return feature.estimateDays === null && effectiveEstimate(feature, items) !== null
 }
 
 /**
@@ -35,9 +33,9 @@ export interface DrawerSubject {
    * The same subject's values: the numbers and names a control edits, and the two a fact reads.
    *
    * Wider than what {@link subjectValues} answers, and the difference is the point of resolving a
-   * subject here rather than in a page: the plan's calendar and this feature's breakdown are both
-   * needed by the panel and carried by neither the row nor the record, so they are added **inside the
-   * one lookup** rather than fetched beside it (`./values.ts` argues each).
+   * subject here rather than in a page: the plan's calendar and which of a feature's two estimates
+   * sized it are both needed by the panel and carried by neither the row nor the record, so they are
+   * added **inside the one lookup** rather than fetched beside it (`./values.ts` argues each).
    */
   readonly values: DrawerValues
 }
@@ -69,14 +67,23 @@ export interface DrawerSubject {
  *
  * ### Two things the plan knows that neither half carried
  *
- * `breakdown(feature, items)` is called here and **nowhere else in this app**, and its answer is
- * carried on the values rather than recomputed downstream: it is the one function ADR 0051 makes the
- * authority on the pair, and it answers `null` exactly where there is no pair — no authored estimate,
- * or no estimated item. `breakdownOf` asks it only for a feature, an item having no items of its own,
- * and filters `plan.items` by `featureId` for the one feature rather than building the whole
- * `itemsByFeature` map a second time. The delta's **sign** is not read anywhere: a part-sized
- * breakdown under a whole-feature estimate is a real state and never an error, so nothing here
- * branches on it (ADR 0051, and `packages/schedule/src/estimate.ts`).
+ * `sizedByItems` is the one question the drawer's read half asks about the pair, and it is asked here
+ * because `breakdown()` and `effectiveEstimate()` are **values** from `@repo/schedule` and this is the
+ * server module: `./values.ts` is imported by three client fields and may name their types only. The
+ * answer is `effectiveEstimate`'s own gate — at least one estimated item, which is when the items and
+ * not the authored number place the bar (`packages/schedule/src/estimate.ts`) — and it is reached by
+ * asking the two exported functions rather than by counting sized items here, so nothing in this app
+ * decides that condition a second time (ADR 0051).
+ *
+ * It takes **two** questions because `breakdown()` is the narrower of the two: a pair needs an authored
+ * estimate as well as a sized item, so it answers `null` for a feature whose items are sized and whose
+ * own estimate nobody wrote — a feature the items place all the same, and whose estimate field is just
+ * as inert. `effectiveEstimate` answering non-`null` where `estimateDays` is `null` is exactly that
+ * state, and `./breakdown-line.tsx` is where what the drawer would otherwise be silent about is written
+ * out. Neither call reads the delta's **sign**: a part-sized breakdown under a whole-feature estimate is
+ * a real state and never an error. `sizedByItems` asks only for a feature, an item having no items of
+ * its own, and filters `plan.items` by `featureId` for the one feature rather than building the whole
+ * `itemsByFeature` map a second time.
  *
  * The calendar is the plan's three scheduling fields and never the plan. `rangeOfSprint` needs them to
  * say what sprint a pin means in dates, and that conversion happens in the browser as the number is
@@ -99,8 +106,8 @@ export interface DrawerSubject {
  * @param plan - The reduced plan the page read, whose type cannot carry a seat.
  * @param kind - Which segment is asking: `f/[featureId]` or `i/[itemId]`.
  * @param id - The id out of the URL, untrusted.
- * @returns The row, the values, the calendar and the breakdown, or `undefined` when no row of that
- * kind answers to that id.
+ * @returns The row, the values, the calendar and whether the items sized this feature, or `undefined`
+ * when no row of that kind answers to that id.
  */
 export function drawerSubject(
   plan: PlanScreenModel,
@@ -114,8 +121,8 @@ export function drawerSubject(
     row,
     values: {
       ...values,
-      breakdown: breakdownOf(plan, kind, id),
       calendar: calendarOf(plan),
+      sizedByItems: sizedByItems(plan, kind, id),
     },
   }
 }
