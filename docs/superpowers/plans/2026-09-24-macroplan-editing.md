@@ -412,7 +412,8 @@ read half of `describe`, but moving it now would churn a shipped call site for t
       finds it; Task 12 is where the field counts bytes so a user is told before it happens.
 
       The count is UTF-8 bytes, not characters and not UTF-16 units: an emoji costs four and `ItemDocument`'s own
-      `.max(8192)` counts UTF-16 units and is labelled a backstop (`packages/contracts/src/plan.ts:180-184`). A
+      `.max(MAX_ITEM_DESCRIPTION_BYTES)` counts UTF-16 units and is labelled a backstop
+      (`packages/contracts/src/plan.ts:189`, the reasoning above it). A
       client that counts `description.length` will disagree with the server on any non-ASCII text.
 
 - [ ] **Step 3: green, then commit** `"Give the client the item writes, description included"`.
@@ -472,7 +473,29 @@ Three things here are not guessable and each needs its sentence:
       `"."`, so nothing is reachable any other way, and `package-boundaries.test.ts` walks every source file for
       casts, `any`, `@ts-expect-error` and the bare word `process` — all of which must stay absent.
 
-- [ ] **Step 5: the gate, then commit** `"Assemble the Macroplan write surface, seats included"`, and push the
+- [ ] **Step 5: move the Macroplan route table out of Microtask's test file.** Tasks 1–3 each appended their
+      route assertions to `src/clients.test.ts`, which is Microtask's URL contract, sharing its `calls` log and its
+      `sent` helper. By the end of this group that file owns both products' URL contracts and has roughly doubled.
+      Split the Macroplan assertions into `src/macroplan-routes.test.ts` with their own helper, leaving
+      `clients.test.ts` to Microtask. Do it here rather than earlier, because here is the first moment all four
+      groups exist and the split is one move instead of four.
+
+- [ ] **Step 6: state "answers the whole plan" once, not five times.** Each operation module now repeats that its
+      methods answer the whole plan because a structural edit can move every bar. Put the reason on `Plan` in
+      `operations/plans.ts`, which is the type they all import, and have each member point at it. Five copies of
+      one fact is five chances for one of them to go stale — which already happened once in this group, to the
+      epic module's account of `plan-response.ts`.
+
+- [ ] **Step 7: decide `signal`, and record the decision rather than leaving it absent.** `Call` supports
+      `signal` and `createTransport` rejects an already-aborted one before it reaches `fetch`, but no operation
+      module exposes it, so no Macroplan write can be cancelled. **This plan's answer is that it is not needed**,
+      and the reason is Task 16: the drag previews locally by re-running the forward pass and sends exactly one
+      placement on drop, so there is no superseded in-flight write to abort, and `refresh()` with
+      server-answer-wins covers a slow answer. Put that sentence in ADR 0058's consequences (Task 18) so the
+      absence is a decision a reader can find, and do **not** add an options parameter to nineteen signatures for
+      a cancellation nothing in this phase issues.
+
+- [ ] **Step 8: the gate, then commit** `"Assemble the Macroplan write surface, seats included"`, and push the
       feature branch. **Never `main`.**
 
 ---
@@ -813,7 +836,10 @@ Four things in that are load-bearing and each has a reason recorded somewhere in
       **truncates** rather than refusing (`limits.ts:78-82`), answering 200 with silently shortened text. So the
       field must count bytes and refuse before sending, or a user loses the tail of what they wrote with no
       message at all. `description.length` is the wrong count — it is UTF-16 units, so one emoji reads as 2 and
-      costs 4. Use `new TextEncoder().encode(value).length`, and put the remaining budget on screen near the cap
+      costs 4. **No character ever encodes to fewer UTF-8 bytes than UTF-16 units**, so a `.length` check is always
+      the permissive one and can only ever under-report the cost — it will let through exactly the strings that get
+      truncated, which is the one thing this field exists to prevent. Use
+      `new TextEncoder().encode(value).length`, and put the remaining budget on screen near the cap
       rather than only at it.
 
 - [ ] **Step 4: green, then commit** `"Take a name, a nullable estimate and a byte-capped description"`.
@@ -1183,6 +1209,14 @@ bridge; do not renumber into it.
         dependency, and a drag or form library appearing there is a decision this plan did not take.
       - **7j:** no `'use client'` file anywhere in `apps/macroplan` imports `@repo/api-client` for a value. A
         client component that constructed a client would need a credential in the browser.
+      - **7k:** the Macroplan client's **exact key set is asserted in two places** —
+        `packages/api-client/src/macroplan-clients.test.ts` and `apps/macroplan/lib/api.test.ts` — and the second
+        one went red at Group A's first commit and stayed red for three, because each task ran only its own
+        package's tests. Both are correct now. Decide whether the app's copy should keep enumerating keys at all:
+        what it is really asserting is *"this client reaches this product's routes and no Microtask route"*, and a
+        test of that property would not need editing every time the surface grows. Phase 4's bridge methods break
+        the enumerated version again. Either rewrite it as the property or record why the list is worth the
+        maintenance, and in the same step confirm no third copy exists.
 
 - [ ] **Step 8: update spec §11's table** with 0057–0060, leave 0052 reserved, and add the four to
       `docs/adr/README.md`.
