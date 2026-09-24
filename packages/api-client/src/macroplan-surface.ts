@@ -1,5 +1,6 @@
 import { PlanShareView } from '@repo/contracts'
 import { epicsApi, type EpicsApi } from './operations/epics.js'
+import { featuresApi, type FeaturesApi } from './operations/features.js'
 import { plansApi, type PlansApi } from './operations/plans.js'
 import { MACROPLAN_CURRENT_SHARE_PATH } from './paths.js'
 import type { Transport } from './transport.js'
@@ -32,6 +33,15 @@ export interface MacroplanApi {
   readonly epics: EpicsApi
 
   /**
+   * Features: what sits on the rails, added, edited, moved, re-pointed and removed.
+   *
+   * `setDependencies` is the one member here that is not the edit its name suggests: it replaces a
+   * feature's whole edge list, because that is the only shape the API offers. Read its TSDoc before
+   * wiring it to anything that adds a single edge.
+   */
+  readonly features: FeaturesApi
+
+  /**
    * Describes the plan seat the caller presented, and the plan it opens.
    *
    * It sends no token in the path and none in a header of its own — the answer is derived from the
@@ -49,6 +59,7 @@ export function createMacroplanSurface(transport: Transport): MacroplanApi {
   return {
     plans: plansApi(transport),
     epics: epicsApi(transport),
+    features: featuresApi(transport),
     currentShare: () =>
       transport.json({ method: 'GET', path: MACROPLAN_CURRENT_SHARE_PATH }, PlanShareView),
   }

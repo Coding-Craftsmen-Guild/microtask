@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createAdminClient, type AdminClient } from './admin-client.js'
+import { ApiError } from './api-error.js'
 import { createLinkClient, type LinkClient } from './link-client.js'
 import { createMacroplanAdminClient } from './macroplan-clients.js'
 import type { Fetcher } from './types.js'
@@ -238,5 +239,85 @@ describe('every operation addresses the path the API actually serves', () => {
       'DELETE',
       'https://api.example.test/v1/macroplan/plans/p%201/epics/e%201',
     ])
+  })
+
+  it('adds a feature with POST against the collection, naming its rail in the body', async () => {
+    const call = await sent(() => macroplan.features.create('p1', { epicId: 'e1', name: 'Login' }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'POST',
+      'https://api.example.test/v1/macroplan/plans/p1/features',
+      '{"epicId":"e1","name":"Login"}',
+    ])
+  })
+
+  it('clears an estimate with an explicit null, which is not the same as omitting it', async () => {
+    const call = await sent(() => macroplan.features.update('p1', 'f1', { estimateDays: null }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/macroplan/plans/p1/features/f1',
+      '{"estimateDays":null}',
+    ])
+  })
+
+  it('moves a feature through its own placement segment, sending both rail and position', async () => {
+    const call = await sent(() =>
+      macroplan.features.place('p1', 'f1', { epicId: 'e2', position: 3 }),
+    )
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/macroplan/plans/p1/features/f1/placement',
+      '{"epicId":"e2","position":3}',
+    ])
+  })
+
+  it('replaces an edge list with PUT, wrapping the ids in the one field the body has', async () => {
+    const call = await sent(() => macroplan.features.setDependencies('p1', 'f1', ['f2', 'f3']))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PUT',
+      'https://api.example.test/v1/macroplan/plans/p1/features/f1/dependencies',
+      '{"dependsOn":["f2","f3"]}',
+    ])
+  })
+
+  it('sends an empty list as an empty array, which is how every edge is dropped', async () => {
+    const call = await sent(() => macroplan.features.setDependencies('p1', 'f1', []))
+    expect(call.init.body).toBe('{"dependsOn":[]}')
+  })
+
+  it('removes a feature with DELETE, percent-encoding every id it was handed', async () => {
+    const call = await sent(() => macroplan.features.remove('p 1', 'f 1'))
+    expect([call.init.method, call.url]).toEqual([
+      'DELETE',
+      'https://api.example.test/v1/macroplan/plans/p%201/features/f%201',
+    ])
+  })
+})
+
+describe('a dependency cycle reaches the caller as an ApiError it can read', () => {
+  const CYCLE_DETAIL = 'These features would wait on each other: f1, f3'
+
+  const conflicting: Fetcher = () =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          type: '/problems/conflict',
+          title: 'Conflict',
+          status: 409,
+          code: 'conflict',
+          detail: CYCLE_DETAIL,
+          instance: '/v1/macroplan/plans/p1/features/f1/dependencies',
+        }),
+        { status: 409, headers: { 'content-type': 'application/problem+json' } },
+      ),
+    )
+
+  it('carries the status and the sentence naming both features, which is all the caller has', async () => {
+    const client = createMacroplanAdminClient({ ...OPTIONS, fetch: conflicting }, 'admin-token')
+    const failure = await client.features
+      .setDependencies('p1', 'f1', ['f3'])
+      .then(() => null)
+      .catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(ApiError)
+    expect(failure).toMatchObject({ status: 409, code: 'conflict', detail: CYCLE_DETAIL })
   })
 })
