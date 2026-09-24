@@ -121,6 +121,29 @@ describe('railLayout turns a plan and its wire schedule into one box per rail', 
   })
 })
 
+describe('a rail carries its whole feature order, not only the features that got a bar', () => {
+  it('names every feature on the rail in the order railsOf derived, the unplaced ones included', () => {
+    expect(layout().map((rail) => rail.featureIds)).toEqual(
+      railsOf(PLAN).map((rail) => rail.map((one) => one.id)),
+    )
+    expect(layout()[1]?.featureIds).toEqual([NOEST, FT2])
+  })
+
+  it('leaves bars a subsequence of it, so the first bar and the first feature can be different ones', () => {
+    layout().forEach((rail) => {
+      const drawn = rail.featureIds.filter((id) => rail.bars.some((bar) => bar.id === id))
+      expect(drawn, rail.epicId).toEqual(rail.bars.map((bar) => bar.id))
+    })
+    expect(layout()[1]?.bars.map((bar) => bar.id)).toEqual([FT2])
+  })
+
+  it('keeps naming every feature when the wire schedule carries no spans at all', () => {
+    expect(railLayout(PLAN, { spans: [] }, SCALE).map((rail) => rail.featureIds)).toEqual(
+      layout().map((rail) => rail.featureIds),
+    )
+  })
+})
+
 describe('a rail carries its epic colour as data, because the canvas never chooses a hue', () => {
   it('passes the epic colour through untouched, byte for byte', () => {
     expect(layout().map((rail) => rail.colour)).toEqual(['#ff8833', '#3388ff', null])

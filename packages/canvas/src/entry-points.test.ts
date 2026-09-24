@@ -36,9 +36,18 @@ describe('@repo/canvas entry points', () => {
     ])
   })
 
-  it('ships the drop query as a type, because a caller has to name the one object it passes', () => {
-    const unasked: main.DropQuery | null = null
-    expect(unasked).toBeNull()
+  it('ships all four drag types, a caller having to name the object it passes and the answer it reads', () => {
+    const point: main.DragPoint = { x: 0, y: 0 }
+    const metrics: main.RailMetrics = { chromeHeight: 40, railHeight: 50 }
+    const asked: main.DropQuery = {
+      point,
+      featureId: 'feature-1',
+      rails: [],
+      scale: main.scaleFor({ pxPerDay: 8, gutter: 0 }),
+      metrics,
+    }
+    const answer: main.DropTarget | null = main.dropTargetFor(asked)
+    expect(answer).toBeNull()
   })
 
   it('ships the conflict-bearing schedule as a type, which a parsed ScheduleView satisfies whole', () => {

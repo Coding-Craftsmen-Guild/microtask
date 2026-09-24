@@ -30,7 +30,8 @@ export interface FeatureBar {
 }
 
 /**
- * One rail of the timeline: which epic it belongs to, that epic's own colour, and its bars in order.
+ * One rail of the timeline: which epic it belongs to, that epic's own colour, every feature on it in
+ * order, and the ones of those that got a bar.
  *
  * A rail has no id and no record of its own. `railsOf` identifies a rail by its position and its
  * epic by `features[0].epicId`, so `epicId` is what a caller keys a rail group by — it is unique
@@ -40,12 +41,38 @@ export interface FeatureBar {
  * validated, one of an unbounded set, which is why it becomes an inline style rather than a class a
  * runtime value could never choose. It is `null` — not `''` and not an invented default — for a rail
  * whose `epicId` names no epic in the plan, because there is no colour to carry and "no epic claims
- * this rail" is a sentence the caller should get to render on purpose.
+ * this rail" is a sentence the caller should get to render on purpose. That absence is the only
+ * record of it a box carries, which is why `dropTargetFor` in `drag.ts` tests it rather than asking
+ * a plan whether an epic of that id exists.
+ *
+ * {@link bars} is **non-decreasing in `x`**, which is a promise and not an accident, because a
+ * caller counting the bars left of a point is relying on it. A rail never runs backwards: each
+ * schedulable feature waits on the nearest earlier schedulable feature of its own rail, and a pin
+ * "is one more lower bound and can only ever delay" (`packages/schedule/src/forward-pass.ts`) —
+ * asserted over the whole seed range by "rail order holds: a rail never runs backwards" in
+ * `packages/schedule/src/forward-pass.property.test.ts`, which is where that property is owned. This
+ * package only adds {@link dayToX}, which is monotonic in the day at any positive `pxPerDay`, so the
+ * order the start days were in survives the arithmetic.
  */
 export interface RailBox {
   readonly epicId: string
 
   readonly colour: string | null
+
+  /**
+   * Every feature on this rail in derived order, ids only — the ones {@link bars} omits included.
+   *
+   * `bars` is a **subsequence** of this, so "the third bar" and "the third feature" are different
+   * numbers on any rail carrying a feature the pass could not place. Carried out here rather than
+   * left behind is what lets a consumer answering an order question — `dropTargetFor` in `drag.ts` —
+   * take no plan and call `railsOf` no second time: the paragraph on {@link railLayout} about a rail
+   * order derived twice applies to a consumer re-deriving it just as much as to this module.
+   *
+   * Ids rather than the `ScheduleFeature` records they were read off, which would carry `position`
+   * along with them. The whole point of deriving this order once is that nothing downstream can
+   * derive a different one, and a consumer holding positions can.
+   */
+  readonly featureIds: readonly string[]
 
   readonly bars: readonly FeatureBar[]
 }
@@ -72,6 +99,7 @@ function boxOf(epicId: string, rail: readonly ScheduleFeature[], context: RailCo
   return {
     epicId,
     colour: context.colours.get(epicId) ?? null,
+    featureIds: rail.map((feature) => feature.id),
     bars: rail.flatMap((feature) => barOf(feature.id, context) ?? []),
   }
 }
@@ -95,7 +123,8 @@ function boxOf(epicId: string, rail: readonly ScheduleFeature[], context: RailCo
  * A feature absent from `spans` is **omitted**, not drawn at zero: the pass reports it in
  * `unscheduled` with a reason, and "nothing was sized" is a different sentence from "placed at day
  * zero taking no time" — which is what a zero-day milestone is, and that one does get a bar. So a
- * rail's `bars` may be shorter than its features, and may be empty.
+ * rail's `bars` may be shorter than its features, and may be empty; the features it leaves out are
+ * still named in that rail's `featureIds`, in the one order this derived.
  *
  * Nothing here is written to; neither argument is mutated and every sort runs on a copy inside
  * `railsOf`.

@@ -13,6 +13,7 @@ const E2 = 'epic-2'
 const E3 = 'epic-3'
 const E4 = 'epic-4'
 const E5 = 'epic-5'
+const E6 = 'epic-6'
 const NO_SUCH_EPIC = 'epic-6-nobody-declared'
 
 const FT1 = 'feature-1'
@@ -26,6 +27,9 @@ const TRIO_A = 'feature-8'
 const TRIO_B = 'feature-9'
 const TRIO_C = 'feature-10'
 const ORPHAN = 'feature-11-orphan'
+const HIDDEN_FIRST = 'feature-12-unestimated'
+const ONLY_BAR = 'feature-13'
+const HIDDEN_LAST = 'feature-14-unestimated'
 
 const SCALE = scaleFor({ pxPerDay: 8, gutter: 120 })
 
@@ -55,6 +59,7 @@ const PLAN: CanvasPlan = {
     { id: E3, railOrder: 2, colour: '#33ff88' },
     { id: E4, railOrder: 3, colour: '#8833ff' },
     { id: E5, railOrder: 4, colour: '#ff3388' },
+    { id: E6, railOrder: 5, colour: '#88ff33' },
   ],
   features: [
     feature(FT1, E1, 0, 4),
@@ -67,6 +72,9 @@ const PLAN: CanvasPlan = {
     feature(TRIO_A, E5, 0, 2),
     feature(TRIO_B, E5, 1, 3),
     feature(TRIO_C, E5, 2, 4),
+    feature(HIDDEN_FIRST, E6, 0, null),
+    feature(ONLY_BAR, E6, 1, 4),
+    feature(HIDDEN_LAST, E6, 2, null),
     feature(ORPHAN, NO_SUCH_EPIC, 0, 3),
   ],
   items: [],
@@ -113,7 +121,6 @@ const storedPosition = (id: string): number | undefined =>
 const query = (featureId: string, point: DragPoint): DropQuery => ({
   point,
   featureId,
-  plan: PLAN,
   rails: layout(),
   scale: SCALE,
   metrics: METRICS,
@@ -138,17 +145,35 @@ const barsLeftOf = (railIndex: number, x: number): number =>
   railAt(railIndex).bars.filter((bar) => bar.x < x).length
 
 describe('the fixture holds every kind of rail the properties below are stated over', () => {
-  it('lays out a whole rail, one the pass could not place whole, an empty one, one opening on a milestone, a trio, and a rail no epic claims', () => {
-    expect(layout().map((rail) => rail.epicId)).toEqual([E1, E2, E3, E4, E5, NO_SUCH_EPIC])
+  it('lays out a whole rail, one the pass could not place whole, an empty one, one opening on a milestone, a trio, one bar between two features with none, and a rail no epic claims', () => {
+    expect(layout().map((rail) => rail.epicId)).toEqual([E1, E2, E3, E4, E5, E6, NO_SUCH_EPIC])
     expect(layout().map((rail) => rail.bars.map((bar) => bar.id))).toEqual([
       [FT1, MILESTONE],
       [FT2],
       [],
       [KICKOFF, AFTER_KICKOFF],
       [TRIO_A, TRIO_B, TRIO_C],
+      [ONLY_BAR],
       [ORPHAN],
     ])
-    expect(forwardPass(PLAN).unscheduled.map((one) => one.id).sort()).toEqual([NOEST, LONELY])
+    expect(forwardPass(PLAN).unscheduled.map((one) => one.id).sort()).toEqual([
+      HIDDEN_FIRST,
+      HIDDEN_LAST,
+      NOEST,
+      LONELY,
+    ])
+  })
+
+  it('holds a rail whose stored order runs past its last bar, which is where a count of features and a place differ', () => {
+    expect(storedOrder(E6)).toEqual([HIDDEN_FIRST, ONLY_BAR, HIDDEN_LAST])
+    expect(railAt(5).bars.map((bar) => bar.id)).toEqual([ONLY_BAR])
+  })
+
+  it('lays every rail out with its bars non-decreasing in x, which is what lets a count of bars name one', () => {
+    layout().forEach((rail) => {
+      const xs = rail.bars.map((bar) => bar.x)
+      expect(xs, rail.epicId).toEqual([...xs].sort((left, right) => left - right))
+    })
   })
 
   it('draws a rail opening on a zero-day milestone with two bars at one x, since that milestone moves no cursor', () => {
@@ -308,6 +333,49 @@ describe('dropTargetFor answers where the drop lands once the dragged feature is
   })
 })
 
+describe('dropTargetFor lands a drop past every bar beside the last bar, and not past a sibling drawn nowhere', () => {
+  it('changes nothing for the only bar on a rail, there being no other bar to be anywhere relative to', () => {
+    const target = placement(ONLY_BAR, at(barX(5, ONLY_BAR), top(5) + 1))
+    expect(target.position).toBe(1)
+    expect(orderAfterSending(E6, ONLY_BAR, target.position)).toEqual(storedOrder(E6))
+  })
+
+  it('would reorder that rail on a drag that moved nothing, if the count of the siblings left were sent', () => {
+    expect(storedOrder(E6).filter((id) => id !== ONLY_BAR)).toHaveLength(2)
+    expect(orderAfterSending(E6, ONLY_BAR, 2)).toEqual([HIDDEN_FIRST, HIDDEN_LAST, ONLY_BAR])
+  })
+
+  it('lands one of that rail own features dropped right of its bar directly after that bar', () => {
+    const target = placement(HIDDEN_FIRST, at(barX(5, ONLY_BAR) + 1, top(5) + 1))
+    expect(target.position).toBe(1)
+    expect(orderAfterSending(E6, HIDDEN_FIRST, target.position)).toEqual([
+      ONLY_BAR,
+      HIDDEN_FIRST,
+      HIDDEN_LAST,
+    ])
+  })
+
+  it('would jump it past the sibling stored beyond that bar, if the count of the siblings left were sent', () => {
+    expect(orderAfterSending(E6, HIDDEN_FIRST, 2)).toEqual([ONLY_BAR, HIDDEN_LAST, HIDDEN_FIRST])
+  })
+
+  it('lands a feature dragged in from elsewhere right of that bar directly after it, and not last', () => {
+    const target = placement(FT1, at(barX(5, ONLY_BAR) + 1, top(5) + 1))
+    expect(target.position).toBe(2)
+    expect(orderAfterSending(E6, FT1, target.position)).toEqual([
+      HIDDEN_FIRST,
+      ONLY_BAR,
+      FT1,
+      HIDDEN_LAST,
+    ])
+  })
+
+  it('would put it past that sibling too, if the count of the siblings left were sent', () => {
+    expect(storedOrder(E6)).toHaveLength(3)
+    expect(orderAfterSending(E6, FT1, 3)).toEqual([HIDDEN_FIRST, ONLY_BAR, HIDDEN_LAST, FT1])
+  })
+})
+
 describe('dropTargetFor keeps the order two bars at one x already have', () => {
   it('changes nothing when the bar behind a leading zero-day milestone is dropped on its own x', () => {
     const point = at(barX(3, AFTER_KICKOFF), top(3) + 1)
@@ -363,11 +431,37 @@ describe('dropTargetFor answers null rather than the nearest rail, so a drag can
 
   it('answers null for a drop on a rail no epic in the plan claims, there being no epicId to send', () => {
     const rails = layout()
-    expect(railAtY(top(5) + 1, rails, METRICS)).toBe(rails[5])
-    expect(railAt(5).epicId).toBe(NO_SUCH_EPIC)
+    expect(railAtY(top(6) + 1, rails, METRICS)).toBe(rails[6])
+    expect(railAt(6).epicId).toBe(NO_SUCH_EPIC)
     expect(PLAN.epics.map((epic) => epic.id)).not.toContain(NO_SUCH_EPIC)
-    expect(drop(FT1, at(barX(5, ORPHAN), top(5) + 1))).toBeNull()
-    expect(drop(ORPHAN, at(barX(5, ORPHAN), top(5) + 1))).toBeNull()
+    expect(drop(FT1, at(barX(6, ORPHAN), top(6) + 1))).toBeNull()
+    expect(drop(ORPHAN, at(barX(6, ORPHAN), top(6) + 1))).toBeNull()
+  })
+})
+
+describe('dropTargetFor reads the rail it was handed, there being no second plan to disagree with it', () => {
+  it('refuses a rail whose colour is null, which is the only record a box keeps of an unclaimed rail', () => {
+    const unclaimed: RailBox = { ...railAt(0), colour: null }
+    expect(unclaimed.epicId).toBe(E1)
+    expect(PLAN.epics.map((epic) => epic.id)).toContain(E1)
+    expect(
+      dropTargetFor({ ...query(FT2, at(barX(0, FT1), top(0) + 1)), rails: [unclaimed] }),
+    ).toBeNull()
+  })
+
+  it('reads the order off the box, so a box holding one rail order cannot be answered in another', () => {
+    const reordered: RailBox = { ...railAt(4), featureIds: [TRIO_C, TRIO_B, TRIO_A] }
+    const point = at(barX(4, TRIO_C), top(0) + 1)
+    expect(dropTargetFor({ ...query(TRIO_A, point), rails: [reordered] })?.position).toBe(0)
+    expect(placement(TRIO_A, at(barX(4, TRIO_C), top(4) + 1)).position).toBe(1)
+  })
+
+  it('throws rather than answering last, for a box whose bar is not in its own feature order', () => {
+    const broken: RailBox = { ...railAt(4), featureIds: [TRIO_A, TRIO_C] }
+    expect(broken.bars.map((bar) => bar.id)).toEqual([TRIO_A, TRIO_B, TRIO_C])
+    expect(() =>
+      dropTargetFor({ ...query(TRIO_A, at(barX(4, TRIO_A), top(0) + 1)), rails: [broken] }),
+    ).toThrow(/does not carry it/)
   })
 })
 
