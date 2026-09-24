@@ -194,7 +194,7 @@ describe('an id the plan does not hold, which is a schedule and a plan disagreei
 })
 
 describe('what a caller may hand it', () => {
-  it('takes a whole Plan and the page model that cannot carry a share token, with no adapter', () => {
+  it('compiles against a whole Plan and against the page model, so neither surface needs an adapter', () => {
     const one = unplacedPlan('in-cycle')
     expect(conflictRows(one)).toHaveLength(2)
     expect(conflictRows(planScreenModel(one))).toEqual(conflictRows(one))
