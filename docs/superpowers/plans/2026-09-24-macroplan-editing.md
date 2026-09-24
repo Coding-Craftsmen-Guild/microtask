@@ -1479,8 +1479,20 @@ bridge; do not renumber into it.
         it silently never runs.
       - **7g:** the phase gate in the spec's own words — **cycle refusal pinned by test** (Task 13) and **a test
         asserts nothing auto-moves** (Task 16 step 5). Name the test file and the test for each.
-      - **7h:** both leak sweeps read a bound function's arguments, and the seat surface's stated KNOWN GAP is
-        gone from `app/s/[token]/page.test.tsx`.
+      - **7h:** **either** both leak sweeps read a bound function's arguments and the seat surface's stated KNOWN
+        GAP is gone from `app/s/[token]/page.test.tsx`, **or** no shipped file binds a server action at all and
+        every surface asserts it hands over no function — with a planted bound action proving that zero can fail.
+
+        This item was written as the first form only. Task 10 satisfied the second and was right to: nothing needed
+        binding, so widening a walker for a case no code reaches would have been ceremony, and Step 5 authorised
+        exactly that outcome — "a sweep that stays green for a stated reason is a better outcome than a widened
+        one." What it added instead is worth more than the widening would have been: the sweep **moved** with the
+        read, because one left on a page that reads no plan passes by having nothing to look at.
+
+        So audit the disjunction, not the first branch. If any task after 10 bound something, the first form is
+        owed and the gap must be gone. If none did, confirm all three surfaces assert zero, each with its plant,
+        and that the KNOWN GAP comment still describes the code it sits in — it is a live instruction to whoever
+        binds the first action, not a defect to clear.
       - **7i:** `apps/macroplan/eslint.config.js`'s allowlist is **unchanged** — six packages. This phase adds no
         dependency, and a drag or form library appearing there is a decision this plan did not take.
       - **7j:** no `'use client'` file anywhere in `apps/macroplan` imports `@repo/api-client` for a value. A
