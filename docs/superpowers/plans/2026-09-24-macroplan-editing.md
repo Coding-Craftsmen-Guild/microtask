@@ -1379,6 +1379,17 @@ bridge; do not renumber into it.
       "no task touches `apps/api`" claim in this plan's header. Correct the header rather than leaving it, and say
       why each exception earned itself.
 
+- [ ] **Step 5c: amend spec §7.1's table, which is narrower than the policy it describes.** The table gives `write`
+      "create and rename features and items, and set their estimates". `GRANTS` also holds **`item:describe`** in
+      `WRITE` (`packages/kernel/src/access/policy.ts`), so a `write` seat may write an item's description and the
+      table does not say so. Task 8 found it by checking the grant instead of trusting the prose.
+
+      **The grant is right and the table is incomplete** — do not "fix" this in `policy.ts`. §7.1's own principle is
+      that "`write` changes what the work is and what it costs", and a description is what the work is; it is also
+      the one field §3 caps and sanitises rather than refuses, which is a `write`-shaped decision. Add it to the
+      table, and check the rest of that row against `GRANTS` in the same pass rather than only this one entry: the
+      table is prose and the record is the gate, so anywhere they disagree the table is what changes.
+
 - [ ] **Step 6: declare the 409 the three plan share-link routes can already answer.** They all write through
       `PlanShareLinkService.#save` → `ShareIndex.add`, which throws `Conflict` on a cross-container token
       collision, and `errorHandler` passes an `AppError`'s status through untouched — but each route declares only
