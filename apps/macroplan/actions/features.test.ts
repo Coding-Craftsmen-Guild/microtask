@@ -8,7 +8,8 @@ import {
   atlasPlan,
 } from '../components/plan/testing/plan-fixture'
 import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
-import { Redirected, recordingAdmin, redirectOf, type RecordingAdmin } from './testing/recording-admin'
+import { carries, recordingAdmin, wireOf, type RecordingAdmin } from './testing/recording-admin'
+import { Redirected, redirectOf } from './testing/redirected'
 
 const held: { api: MacroplanSessionClient | null } = { api: null }
 const refresh = vi.fn()
@@ -34,9 +35,6 @@ const {
 
 const WIRE = `${planPath(PLAN_A)}/features/${FEATURE_1}`
 
-const carries = (field: string) => (sent: { readonly body: unknown }) =>
-  typeof sent.body === 'object' && sent.body !== null && field in sent.body
-
 const refused = (status: number) => ({
   ok: false,
   status,
@@ -58,7 +56,7 @@ describe('a feature edit that touches two fields', () => {
 
     expect(estimated).toMatchObject({ ok: true })
     expect(pinned).toEqual(refused(403))
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       { method: 'PATCH', path: WIRE, body: { estimateDays: 8 } },
       { method: 'PATCH', path: WIRE, body: { pinSprint: 3 } },
     ])
@@ -80,7 +78,7 @@ describe('a feature edit that touches two fields', () => {
 describe('the fields that have a null', () => {
   it('clears an estimate with null rather than by omitting the key, which would change nothing', async () => {
     await estimateFeature(PLAN_A, FEATURE_1, null)
-    expect(admin.sent).toEqual([{ method: 'PATCH', path: WIRE, body: { estimateDays: null } }])
+    expect(wireOf(admin.sent)).toEqual([{ method: 'PATCH', path: WIRE, body: { estimateDays: null } }])
   })
 
   it('unpins with null, and pins to sprint zero with zero', async () => {
@@ -94,7 +92,7 @@ describe('the rest of the feature writes', () => {
   it('adds a feature to the rail its draft names, and answers the plan the API sent back', async () => {
     const created = await createFeature(PLAN_A, { epicId: EPIC_1, name: 'Audit log' })
     expect(created).toEqual({ ok: true, value: atlasPlan() })
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       {
         method: 'POST',
         path: `${planPath(PLAN_A)}/features`,
@@ -105,19 +103,19 @@ describe('the rest of the feature writes', () => {
 
   it('moves a feature on its own route, so a drop is never mistaken for an edit', async () => {
     await placeFeature(PLAN_A, FEATURE_1, { epicId: EPIC_1, position: 1 })
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       { method: 'PATCH', path: `${WIRE}/placement`, body: { epicId: EPIC_1, position: 1 } },
     ])
   })
 
   it('removes a feature with no body at all', async () => {
     await removeFeature(PLAN_A, FEATURE_1)
-    expect(admin.sent).toEqual([{ method: 'DELETE', path: WIRE, body: undefined }])
+    expect(wireOf(admin.sent)).toEqual([{ method: 'DELETE', path: WIRE, body: undefined }])
   })
 
   it('replaces the whole dependency list with one PUT, never the shared PATCH the others share', async () => {
     await setDependencies(PLAN_A, FEATURE_1, [FEATURE_2])
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       { method: 'PUT', path: `${WIRE}/dependencies`, body: { dependsOn: [FEATURE_2] } },
     ])
   })

@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
+import { Redirected } from '../../actions/testing/redirected'
 
 vi.mock('../../lib/api', () => ({ apiForSession: () => Promise.resolve(null) }))
 vi.mock('next/cache', () => ({ refresh: () => undefined }))
 vi.mock('next/navigation', () => ({
   redirect: (location: string) => {
-    throw new Error(`redirect ${location}`)
+    throw new Redirected(location)
   },
 }))
 
@@ -16,7 +17,7 @@ describe("the admin surface's writes", () => {
     expect(wiring).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).map((name) => [name, name]))
   })
 
-  it('collects a real set of them, so the sweep above is not empty', () => {
-    expect(Object.keys(ADMIN_PLAN_ACTIONS).length).toBeGreaterThan(15)
+  it('collects all eighteen of them, so the sweep above is neither empty nor short of one', () => {
+    expect(Object.keys(ADMIN_PLAN_ACTIONS).length).toBe(18)
   })
 })

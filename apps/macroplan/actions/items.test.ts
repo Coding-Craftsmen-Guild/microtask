@@ -2,7 +2,8 @@ import { planItemPath, planPath, type MacroplanSessionClient } from '@repo/api-c
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FEATURE_1, ITEM_1, PLAN_A, atlasPlan } from '../components/plan/testing/plan-fixture'
 import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
-import { Redirected, recordingAdmin, redirectOf, type RecordingAdmin } from './testing/recording-admin'
+import { carries, recordingAdmin, wireOf, type RecordingAdmin } from './testing/recording-admin'
+import { Redirected, redirectOf } from './testing/redirected'
 
 const held: { api: MacroplanSessionClient | null } = { api: null }
 const refresh = vi.fn()
@@ -32,14 +33,14 @@ describe('an item edit that touches two fields', () => {
     await renameItem(PLAN_A, ITEM_1, 'Sessions v2')
     await estimateItem(PLAN_A, ITEM_1, 4)
 
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       { method: 'PATCH', path: WIRE, body: { name: 'Sessions v2' } },
       { method: 'PATCH', path: WIRE, body: { estimateDays: 4 } },
     ])
   })
 
   it('leaves the rename written when the estimate behind it is refused', async () => {
-    admin.refuse((sent) => JSON.stringify(sent.body).includes('estimateDays'), 403)
+    admin.refuse(carries('estimateDays'), 403)
 
     expect(await renameItem(PLAN_A, ITEM_1, 'Sessions v2')).toMatchObject({ ok: true })
     expect(await estimateItem(PLAN_A, ITEM_1, 4)).toEqual({
@@ -61,7 +62,7 @@ describe('the description', () => {
   it('goes to its own route as its own field, because the API gates it as item:describe', async () => {
     const written = await describeItem(PLAN_A, ITEM_1, 'Rotate the signing keys first.')
     expect(written).toEqual({ ok: true, value: atlasPlan() })
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       {
         method: 'PUT',
         path: `${WIRE}/description`,
@@ -79,7 +80,7 @@ describe('the description', () => {
 describe('the rest of the item writes', () => {
   it('adds an item under the feature its draft names, with no position of its own', async () => {
     await createItem(PLAN_A, { featureId: FEATURE_1, name: 'Device list' })
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       {
         method: 'POST',
         path: `${planPath(PLAN_A)}/items`,
@@ -90,14 +91,14 @@ describe('the rest of the item writes', () => {
 
   it('moves an item on its own route, and counts positions from zero', async () => {
     await placeItem(PLAN_A, ITEM_1, { featureId: FEATURE_1, position: 0 })
-    expect(admin.sent).toEqual([
+    expect(wireOf(admin.sent)).toEqual([
       { method: 'PATCH', path: `${WIRE}/placement`, body: { featureId: FEATURE_1, position: 0 } },
     ])
   })
 
   it('removes an item with no body at all', async () => {
     await removeItem(PLAN_A, ITEM_1)
-    expect(admin.sent).toEqual([{ method: 'DELETE', path: WIRE, body: undefined }])
+    expect(wireOf(admin.sent)).toEqual([{ method: 'DELETE', path: WIRE, body: undefined }])
   })
 })
 
