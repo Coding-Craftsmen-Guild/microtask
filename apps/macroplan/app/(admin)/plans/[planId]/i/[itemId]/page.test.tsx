@@ -5,11 +5,13 @@ import {
   fakePlanApiState,
   fakePlanFetch,
   holdingAdmin,
+  itemReadKey,
   planReadKey,
   problemAnswer,
   trace,
   type FakePlanApiState,
 } from '../../../../../../components/plan/testing/fake-plan-api'
+import { ADMIN_PLAN_ACTIONS } from '../../../../../../components/plan/admin-actions'
 import { handedBy } from '../../../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
@@ -153,9 +155,62 @@ describe('the drawer one item is open in', () => {
     expect(screen.getByRole('link', { name: 'Close' }).getAttribute('href')).toBe(planPath(PLAN_A))
   })
 
-  it('reads the one plan under the bearer the admin cookie carries, and reads nothing else', async () => {
+  // Two reads, and the second one is the description: a plan carries none, so the only way to seed the
+  // field is the item's own file. Both go out under the bearer the cookie carries and nothing else does.
+  it('reads the plan and then the item’s own file, both under the admin cookie’s bearer', async () => {
     await show()
+    expect(trace(api)).toEqual([
+      `${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
+      `${itemReadKey(PLAN_A, ITEM_1)} ${ADMIN_TOKEN}`,
+    ])
+  })
+
+  it('does not read a description for an item the plan does not place, a stale link costing one call', async () => {
+    await thrownBy(NO_SUCH_ITEM)
     expect(trace(api)).toEqual([`${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`])
+  })
+})
+
+describe('the description, which is the one thing the plan read does not carry', () => {
+  it('draws the box with the text the item’s own file holds', async () => {
+    api.descriptions.set(ITEM_1, 'Ship behind a flag')
+    await show()
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Description' }).value).toBe(
+      'Ship behind a flag',
+    )
+  })
+
+  it('draws an empty box for an item nobody has described, which the API answers as empty text', async () => {
+    await show()
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Description' }).value).toBe('')
+    expect(screen.getByText('8192 of 8192 bytes left')).toBeTruthy()
+  })
+
+  it('draws no box at all when the item file was refused, rather than one over text nobody saw', async () => {
+    api.answers.set(itemReadKey(PLAN_A, ITEM_1), () => problemAnswer(403, 'Not permitted'))
+    await show()
+    expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'Sessions' })).toBeTruthy()
+  })
+
+  // A 404 on the item file is answered the same way and deliberately: the plan read already placed this
+  // item, so this is a file the API would not answer for and not a missing item. `adminCall` is what
+  // keeps it a value here, where `readPlan`'s `adminRead` would have made it a not-found page.
+  it('keeps the panel on screen when the item file is answered 404, the row having been found', async () => {
+    api.answers.set(itemReadKey(PLAN_A, ITEM_1), () => problemAnswer(404, 'No such item'))
+    await show()
+    expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'Sessions' })).toBeTruthy()
+  })
+
+  it('draws the name and estimate fields from the record, an item’s own actions behind them', async () => {
+    await show()
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Item name' }).value).toBe(
+      'Sessions',
+    )
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
+      '3',
+    )
   })
 })
 
@@ -220,7 +275,9 @@ describe('the item drawer hands no share token to a component either', () => {
     for (const token of EVERY_TOKEN) expect(container.innerHTML).not.toContain(token)
   })
 
-  it('hands over no function at all, so no token is hiding in a bound action’s arguments', async () => {
-    expect(handedBy(await ItemDrawerPage(propsOf(ITEM_1))).functions).toEqual([])
+  it('hands over the eighteen writes and nothing bound, as the feature drawer does', async () => {
+    const handed = handedBy(await ItemDrawerPage(propsOf(ITEM_1)))
+    expect([...handed.functions].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
+    expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
   })
 })

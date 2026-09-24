@@ -11,6 +11,7 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../../../components/plan/testing/fake-plan-api'
+import { ADMIN_PLAN_ACTIONS } from '../../../../../../components/plan/admin-actions'
 import { handedBy } from '../../../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
@@ -176,6 +177,39 @@ describe('the drawer one feature is open in', () => {
     await show()
     expect(screen.getByRole('link', { name: 'Close' }).getAttribute('href')).toBe(planPath(PLAN_A))
   })
+
+  it('draws the two fields an admin may write, seeded from the record rather than from the words', async () => {
+    await show()
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Feature name' }).value).toBe(
+      'Auth rewrite',
+    )
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
+      '5',
+    )
+  })
+
+  // The sentence and the number, side by side out of one read: nothing parses `-35d` back into a field,
+  // and nothing formats `40` into the `<dd>`.
+  it('puts the authored estimate in the field while the list keeps the schedule’s sentence', async () => {
+    const base = atlasPlan()
+    api.plans = [
+      atlasPlan({
+        features: base.features.map((one) =>
+          one.id === FEATURE_1 ? { ...one, estimateDays: 40 } : one,
+        ),
+      }),
+    ]
+    await show()
+    expect(valueOf('Estimate')).toBe('planned 40d · broken down to 5d · -35d')
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
+      '40',
+    )
+  })
+
+  it('draws no description box, a feature having no description and no action to write one', async () => {
+    await show()
+    expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
+  })
 })
 
 describe('what the drawer reads, and how often', () => {
@@ -242,13 +276,30 @@ describe('the drawer hands no share token to a component either', () => {
     for (const token of EVERY_TOKEN) expect(container.innerHTML).not.toContain(token)
   })
 
-  it('hands the panel one row and a path, and never the plan it found the row in', async () => {
+  it('hands the panel one row, its values, a path and the writes — never the plan they came from', async () => {
     const element = await FeatureDrawerPage(propsOf(FEATURE_1))
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    expect(Object.keys(handed).sort()).toEqual(['closeHref', 'row'])
+    expect(Object.keys(handed).sort()).toEqual([
+      'actions',
+      'closeHref',
+      'controls',
+      'description',
+      'planId',
+      'row',
+      'values',
+    ])
+    expect(handed['values']).toEqual({ name: 'Auth rewrite', estimateDays: 5 })
+    expect(handed['description']).toBeNull()
   })
 
-  it('hands over no function at all, so no token is hiding in a bound action’s arguments', async () => {
-    expect(handedBy(await FeatureDrawerPage(propsOf(FEATURE_1))).functions).toEqual([])
+  // What `handed.ts` asks of the first surface to hand a function over: every one of these is a module
+  // function imported by name, so reflection can see all there is to see of it. A **bound** action is
+  // the shape that could carry a token invisibly — `action.bind(null, token)` exposes neither — and
+  // `Function.prototype.bind` names its result `bound <name>`, which is what this rules out.
+  it('hands over the eighteen writes and nothing bound, so no token hides in an action’s arguments', async () => {
+    const handed = handedBy(await FeatureDrawerPage(propsOf(FEATURE_1)))
+    expect([...handed.functions].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
+    expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
+    expect(handed.functions.filter((name) => name === '')).toEqual([])
   })
 })

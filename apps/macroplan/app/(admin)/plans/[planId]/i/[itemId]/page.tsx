@@ -1,8 +1,11 @@
 import { notFound } from 'next/navigation'
+import { ADMIN_PLAN_ACTIONS } from '../../../../../../components/plan/admin-actions'
 import { DrawerPanel } from '../../../../../../components/plan/drawer/drawer-panel'
-import { tableRows } from '../../../../../../components/plan/table/rows'
+import { drawerSubject } from '../../../../../../components/plan/drawer/subject'
+import { ADMIN_CONTROLS } from '../../../../../../lib/admin-controls'
 import { planPath } from '../../../../../../lib/routes'
 import { readPlan } from '../../read-plan'
+import { readDescription } from './read-description'
 
 /** Props for {@link ItemDrawerPage}. */
 export interface ItemDrawerPageProps {
@@ -16,9 +19,22 @@ export interface ItemDrawerPageProps {
  * The feature drawer beside this one carries the argument both share: one `cache()`d read serves this
  * page and the layout, the subject is resolved through `tableRows` so the drawer and the table cannot
  * word one estimate two ways, a refused read draws nothing because the layout already said so once,
- * and an id no row answers to is `notFound()` rather than an empty panel. What differs is the two
- * lines each page owns — its own segment's params, and which `kind` of row may answer it — which is
- * why they are two files and not one with a discriminator.
+ * and an id no row answers to is `notFound()` rather than an empty panel. Each page owns its own
+ * segment's params and the `kind` it resolves, which is why they are two files and not one with a
+ * discriminator — and this one owns a read the other has nothing to make.
+ *
+ * ### The one page in this app that reads twice, and what the second read is for
+ *
+ * A description is not in the plan: `PlanManifest` is "everything about a plan except its item
+ * descriptions", each of which lives in that item's own file. So drawing the description field costs a
+ * second `GET`, and `./read-description.ts` argues it — including why a refusal there comes back as a
+ * value and reaches the panel as `description={null}`, which draws no box rather than an empty one over
+ * text nobody has seen. It runs **after** the row is found, so a stale link costs one request and not
+ * two.
+ *
+ * What it hands down about authority is what the feature drawer hands down, for the reasons recorded
+ * there: `ADMIN_CONTROLS.content` — the content half alone, a drawer asking nothing about seats — and
+ * `ADMIN_PLAN_ACTIONS`, neither of them a gate.
  *
  * ### One absence this route answers 404 that the plan can still hold
  *
@@ -41,7 +57,18 @@ export default async function ItemDrawerPage({ params }: ItemDrawerPageProps) {
   const { planId, itemId } = await params
   const loaded = await readPlan(planId)
   if (!loaded.ok) return null
-  const row = tableRows(loaded.value).find((one) => one.kind === 'item' && one.id === itemId)
-  if (row === undefined) notFound()
-  return <DrawerPanel closeHref={planPath(planId)} row={row} />
+  const subject = drawerSubject(loaded.value, 'item', itemId)
+  if (subject === undefined) notFound()
+  const described = await readDescription(planId, itemId)
+  return (
+    <DrawerPanel
+      actions={ADMIN_PLAN_ACTIONS}
+      closeHref={planPath(planId)}
+      controls={ADMIN_CONTROLS.content}
+      description={described.ok ? described.value : null}
+      planId={planId}
+      row={subject.row}
+      values={subject.values}
+    />
+  )
 }

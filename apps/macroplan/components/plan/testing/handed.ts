@@ -55,10 +55,13 @@ const sweep = (value: unknown, found: Found, seen: WeakSet<object>): void => {
  * 2. **Functions, by name only.** A bound argument is unreachable by reflection:
  *    `action.bind(null, token)` exposes neither the token nor its own name, so no walk can see inside
  *    one — and that is exactly the mechanism ADR 0040 describes for handing a token to a component.
- *    What *is* checkable is whether a surface hands over a function **at all**, so every function met
- *    is recorded and each caller asserts the list is empty. The first bound server action therefore
- *    fails that assertion rather than passing it quietly, and whoever adds it owes a walk that reads a
- *    bound function's arguments.
+ *    What *is* checkable is which functions a surface hands over, by name, so every function met is
+ *    recorded. `layout.tsx` hands over none and asserts the list is empty. The two drawer pages hand
+ *    over the eighteen writes — a field needs one — and assert the names are **exactly**
+ *    `Object.keys(ADMIN_PLAN_ACTIONS)` and that not one of them begins with `bound `, which is what
+ *    `Function.prototype.bind` names its result. So a module action imported by name passes and the
+ *    first *bound* action still fails, which is the case this list was really for; whoever adds one
+ *    owes a walk that reads a bound function's arguments.
  *
  * `app/s/[token]/page.test.tsx` deliberately keeps its own narrower walker rather than calling this
  * one: its KNOWN GAP comment is about that walker, and the comment is the record.

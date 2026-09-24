@@ -1,15 +1,15 @@
 import Link from 'next/link'
+import type { PlanContentControls } from '../../../lib/plan-capabilities'
+import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
+import { DrawerEdits } from './drawer-edits'
+import { DrawerFacts } from './drawer-facts'
+import { LABEL } from './field'
+import type { DrawerValues } from './field'
 
 const PANEL = 'grid gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10'
 
 const TITLE = 'text-base font-semibold'
-
-const FACTS = 'grid gap-3 sm:grid-cols-3'
-
-const LABEL = 'text-[11px] font-semibold tracking-wide text-muted-foreground uppercase'
-
-const VALUE = 'text-[13px]'
 
 const CLOSE = 'text-[13px] text-brand'
 
@@ -17,20 +17,11 @@ const TITLE_ID = 'plan-drawer-title'
 
 const KINDS: Readonly<Record<TableRow['kind'], string>> = { feature: 'Feature', item: 'Item' }
 
-interface Fact {
-  readonly label: string
-  readonly value: string
-}
-
-const factsOf = (row: TableRow): readonly Fact[] => [
-  { label: 'Epic', value: row.epic },
-  ...(row.item === null ? [] : [{ label: 'Feature', value: row.feature }]),
-  { label: 'Estimate', value: row.estimate },
-  { label: 'Sprint', value: row.sprint },
-]
-
 /** Props for {@link DrawerPanel}. */
 export interface DrawerPanelProps {
+  /** The plan this subject belongs to, which is what every write below is addressed at. */
+  readonly planId: string
+
   /**
    * The one subject this drawer is open on, as `tableRows` already worded it.
    *
@@ -41,72 +32,74 @@ export interface DrawerPanelProps {
    */
   readonly row: TableRow
 
+  /** The same subject's editable values, from the same lookup of the same plan (`./subject.ts`). */
+  readonly values: DrawerValues
+
+  /** The item's stored description, or `null` on a feature and on an item whose file went unread. */
+  readonly description: string | null
+
+  /** Which fields this surface draws — content answers only; a drawer asks nothing about seats. */
+  readonly controls: PlanContentControls
+
+  /** Every write of plan content, handed in by the page that read the credential. */
+  readonly actions: PlanEditActions
+
   /** Where Close goes: the plan's own path, which is this same address with nothing selected. */
   readonly closeHref: string
 }
 
 /**
- * One feature or one item, drawn beside the plan it belongs to.
+ * One feature or one item, drawn beside the plan it belongs to — read on the left, edited on the right.
  *
- * ### It words nothing, and that is the point
+ * ### The frame, and the two things drawn inside it
  *
- * Every value here is a string `tableRows` decided (`../table/rows.ts`), which is where §3.2's
- * estimate wording and the sprint label live. A panel that formatted `estimateDays` itself would be
- * a second opinion about the same field, and the two renderings of one plan would disagree in the
- * one place a reader compares them — `planned 5d · broken down to 4d · -1d` in the table and `5d`
- * here. `PlanTableRow` is this component's sibling in that respect: both are "only cells" over one
- * row's decided words.
+ * What is left here is the landmark, the heading, the kind eyebrow and the close link. The facts `<dl>`
+ * is `./drawer-facts.tsx` and the fields are `./drawer-edits.tsx`, both extracted when the fields
+ * arrived and in that order: the facts word nothing and decide nothing, so they left without taking an
+ * argument with them, and the fields are where every remaining control group will land.
  *
- * `treatment` rides along as `data-treatment` for the reason that row carries it too: two subjects
- * may legitimately render the same words, and neither the paint nor a colour may be the only thing
- * telling them apart.
+ * `treatment` rides along as `data-treatment` for the reason that row carries it too: two subjects may
+ * legitimately render the same words, and neither the paint nor a colour may be the only thing telling
+ * them apart.
  *
- * **Dependencies are not drawn here yet**, and deliberately. The four things a stated dependency can
- * turn out to be each have a sentence, and those sentences live in `PlanTableRow`'s own
- * `EDGE_SUFFIX`; copying them into this file would be the second wording the paragraph above rules
- * out, and moving them is the business of the task that draws a dependency **editor** rather than
- * this one. `row.blockedBy` is on the prop and nothing reads it, which is a fact a reader can check.
+ * ### Two shapes of the same subject, neither derived from the other
+ *
+ * `row` is worded **for display** and `values` are raw, and both are real needs: a `<dd>` wants
+ * `planned 40d · broken down to 5d · -35d`, and a field wants `40`. They are not two sources of truth
+ * for one fact — `./subject.ts` resolves both in one lookup of one plan, so they cannot name two
+ * records, and the panel neither formats a value nor parses a sentence. `./drawer-facts.tsx` argues why
+ * an estimate legitimately appears in both halves: one is the schedule's reading of this work, the
+ * other is the number someone authored.
  *
  * ### A landmark, a heading and no dialog
  *
- * It is a `<aside>` named by its own heading, so a reader can jump to it and hear what is open, and
- * an `<h2>` because the `<h1>` one level up is the plan's name — the layout renders both, so the two
- * cannot be out of order. It claims no `role="dialog"` and traps no focus: this is a **route**, not
- * an overlay. The thing that closes it is a `Link` back to the plan's path and never a button, so
- * Back, a bookmark and Close all mean the same thing, and no JavaScript is needed for any of them.
+ * It is an `<aside>` named by its own heading, so a reader can jump to it and hear what is open, and an
+ * `<h2>` because the `<h1>` one level up is the plan's name — the layout renders both, so the two
+ * cannot be out of order. It claims no `role="dialog"` and traps no focus: this is a **route**, not an
+ * overlay. The thing that closes it is a `Link` back to the plan's path and never a button, so Back, a
+ * bookmark and Close all mean the same thing, and no JavaScript is needed for any of them. The heading
+ * keeps naming the subject even where the name field is drawn under it: the heading is what this
+ * landmark **is**, and a field's value is not an accessible name.
  *
- * The `<dl>` pairs each label with its value, which is what makes "Estimate: 5d" survive being read
- * aloud out of context; an item's panel names the feature it flows under and a feature's does not,
- * the heading having just said it. `LABEL` is one constant for the kind eyebrow and for every `<dt>`,
- * because they are one typographic thing — a small uppercase label — and the same string under two
- * names is a diff away from claiming they are two. A control group that needs a label unlike this one
- * gets its own name then, not in advance.
+ * ### This file, if it grows, and where it splits
  *
- * ### This file, if it grows, and it will
- *
- * Two thirds of the 80 lines an `.tsx` may hold are spent, and what arrives here is every content control
- * `PlanContentControls` names about a feature or an item: `renameFeature` and `renameItem`,
- * `estimateFeature` and `estimateItem`, `pinFeature`, `setDependencies` — the editor the paragraph
- * above defers — `removeFeature` and `removeItem`, and `placeFeature` and `placeItem`, which is a
- * reorder a keyboard has to be able to drive. Each is a form and a refusal sentence, so any two of
- * them exhaust what is left.
- *
- * **The facts `<dl>` is the first extraction**: `factsOf`, the `Fact` shape it answers in, and the
- * `FACTS`, `LABEL` and `VALUE` classes those three lines spend, into a `./drawer-facts.tsx` this file
- * renders one element of. It goes first because it is the part of this panel that words nothing and
- * decides nothing — it lays out strings the row already chose — so it can leave without taking an
- * argument with it, and what stays behind is the landmark, the heading and the close link, which is
- * the frame every control group is then added inside.
- *
- * **Each control group after that, one file per group** — the name and estimate edits together, since
- * the API authorises the two fields of one PATCH separately and a single form must be drawn on both
- * booleans; the pin on its own, `feature:pin` being `manage` where those two are `write`; the
- * dependency editor on its own, which is where `EDGE_SUFFIX` moves to from `PlanTableRow`; delete on
- * its own, being the only destructive one. What must **not** split is this file by row kind: a feature
- * panel and an item panel answer the same questions about different subjects, and `rows.ts` refuses
- * the same split for the same reason.
+ * It is the frame now, so the next control group is a file beside `./drawer-edits.tsx` rather than a
+ * block in here — the pin, the dependency editor, delete, and the two place actions, each on its own
+ * boolean, which is the list that file keeps. Two things here would move before anything else did: the
+ * kind eyebrow and the heading, as one `./drawer-heading.tsx` taking the row, if a subtitle or a badge
+ * ever joins them; and `KINDS`, which goes with them, being the only wording this file still owns. What
+ * must **not** split is this file by row kind: a feature panel and an item panel answer the same
+ * questions about different subjects, and `rows.ts` refuses the same split for the same reason.
  */
-export function DrawerPanel({ row, closeHref }: DrawerPanelProps) {
+export function DrawerPanel({
+  planId,
+  row,
+  values,
+  description,
+  controls,
+  actions,
+  closeHref,
+}: DrawerPanelProps) {
   return (
     <aside
       aria-labelledby={TITLE_ID}
@@ -119,14 +112,15 @@ export function DrawerPanel({ row, closeHref }: DrawerPanelProps) {
       <h2 className={TITLE} id={TITLE_ID}>
         {row.item ?? row.feature}
       </h2>
-      <dl className={FACTS}>
-        {factsOf(row).map((fact) => (
-          <div key={fact.label}>
-            <dt className={LABEL}>{fact.label}</dt>
-            <dd className={VALUE}>{fact.value}</dd>
-          </div>
-        ))}
-      </dl>
+      <DrawerFacts row={row} />
+      <DrawerEdits
+        actions={actions}
+        controls={controls}
+        description={description}
+        planId={planId}
+        row={row}
+        values={values}
+      />
       <Link className={CLOSE} href={closeHref}>
         Close
       </Link>

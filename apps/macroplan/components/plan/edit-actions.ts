@@ -42,8 +42,12 @@ type ItemEstimate = Exclude<ItemChange['estimateDays'], undefined>
  * That constrains each object handed to the guard and not how many there are: `apps/microtask` hands
  * it three, one per surface. This one is undivided for the reason `admin-actions.ts` records — a
  * surface gains an action without every page that renders it gaining an argument. No caller in this
- * app reaches the guard yet: every plan surface renders on the server, and it is a client component
- * that would need it.
+ * app reaches `eachOrNoAnswer` yet, and the drawer's fields are the reason that is now a decision
+ * rather than an absence: a client component is what would need it, and the three of them are the
+ * first this app has. Each takes **one** action as a `SubjectWrite` and wraps that one call in
+ * `orNoAnswer` itself (`components/plan/drawer/field.ts`), because a field that was handed the whole
+ * object could reach seventeen writes it has no business making — the guard over the object is for a
+ * surface that really spends many of them.
  *
  * Every member answers the **whole plan** because every route behind it does. A drop therefore has
  * the authoritative timeline in the same round trip, and an undo reads the placement it is undoing

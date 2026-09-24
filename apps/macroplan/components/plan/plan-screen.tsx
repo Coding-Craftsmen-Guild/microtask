@@ -27,9 +27,11 @@ export interface PlanScreenProps {
    * Each answer is a rendering answer and never a gate; `lib/plan-capabilities.ts` holds that
    * argument in full.
    *
-   * **Nothing below draws one yet.** This phase decides the answer and threads it; the drawer, the
-   * conflict list and the share manager that spend it are the tasks after this one, and they mount
-   * beside this screen as well as under it.
+   * **Nothing this screen renders from these answers draws a control yet.** The canvas and the table
+   * below still draw none, and the drawer that now does is filled from the route rather than from here:
+   * a drawer page asks for its own `ADMIN_CONTROLS.content` because a layout cannot hand its children a
+   * prop, so the slot's controls do not arrive through this one. The conflict list and the share manager
+   * are the tasks after this, and they mount beside this screen as well as under it.
    */
   readonly controls: PlanControls
 

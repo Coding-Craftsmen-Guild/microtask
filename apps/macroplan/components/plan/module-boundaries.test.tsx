@@ -2,14 +2,21 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import type { Plan } from '@repo/api-client'
 import { cleanup, render } from '@testing-library/react'
+import { isValidElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
+import type { PlanEditActions } from './edit-actions'
+import type { DrawerValues } from './drawer/field'
 import { PlanCanvas } from './canvas/plan-canvas'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
 import type { TableRow } from './table/rows'
 import { PlanTable } from './table/plan-table'
-import { atlasPlan, FEATURE_1, unplacedPlan } from './testing/plan-fixture'
+import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
+import { DescriptionField } from './drawer/description-field'
+import { EstimateField } from './drawer/estimate-field'
+import { NameField } from './drawer/name-field'
+import { drawerSubject } from './drawer/subject'
 
 vi.mock('next/link', async () => ({
   default: (await import('./testing/next-link')).LinkDouble,
@@ -61,6 +68,8 @@ const declaresUseClient = (source: string) => {
 
 const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
 
+const SERVED = { ok: true as const, value: atlasPlan() }
+
 // Every `plan` prop under this subtree is `PlanScreenModel`, whose type cannot hold a share token,
 // and every fixture here is a `StoredPlan` that carries three. So each tree is handed its plan
 // through the same reducer both surfaces' reads use — which is stricter than a cast would be, since
@@ -88,6 +97,86 @@ const DRAWER_ROW: TableRow = {
   sprint: 'S1',
   treatment: 'solid',
   blockedBy: [],
+}
+
+// The drawer now draws fields, so every tree below that mounts it hands over the pair a page hands
+// over — the row the table worded and the values a field edits — plus the controls and the writes. The
+// actions are stubs rather than `ADMIN_PLAN_ACTIONS`: what this file reads is class names and props,
+// and a real Server Action would drag `next/headers` into a sweep that has no request. `ADMIN_CONTROLS`
+// draws every field there is, which is the stricter answer for a class-name sweep, and one tree draws
+// none of them so the `empty:hidden` group is painted too.
+const STUB_ACTIONS = Object.fromEntries(
+  Object.keys(ADMIN_CONTROLS.content).map((name) => [name, vi.fn(() => Promise.resolve(SERVED))]),
+) as unknown as PlanEditActions
+
+const NOTHING_DRAWN = Object.fromEntries(
+  Object.keys(ADMIN_CONTROLS.content).map((name) => [name, false]),
+) as unknown as typeof ADMIN_CONTROLS.content
+
+interface Panel {
+  readonly key: string
+  readonly row?: TableRow
+  readonly values?: DrawerValues
+  readonly description?: string | null
+  readonly controls?: typeof ADMIN_CONTROLS.content
+}
+
+const panel = (over: Panel) => (
+  <DrawerPanel
+    actions={STUB_ACTIONS}
+    closeHref="/plans/atlas"
+    controls={over.controls ?? ADMIN_CONTROLS.content}
+    description={over.description ?? null}
+    key={over.key}
+    planId={PLAN_A}
+    row={over.row ?? DRAWER_ROW}
+    values={over.values ?? { name: 'Auth rewrite', estimateDays: 5 }}
+  />
+)
+
+// One subject resolved the way a drawer page resolves it, out of a plan that really carries three
+// tokens: so the props the token sweep below reads are a reduction of the live fixture rather than
+// strings written here, which is the only version of that check worth having.
+const subjectOf = (kind: 'feature' | 'item', id: string) => {
+  const found = drawerSubject(planScreenModel(atlasPlan()), kind, id)
+  if (found === undefined) throw new Error(`the fixture no longer holds ${kind} ${id}`)
+  return found
+}
+
+const ITEM = subjectOf('item', ITEM_1)
+
+const CLIENT_FILES = [
+  'components/plan/drawer/description-field.tsx',
+  'components/plan/drawer/estimate-field.tsx',
+  'components/plan/drawer/name-field.tsx',
+] as const
+
+const CLIENT_BY_FILE = new Map<unknown, string>([
+  [DescriptionField, 'description-field.tsx'],
+  [EstimateField, 'estimate-field.tsx'],
+  [NameField, 'name-field.tsx'],
+])
+
+const PRIMITIVE = new Set(['string', 'number', 'boolean', 'function'])
+
+interface HandedToClient {
+  readonly file: string
+  readonly props: Readonly<Record<string, unknown>>
+}
+
+// Server components are **called** rather than rendered, so the walk reaches the elements they build
+// with the props still on them; the three client components are where it stops, those props being
+// exactly what crosses into the browser.
+const clientProps = (node: unknown): readonly HandedToClient[] => {
+  if (Array.isArray(node)) return node.flatMap((one) => clientProps(one))
+  if (!isValidElement<Record<string, unknown>>(node)) return []
+  const file = CLIENT_BY_FILE.get(node.type)
+  if (file !== undefined) return [{ file, props: node.props }]
+  if (typeof node.type === 'function') {
+    const build = node.type as (props: Record<string, unknown>) => unknown
+    return clientProps(build(node.props))
+  }
+  return clientProps(node.props['children'])
 }
 
 const TREES = [
@@ -129,11 +218,17 @@ const TREES = [
   <PlanScreen
     at={AT}
     controls={ADMIN_CONTROLS}
-    drawer={<DrawerPanel closeHref="/plans/atlas" row={DRAWER_ROW} />}
+    drawer={panel({ key: 'g1' })}
     key="g"
     plan={planScreenModel(atlasPlan())}
   />,
-  <DrawerPanel closeHref="/plans/atlas" key="h" row={{ ...DRAWER_ROW, kind: 'item', item: 'Sessions', treatment: 'hollow' }} />,
+  panel({
+    description: 'Ship behind a flag',
+    key: 'h',
+    row: { ...ITEM.row, treatment: 'hollow' },
+    values: ITEM.values,
+  }),
+  panel({ controls: NOTHING_DRAWN, key: 'i' }),
 ]
 
 describe('the class-literal reader this sweep is built on', () => {
@@ -165,9 +260,55 @@ describe('the plan subtree', () => {
     }
   })
 
-  it('declares no use client anywhere, so the whole plan renders on the server', () => {
-    for (const file of walk(PLAN)) {
-      expect(declaresUseClient(read(file)), relative(APP, file)).toBe(false)
+  // This assertion used to be "no file under here declares use client", and the three fields of the
+  // drawer are the first that must. It is an allowlist rather than a weakening: every other file under
+  // the subtree is still asserted server-rendered, and the list is asserted **exact** in both
+  // directions — a new client file fails until it is named here, and a name left behind by a file that
+  // stopped being one fails too. So the sweep still reports every client component this subtree gains,
+  // which is the thing it was really for.
+  it('declares use client only in the three field files, and nowhere else under the plan', () => {
+    const declared = walk(PLAN)
+      .filter((file) => declaresUseClient(read(file)))
+      .map((file) => relative(APP, file).split('\\').join('/'))
+    expect([...declared].sort()).toEqual([...CLIENT_FILES].sort())
+  })
+
+  it('finds every allowlisted file on disk, so a renamed field cannot leave a name standing', () => {
+    for (const file of CLIENT_FILES) {
+      expect(declaresUseClient(read(join(APP, file))), file).toBe(true)
+    }
+  })
+
+  // The assertion the old sweep implied and never had to state. A client component's props are
+  // serialised into the Flight payload and land in the HTML, and the admin's own plan read carries every
+  // live seat token — so what a client file may be handed is the question, and the answer here is
+  // **primitives and functions only**. That rules out the plan, the reduced model, a `TableRow`, a
+  // `PlanShareLink` and the whole actions object by shape rather than by name, which is what keeps it
+  // from rotting: a prop added later is checked without this list being edited. The tree is expanded by
+  // calling each server component, so what is inspected is what `DrawerPanel` really hands over rather
+  // than what this file passed in.
+  it('hands its client files nothing but primitives and functions, so no plan and no token can ride', () => {
+    const handed = clientProps(panel({ description: 'Ship behind a flag', key: 'x', row: ITEM.row, values: ITEM.values }))
+    expect(handed.map((one) => one.file).sort()).toEqual([
+      'description-field.tsx',
+      'estimate-field.tsx',
+      'name-field.tsx',
+    ])
+    for (const { file, props } of handed) {
+      for (const [name, value] of Object.entries(props)) {
+        expect(PRIMITIVE.has(typeof value) || value === null, `${file}: ${name}`).toBe(true)
+      }
+    }
+  })
+
+  it('hands them no string holding a token, checked against the three the fixture really has', () => {
+    const handed = clientProps(panel({ description: 'Ship behind a flag', key: 'x', row: ITEM.row, values: ITEM.values }))
+    const strings = handed.flatMap(({ props }) =>
+      Object.values(props).filter((value): value is string => typeof value === 'string'),
+    )
+    expect(strings.length).toBeGreaterThan(3)
+    for (const token of atlasPlan().shareLinks.map((seat) => seat.token)) {
+      expect(strings.filter((one) => one.includes(token))).toEqual([])
     }
   })
 
