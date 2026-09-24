@@ -1024,6 +1024,27 @@ against what was actually asked.
       `new TextEncoder().encode(value).length`, and put the remaining budget on screen near the cap
       rather than only at it.
 
+- [ ] **Step 3b: this task adds the first `'use client'` file under `components/plan/**`, so it is this task that
+      turns that sweep into an allowlist — not Task 16.** `module-boundaries.test.tsx:168-172` asserts **every**
+      non-test file under `components/plan/**` declares no `'use client'`. The field idiom this task copies is a
+      client component (`apps/microtask/components/task-tree/inline-name.tsx:1`), so the three fields break that
+      assertion the moment they exist. Task 16 Step 6 was written as the task that converts the sweep, which was
+      simply wrong about which task gets there first.
+
+      **Do not delete the assertion and do not weaken it.** Make it a named allowlist — the client files this task
+      adds, listed explicitly — with the same sweep asserting every other file under the subtree is still
+      server-rendered. Add the assertion the old one implied but never had to state: **no client file under
+      `components/plan/**` receives a share token or a whole plan.** A file added to the allowlist without a line in
+      this plan is then a visible decision rather than a quiet one.
+
+- [ ] **Step 3c: the fields need a `planId` and an action, and `drawer-panel.tsx` receives neither.** Task 10 built
+      the panel to take one worded `TableRow` and a `closeHref`; `planId` exists there only inside that href, and no
+      `PlanEditActions` reaches it. Thread both, and note what Task 10's review established: the `tableRows` seam
+      the panel reads is **worded for display** — an estimate arrives as `planned 40d · broken down to 5d · -35d`,
+      a sentence and not a field value. A field needs `feature.name` and `estimateDays: number | null`. So the
+      panel's read-only wording and the fields' raw values are two different needs on one subject; decide how both
+      arrive without the panel growing a second source of truth for the same fact.
+
 - [ ] **Step 4: green, then commit** `"Take a name, a nullable estimate and a byte-capped description"`.
 
 ### Task 12: the pin, and the number that matters
@@ -1287,14 +1308,16 @@ expect(railAtY(railTop(i) + 1, rails, LAYOUT)).toBe(rails[i])
       refusal is a precondition rather than a property. **Do not leave it as a hedge in a TSDoc**, which is what it
       is now: a component will be the thing that violates it.
 
-- [ ] **Step 6: replace the use-client sweep with an allowlist, in this commit.**
-      `module-boundaries.test.tsx:99-103` asserts every non-test file under `components/plan/**` declares no
-      `'use client'`. That assertion has been correct and load-bearing for a whole phase and it is now false by
-      design. **Do not delete it.** Make it a named allowlist — the client files this phase adds, listed
-      explicitly — with the same sweep asserting every other file is still server-rendered, and add an assertion
-      the old one implied but never had to state: **no client file under `components/plan/**` receives a share
-      token or a whole plan.** A file added to the allowlist without a line in the plan is then a visible decision
-      rather than a quiet one.
+- [ ] **Step 6: extend the use-client allowlist with this task's client files.** **Task 11 already converted the
+      sweep**, because it adds the first `'use client'` file under `components/plan/**` and this step was wrong
+      about which task gets there first — see Task 11 Step 3b. So this step no longer converts anything: it adds
+      `drag-root.tsx` and `drag-ghost.tsx` (and nothing else) to the existing allowlist, and confirms the
+      accompanying assertion still holds of them — **no client file under `components/plan/**` receives a share
+      token or a whole plan**, which for a delegation root wrapping the server-rendered SVG means it receives
+      `children` and metrics and never the plan.
+
+      If the allowlist somehow does not exist when this task opens — because Task 11 shipped no client file after
+      all — then do the conversion here as originally written, and say why it landed late.
 
 - [ ] **Step 7: keyboard reorder, because a pointer-only reorder is unreachable and untestable.** There is no a11y
       tooling in this repository (ADR 0056 records that as the reason its assertions are role-based), `happy-dom`
