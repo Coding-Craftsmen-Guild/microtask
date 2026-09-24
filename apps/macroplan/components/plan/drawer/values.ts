@@ -73,6 +73,12 @@ export interface SubjectValues {
  * cell — so what it needs is which estimate the timeline used and not what the two came to
  * (`./breakdown-line.tsx`). `subject.ts` resolves it from `breakdown()` and `effectiveEstimate()`
  * themselves, so nothing in this app decides that condition a second time (ADR 0051).
+ *
+ * It is declared here and constructible only in `./subject.ts`, which has the two calls, and it stays
+ * here: the interface's whole content is the **difference** from {@link SubjectValues}, and a reader
+ * checking that a client field takes the narrower shape wants both in one file. Moving it beside the one
+ * function that builds it would put that difference across a module boundary to buy nothing — a type
+ * import is erased, so neither spelling costs the browser a byte.
  */
 export interface DrawerValues extends SubjectValues {
   /** The plan's own calendar: what turns a sprint index into the dates it stands for. */

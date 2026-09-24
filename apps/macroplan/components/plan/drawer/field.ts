@@ -81,7 +81,27 @@ export const EDITS = 'grid gap-3 border-t border-foreground/10 pt-3 empty:hidden
 export const ESTIMATE_HINT =
   'Days of work. Empty means nobody has sized it; 0 is a milestone that takes no time.'
 
-/** The quiet line under a field that is not a refusal: a remaining budget, or a rule worth repeating. */
+/**
+ * What a pin field says about the rule, whenever there is no sprint in the box to date.
+ *
+ * Here rather than beside the field that draws it, for the reason {@link ESTIMATE_HINT} is here: a
+ * hint is a bare string, and this module is where a drawer field's strings live so that the `.tsx`
+ * holding the control is only the control. `pinHint` stays in `./pin-field.tsx` because it calls
+ * `rangeOfSprint` and so is a **reading of the plan's calendar** rather than a constant, and that file
+ * is the tightest of the drawer's components against its 80-line cap.
+ */
+export const PIN_HINT =
+  'Sprints are counted from 1, as the table numbers them. Empty means no pin. A pin is a floor: it can only delay a feature, never move it earlier.'
+
+/**
+ * The quiet line under something that is not a refusal: a remaining budget, or a fact worth stating.
+ *
+ * One constant for the two places a drawer draws a quiet line — under the description box, where it is
+ * the byte budget, and under the facts `<dl>`, where `./breakdown-line.tsx` draws one sentence — for the
+ * reason {@link LABEL} gives: they are one typographic thing, and the same string under two names is a
+ * diff away from claiming they are two. It said "under a field" while it had one use; a second use that
+ * is not a field's widened the wording rather than starting a second constant.
+ */
 export const BUDGET = 'text-[12px] text-muted-foreground'
 
 /**
@@ -234,13 +254,25 @@ export const revertKey = (event: KeyboardEvent<HTMLTextAreaElement>, stored: str
  *
  * The number is derived from {@link MAX_ESTIMATE_DAYS}, the largest estimate this product accepts on
  * a single feature — 1,000 working days, "about four years" (`packages/contracts/src/limits.ts`) —
- * divided by **this plan's own** sprint length. So the wall-clock horizon is the same for every plan
- * and the sprint count is not: 72 sprints for Atlas's fortnight, 1,000 for a one-day sprint. A round
- * number would have been a guess about how far out anyone plans; this is the distance the product
- * already refuses to estimate past, said in the unit the field is typed in.
+ * divided by **this plan's own** sprint length. So the same wall-clock distance is the same number of
+ * days for every plan and a different number of sprints: 72 for Atlas's fourteen-working-day sprints,
+ * 1,000 for a one-day sprint. Every pin it accepts starts strictly inside those 1,000 days, which is
+ * the property that makes the division the right one: `L * (ceil(N / L) - 1) < N` for every sprint
+ * length `L`, because `ceil(N / L) - 1 < N / L`, and `L * (ceil(N / L))` is at least `N` — so the last
+ * sprint this field accepts begins within the horizon and the first one it refuses does not.
+ *
+ * **It is a typo heuristic, not this plan's horizon**, and the two are not the same distance.
+ * `MAX_ESTIMATE_DAYS` bounds one feature's estimate and nothing bounds a plan's span:
+ * `LIMITS.featuresPerPlan` is 200, so fifteen 100-day features on one rail already run to working day
+ * 1,500, whose sprint is `S108` at Atlas's length — a real sprint of a real plan that this field would
+ * refuse to pin to. It is a guard against `500` typed where `50` was meant, and it is stated in the one
+ * distance this product already refuses to estimate past rather than in a round number somebody chose;
+ * what would replace it is a bound derived from the plan's own schedule, which is the thing the
+ * contract's note says is "never authored" and which no field has to hand.
  *
  * @param sprintLengthDays - The plan's own sprint length in working days, at least 1 per contract.
- * @returns The largest 1-based sprint number this field will send, which is not a contract bound.
+ * @returns The largest 1-based sprint number this field will send, which is neither a contract bound
+ * nor a claim about how far this plan reaches.
  */
 export const pinCeiling = (sprintLengthDays: number): number =>
   Math.ceil(MAX_ESTIMATE_DAYS / sprintLengthDays)
@@ -250,13 +282,19 @@ export const WHOLE_SPRINTS =
   'A pin is a whole sprint number counted from 1 — or empty for a feature that is not pinned.'
 
 /**
- * Why a pin past the field's own ceiling is refused, naming the ceiling and whose it is.
+ * Why a pin past the field's own ceiling is refused, naming the ceiling and where it comes from.
+ *
+ * It says what the bound **is** rather than what the plan reaches: {@link pinCeiling} is derived from
+ * the largest estimate one feature may carry, and a plan may legitimately run past it (see there). So
+ * the sentence claims only that sprint 72 is the last one starting inside that distance, which is true
+ * of every plan of this sprint length, and offers the typo as the likelier reading rather than as the
+ * only one.
  *
  * @param sprintLengthDays - The plan's own sprint length, which is what the ceiling is derived from.
  * @returns The sentence to show under the field.
  */
 export const tooFarOut = (sprintLengthDays: number): string =>
-  `This plan's sprints reach sprint ${String(pinCeiling(sprintLengthDays))} within the ${String(MAX_ESTIMATE_DAYS)} working days it can estimate. Anything past that is a typo more often than a plan.`
+  `Sprint ${String(pinCeiling(sprintLengthDays))} is the last one starting inside the ${String(MAX_ESTIMATE_DAYS)} working days this product will estimate a single feature at. Anything past that is a typo more often than a plan.`
 
 /**
  * What a pin field will send for the text it holds, or the sentence it refuses with.

@@ -4,17 +4,13 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import { rangeOfSprint } from '@repo/schedule'
 import type { PlanCalendar } from '@repo/schedule'
 import { useEffect, useRef, useState } from 'react'
-import { commitKeys, paintUnfocused, pinEntry, FIELD, type SubjectWrite } from './field'
+import { commitKeys, paintUnfocused, pinEntry, FIELD, PIN_HINT, type SubjectWrite } from './field'
 import { FieldShell } from './field-shell'
 import { subjectValues } from './values'
 
 const FIELD_ID = 'plan-drawer-pin'
 
 const shown = (sprint: number | null): string => (sprint === null ? '' : String(sprint + 1))
-
-/** What a pin field says about the rule, whenever there is no sprint in the box to date. */
-export const PIN_HINT =
-  'Sprints are counted from 1, as the table numbers them. Empty means no pin. A pin is a floor: it can only delay a feature, never move it earlier.'
 
 /**
  * The quiet line under a pin field: the dates the sprint in the box actually means.
@@ -126,6 +122,13 @@ export interface PinFieldProps {
  * this field adds one line to the idiom: the hint depends on what is being typed, so the text is held
  * in state as well as in the uncontrolled box — the box stays the authority on what the user sees, and
  * the state is only what the sentence under it is derived from.
+ *
+ * That is why both writes here **paint first and then read the box**, rather than setting the state to
+ * the same string they painted. `paintUnfocused` deliberately leaves a focused box alone, so a value it
+ * declined to write is a value that is not on screen; a state set to it anyway would date a sprint the
+ * reader cannot see — a re-render or a late answer arriving mid-typing would leave the box showing `5`
+ * and the line under it naming sprint 1. Reading `field.current.value` back keeps the one authority one
+ * authority, whichever of the two the paint chose.
  */
 export function PinField({ planId, featureId, pinSprint, pin, startDate, sprintLengthDays, timezone }: PinFieldProps) {
   const field = useRef<HTMLInputElement>(null)
@@ -134,8 +137,8 @@ export function PinField({ planId, featureId, pinSprint, pin, startDate, sprintL
   const [typed, setTyped] = useState(shown(pinSprint))
   useEffect(() => {
     stored.current = pinSprint
-    setTyped(shown(pinSprint))
     paintUnfocused(field.current, shown(pinSprint))
+    setTyped(field.current?.value ?? shown(pinSprint))
   }, [pinSprint])
   const commit = async (input: HTMLInputElement) => {
     const entry = pinEntry(input.value, sprintLengthDays)
@@ -149,8 +152,8 @@ export function PinField({ planId, featureId, pinSprint, pin, startDate, sprintL
       if (kept !== undefined) stored.current = kept.pinSprint
       setProblem(result.ok ? '' : result.detail)
     } else setProblem('')
-    setTyped(shown(stored.current))
     paintUnfocused(field.current, shown(stored.current))
+    setTyped(field.current?.value ?? shown(stored.current))
   }
   return (
     <FieldShell

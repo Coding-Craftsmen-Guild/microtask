@@ -39,21 +39,20 @@ export interface DrawerEditsProps {
 }
 
 /**
- * The fields a drawer edits one subject's own content with: its name, its estimate, its description.
+ * The fields a drawer edits one subject with: its name, its estimate, its pin, its description.
  *
  * ### One boolean per field, and not one per form
  *
  * `PATCH .../features/{featureId}` authorises **every field the body carries** — `feature:rename` for
  * a name, `feature:estimate` for an estimate, `feature:pin` for a pin — and the first refusal writes
- * none of them (`lib/plan-capabilities.ts`). So these are two fields sending two requests rather than
- * one form sending one body: a `write` seat holds rename and estimate and not the pin, and a combined
- * body would lose the rename it was allowed in order to be refused the pin it was not. That is also
- * why the pin is absent here altogether — it is `manage`-only where these are `write`, so it belongs
- * to its own file drawn on its own boolean, not beside these two.
+ * none of them (`lib/plan-capabilities.ts`). So these are separate fields sending separate requests
+ * rather than one form sending one body: a `write` seat holds rename and estimate and not the pin, and a
+ * combined body would lose the rename it was allowed in order to be refused the pin it was not. Each
+ * field is drawn on its own boolean for that reason, the pin's being the only `manage`-tier one here.
  *
- * The pin is the one of these three requests a `write` seat is refused, and it is drawn here rather
- * than in a file of its own: this file's own note below is that a control group is "a four-line child
- * here and a file of its own", and `./pin-field.tsx` is that file. What it is **not** is a fourth
+ * The pin is the one of these requests a `write` seat is refused, and it is drawn here rather
+ * than in a file of its own: this file's own note below is that a control group is "a child here and a
+ * file of its own", and `./pin-field.tsx` is that file. What it is **not** is a fourth
  * field in the `pairFor` pair — that helper answers the two writes **both** kinds have, and there is
  * no `pinItem`: `PlanFeature` carries `pinSprint` and `PlanItem` does not
  * (`packages/contracts/src/plan.ts`), so the pin is asked for as `row.kind === 'feature'` and read
@@ -68,11 +67,13 @@ export interface DrawerEditsProps {
  * A surface that draws none of them draws no group either: every child being `null` leaves this
  * element childless, and `EDITS`'s `empty:hidden` is what keeps a read-only seat from being shown a
  * bordered box with nothing in it. A variant rather than a count, so the condition cannot fall out of
- * step with the three below it.
+ * step with the four below it.
  *
  * ### Three actions cross to the browser, not eighteen
  *
- * This component is server-rendered and the three fields are not, so what it hands each of them is
+ * Four children are written below and no subject is ever handed more than three of them — the pin is a
+ * feature's and the description is an item's — so three is what crosses on any one render. This
+ * component is server-rendered and none of the four is, so what it hands each of them is
  * what the Flight payload carries: one action reference, two ids and one value. `PlanEditActions`
  * itself stays on the server — with `pairFor`, which names it (`./subject-writes.ts`) — which is why
  * the fields take a `SubjectWrite`, the shape all five of these writes already have, instead of the
@@ -100,8 +101,9 @@ export interface DrawerEditsProps {
  * `placeItem` together, a reorder a keyboard has to be able to drive.
  *
  * **The next group is where this file stops holding them all, and that is arithmetic rather than
- * taste.** The pin mounts as eleven lines and leaves this file in the high sixties of its eighty, and
- * four more groups are queued. So the group after this one starts a `./drawer-manage.tsx` and takes the
+ * taste.** The pin mounted as eleven lines and leaves this file at 62 of its 80, so 18 are free and the
+ * three groups above are still queued — and the pin was the cheapest of them, a single field on a single
+ * boolean. So the group after this one starts a `./drawer-manage.tsx` and takes the
  * pin with it — one container per capability tier, which is the boundary the pin already makes visible:
  * `feature:pin`, `feature:depend`, `feature:place`, `item:place`, `feature:delete` and `item:delete`
  * are every one of them `manage`, and the three fields left here are every one of them `write`
@@ -114,8 +116,10 @@ export interface DrawerEditsProps {
  * `values` where it edits one, `controls` and `actions`. It picks its own writes out of `actions` the
  * way `pairFor` does, so the kind is chosen once per group and never by a caller, and it draws its own
  * `null` when its boolean is false — the `empty:hidden` band above keeps counting for all of them. So
- * each new group is a four-line child here and a file of its own, and this file's own three fields
- * stay where they are.
+ * each new group is a child here and a file of its own, and this file's own three `write`-tier fields
+ * stay where they are. A child costs four lines of scaffolding — the ternary, the element, its close and the `: null` —
+ * plus one per prop it hands over, which is what made the pin's seven props eleven lines. Four is
+ * therefore the floor and not the figure to budget with.
  *
  * **Create is the exception, and it is not subject-scoped.** `createItem` needs a parent feature and
  * `createFeature` a rail, so neither is a write *about* the subject this component is handed — a

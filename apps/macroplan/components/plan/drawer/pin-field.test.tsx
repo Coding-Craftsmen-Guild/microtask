@@ -5,8 +5,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
 import { atlasPlan, FEATURE_1, PLAN_A } from '../testing/plan-fixture'
-import { pinCeiling, WHOLE_SPRINTS } from './field'
-import { pinHint, PinField, PIN_HINT } from './pin-field'
+import { pinCeiling, PIN_HINT, WHOLE_SPRINTS } from './field'
+import { pinHint, PinField } from './pin-field'
 
 type Pin = (planId: string, featureId: string, pinSprint: number | null) => Promise<ActionResult<Plan>>
 
@@ -146,9 +146,10 @@ describe('what a reader is told about the sprint a pin names', () => {
     expect(described()).toBe(PIN_HINT)
   })
 
-  // The inclusive end, on screen. Atlas runs fortnights from Monday 2026-09-28, so its first sprint's
-  // fourteen working days end on Friday 2026-10-15 — not on the Monday after, which is what reading
-  // `rangeOfSprint`'s `to` as an exclusive `endDay` would have printed.
+  // The inclusive end, on screen. Atlas runs fourteen-working-day sprints from Monday 2026-09-28, so
+  // its first sprint's fourteenth working day is Thursday 2026-10-15 — not Friday 2026-10-16, the next
+  // working day, which is what reading `rangeOfSprint`'s `to` as an exclusive `endDay` would have
+  // printed.
   it('names the first and last day of the stored sprint, the range being inclusive', () => {
     setup(0)
     expect(described()).toContain('Sprint 1 runs 2026-09-28 to 2026-10-15')
@@ -221,6 +222,28 @@ describe('what is on screen once the server has answered', () => {
     expect(field().value).toBe('3')
   })
 
+  // The box is the authority on what the user sees, so the line under it must date what the box holds
+  // and never what a re-render tried to put there: `paintUnfocused` declines to write a focused box, and
+  // a state set to the declined value would name a sprint nothing on screen shows.
+  it('leaves a focused box and the line under it on what is being typed', async () => {
+    const { view, user } = setup(2)
+    await user.clear(field())
+    await user.type(field(), '5')
+    view.rerender(
+      <PinField
+        featureId={FEATURE_1}
+        pin={kept}
+        pinSprint={0}
+        planId={PLAN_A}
+        sprintLengthDays={PLAN.sprintLengthDays}
+        startDate={PLAN.startDate}
+        timezone={PLAN.timezone}
+      />,
+    )
+    expect(field().value).toBe('5')
+    expect(described()).toContain('Sprint 5 runs')
+  })
+
   it('takes the new subject’s pin from a re-render while the box is not focused', () => {
     const { view } = setup(2)
     view.rerender(
@@ -253,8 +276,8 @@ describe('what is on screen once the server has answered', () => {
   })
 })
 
-// The plan fixture's own calendar, and a Monday. Ten-day sprints as well, because the boundary case
-// that catches an exclusive read is a sprint whose last working day is a Friday two weeks on.
+// The plan fixture's own calendar, and a Monday. Ten-working-day sprints as well, because the boundary
+// case that catches an exclusive read is a sprint whose last working day is the Friday of the week after.
 const ATLAS_SPRINT = PLAN.sprintLengthDays
 
 const ATLAS = { startDate: '2026-09-28', sprintLengthDays: ATLAS_SPRINT, timezone: 'Europe/Belgrade' }

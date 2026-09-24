@@ -3,7 +3,6 @@ import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows, type TableRow } from '../table/rows'
 import { subjectValues, type DrawerValues, type SubjectKind } from './values'
 
-
 const calendarOf = (plan: PlanScreenModel): PlanCalendar => ({
   startDate: plan.startDate,
   sprintLengthDays: plan.sprintLengthDays,
