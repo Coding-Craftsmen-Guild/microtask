@@ -1,7 +1,6 @@
 import type { Plan } from '@repo/api-client'
 import { dayToX, scaleFor, widthOfDays } from '@repo/canvas'
-import type { DayRange, ItemMark, PlanScale, Rung, Treatment } from '@repo/canvas'
-import { railsOf } from '@repo/schedule'
+import type { DayRange, ItemMark, PlanScale, RailBox, Rung, Treatment } from '@repo/canvas'
 
 /**
  * The stretch of working days the canvas draws, and the one number on this screen that nothing
@@ -223,12 +222,15 @@ export const railNames = (plan: Plan): ReadonlyMap<string, string> =>
 /**
  * Each rail's features the forward pass left off the axis, keyed on the epic id the rail is keyed on.
  *
- * `railLayout` answers only the features that got a span, so the unplaced ones have to come from the
- * plan — and they come through `railsOf` from `@repo/schedule`, the same function `railLayout` itself
- * walks, rather than through a grouping of `plan.features` written again here. That is the one
- * shortcut `railLayout` warns against: "a second total order written in this package could disagree
- * with the first on any tie — which is a bar drawn on the wrong rail, silently, at exactly the zoom
- * level nobody tested." One source, one order, and a stub lands on the rail its bars are on.
+ * Read off the boxes `railLayout` already answered, and off neither the plan nor `railsOf`. A
+ * `RailBox` carries `featureIds` — every feature on the rail in the one order the layout derived, the
+ * ones its bars omit included — so a rail's unplaced features are a filter over that array. This took
+ * the plan and called `railsOf` a second time until `featureIds` landed, and `railLayout` names what
+ * that risks: "a second total order written in this package could disagree with the first on any tie —
+ * which is a bar drawn on the wrong rail, silently, at exactly the zoom level nobody tested."
+ * `featureIds` is carried out of the layout for exactly this, in its own words: the paragraph on a rail
+ * order derived twice "applies to a consumer re-deriving it just as much as to this module". One call,
+ * one array, and a stub sits on the rail its bars are on because it came out of the same box they did.
  *
  * "Unplaced" is read as **present in `treatments`**, not as absent from `spans`. The forward pass puts
  * every feature it walked in exactly one of the two collections, so either decides the question, and
@@ -236,16 +238,11 @@ export const railNames = (plan: Plan): ReadonlyMap<string, string> =>
  * structure over the same answer.
  */
 export const unplacedByRail = (
-  plan: Plan,
+  rails: readonly RailBox[],
   treatments: ReadonlyMap<string, Treatment>,
 ): ReadonlyMap<string, readonly string[]> =>
   new Map(
-    railsOf(plan).flatMap((rail) => {
-      const first = rail[0]
-      if (first === undefined) return []
-      const ids = rail.filter((feature) => treatments.has(feature.id)).map((feature) => feature.id)
-      return [[first.epicId, ids] as const]
-    }),
+    rails.map((rail) => [rail.epicId, rail.featureIds.filter((id) => treatments.has(id))] as const),
   )
 
 /**

@@ -5,7 +5,7 @@ import { dropTargetFor, railAtY } from './drag.js'
 import type { DragPoint, DropQuery, DropTarget, RailMetrics } from './drag.js'
 import type { CanvasPlan, CanvasSchedule } from './plan.js'
 import { railLayout } from './rails.js'
-import type { RailBox } from './rails.js'
+import type { FeatureBar, RailBox } from './rails.js'
 import { scaleFor } from './scale.js'
 
 const E1 = 'epic-1'
@@ -14,7 +14,10 @@ const E3 = 'epic-3'
 const E4 = 'epic-4'
 const E5 = 'epic-5'
 const E6 = 'epic-6'
-const NO_SUCH_EPIC = 'epic-6-nobody-declared'
+const E7 = 'epic-7'
+const E8 = 'epic-8'
+const E9 = 'epic-9'
+const NO_SUCH_EPIC = 'epic-10-nobody-declared'
 
 const FT1 = 'feature-1'
 const MILESTONE = 'feature-2-milestone'
@@ -30,6 +33,16 @@ const ORPHAN = 'feature-11-orphan'
 const HIDDEN_FIRST = 'feature-12-unestimated'
 const ONLY_BAR = 'feature-13'
 const HIDDEN_LAST = 'feature-14-unestimated'
+const GAP_LEFT = 'feature-15'
+const HIDDEN_MID = 'feature-16-unestimated'
+const GAP_RIGHT = 'feature-17'
+const RUN_LEFT = 'feature-18'
+const HIDDEN_ONE = 'feature-19-unestimated'
+const HIDDEN_TWO = 'feature-20-unestimated'
+const RUN_RIGHT = 'feature-21'
+const UNSIZED_FIRST = 'feature-22-unestimated'
+const UNSIZED_MID = 'feature-23-unestimated'
+const UNSIZED_LAST = 'feature-24-unestimated'
 
 const SCALE = scaleFor({ pxPerDay: 8, gutter: 120 })
 
@@ -60,6 +73,9 @@ const PLAN: CanvasPlan = {
     { id: E4, railOrder: 3, colour: '#8833ff' },
     { id: E5, railOrder: 4, colour: '#ff3388' },
     { id: E6, railOrder: 5, colour: '#88ff33' },
+    { id: E7, railOrder: 6, colour: '#33ffff' },
+    { id: E8, railOrder: 7, colour: '#ffff33' },
+    { id: E9, railOrder: 8, colour: '#ff33ff' },
   ],
   features: [
     feature(FT1, E1, 0, 4),
@@ -75,6 +91,16 @@ const PLAN: CanvasPlan = {
     feature(HIDDEN_FIRST, E6, 0, null),
     feature(ONLY_BAR, E6, 1, 4),
     feature(HIDDEN_LAST, E6, 2, null),
+    feature(GAP_LEFT, E7, 0, 4),
+    feature(HIDDEN_MID, E7, 1, null),
+    feature(GAP_RIGHT, E7, 2, 3),
+    feature(RUN_LEFT, E8, 0, 4),
+    feature(HIDDEN_ONE, E8, 1, null),
+    feature(HIDDEN_TWO, E8, 2, null),
+    feature(RUN_RIGHT, E8, 3, 3),
+    feature(UNSIZED_FIRST, E9, 0, null),
+    feature(UNSIZED_MID, E9, 1, null),
+    feature(UNSIZED_LAST, E9, 2, null),
     feature(ORPHAN, NO_SUCH_EPIC, 0, 3),
   ],
   items: [],
@@ -145,8 +171,19 @@ const barsLeftOf = (railIndex: number, x: number): number =>
   railAt(railIndex).bars.filter((bar) => bar.x < x).length
 
 describe('the fixture holds every kind of rail the properties below are stated over', () => {
-  it('lays out a whole rail, one the pass could not place whole, an empty one, one opening on a milestone, a trio, one bar between two features with none, and a rail no epic claims', () => {
-    expect(layout().map((rail) => rail.epicId)).toEqual([E1, E2, E3, E4, E5, E6, NO_SUCH_EPIC])
+  it('lays out a whole rail, one the pass could not place whole, an empty one, one opening on a milestone, a trio, one bar between two features with none, a feature with no bar between two bars, a run of two of those, a rail of nothing but unplaced features, and a rail no epic claims', () => {
+    expect(layout().map((rail) => rail.epicId)).toEqual([
+      E1,
+      E2,
+      E3,
+      E4,
+      E5,
+      E6,
+      E7,
+      E8,
+      E9,
+      NO_SUCH_EPIC,
+    ])
     expect(layout().map((rail) => rail.bars.map((bar) => bar.id))).toEqual([
       [FT1, MILESTONE],
       [FT2],
@@ -154,11 +191,20 @@ describe('the fixture holds every kind of rail the properties below are stated o
       [KICKOFF, AFTER_KICKOFF],
       [TRIO_A, TRIO_B, TRIO_C],
       [ONLY_BAR],
+      [GAP_LEFT, GAP_RIGHT],
+      [RUN_LEFT, RUN_RIGHT],
+      [],
       [ORPHAN],
     ])
     expect(forwardPass(PLAN).unscheduled.map((one) => one.id).sort()).toEqual([
       HIDDEN_FIRST,
       HIDDEN_LAST,
+      HIDDEN_MID,
+      HIDDEN_ONE,
+      HIDDEN_TWO,
+      UNSIZED_FIRST,
+      UNSIZED_MID,
+      UNSIZED_LAST,
       NOEST,
       LONELY,
     ])
@@ -167,6 +213,18 @@ describe('the fixture holds every kind of rail the properties below are stated o
   it('holds a rail whose stored order runs past its last bar, which is where a count of features and a place differ', () => {
     expect(storedOrder(E6)).toEqual([HIDDEN_FIRST, ONLY_BAR, HIDDEN_LAST])
     expect(railAt(5).bars.map((bar) => bar.id)).toEqual([ONLY_BAR])
+  })
+
+  it('holds two rails storing a feature the pass could not place between two it could, which is the gap a drop names on screen', () => {
+    expect(storedOrder(E7)).toEqual([GAP_LEFT, HIDDEN_MID, GAP_RIGHT])
+    expect(storedOrder(E8)).toEqual([RUN_LEFT, HIDDEN_ONE, HIDDEN_TWO, RUN_RIGHT])
+    expect([barX(6, GAP_LEFT), barX(6, GAP_RIGHT)]).toEqual([120, 152])
+    expect([barX(7, RUN_LEFT), barX(7, RUN_RIGHT)]).toEqual([120, 152])
+  })
+
+  it('holds a rail of three features the pass placed none of, which is the only shape that drags a feature the rail does carry along a rail drawing no bars at all', () => {
+    expect(storedOrder(E9)).toEqual([UNSIZED_FIRST, UNSIZED_MID, UNSIZED_LAST])
+    expect(railAt(8).bars).toEqual([])
   })
 
   it('lays every rail out with its bars non-decreasing in x, which is what lets a count of bars name one', () => {
@@ -376,6 +434,85 @@ describe('dropTargetFor lands a drop past every bar beside the last bar, and not
   })
 })
 
+describe('dropTargetFor leaves a feature alone when it already sits inside the gap the drop names', () => {
+  it('changes nothing for either bar on a rail storing a feature with no bar between them, dropped on its own x', () => {
+    for (const id of [GAP_LEFT, GAP_RIGHT]) {
+      const target = placement(id, at(barX(6, id), top(6) + 1))
+      expect(orderAfterSending(E7, id, target.position), id).toEqual(storedOrder(E7))
+    }
+  })
+
+  it('would jump the first of them over that hidden sibling, if the next bar own place had the last word', () => {
+    expect(storedOrder(E7).filter((id) => id !== GAP_LEFT).indexOf(GAP_RIGHT)).toBe(1)
+    expect(orderAfterSending(E7, GAP_LEFT, 1)).toEqual([HIDDEN_MID, GAP_LEFT, GAP_RIGHT])
+  })
+
+  it('would jump the second of them back over it, if the last bar own place plus one had the last word', () => {
+    expect(storedOrder(E7).filter((id) => id !== GAP_RIGHT).indexOf(GAP_LEFT)).toBe(0)
+    expect(orderAfterSending(E7, GAP_RIGHT, 1)).toEqual([GAP_LEFT, GAP_RIGHT, HIDDEN_MID])
+  })
+
+  it('changes nothing for either bar on a rail storing two hidden siblings between them, dropped on its own x', () => {
+    for (const id of [RUN_LEFT, RUN_RIGHT]) {
+      const target = placement(id, at(barX(7, id), top(7) + 1))
+      expect(orderAfterSending(E8, id, target.position), id).toEqual(storedOrder(E8))
+    }
+  })
+
+  it('would jump the first of them over both of those siblings, if the next bar own place had the last word', () => {
+    expect(orderAfterSending(E8, RUN_LEFT, 2)).toEqual([
+      HIDDEN_ONE,
+      HIDDEN_TWO,
+      RUN_LEFT,
+      RUN_RIGHT,
+    ])
+    expect(orderAfterSending(E8, RUN_RIGHT, 1)).toEqual([
+      RUN_LEFT,
+      RUN_RIGHT,
+      HIDDEN_ONE,
+      HIDDEN_TWO,
+    ])
+  })
+
+  it('still moves a feature with no bar dragged to the left of both bars on its rail, so the gap is read and not the identity', () => {
+    const target = placement(HIDDEN_MID, at(barX(6, GAP_LEFT), top(6) + 1))
+    expect(target.position).toBe(0)
+    expect(orderAfterSending(E7, HIDDEN_MID, target.position)).toEqual([
+      HIDDEN_MID,
+      GAP_LEFT,
+      GAP_RIGHT,
+    ])
+  })
+
+  it('still moves a bar dropped past the bar beyond its own hidden sibling', () => {
+    const target = placement(GAP_LEFT, at(barX(6, GAP_RIGHT) + 1, top(6) + 1))
+    expect(target.position).toBe(2)
+    expect(orderAfterSending(E7, GAP_LEFT, target.position)).toEqual([
+      HIDDEN_MID,
+      GAP_RIGHT,
+      GAP_LEFT,
+    ])
+  })
+
+  it('keeps every feature on a rail the pass placed none of exactly where it is, there being no bar on it to have landed beside', () => {
+    for (const id of storedOrder(E9)) {
+      const target = placement(id, at(SCALE.gutter + 300, top(8) + 1))
+      expect(orderAfterSending(E9, id, target.position), id).toEqual(storedOrder(E9))
+    }
+  })
+
+  it('lands a feature dragged onto that rail from elsewhere last, the x on a rail with no bars naming no gap', () => {
+    const target = placement(FT1, at(SCALE.gutter + 300, top(8) + 1))
+    expect(target.position).toBe(3)
+    expect(orderAfterSending(E9, FT1, target.position)).toEqual([
+      UNSIZED_FIRST,
+      UNSIZED_MID,
+      UNSIZED_LAST,
+      FT1,
+    ])
+  })
+})
+
 describe('dropTargetFor keeps the order two bars at one x already have', () => {
   it('changes nothing when the bar behind a leading zero-day milestone is dropped on its own x', () => {
     const point = at(barX(3, AFTER_KICKOFF), top(3) + 1)
@@ -400,6 +537,85 @@ describe('dropTargetFor keeps the order two bars at one x already have', () => {
     const target = placement(KICKOFF, at(barX(3, AFTER_KICKOFF) + 1, top(3) + 1))
     expect(target.position).toBe(1)
     expect(orderAfterSending(E4, KICKOFF, target.position)).toEqual([AFTER_KICKOFF, KICKOFF])
+  })
+})
+
+describe('dropTargetFor answers every drop on this fixture inside the gap that drop names', () => {
+  const claimed = (): readonly RailBox[] => layout().filter((rail) => rail.colour !== null)
+
+  const edgesOf = (rail: RailBox): readonly number[] =>
+    [
+      ...new Set([
+        SCALE.gutter,
+        SCALE.gutter + 300,
+        ...rail.bars.flatMap((bar) => [bar.x - 1, bar.x, bar.x + 1]),
+      ]),
+    ].filter((x) => x >= SCALE.gutter)
+
+  const drawnLeftOf = (rail: RailBox, featureId: string, x: number, bar: FeatureBar): boolean =>
+    bar.x < x ||
+    (bar.x === x &&
+      rail.bars.indexOf(bar) < rail.bars.findIndex((one) => one.id === featureId))
+
+  function sitsWhereDropped(
+    rail: RailBox,
+    order: readonly string[],
+    featureId: string,
+    x: number,
+  ): boolean {
+    const landed = order.indexOf(featureId)
+    return rail.bars.every((bar) => {
+      const place = order.indexOf(bar.id)
+      if (bar.id === featureId) return true
+      return drawnLeftOf(rail, featureId, x, bar) ? place < landed : place > landed
+    })
+  }
+
+  function sweep(check: (rail: RailBox, featureId: string, x: number) => void): number {
+    let calls = 0
+    for (const rail of claimed()) {
+      for (const one of PLAN.features) {
+        for (const x of edgesOf(rail)) {
+          calls += 1
+          check(rail, one.id, x)
+        }
+      }
+    }
+    return calls
+  }
+
+  const railIndex = (epicId: string): number =>
+    layout().findIndex((rail) => rail.epicId === epicId)
+
+  it('sweeps every claimed rail, every feature in the plan and every bar edge on that rail', () => {
+    expect(claimed()).toHaveLength(9)
+    expect(sweep(() => undefined)).toBeGreaterThan(900)
+  })
+
+  it('lands it after every bar drawn left of the drop and before every bar drawn right of it', () => {
+    sweep((rail, featureId, x) => {
+      const target = placement(featureId, at(x, top(railIndex(rail.epicId)) + 1))
+      const after = orderAfterSending(rail.epicId, featureId, target.position)
+      expect(
+        sitsWhereDropped(rail, after, featureId, x),
+        `${rail.epicId} ${featureId} ${String(x)}`,
+      ).toBe(true)
+    })
+  })
+
+  it('changes the stored order for no drop that order already satisfies, which is what nothing auto-moves means here', () => {
+    let asserted = 0
+    sweep((rail, featureId, x) => {
+      const stored = storedOrder(rail.epicId)
+      if (!stored.includes(featureId) || !sitsWhereDropped(rail, stored, featureId, x)) return
+      const target = placement(featureId, at(x, top(railIndex(rail.epicId)) + 1))
+      asserted += 1
+      expect(
+        orderAfterSending(rail.epicId, featureId, target.position),
+        `${rail.epicId} ${featureId} ${String(x)}`,
+      ).toEqual(stored)
+    })
+    expect(asserted, 'drops the stored order already satisfied').toBeGreaterThan(60)
   })
 })
 
@@ -431,11 +647,11 @@ describe('dropTargetFor answers null rather than the nearest rail, so a drag can
 
   it('answers null for a drop on a rail no epic in the plan claims, there being no epicId to send', () => {
     const rails = layout()
-    expect(railAtY(top(6) + 1, rails, METRICS)).toBe(rails[6])
-    expect(railAt(6).epicId).toBe(NO_SUCH_EPIC)
+    expect(railAtY(top(9) + 1, rails, METRICS)).toBe(rails[9])
+    expect(railAt(9).epicId).toBe(NO_SUCH_EPIC)
     expect(PLAN.epics.map((epic) => epic.id)).not.toContain(NO_SUCH_EPIC)
-    expect(drop(FT1, at(barX(6, ORPHAN), top(6) + 1))).toBeNull()
-    expect(drop(ORPHAN, at(barX(6, ORPHAN), top(6) + 1))).toBeNull()
+    expect(drop(FT1, at(barX(9, ORPHAN), top(9) + 1))).toBeNull()
+    expect(drop(ORPHAN, at(barX(9, ORPHAN), top(9) + 1))).toBeNull()
   })
 })
 
@@ -456,12 +672,13 @@ describe('dropTargetFor reads the rail it was handed, there being no second plan
     expect(placement(TRIO_A, at(barX(4, TRIO_C), top(4) + 1)).position).toBe(1)
   })
 
-  it('throws rather than answering last, for a box whose bar is not in its own feature order', () => {
+  it('throws rather than answering last, for a box whose bar is not in its own feature order, which railLayout cannot build and only a hand-made box can be', () => {
     const broken: RailBox = { ...railAt(4), featureIds: [TRIO_A, TRIO_C] }
     expect(broken.bars.map((bar) => bar.id)).toEqual([TRIO_A, TRIO_B, TRIO_C])
-    expect(() =>
-      dropTargetFor({ ...query(TRIO_A, at(barX(4, TRIO_A), top(0) + 1)), rails: [broken] }),
-    ).toThrow(/does not carry it/)
+    const asked = (): DropTarget | null =>
+      dropTargetFor({ ...query(TRIO_A, at(barX(4, TRIO_A), top(0) + 1)), rails: [broken] })
+    expect(asked).toThrow(new RegExp(TRIO_B))
+    expect(asked).toThrow(new RegExp(E5))
   })
 })
 

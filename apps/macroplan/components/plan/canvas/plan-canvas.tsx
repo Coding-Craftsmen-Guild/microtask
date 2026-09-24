@@ -97,7 +97,7 @@ export function PlanCanvas({
     axisX: dayToX(range.fromDay, scale),
   }
   const names = railNames(plan)
-  const unplaced = unplacedByRail(plan, treatments)
+  const unplaced = unplacedByRail(rails, treatments)
   return (
     <svg
       aria-label={`Timeline of ${plan.name}`}

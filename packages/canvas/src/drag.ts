@@ -3,21 +3,40 @@ import { xToDay } from './scale.js'
 import type { PlanScale } from './scale.js'
 
 /**
- * Where the dragged bar's own **top-left corner** ended up, in the canvas's own coordinate space —
- * the space a bar's `x` and a rail's band are both measured in.
+ * Where the drag ended, in the canvas's own coordinate space — the space a bar's `x` and a rail's
+ * band are both measured in.
  *
- * The pointer's position is not that, and the difference is the offset inside the bar that the drag
- * was started at. Subtract it: `pointerX - (pointerDownX - bar.x)`, and the same on `y`. That is the
- * convention every answer here is computed in, because {@link dropTargetFor} compares this `x`
- * against each bar's `x`, and a bar's `x` is its left edge (`packages/canvas/src/rails.ts`). Handing
- * over a raw pointer x instead reads as a drag that travelled that offset further than it did, so
- * "dropped where it began changes nothing" fails by it — up to a whole bar's width for a bar grabbed
- * at its right end, which on a dense rail is several days and several siblings. `y` is only ever
- * asked which rail's band it falls in, so the same subtraction matters there for one case rather
- * than every one: a bar grabbed near its bottom edge and nudged down puts the pointer in the next
- * band while the bar itself has not left its own.
+ * Neither field is the pointer's own position: both have the offset the drag was grabbed at
+ * subtracted, and the two subtractions differ because the two numbers are compared against different
+ * things.
  *
- * Not a pointer event and not a rect. Turning one event into one of these — that subtraction
+ * `x` is the dragged bar's **left edge**: `pointerX - (pointerDownX - bar.x)`. {@link dropTargetFor}
+ * compares it against each bar's `x`, and a bar's `x` is its left edge
+ * (`packages/canvas/src/rails.ts`), so that subtraction is what has the two sides measuring one
+ * thing. Handing over a raw pointer x instead reads as a drag that travelled that offset further than
+ * it did, so "dropped where it began changes nothing" fails by it — up to a whole bar's width for a
+ * bar grabbed at its right end, which on a dense rail is several days and several siblings.
+ *
+ * `y` cannot be that same sentence, because a {@link FeatureBar} has no `y` to subtract: where a bar
+ * sits inside its rail's band is the renderer's own constant, and this package never sees it. So `y`
+ * is the y that the dragged bar's **whole band-relative offset** has been subtracted from —
+ * `pointerY - (pointerDownY - railTop(the rail the drag started on))`, with `railTop` the forward
+ * direction of {@link railAtY} in `apps/macroplan/components/plan/canvas/view.ts`. A drag of zero
+ * pixels then hands in that rail's own band top, and {@link railAtY} answers the rail the drag started
+ * on, which is what "dropped where it began changes nothing" needs on this axis too.
+ *
+ * The part of the bar that decides is its **top edge**, as on `x`, and the handoff is therefore whole
+ * bands of travel: the answer is the band the bar's top edge has travelled into, counted from its own
+ * band's top, so a rail below is reached after a full `railHeight` down and the rail above on the
+ * first pixel up. The refused alternative was handing in the top edge unadjusted and letting
+ * {@link railAtY} compare it against band tops directly: the handoff is then `barTop` up and
+ * `railHeight - barTop` down — 17px and 42px at that file's `LAYOUT` — which is an asymmetry set by a
+ * constant this package cannot see and nobody chose. A caller wanting the handoff at half a band adds
+ * `railHeight / 2` here, which rests a bar in the middle of its own band instead of on its top edge;
+ * that is the choice of the component that owns `railTop`, and the round trip between the two is that
+ * component's test to write.
+ *
+ * Not a pointer event and not a rect. Turning one event into one of these — those subtractions
  * included — is the step no test in this repository can check:
  * `docs/adr/0055-canvas-geometry-is-its-own-pure-package.md` records why, and it is the same reason
  * everything here is arithmetic over numbers. Deciding what to do with the answer is a client
@@ -27,7 +46,10 @@ export interface DragPoint {
   /** The dragged bar's left edge, which is the pointer's x less the grab offset inside the bar. */
   readonly x: number
 
-  /** The dragged bar's top edge, which is the pointer's y less the grab offset inside the bar. */
+  /**
+   * The dragged bar's top edge less its own offset within its rail band, which is the pointer's y
+   * less the grab offset within that band. A drag of zero pixels is that band's own top.
+   */
   readonly y: number
 }
 
@@ -71,6 +93,14 @@ export interface RailMetrics {
  * different plan and get a confident placement rather than a complaint. A {@link RailBox} answers both:
  * `colour === null` is "no epic claims this rail", and `featureIds` is the order, derived by the
  * `railsOf` call the layout already made rather than by a second one here.
+ *
+ * That first equivalence holds of a box `railLayout` built, and holds because of two things together:
+ * `CanvasEpic.colour` is a non-nullable `string` (`packages/canvas/src/plan.ts`), and the map a box's
+ * colour is looked up in is built from `plan.epics` and nothing else — so the only `null` such a box
+ * can carry is the missing entry for an `epicId` no epic declared, never an epic that declared no
+ * colour. A box assembled by hand can of course carry `null` beside an epic the plan does have, and
+ * {@link dropTargetFor} then refuses that rail: it reads the box it was handed, which is the whole
+ * point of taking one.
  */
 export interface DropQuery {
   readonly point: DragPoint
@@ -155,23 +185,30 @@ const leftOfDrop =
   (bar: FeatureBar, index: number): boolean =>
     index !== dragged && (bar.x < x || (bar.x === x && index < dragged))
 
-function placeOf(rest: readonly string[], id: string): number {
+function placeOf(rest: readonly string[], id: string, epicId: string): number {
   const found = rest.indexOf(id)
-  if (found === -1) throw new Error(`a bar for ${id} was drawn on a rail that does not carry it`)
+  if (found === -1)
+    throw new Error(`a bar for ${id} was drawn on rail ${epicId}, which does not carry it`)
   return found
 }
 
-function landingAmong(
-  rest: readonly string[],
-  remaining: readonly FeatureBar[],
-  gap: number,
-  own: number,
-): number {
+interface Lifted {
+  readonly epicId: string
+  readonly rest: readonly string[]
+  readonly remaining: readonly FeatureBar[]
+  readonly gap: number
+  readonly own: number
+}
+
+function landingAmong(lifted: Lifted): number {
+  const { epicId, rest, remaining, gap, own } = lifted
   const ahead = remaining[gap]
-  if (ahead !== undefined) return placeOf(rest, ahead.id)
-  const last = remaining[remaining.length - 1]
-  if (last !== undefined) return placeOf(rest, last.id) + 1
-  return own === -1 ? rest.length : own
+  const behind = gap === 0 ? undefined : remaining[gap - 1]
+  const lower = behind === undefined ? 0 : placeOf(rest, behind.id, epicId) + 1
+  const upper = ahead === undefined ? rest.length : placeOf(rest, ahead.id, epicId)
+  if (own !== -1 && own >= lower && own <= upper) return own
+  if (ahead !== undefined) return upper
+  return remaining.length === 0 ? rest.length : lower
 }
 
 /**
@@ -189,9 +226,20 @@ function landingAmong(
  * that wants to say which one it hit — "unclaimed rail" reads differently from "off the canvas" — has
  * the {@link RailBox} it passed in to read `colour === null` off, rather than a wider return type here.
  *
- * The rule is to land where the bar the drop fell in front of sits in the stored order, with the dragged
- * feature lifted out of that order first. Four things separate that from counting bars, and each of the
- * four was a number that looked right:
+ * The rule is one sentence. **A drop names the gap between two adjacent bars the rail draws** — the
+ * nearest bar left of the x and the nearest bar right of it, with the dragged feature's own bar lifted
+ * out before either is looked for — and the answer is a slot inside that gap, expressed in the stored
+ * order with the dragged feature lifted out of that too. Every slot inside one gap is drawn in the
+ * same place, because a sibling stored between two *adjacent* bars is by definition one the forward
+ * pass could not place and `rails.ts` therefore drew nowhere. So when the dragged feature's own slot
+ * is already inside the gap, the answer is that slot and nothing moves: §9 of
+ * `docs/superpowers/specs/2026-09-22-macroplan-design.md` gates this phase on "a test asserts nothing
+ * auto-moves", and a drop inside the gap a feature was already in is a drop whose result the user
+ * could not have seen.
+ *
+ * Wherever the gap has a bar at an end, that end is a place read off that bar's id and never a count —
+ * the place of the bar ahead, and one past the place of the bar behind. Five numbers have stood here,
+ * and each of the five was a special case of the sentence above that looked right on its own:
  *
  * - A rail's features are not its bars, so no count of bars is the answer. The bar the drop landed in
  *   front of is asked for its id, and the position is read off the feature carrying that id. On a rail
@@ -207,29 +255,42 @@ function landingAmong(
  *   (`packages/schedule/src/forward-pass.ts`), so a rail opening with one draws two bars at one `x`, and
  *   "strictly left of the point" cannot tell them apart. At a tie the bars keep the order they already
  *   have, which is the only answer under which a drag dropped where it began moves nothing.
- * - Past the last remaining bar there is no bar to be in front of, and the answer is still a bar's
- *   place and not a count: one past where that last bar sits in the lifted-out order. The count of
- *   features was the fourth wrong number, and it is last on the rail — so on a rail whose stored order
- *   runs past its last bar, it jumped every sibling stored beyond that bar. With one bar on the rail it
- *   fired for every x, including the bar's own: that rail could not be moved and was reordered anyway.
+ * - Past the last remaining bar there is no bar ahead, and the gap's far end is then the end of the
+ *   order — but its near end is still a bar's place and not a count: one past where the last bar sits
+ *   in the lifted-out order. The count of features was the fourth wrong number, and it is last on the
+ *   rail — so on a rail whose stored order runs past its last bar, it jumped every sibling stored
+ *   beyond that bar. With one bar on the rail it fired for every x, including the bar's own: that rail
+ *   could not be moved and was reordered anyway.
+ * - Taking one **end** of the gap as the whole answer was the fifth, and it is where the four above
+ *   converge. The far end jumps every sibling stored between the bar behind and the bar ahead; the near
+ *   end drags the feature back over those same siblings; and neither asks what the rule asks, which is
+ *   whether the feature is inside the gap already. A rail whose middle feature has no estimate yet — an
+ *   ordinary state, and the one shape this function's fixture had never held — therefore reordered on a
+ *   drag of zero pixels at both of its bars, the first forward over that sibling and the second back
+ *   over it, and by two places where two such siblings are stored.
  *
- * On a rail left with no bars at all there is nothing to read a place off, and the answer is the dragged
- * feature's own place in the stored order, which is the one number that puts it back where it was.
- * Nothing on that rail is drawn, so nothing on it was dropped in front of anything, and §9 of
- * `docs/superpowers/specs/2026-09-22-macroplan-design.md` gates this phase on "a test asserts nothing
- * auto-moves". For a feature not on that rail at all there is no own place, and the answer is last —
- * a drop on a rail drawn empty is the one case where the x says nothing and the only orders available
- * are first and last.
+ * A rail left with **no bars after the lift-out** is that same sentence and not an exception: with no
+ * bar behind and none ahead, the gap is the whole rail, so every slot is inside it and the dragged
+ * feature's own slot is the answer. That covers a rail drawing nothing at all and a rail drawing
+ * exactly one bar — the dragged one — which is where the count of features last reordered a rail
+ * nothing could be moved on. What is true of such a rail is not that its orders are limited: on a rail
+ * left with `n` siblings every slot from 0 to `n` is available, and the answer is one of them. It is
+ * that the **x carries no information**, there being no bar to have landed in front of, so every x on
+ * the rail answers the same slot rather than a placement invented from the pixels. A feature the rail
+ * does not carry has no own slot and lands last, which is where this product puts work arriving on a
+ * rail: §6 of the spec has new work "append after the last sibling".
  *
- * `-1` from `findIndex` and `indexOf` is the sentinel for both of those, and it means two things worth
- * separating. `dragged` is `-1` when this rail draws no bar for the dragged feature, which covers a
+ * `-1` from `findIndex` and `indexOf` is what "no bar" and "no own slot" both arrive as, and the two are
+ * worth separating. `dragged` is `-1` when this rail draws no bar for the dragged feature, which covers a
  * feature on another rail and a feature on this one that the pass could not place; both want the same
  * thing, which is no bar excluded from the count. `own` is `-1` only for a feature this rail does not
  * carry at all.
  *
  * A bar whose id is in `bars` and not in `featureIds` cannot happen — `railLayout` builds both from one
- * rail — so `placeOf` throws rather than answering. The number it would otherwise have to invent is
- * "last on the rail", and answering a silent reorder on a corrupt layout is worse than failing.
+ * rail — so `placeOf` throws rather than answering, naming the rail as well as the bar, because a
+ * caller holding a whole layout cannot tell from the id alone which box it built wrong. The number it
+ * would otherwise have to invent is "last on the rail", and answering a silent reorder on a corrupt
+ * layout is worse than failing.
  *
  * {@link xToDay} is asked for the one thing here that is a day — whether the x is on the axis at all —
  * which leaves where day 0 sits in the module that decides it.
@@ -240,9 +301,12 @@ export function dropTargetFor(query: DropQuery): DropTarget | null {
   const rail = railAtY(point.y, query.rails, query.metrics)
   if (rail === null || rail.colour === null) return null
   const dragged = rail.bars.findIndex((bar) => bar.id === featureId)
-  const own = rail.featureIds.indexOf(featureId)
-  const gap = rail.bars.filter(leftOfDrop(point.x, dragged)).length
-  const remaining = rail.bars.filter((_, index) => index !== dragged)
-  const rest = rail.featureIds.filter((id) => id !== featureId)
-  return { epicId: rail.epicId, position: landingAmong(rest, remaining, gap, own) }
+  const lifted: Lifted = {
+    epicId: rail.epicId,
+    rest: rail.featureIds.filter((id) => id !== featureId),
+    remaining: rail.bars.filter((_, index) => index !== dragged),
+    gap: rail.bars.filter(leftOfDrop(point.x, dragged)).length,
+    own: rail.featureIds.indexOf(featureId),
+  }
+  return { epicId: rail.epicId, position: landingAmong(lifted) }
 }

@@ -64,9 +64,11 @@ export interface RailBox {
    *
    * `bars` is a **subsequence** of this, so "the third bar" and "the third feature" are different
    * numbers on any rail carrying a feature the pass could not place. Carried out here rather than
-   * left behind is what lets a consumer answering an order question — `dropTargetFor` in `drag.ts` —
-   * take no plan and call `railsOf` no second time: the paragraph on {@link railLayout} about a rail
-   * order derived twice applies to a consumer re-deriving it just as much as to this module.
+   * left behind is what lets a consumer of a box answer an order question with no plan in hand and no
+   * second `railsOf` call — `dropTargetFor` in `drag.ts` and `unplacedByRail` in
+   * `apps/macroplan/components/plan/canvas/view.ts` are both that. The paragraph on
+   * {@link railLayout} about a rail order derived twice applies to a consumer re-deriving it just as
+   * much as to this module.
    *
    * Ids rather than the `ScheduleFeature` records they were read off, which would carry `position`
    * along with them. The whole point of deriving this order once is that nothing downstream can

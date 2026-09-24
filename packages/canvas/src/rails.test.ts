@@ -7,6 +7,7 @@ import { scaleFor, dayToX, widthOfDays } from './scale.js'
 
 const E1 = 'epic-1'
 const E2 = 'epic-2'
+const E3 = 'epic-3'
 const NO_SUCH_EPIC = 'epic-nobody-declared'
 
 const FT1 = 'feature-1'
@@ -14,6 +15,9 @@ const MILESTONE = 'feature-2-milestone'
 const NOEST = 'feature-3-unestimated'
 const FT2 = 'feature-4'
 const ORPHAN = 'feature-5-orphan-rail'
+const AROUND_FIRST = 'feature-6'
+const SKIPPED = 'feature-7-unestimated'
+const AROUND_LAST = 'feature-8'
 
 const IT1 = 'item-1'
 const IT2 = 'item-2'
@@ -41,6 +45,7 @@ const PLAN: CanvasPlan = {
   epics: [
     { id: E2, railOrder: 1, colour: '#3388ff' },
     { id: E1, railOrder: 0, colour: '#ff8833' },
+    { id: E3, railOrder: 2, colour: '#33ff88' },
   ],
   features: [
     feature(ORPHAN, NO_SUCH_EPIC, 0, 2),
@@ -48,6 +53,9 @@ const PLAN: CanvasPlan = {
     feature(NOEST, E2, 0, null),
     feature(MILESTONE, E1, 1, 0),
     feature(FT1, E1, 0, 4),
+    feature(AROUND_LAST, E3, 2, 3),
+    feature(SKIPPED, E3, 1, null),
+    feature(AROUND_FIRST, E3, 0, 4),
   ],
   items: [
     { id: IT2, featureId: FT1, position: 1, estimateDays: 2 },
@@ -84,7 +92,7 @@ describe('railLayout turns a plan and its wire schedule into one box per rail', 
 
   it('gives a feature with an unknown epicId a rail of its own, ordered last', () => {
     const rails = layout()
-    expect(rails.map((rail) => rail.epicId)).toEqual([E1, E2, NO_SUCH_EPIC])
+    expect(rails.map((rail) => rail.epicId)).toEqual([E1, E2, E3, NO_SUCH_EPIC])
     expect(rails.at(-1)?.bars.map((bar) => bar.id)).toEqual([ORPHAN])
   })
 
@@ -112,7 +120,14 @@ describe('railLayout turns a plan and its wire schedule into one box per rail', 
 
   it('never draws an item span as a feature bar, though spans carries both kinds in one array', () => {
     expect(WIRE.spans.map((span) => span.id)).toContain(IT1)
-    expect(bars().map((bar) => bar.id)).toEqual([FT1, MILESTONE, FT2, ORPHAN])
+    expect(bars().map((bar) => bar.id)).toEqual([
+      FT1,
+      MILESTONE,
+      FT2,
+      AROUND_FIRST,
+      AROUND_LAST,
+      ORPHAN,
+    ])
   })
 
   it('orders bars within a rail by (position, id), which is what railsOf already decided', () => {
@@ -137,6 +152,17 @@ describe('a rail carries its whole feature order, not only the features that got
     expect(layout()[1]?.bars.map((bar) => bar.id)).toEqual([FT2])
   })
 
+  it('omits a feature the pass could not place from the middle of a rail, which is a different hole from the prefix one above and the shape a drop between two bars has to read', () => {
+    expect(layout()[2]?.featureIds).toEqual([AROUND_FIRST, SKIPPED, AROUND_LAST])
+    expect(layout()[2]?.bars.map((bar) => bar.id)).toEqual([AROUND_FIRST, AROUND_LAST])
+    expect(forwardPass(PLAN).unscheduled.map((one) => one.id)).toContain(SKIPPED)
+  })
+
+  it('leaves the second bar on that rail at the day the first one ends, an unplaced feature between them cutting no chain', () => {
+    expect(barFor(AROUND_FIRST).endDay).toBe(4)
+    expect(barFor(AROUND_LAST).startDay).toBe(4)
+  })
+
   it('keeps naming every feature when the wire schedule carries no spans at all', () => {
     expect(railLayout(PLAN, { spans: [] }, SCALE).map((rail) => rail.featureIds)).toEqual(
       layout().map((rail) => rail.featureIds),
@@ -146,7 +172,7 @@ describe('a rail carries its whole feature order, not only the features that got
 
 describe('a rail carries its epic colour as data, because the canvas never chooses a hue', () => {
   it('passes the epic colour through untouched, byte for byte', () => {
-    expect(layout().map((rail) => rail.colour)).toEqual(['#ff8833', '#3388ff', null])
+    expect(layout().map((rail) => rail.colour)).toEqual(['#ff8833', '#3388ff', '#33ff88', null])
   })
 
   it('answers null for a rail no epic claims, rather than inventing a default or an empty string', () => {
@@ -161,7 +187,7 @@ describe('railLayout reads only what it was given', () => {
   })
 
   it('omits every bar when the wire schedule carries no spans at all', () => {
-    expect(railLayout(PLAN, { spans: [] }, SCALE).map((rail) => rail.bars)).toEqual([[], [], []])
+    expect(railLayout(PLAN, { spans: [] }, SCALE).map((rail) => rail.bars)).toEqual([[], [], [], []])
   })
 
   it('mutates neither argument, so two layouts of one plan agree', () => {

@@ -190,10 +190,9 @@ const context = (plan: Plan): Rows => ({
  * mismatch there is a bar drawn on the wrong rail" (`packages/schedule/src/derived-order.ts`).
  * `railLayout` is where what such a mismatch costs is written out: "a second total order written in
  * this package could disagree with the first on any tie — which is a bar drawn on the wrong rail,
- * silently, at exactly the zoom level nobody tested" (`packages/canvas/src/rails.ts`; `view.ts`'s
- * `unplacedByRail` cites the same sentence). A table ordered by a sort of its own would put its rows
- * in an order the bars are not in, which is the one thing that makes two renderings of one plan
- * impossible to check against each other by eye.
+ * silently, at exactly the zoom level nobody tested" (`packages/canvas/src/rails.ts`). A table ordered
+ * by a sort of its own would put its rows in an order the bars are not in, which is the one thing that
+ * makes two renderings of one plan impossible to check against each other by eye.
  *
  * Names are **joined back to the plan**, because the derived order answers `ScheduleFeature` and
  * `ScheduleItem` — the forward pass's own shapes, which carry ids, positions and estimates and no
