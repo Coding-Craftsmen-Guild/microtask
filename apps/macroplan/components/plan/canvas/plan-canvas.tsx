@@ -1,25 +1,10 @@
-import { dayToX, itemsToMarks, railLayout, rungFor, treatmentsOf } from '@repo/canvas'
 import type { DayRange, PlanScale } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { QuarterBandLayer } from './quarter-bands'
 import { Rail } from './rail'
 import { SprintTickLayer } from './sprint-ticks'
 import { TodayMark } from './today-mark'
-import {
-  canvasHeight,
-  canvasWidth,
-  CANVAS_RANGE,
-  CANVAS_SCALE,
-  DRAWS,
-  gutterX,
-  LAYOUT,
-  marksByFeature,
-  railNames,
-  railTop,
-  unplacedByRail,
-  viewBoxOf,
-  type RailFrame,
-} from './view'
+import { canvasLayout, CANVAS_RANGE, CANVAS_SCALE, railTop } from './view'
 
 const CANVAS = 'block shrink-0'
 
@@ -52,8 +37,10 @@ export interface PlanCanvasProps {
  * **It computes no geometry.** Every x and every width on this canvas came out of `@repo/canvas`,
  * which holds no React and no DOM and was tested without one — spec §5: "Layout is **pure
  * functions** … with the React component a thin renderer over their output. An SVG canvas is
- * otherwise untestable except through screenshots." What is decided here is which of those functions
- * to call, in what order to nest their output, and which px the chrome's own boxes are.
+ * otherwise untestable except through screenshots." **It also decides none of them.** Which of those
+ * functions to call, and in what order, is `canvasLayout`'s in `./view` — asserted there against its
+ * return value rather than here through an `<svg>` no test can measure. What is left in this function
+ * is which of its answers to nest inside which.
  *
  * The plan goes into each of those functions **as the value, never as a spread**. A contracts-shaped
  * `PlanView` satisfies `CanvasPlan` and `PlanCalendar` structurally with no adapter and no cast, and
@@ -93,18 +80,7 @@ export function PlanCanvas({
   range = CANVAS_RANGE,
   scale = CANVAS_SCALE,
 }: PlanCanvasProps) {
-  const rails = railLayout(plan, plan.schedule, scale)
-  const height = canvasHeight(rails.length)
-  const treatments = treatmentsOf(plan.schedule)
-  const frame: RailFrame = {
-    marks: marksByFeature(itemsToMarks(plan, plan.schedule, scale)),
-    treatments,
-    draws: DRAWS[rungFor(range)],
-    labelX: gutterX(scale, range) + LAYOUT.labelInset,
-    axisX: dayToX(range.fromDay, scale),
-  }
-  const names = railNames(plan)
-  const unplaced = unplacedByRail(rails, treatments)
+  const { rails, height, width, viewBox, names, unplaced, frame } = canvasLayout(plan, range, scale)
   return (
     <svg
       aria-label={`Timeline of ${plan.name}`}
@@ -112,8 +88,8 @@ export function PlanCanvas({
       data-slot="plan-canvas"
       height={height}
       role="img"
-      viewBox={viewBoxOf(rails.length, scale, range)}
-      width={canvasWidth(scale, range)}
+      viewBox={viewBox}
+      width={width}
     >
       <QuarterBandLayer height={height} plan={plan} range={range} scale={scale} />
       <SprintTickLayer height={height} plan={plan} range={range} scale={scale} />

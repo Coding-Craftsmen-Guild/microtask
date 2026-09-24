@@ -1,4 +1,12 @@
-import { dayToX, scaleFor, widthOfDays } from '@repo/canvas'
+import {
+  dayToX,
+  itemsToMarks,
+  railLayout,
+  rungFor,
+  scaleFor,
+  treatmentsOf,
+  widthOfDays,
+} from '@repo/canvas'
 import type { DayRange, ItemMark, PlanScale, RailBox, Rung, Treatment } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 
@@ -264,4 +272,72 @@ export const marksByFeature = (
     else group.push(mark)
   }
   return byFeature
+}
+
+/** One canvas's own `<svg>` box, its rails, and everything those rails need to draw themselves. */
+export interface CanvasLayout {
+  /** Every rail, in the one order `railLayout` derived. One `<g>` each, top to bottom. */
+  readonly rails: readonly RailBox[]
+
+  /** The `<svg>`'s `height`, which is also the height the chrome layers are drawn to. */
+  readonly height: number
+
+  /** The `<svg>`'s `width`, the label gutter included. */
+  readonly width: number
+
+  /** The `<svg>`'s `viewBox`, which is what crops the geometry to the range. */
+  readonly viewBox: string
+
+  /** Each epic's name by its id, for the rail label a `RailBox` carries no name for. */
+  readonly names: ReadonlyMap<string, string>
+
+  /** Each rail's off-axis features, keyed on the epic id the rail is keyed on. */
+  readonly unplaced: ReadonlyMap<string, readonly string[]>
+
+  /** What every rail on this canvas shares, built once. */
+  readonly frame: RailFrame
+}
+
+/**
+ * Everything one render of the canvas needs, derived in one place from the plan, the range and the
+ * scale.
+ *
+ * Here rather than in `PlanCanvas` for the reason the rest of this file is here: it is the deciding of
+ * which pure function to call in what order, and it is asserted directly instead of through a rendered
+ * `<svg>` that `happy-dom` cannot measure. What is left in the component is which of these to nest
+ * inside which, and nothing that computes a number.
+ *
+ * `treatmentsOf` is called **once** and threaded into both the {@link RailFrame} and
+ * {@link unplacedByRail}, which is the rule that function states for itself and the reason the two
+ * cannot disagree about which features the forward pass left off the axis. `railLayout` is likewise
+ * called once, and {@link railNames} and {@link unplacedByRail} read the boxes it answered rather than
+ * re-deriving a rail order the layout already decided.
+ *
+ * It takes the range and the scale as arguments rather than reading {@link CANVAS_RANGE} and
+ * {@link CANVAS_SCALE}, so that every rung stays reachable: `rungFor` reads the range, and a caller
+ * passing a range wider than a quarter gets the epic rung's `draws` out of this and a canvas with no
+ * bars on it — which is what `plan-canvas.test.tsx` renders to pin the rung.
+ */
+export function canvasLayout(
+  plan: PlanScreenModel,
+  range: DayRange,
+  scale: PlanScale,
+): CanvasLayout {
+  const rails = railLayout(plan, plan.schedule, scale)
+  const treatments = treatmentsOf(plan.schedule)
+  return {
+    rails,
+    height: canvasHeight(rails.length),
+    width: canvasWidth(scale, range),
+    viewBox: viewBoxOf(rails.length, scale, range),
+    names: railNames(plan),
+    unplaced: unplacedByRail(rails, treatments),
+    frame: {
+      marks: marksByFeature(itemsToMarks(plan, plan.schedule, scale)),
+      treatments,
+      draws: DRAWS[rungFor(range)],
+      labelX: gutterX(scale, range) + LAYOUT.labelInset,
+      axisX: dayToX(range.fromDay, scale),
+    },
+  }
 }

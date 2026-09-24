@@ -2,32 +2,9 @@ import type { PlanControls } from '../../lib/plan-capabilities'
 import { PlanCanvas } from './canvas/plan-canvas'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
-
-const VIEWS = 'flex flex-wrap items-center gap-x-2 gap-y-4'
-
-const TIMELINE_ID = 'plan-view-timeline'
-
-const TABLE_ID = 'plan-view-table'
-
-const HINT_ID = 'plan-view-hint'
+import { VIEW_SWITCH } from './view-switch'
 
 const HINT = 'Choose which rendering of this plan is on screen. The table stays readable either way.'
-
-const TIMELINE_RADIO = 'peer/timeline sr-only'
-
-const TABLE_RADIO = 'peer/table sr-only'
-
-const TIMELINE_TAB =
-  'cursor-pointer rounded-lg px-3 py-1.5 text-[13px] font-semibold text-muted-foreground ring-1 ring-foreground/10 peer-checked/timeline:bg-card peer-checked/timeline:text-foreground peer-focus-visible/timeline:ring-2 peer-focus-visible/timeline:ring-brand'
-
-const TABLE_TAB =
-  'cursor-pointer rounded-lg px-3 py-1.5 text-[13px] font-semibold text-muted-foreground ring-1 ring-foreground/10 peer-checked/table:bg-card peer-checked/table:text-foreground peer-focus-visible/table:ring-2 peer-focus-visible/table:ring-brand'
-
-const SCROLLER =
-  'w-full overflow-x-auto rounded-xl bg-card p-3 ring-1 ring-foreground/10 peer-checked/table:hidden'
-
-const TABLE_PANEL =
-  'w-full rounded-xl bg-card p-3 ring-1 ring-foreground/10 peer-checked/timeline:sr-only'
 
 /** Props for {@link PlanScreen}. */
 export interface PlanScreenProps {
@@ -116,6 +93,12 @@ export interface PlanScreenProps {
  * asserting a structure that is not there. The radios and that sentence are `sr-only`, so they are out
  * of flow and cost the layout nothing, and each panel is `w-full`, so it takes a line of its own under
  * the two tabs.
+ *
+ * That sibling requirement is why what moved out of this file is `VIEW_SWITCH` — ten strings in
+ * `./view-switch` — and **not** a `<ViewSwitch>` component. The markup of the radios, their labels and
+ * both panels has to stay one flat list of siblings here; a component drawn around any part of it is
+ * the wrapper the paragraph above rules out. The strings are the part of the switch that can leave, and
+ * `view-switch.ts` says why each of them is coupled to the others.
  */
 export function PlanScreen({ plan, at }: PlanScreenProps) {
   return (
@@ -126,35 +109,35 @@ export function PlanScreen({ plan, at }: PlanScreenProps) {
           {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
         </p>
       </div>
-      <div className={VIEWS}>
-        <p className="sr-only" id={HINT_ID}>
+      <div className={VIEW_SWITCH.views}>
+        <p className="sr-only" id={VIEW_SWITCH.hintId}>
           {HINT}
         </p>
         <input
-          aria-describedby={HINT_ID}
-          className={TIMELINE_RADIO}
+          aria-describedby={VIEW_SWITCH.hintId}
+          className={VIEW_SWITCH.timelineRadio}
           defaultChecked
-          id={TIMELINE_ID}
+          id={VIEW_SWITCH.timelineId}
           name="plan-view"
           type="radio"
         />
-        <label className={TIMELINE_TAB} htmlFor={TIMELINE_ID}>
+        <label className={VIEW_SWITCH.timelineTab} htmlFor={VIEW_SWITCH.timelineId}>
           Timeline
         </label>
         <input
-          aria-describedby={HINT_ID}
-          className={TABLE_RADIO}
-          id={TABLE_ID}
+          aria-describedby={VIEW_SWITCH.hintId}
+          className={VIEW_SWITCH.tableRadio}
+          id={VIEW_SWITCH.tableId}
           name="plan-view"
           type="radio"
         />
-        <label className={TABLE_TAB} htmlFor={TABLE_ID}>
+        <label className={VIEW_SWITCH.tableTab} htmlFor={VIEW_SWITCH.tableId}>
           Table
         </label>
-        <div className={SCROLLER}>
+        <div className={VIEW_SWITCH.scroller}>
           <PlanCanvas at={at} plan={plan} />
         </div>
-        <div className={TABLE_PANEL}>
+        <div className={VIEW_SWITCH.tablePanel}>
           <PlanTable plan={plan} />
         </div>
       </div>
