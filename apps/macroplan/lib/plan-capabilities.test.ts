@@ -184,9 +184,12 @@ describe('each content control is the record’s own answer for the action behin
     const record = capabilities(role, PLAN)
     for (const control of CONTROLS) {
       expect(asked[control], control).toBe(record[WRITES[control]])
-      expect(asked[control], control).toBe(
-        mayReach(role, PLAN, WRITES[control], ACTION_DECISIONS[WRITES[control]].target),
-      )
+      // Asked the way the three `share:*` rows above have to be asked — against `'plan'` rather than
+      // against the action's own declared target. For these eighteen the two agree, which is the
+      // whole reason they may be read off the record; the share rows are the case where they do not.
+      // Asking with `ACTION_DECISIONS[...].target` instead would assert nothing, `capabilities()`
+      // being defined as exactly that call.
+      expect(asked[control], control).toBe(mayReach(role, PLAN, WRITES[control], 'plan'))
     }
   })
 
