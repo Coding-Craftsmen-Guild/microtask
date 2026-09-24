@@ -52,8 +52,9 @@ export interface EpicsApi {
   /**
    * Moves one rail to a rail order, renumbering the rails densely.
    *
-   * Its own path segment rather than a key on {@link EpicsApi.update}, because reordering is a
-   * different authority from renaming: `epic:reorder` against `epic:rename`. The features on every
+   * Its own path segment rather than a key on {@link EpicsApi.update}, because the API gates it as
+   * its own action: `epic:reorder` against `epic:rename`. Both sit at `manage`, so this is a
+   * separate gate rather than a higher bar — a `write` seat is refused either. The features on every
    * rail keep the positions they had, so the spans in the response move only if a rail's contents
    * did.
    */

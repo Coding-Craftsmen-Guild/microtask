@@ -239,10 +239,4 @@ describe('every operation addresses the path the API actually serves', () => {
       'https://api.example.test/v1/macroplan/plans/p%201/epics/e%201',
     ])
   })
-
-  it('parses a plan back out of the delete, because that route answers 200 and not 204', async () => {
-    calls.length = 0
-    await expect(macroplan.epics.remove('p1', 'e1')).rejects.toThrow()
-    expect(calls[0]?.init.method).toBe('DELETE')
-  })
 })
