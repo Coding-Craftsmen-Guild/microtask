@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { PlanControls } from '../../lib/plan-capabilities'
 import { PlanCanvas } from './canvas/plan-canvas'
 import type { PlanScreenModel } from './plan-screen-model'
@@ -31,6 +32,27 @@ export interface PlanScreenProps {
    * beside this screen as well as under it.
    */
   readonly controls: PlanControls
+
+  /**
+   * Whatever is open beside the plan: one feature, one item, or the sentence saying nothing is.
+   *
+   * A **slot** and not a component, because what fills it is a route. `/plans/[planId]/layout.tsx`
+   * renders this screen and passes its own `children` through, so opening a feature is one soft
+   * navigation that re-renders the drawer and leaves the canvas and the table exactly as they are — a
+   * layout does not re-render when navigation moves between its children. A `<PlanDrawer>` mounted
+   * inside here instead would put the selection back into this subtree's render, which is the cost
+   * the route was chosen to avoid.
+   *
+   * It sits **above** the view switch rather than below both panels, and that is about the table:
+   * it is always mounted and 2,200 rows tall at this product's cap, so a slot after it would open a
+   * drawer thousands of rows below the plan's name.
+   *
+   * Optional, so this screen renders unchanged where no drawer route exists — which today is
+   * `/s/<token>`, whose own twins of those two segments are a later task. `undefined` renders
+   * nothing at all rather than an empty container: a collapsed panel with no content is markup
+   * nobody reads, and the admin surface's empty state is a page that says something instead.
+   */
+  readonly drawer?: ReactNode
 }
 
 /**
@@ -100,7 +122,7 @@ export interface PlanScreenProps {
  * the wrapper the paragraph above rules out. The strings are the part of the switch that can leave, and
  * `view-switch.ts` says why each of them is coupled to the others.
  */
-export function PlanScreen({ plan, at }: PlanScreenProps) {
+export function PlanScreen({ plan, at, drawer }: PlanScreenProps) {
   return (
     <div className="grid gap-4 pt-6">
       <div className="grid gap-1">
@@ -109,6 +131,7 @@ export function PlanScreen({ plan, at }: PlanScreenProps) {
           {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
         </p>
       </div>
+      {drawer}
       <div className={VIEW_SWITCH.views}>
         <p className="sr-only" id={VIEW_SWITCH.hintId}>
           {HINT}

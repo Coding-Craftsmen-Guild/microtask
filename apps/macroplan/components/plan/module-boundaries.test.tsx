@@ -2,13 +2,20 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import type { Plan } from '@repo/api-client'
 import { cleanup, render } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
 import { PlanCanvas } from './canvas/plan-canvas'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
+import type { TableRow } from './table/rows'
 import { PlanTable } from './table/plan-table'
-import { atlasPlan, unplacedPlan } from './testing/plan-fixture'
+import { atlasPlan, FEATURE_1, unplacedPlan } from './testing/plan-fixture'
+
+vi.mock('next/link', async () => ({
+  default: (await import('./testing/next-link')).LinkDouble,
+}))
+
+const { DrawerPanel } = await import('./drawer/drawer-panel')
 
 // Ported from packages/ui/src/transfer/module-boundaries.test.tsx, because neither app had an
 // equivalent and a canvas is exactly where a composed class name is tempting. Tailwind's scanner
@@ -64,6 +71,25 @@ const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
 // `ADMIN_CONTROLS` is what the admin page passes, and it draws every control there is — so a tree
 // rendered with it paints whatever markup a control brings with it, which is the stricter of the two
 // answers for a sweep of class names.
+//
+// The last two trees are the drawer: once in the slot the plan layout fills from its own `children`,
+// and once on its own, because a panel routed into that slot is painted by this sweep only if
+// something here renders it. `next/link` is doubled for them — `DrawerPanel` closes with a `Link`,
+// and the double forwards `className`, which is the attribute this file reads.
+// One row, written out rather than looked up, so the drawer tree below paints a panel whatever the
+// derived order does with the fixture.
+const DRAWER_ROW: TableRow = {
+  id: FEATURE_1,
+  kind: 'feature',
+  epic: 'Platform',
+  feature: 'Auth rewrite',
+  item: null,
+  estimate: '5d',
+  sprint: 'S1',
+  treatment: 'solid',
+  blockedBy: [],
+}
+
 const TREES = [
   <PlanScreen at={AT} controls={ADMIN_CONTROLS} key="a" plan={planScreenModel(atlasPlan())} />,
   <PlanScreen
@@ -86,6 +112,14 @@ const TREES = [
     range={{ fromDay: 0, toDay: 61 }}
   />,
   <PlanTable key="f" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
+  <PlanScreen
+    at={AT}
+    controls={ADMIN_CONTROLS}
+    drawer={<DrawerPanel closeHref="/plans/atlas" row={DRAWER_ROW} />}
+    key="g"
+    plan={planScreenModel(atlasPlan())}
+  />,
+  <DrawerPanel closeHref="/plans/atlas" key="h" row={{ ...DRAWER_ROW, kind: 'item', item: 'Sessions', treatment: 'hollow' }} />,
 ]
 
 describe('the class-literal reader this sweep is built on', () => {

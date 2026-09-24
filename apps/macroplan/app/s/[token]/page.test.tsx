@@ -142,6 +142,15 @@ const tokensServed = (): readonly string[] => {
 // its token to a component ("the page binds it into the actions it hands the tab strip"). Nothing on
 // this surface binds an action today. **Phase 3 will**, and must widen this to read a bound
 // function's arguments before it does.
+//
+// The gap is unchanged and unrelaxed. What has changed is that it can no longer be walked into
+// unnoticed: `functionsIn` below is a second walk, over the same tree, that records every function
+// this page hands over, and the last test in the sweep asserts there are none. Phase 3's drawer
+// route — the task that was expected to bind the first one — binds nothing at all: it is a Server
+// Component reading its own route params, and it draws words a table row had already decided. So a
+// bound action still cannot reach this surface silently: it fails the zero-functions assertion first,
+// and whoever adds it widens `stringsIn` to read that function's arguments, having been sent here by
+// a red test rather than by this comment.
 const stringsIn = (value: unknown, visited = new WeakSet<object>()): string[] => {
   if (typeof value === 'string') return [value]
   if (typeof value === 'function' || typeof value !== 'object' || value === null) return []
@@ -156,6 +165,14 @@ const stringsIn = (value: unknown, visited = new WeakSet<object>()): string[] =>
 
 const tokensHandedBy = (element: ReactNode, served = tokensServed()): string[] =>
   stringsIn(element).filter((one) => served.some((token) => one.includes(token)))
+
+const functionsIn = (value: unknown, visited = new WeakSet<object>()): string[] => {
+  if (typeof value === 'function') return [value.name]
+  if (typeof value !== 'object' || value === null || visited.has(value)) return []
+  visited.add(value)
+  const children = Object.values(isValidElement(value) ? (value.props as object) : value)
+  return children.flatMap((child: unknown) => functionsIn(child, visited))
+}
 
 describe('a plan seat lands on the one plan its token opens', () => {
   it('asks what the token reaches, then reads that plan, both under the URL token', async () => {
@@ -247,6 +264,19 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
     expect(served).toContain(SEAT_TOKEN)
     expect(tokensHandedBy(element, served)).toEqual([])
     for (const token of served) expect(container.innerHTML).not.toContain(token)
+  })
+
+  it('sees a function planted where a bound action would sit, so “none at all” is checkable', () => {
+    const write = async (token: string): Promise<void> => {
+      await Promise.resolve(token)
+    }
+    expect(functionsIn(<form action={write.bind(null, SEAT_TOKEN)} />)).toHaveLength(1)
+    expect(functionsIn(<p>Atlas rollout</p>)).toEqual([])
+  })
+
+  it('hands over no function at all, so no token is hiding in a bound action’s arguments', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    expect(functionsIn(await LinkPlanPage(props(MANAGE_SEAT_TOKEN)))).toEqual([])
   })
 
   it('renders from a plan whose seats were dropped on the server, not merely unrendered', async () => {

@@ -1,0 +1,60 @@
+import { notFound } from 'next/navigation'
+import { DrawerPanel } from '../../../../../../components/plan/drawer/drawer-panel'
+import { tableRows } from '../../../../../../components/plan/table/rows'
+import { planPath } from '../../../../../../lib/routes'
+import { readPlan } from '../../read-plan'
+
+/** Props for {@link FeatureDrawerPage}. */
+export interface FeatureDrawerPageProps {
+  /** `planId` and `featureId` from `/plans/[planId]/f/[featureId]`, both untrusted. */
+  readonly params: Promise<{ readonly planId: string; readonly featureId: string }>
+}
+
+/**
+ * `/plans/<planId>/f/<featureId>`: one feature, open in the drawer slot beside its own plan.
+ *
+ * ### One read, and it is the layout's
+ *
+ * `readPlan(planId)` is `cache()`d on exactly that argument, so on a cold load this and
+ * `layout.tsx` share one `plans.read()` between them, and on a soft navigation — the layout not
+ * re-rendering at all — this is the only read of the request. Nothing is threaded down from the
+ * layout because a layout cannot hand its children a prop; the cache is what takes its place, and
+ * it only works while both ask with the same key. That is also why an expired admin is sent back to
+ * `/login?next=/plans/<id>` rather than to this drawer: the pathname inside `readPlan` is the plan's,
+ * because a per-drawer pathname would be a second cache key and so a second read of the largest
+ * response in the product.
+ *
+ * ### The subject is resolved through the table's own rows
+ *
+ * `tableRows` is where a feature's epic, estimate and sprint are already worded (§3.2 and §5, in
+ * `components/plan/table/rows.ts`), so finding this feature's row is both the existence check and
+ * every string the panel draws — and the drawer cannot disagree with the table about a plan they are
+ * rendering side by side. The lookup is complete for a feature: `railsOf` gives a feature whose
+ * `epicId` names no epic "a rail of its own, ordered after every real one" (`@repo/schedule`), so
+ * every feature the plan holds has exactly one row, and the drawer names the unclaimed rail the
+ * canvas draws rather than refusing the feature.
+ *
+ * A `featureId` no row answers to is `notFound()` and never an empty panel: the read answered the
+ * whole plan, so an id absent from it is a stale link and not a thing still loading. That is the
+ * idiom `missingIsNotFound` applies to the API's own 404s (`packages/app-session/src/action-result.ts`)
+ * — this is the same answer for an absence the app can see for itself, and `notFound()` is called
+ * directly for it as `apps/microtask`'s share-scope check does, there being no `ActionResult` to
+ * carry. The boundary it lands on is `[planId]/not-found.tsx`, which renders inside the layout, so
+ * the plan stays on screen.
+ *
+ * An `itemId` in this segment is therefore also `notFound()`: the row it finds is an item's, the kind
+ * is checked, and the two segments cannot answer for each other.
+ *
+ * A refused read returns **nothing at all** rather than a second sentence. The layout met the same
+ * refusal from the same cached read and says it once, in place of the timeline, and it renders no slot
+ * when it does — so a sentence here would be either a duplicate or unreachable, and drawing a panel
+ * from a plan nobody was allowed to read is not on the table.
+ */
+export default async function FeatureDrawerPage({ params }: FeatureDrawerPageProps) {
+  const { planId, featureId } = await params
+  const loaded = await readPlan(planId)
+  if (!loaded.ok) return null
+  const row = tableRows(loaded.value).find((one) => one.kind === 'feature' && one.id === featureId)
+  if (row === undefined) notFound()
+  return <DrawerPanel closeHref={planPath(planId)} row={row} />
+}
