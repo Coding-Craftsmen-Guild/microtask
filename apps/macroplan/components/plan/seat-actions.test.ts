@@ -56,6 +56,8 @@ const DESCRIPTION = 'Rotate the signing keys first.'
 
 const actions = seatPlanActions(TOKEN)
 
+const sorted = (names: readonly string[]): readonly string[] => [...names].sort()
+
 interface Wiring {
   readonly key: string
   readonly run: () => Promise<unknown>
@@ -173,10 +175,14 @@ describe("the seat surface's wiring, checked by calling every member", () => {
     expect(calls).toEqual([wiring.sends])
   })
 
+  // Membership, not order: `actions/seat-writes.test.ts` compares its own module's exports the same
+  // way, sorted, because what this sweep has to catch is a member missing from one side or the
+  // other — not a reordering of `seatPlanActions`'s object literal, which `WIRING` above happens to
+  // mirror for readability but which no test needs to hold.
   it('wires all eighteen, so the sweep above is neither empty nor short of one', () => {
     expect(WIRING).toHaveLength(18)
     expect(Object.keys(actions)).toHaveLength(18)
-    expect(WIRING.map((one) => one.key)).toEqual(Object.keys(actions))
+    expect(sorted(WIRING.map((one) => one.key))).toEqual(sorted(Object.keys(actions)))
   })
 
   it('binds one token and no other, whichever seat is holding the page', async () => {

@@ -29,32 +29,34 @@ type ItemEstimate = Exclude<ItemChange['estimateDays'], undefined>
  *
  * **The token is the first argument of every action in this file, and it is the whole credential.**
  * A Server Action is a public endpoint, so that argument is whatever the browser sent — which is
- * safe on this surface and on no other, because the token *is* the proof rather than a claim about
- * one: an action called with a token has exactly that token's power, decided by the API from the
- * seat's own role and the plan it is rooted in on every call, and that is no more than holding the
- * URL already gives (ADR 0040). No cookie is read, so an admin signed in on the same browser lends
- * a seat nothing. `apps/microtask/actions/link-share-links.ts` takes the same argument first for the
- * same reason.
+ * safe on this surface and on no other, for the reason ADR 0040 gives in full: `actions/link-call.ts`'s
+ * `linkCall`, which every action here reaches through `seatWrite`. No cookie is read, so an admin
+ * signed in on the same browser lends a seat nothing. `apps/microtask/actions/link-share-links.ts`
+ * takes the same argument first for the same reason.
  *
  * **All eighteen writes are here, and this file narrows none of them to a role.** A `view` seat may
  * write nothing, a `write` seat holds seven of them, and a `manage` seat holds every one — but that
  * table lives in `packages/kernel/src/access/policy.ts`, and a copy of it in an app would be a
  * second policy free to drift from the one that is actually enforced. So every action is exposed,
  * the API refuses what the seat may not do, and the refusal comes back as this surface's own
- * sentence (`lib/refusal.ts`). Which *control* a page draws is a separate question, answered from
- * `planCapabilities` and never from what this file exports.
+ * sentence (`lib/refusal.ts`). Which *control* a page draws for one of these is a separate,
+ * rendering-only question, decided from the seat's own role and scope rather than from what this
+ * file exports. `planCapabilities` answers that question today only for a plan's own seats
+ * (`share:*`); no control for any of the eighteen writes above exists yet, and nothing on this
+ * surface draws one.
  *
  * Each action is the mirror of the like-named one in `epics.ts`, `features.ts` or `items.ts` — same
- * route, same method, same one field per body — so the reasoning about *what* is sent lives there
- * and is not restated eighteen times here. What each doc below adds is the grant the API asks for
- * it, because that is the one thing a seat can be refused for and an admin cannot.
+ * route, same method, same body — so the reasoning about *what* is sent lives there and is not
+ * restated eighteen times here. What each doc below adds is the grant the API asks for it, because
+ * that is the one thing a seat can be refused for and an admin cannot.
  *
  * `epic:create`, and only `manage` holds it: every `epic:*` action **this file sends** is a `manage`
  * grant, because a rail is the shape of the plan rather than the work on it (spec §7.1). Not every
  * `epic:*` action — `epic:bind` is in `ADMIN_ONLY_ACTIONS`, refused before any role is consulted,
  * because an epic's binding role is the ceiling on what a link holder reaches through the bridge and
- * a holder who could re-role it would raise its own ceiling. `policy.ts` says outright that this is
- * the exception callers get wrong, so the generalisation is not one to make even in passing.
+ * a holder who could re-role it would raise its own ceiling. `policy.ts` records one caller who
+ * cited ADR 0009 for it — the wrong reason, as that file's own doc says — so the generalisation is
+ * not one to make even in passing.
  */
 export async function seatCreateEpic(token: string, planId: string, epic: NewEpic): Answer {
   return seatWrite(token, (api) => api.epics.create(planId, epic))
@@ -100,9 +102,9 @@ export async function seatRemoveEpic(token: string, planId: string, epicId: stri
  * holds.
  *
  * One gate stands in front of the whole body while `CreateFeaturePayload` accepts a `pinSprint`, so
- * a `write` seat may create a feature already pinned to a sprint {@link seatPinFeature} would refuse
- * it afterwards — `createFeature` in `features.ts` holds that argument in full. Nothing here strips
- * the field, for the same reason nothing here narrows the eighteen.
+ * a `write` seat may create a feature already pinned to a sprint — a pin {@link seatPinFeature}
+ * would refuse if asked for afterwards — `createFeature` in `features.ts` holds that argument in
+ * full. Nothing here strips the field, for the same reason nothing here narrows the eighteen.
  */
 export async function seatCreateFeature(
   token: string,
@@ -125,10 +127,13 @@ export async function seatRenameFeature(
 /**
  * Re-estimates one feature, or clears its estimate with `null`. `feature:estimate`, a `write` grant.
  *
- * It travels apart from {@link seatPinFeature} on this surface for a reason the admin surface does
- * not have: that route authorises the fields a body **carries**, and these two fields are the exact
- * pair a `write` seat is granted one of and refused the other, so one merged action would lose the
- * estimate it was allowed to the pin it was not.
+ * It travels apart from {@link seatPinFeature} for the reason `renameFeature` in `features.ts`
+ * records: that route authorises the fields a body **carries**, `feature:estimate` sits at `write`
+ * and `feature:pin` at `manage`, and a body carrying both meets both gates before the store opens.
+ * This is the one surface where that split actually bites, though: an app admin's principal passes
+ * every gate outright (`policy.ts`'s `can` returns `true` before a role is even read), so only a
+ * seat principal is ever checked against `write` or `manage` — and only here could a merged action
+ * lose the estimate a `write` seat was allowed to the pin it was not.
  */
 export async function seatEstimateFeature(
   token: string,

@@ -27,6 +27,11 @@ import { adminCall, type ActionResult } from './result'
  * It takes the id and the call rather than the built pathname, so no caller can pass a path that is
  * not a plan page. The id is a **target** for the API to judge, never proof the caller may touch it:
  * `adminCall` re-derives the authority from the cookie on every call and this adds nothing to it.
+ *
+ * Neither this nor {@link seatWrite} is exported from a `'use server'` module, and that is
+ * deliberate: Next registers **every** export of one as a Server Action reachable by its own id, and
+ * both of these take a function argument no browser could ever send. They are ordinary functions the
+ * action modules import, so the only public endpoints this app publishes are the actions themselves.
  */
 export async function adminWrite(
   planId: string,
@@ -43,17 +48,16 @@ export async function adminWrite(
  *
  * The body every action in `seat-writes.ts` shares, and it lives beside {@link adminWrite} rather
  * than in a module of its own because the two are the same two sentences with one word changed —
- * which call runs it. The rule underneath them is the one that would drift if a reader had to find
- * the other file to compare: a refused write changed nothing, so `refresh` runs **only on success**,
- * and re-rendering a refusal would replace the sentence the caller is about to show with the page it
- * already had. Both surfaces re-render for the same reason, too: `/s/<token>` reads its plan on the
- * server from the token in its own URL, exactly as `/plans/<planId>` reads it from `mp_admin`, so a
- * write that landed leaves a rendered plan that is one version behind on either of them.
+ * which call runs it. {@link adminWrite} is where the rule under both of them is recorded: a refused
+ * write changed nothing, so `refresh` runs only on success. Both surfaces re-render for the same
+ * further reason: `/s/<token>` reads its plan on the server from the token in its own URL, exactly
+ * as `/plans/<planId>` reads it from `mp_admin`, so a write that landed leaves a rendered plan that
+ * is one version behind on either of them.
  *
- * The `refresh` is here and not in `linkCall` for the reason `apps/microtask/actions/`'s link
- * actions each carry their own: `linkCall` is also the body of `linkRead`, which a **page** calls
- * while it renders, and a re-render asked for during a read is not a re-render of anything that
- * changed.
+ * It runs the write through `linkCall`, not `adminCall`, and the `refresh` has to live here rather
+ * than inside `linkCall` for the reason `apps/microtask/actions/`'s link actions each carry their
+ * own: `linkCall` is also the body of `linkRead`, which a **page** calls while it renders, and a
+ * re-render asked for during a read is not a re-render of anything that changed.
  *
  * **It takes no pathname**, where {@link adminWrite} builds one from the plan id. The only use the
  * admin half makes of that path is `?next=`, so an expired session lands back where it was; a seat
@@ -62,14 +66,13 @@ export async function adminWrite(
  * `proxy.ts` refuses to create when it declines to gate `/s/*`. `linkCall` fixes the path at
  * `LINK_UNAVAILABLE_PATH` for that reason, and a 401 here is a dead link rather than an expiry.
  *
- * The token is the whole credential and is re-presented to the API on every call, so this adds no
+ * The token is the whole credential here too, re-presented to the API and checked there on every
+ * call — {@link linkCall} holds the full ADR 0040 argument for why that is safe — so this adds no
  * authority to it and takes none away: which of the eighteen writes the holder may actually perform
- * is the API's answer, from the seat's own role (`packages/kernel/src/access/policy.ts`).
+ * is the API's own answer, from the seat's own role.
  *
- * Neither this nor {@link adminWrite} is exported from a `'use server'` module, and that is
- * deliberate: Next registers **every** export of one as a Server Action reachable by its own id, and
- * both of these take a function argument no browser could ever send. They are ordinary functions the
- * action modules import, so the only public endpoints this app publishes are the actions themselves.
+ * Neither this nor {@link adminWrite} is exported from a `'use server'` module, for the reason
+ * {@link adminWrite}'s own doc records.
  */
 export async function seatWrite(
   token: string,
