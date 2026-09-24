@@ -1,6 +1,5 @@
 import { seal } from '@repo/app-session/crypto'
 import { render, screen } from '@testing-library/react'
-import { isValidElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fakePlanApiState,
@@ -11,6 +10,7 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../../../components/plan/testing/fake-plan-api'
+import { handedBy } from '../../../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
   atlasPlan,
@@ -19,6 +19,7 @@ import {
   ITEM_3,
   PLAN_A,
   PLAN_GONE,
+  unplacedPlan,
 } from '../../../../../../components/plan/testing/plan-fixture'
 import { payloadOf } from '../../../../../../lib/principal'
 import { planPath } from '../../../../../../lib/routes'
@@ -112,29 +113,6 @@ const valueOf = (label: string): string =>
 
 const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 
-const sweep = (value: unknown, found: { strings: string[]; functions: string[] }, seen: WeakSet<object>): void => {
-  if (typeof value === 'string') {
-    found.strings.push(value)
-    return
-  }
-  if (typeof value === 'function') {
-    found.functions.push(value.name)
-    return
-  }
-  if (typeof value !== 'object' || value === null || seen.has(value)) return
-  seen.add(value)
-  if (isValidElement(value) && typeof value.key === 'string') found.strings.push(value.key)
-  for (const child of Object.values(isValidElement(value) ? (value.props as object) : value)) {
-    sweep(child, found, seen)
-  }
-}
-
-const handedBy = (element: ReactNode) => {
-  const found = { strings: [] as string[], functions: [] as string[] }
-  sweep(element, found, new WeakSet())
-  return found
-}
-
 describe('the drawer one item is open in', () => {
   it('names the item the URL names, and not the feature it flows under', async () => {
     await show()
@@ -152,6 +130,16 @@ describe('the drawer one item is open in', () => {
     await show()
     expect(valueOf('Estimate')).toBe('3d')
     expect(valueOf('Sprint')).toBe('S1')
+  })
+
+  // `3d` and `S1` are both wordings a panel formatting the record itself would land on, so the case
+  // above passes either way. This one does not: an unplaced item's sprint cell is a sentence `rows.ts`
+  // picks by treatment, and nothing outside that file knows which of the three to say.
+  it('says why an item has no sprint at all, in the sentence the row picked for its treatment', async () => {
+    api.plans = [unplacedPlan('in-cycle')]
+    await show(ITEM_3)
+    expect(screen.getByRole('heading', { level: 2, name: 'Invoices' })).toBeTruthy()
+    expect(valueOf('Sprint')).toBe('not placed · in a dependency cycle')
   })
 
   it('opens another feature’s item at its own address', async () => {

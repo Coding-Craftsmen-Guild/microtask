@@ -91,20 +91,34 @@ const DRAWER_ROW: TableRow = {
 }
 
 const TREES = [
-  <PlanScreen at={AT} controls={ADMIN_CONTROLS} key="a" plan={planScreenModel(atlasPlan())} />,
   <PlanScreen
     at={AT}
     controls={ADMIN_CONTROLS}
+    drawer={null}
+    key="a"
+    plan={planScreenModel(atlasPlan())}
+  />,
+  <PlanScreen
+    at={AT}
+    controls={ADMIN_CONTROLS}
+    drawer={null}
     key="b"
     plan={planScreenModel(unplacedPlan('no-estimate'))}
   />,
   <PlanScreen
     at={AT}
     controls={ADMIN_CONTROLS}
+    drawer={null}
     key="c"
     plan={planScreenModel(unplacedPlan('in-cycle'))}
   />,
-  <PlanScreen at={AT} controls={ADMIN_CONTROLS} key="d" plan={planScreenModel(unclaimed())} />,
+  <PlanScreen
+    at={AT}
+    controls={ADMIN_CONTROLS}
+    drawer={null}
+    key="d"
+    plan={planScreenModel(unclaimed())}
+  />,
   <PlanCanvas
     at={AT}
     key="e"

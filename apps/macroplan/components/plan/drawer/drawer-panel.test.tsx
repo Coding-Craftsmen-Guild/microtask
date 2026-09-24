@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TableRow } from '../table/rows'
-import { FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
+import { FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 
 vi.mock('next/link', async () => ({
   default: (await import('../testing/next-link')).LinkDouble,
@@ -96,5 +96,26 @@ describe('the panel one selection is drawn in', () => {
     render(<DrawerPanel closeHref={CLOSE} row={FEATURE_ROW} />)
     expect(screen.queryAllByRole('button')).toEqual([])
     expect(document.querySelector('form')).toBeNull()
+  })
+
+  // The row carries the dependency and the panel is documented not to draw it. Every other row in
+  // this file has an empty `blockedBy`, so nothing there could tell "deliberately not drawn" from
+  // "there was nothing to draw" — and a later edit could start wording an edge here in a second
+  // vocabulary with no case going red. Both of `PlanTableRow`'s halves of the sentence are checked:
+  // the name it would print, and the suffix `EDGE_SUFFIX` would print after it.
+  it('draws no dependency even when the row states one, that wording being the table’s alone', () => {
+    render(
+      <DrawerPanel
+        closeHref={CLOSE}
+        row={{
+          ...FEATURE_ROW,
+          blockedBy: [{ id: FEATURE_2, name: 'Billing', state: 'set-aside' }],
+        }}
+      />,
+    )
+    expect(labels()).toEqual(['Epic', 'Estimate', 'Sprint'])
+    expect(screen.queryByText(/Billing/)).toBeNull()
+    expect(screen.queryByText(/set aside to keep rail order/)).toBeNull()
+    expect(document.body.textContent).not.toContain(FEATURE_2)
   })
 })

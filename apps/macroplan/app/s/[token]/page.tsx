@@ -54,6 +54,12 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  * `new Date()`, which is what `PlanScreen.at` takes — and threaded down as the instant the today line
  * is drawn at, as the admin page does.
  *
+ * `drawer={null}` is this page **saying** it has no drawer, rather than leaving the prop off. The slot
+ * is required on `PlanScreen` for that reason: `/s/<token>/f/<featureId>` and `/s/<token>/i/<itemId>`
+ * are a later task — their builders are deliberately absent from `lib/drawer-routes.ts` until the
+ * pages exist — and on the day they arrive this one line is a compile error rather than a seat screen
+ * that goes on rendering without the panel it now has routes for.
+ *
  * ### What the bootstrap's answer is spent on, and what is not handed down
  *
  * `PlanShareView` carries three things — `role`, `scope` and `plan: { id, name }` — and all three are
@@ -82,5 +88,12 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
   const { role, scope } = share.value
   const plan = await readSeatPlan(token, scope.planId)
   if (!plan.ok) return refused(plan.detail)
-  return <PlanScreen at={new Date()} controls={planCapabilities(role, scope)} plan={plan.value} />
+  return (
+    <PlanScreen
+      at={new Date()}
+      controls={planCapabilities(role, scope)}
+      drawer={null}
+      plan={plan.value}
+    />
+  )
 }

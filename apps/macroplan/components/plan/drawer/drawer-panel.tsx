@@ -3,8 +3,6 @@ import type { TableRow } from '../table/rows'
 
 const PANEL = 'grid gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10'
 
-const KIND_LABEL = 'text-[11px] font-semibold tracking-wide text-muted-foreground uppercase'
-
 const TITLE = 'text-base font-semibold'
 
 const FACTS = 'grid gap-3 sm:grid-cols-3'
@@ -79,7 +77,10 @@ export interface DrawerPanelProps {
  *
  * The `<dl>` pairs each label with its value, which is what makes "Estimate: 5d" survive being read
  * aloud out of context; an item's panel names the feature it flows under and a feature's does not,
- * the heading having just said it.
+ * the heading having just said it. `LABEL` is one constant for the kind eyebrow and for every `<dt>`,
+ * because they are one typographic thing — a small uppercase label — and the same string under two
+ * names is a diff away from claiming they are two. A control group that needs a label unlike this one
+ * gets its own name then, not in advance.
  */
 export function DrawerPanel({ row, closeHref }: DrawerPanelProps) {
   return (
@@ -90,7 +91,7 @@ export function DrawerPanel({ row, closeHref }: DrawerPanelProps) {
       data-slot="drawer-panel"
       data-treatment={row.treatment}
     >
-      <p className={KIND_LABEL}>{KINDS[row.kind]}</p>
+      <p className={LABEL}>{KINDS[row.kind]}</p>
       <h2 className={TITLE} id={TITLE_ID}>
         {row.item ?? row.feature}
       </h2>

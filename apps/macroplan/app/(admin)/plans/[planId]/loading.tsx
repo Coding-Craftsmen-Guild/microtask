@@ -12,10 +12,15 @@
  * What is left is the reader who cannot see the canvas stay put, so the one thing here is a status
  * they are told about. It does not name the subject: the name is a fact from the plan, which is
  * exactly what has not arrived yet.
+ *
+ * `role="status"` and no `aria-live`. The role already carries `aria-live="polite"` in the ARIA
+ * specification's own definition of it, so spelling both is one behaviour written twice — two
+ * attributes to keep in step for nothing, and a reader of this file left wondering which one the
+ * announcement depends on.
  */
 export default function PlanDrawerLoading() {
   return (
-    <p aria-live="polite" className="sr-only" role="status">
+    <p className="sr-only" role="status">
       Loading…
     </p>
   )

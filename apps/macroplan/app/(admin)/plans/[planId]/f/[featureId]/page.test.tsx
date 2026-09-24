@@ -1,6 +1,6 @@
 import { seal } from '@repo/app-session/crypto'
 import { render, screen } from '@testing-library/react'
-import { isValidElement, type ReactNode } from 'react'
+import { isValidElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fakePlanApiState,
@@ -11,6 +11,7 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../../../components/plan/testing/fake-plan-api'
+import { handedBy } from '../../../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
   atlasPlan,
@@ -19,6 +20,7 @@ import {
   ITEM_1,
   PLAN_A,
   PLAN_GONE,
+  unplacedPlan,
 } from '../../../../../../components/plan/testing/plan-fixture'
 import { payloadOf } from '../../../../../../lib/principal'
 import { planPath } from '../../../../../../lib/routes'
@@ -114,33 +116,11 @@ const valueOf = (label: string): string =>
 
 const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 
-// The same walk `layout.test.tsx` carries, for the same reason: this page reads the very plan the
-// API answers an admin with every live token on, so "no token reaches a component" has to be checked
-// here too rather than inherited from the surface one segment up. Functions are collected and
-// asserted empty because a bound argument is unreachable by reflection (ADR 0040), and this page
-// binds nothing.
-const sweep = (value: unknown, found: { strings: string[]; functions: string[] }, seen: WeakSet<object>): void => {
-  if (typeof value === 'string') {
-    found.strings.push(value)
-    return
-  }
-  if (typeof value === 'function') {
-    found.functions.push(value.name)
-    return
-  }
-  if (typeof value !== 'object' || value === null || seen.has(value)) return
-  seen.add(value)
-  if (isValidElement(value) && typeof value.key === 'string') found.strings.push(value.key)
-  for (const child of Object.values(isValidElement(value) ? (value.props as object) : value)) {
-    sweep(child, found, seen)
-  }
-}
-
-const handedBy = (element: ReactNode) => {
-  const found = { strings: [] as string[], functions: [] as string[] }
-  sweep(element, found, new WeakSet())
-  return found
-}
+// The same walk `layout.test.tsx` runs, out of the one module the three of them share, for the same
+// reason: this page reads the very plan the API answers an admin with every live token on, so "no
+// token reaches a component" has to be checked here too rather than inherited from the surface one
+// segment up. Functions are collected and asserted empty because a bound argument is unreachable by
+// reflection (ADR 0040), and this page binds nothing.
 
 describe('the drawer one feature is open in', () => {
   it('names the feature the URL names, and no other feature of the plan', async () => {
@@ -154,6 +134,31 @@ describe('the drawer one feature is open in', () => {
     expect(valueOf('Epic')).toBe('Platform')
     expect(valueOf('Estimate')).toBe('5d')
     expect(valueOf('Sprint')).toBe('S1')
+  })
+
+  // The case above cannot fail: `atlasPlan()`'s first feature is authored at 5 days and its items add
+  // up to 5, so §3.2's compound form collapses to a bare `5d` — which is exactly what a panel
+  // formatting `feature.estimateDays` itself would print. The two below are the ones that make
+  // resolving the subject through `tableRows` load-bearing: neither wording exists anywhere but
+  // `rows.ts`, so a re-implementation here could not produce either by accident.
+  it('states the gap between what was authored and what was broken down, in the row’s own words', async () => {
+    const base = atlasPlan()
+    api.plans = [
+      atlasPlan({
+        features: base.features.map((one) =>
+          one.id === FEATURE_1 ? { ...one, estimateDays: 40 } : one,
+        ),
+      }),
+    ]
+    await show()
+    expect(valueOf('Estimate')).toBe('planned 40d · broken down to 5d · -35d')
+  })
+
+  it('says why a feature has no sprint at all, which is a sentence and not a number', async () => {
+    api.plans = [unplacedPlan('in-cycle')]
+    await show(FEATURE_2)
+    expect(valueOf('Sprint')).toBe('not placed · in a dependency cycle')
+    expect(screen.getByRole('heading', { level: 2, name: 'Billing' })).toBeTruthy()
   })
 
   it('opens the plan’s second feature at its own address, so a selection can be linked to', async () => {

@@ -34,6 +34,11 @@ export interface FeatureDrawerPageProps {
  * every feature the plan holds has exactly one row, and the drawer names the unclaimed rail the
  * canvas draws rather than refusing the feature.
  *
+ * The rows are shared the same way the read is: `tableRows` is `cache()`d on the plan object, and the
+ * plan object is the one `readPlan` cached, so finding one row here does not rebuild the 2,200 the
+ * table beside it is drawing — the one read of a soft navigation is also the one derivation of it
+ * (`components/plan/table/rows.ts`).
+ *
  * A `featureId` no row answers to is `notFound()` and never an empty panel: the read answered the
  * whole plan, so an id absent from it is a stale link and not a thing still loading. That is the
  * idiom `missingIsNotFound` applies to the API's own 404s (`packages/app-session/src/action-result.ts`)

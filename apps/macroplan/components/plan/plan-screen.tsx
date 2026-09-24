@@ -47,12 +47,19 @@ export interface PlanScreenProps {
    * it is always mounted and 2,200 rows tall at this product's cap, so a slot after it would open a
    * drawer thousands of rows below the plan's name.
    *
-   * Optional, so this screen renders unchanged where no drawer route exists — which today is
-   * `/s/<token>`, whose own twins of those two segments are a later task. `undefined` renders
-   * nothing at all rather than an empty container: a collapsed panel with no content is markup
-   * nobody reads, and the admin surface's empty state is a page that says something instead.
+   * **Required, and `null` on a surface with no drawer** — which today is `/s/<token>`, whose own
+   * twins of those two segments are a later task. Required and not optional for the reason
+   * `TableRow.item` gives one directory over, where a feature row's item cell is `null` and "not `''`
+   * and not a dash — because the cell is then about nothing rather than about something empty, and
+   * only one of the two is a fact a test can assert". The same holds of a whole slot: `drawer={null}`
+   * makes "this surface has no drawer" a sentence the seat page states, where an omitted prop is a
+   * question nobody asked — and it makes that page a compile error the day it gains drawer routes
+   * rather than a screen that quietly goes on rendering without one.
+   *
+   * `null` renders nothing at all rather than an empty container: a collapsed panel with no content is
+   * markup nobody reads, and the admin surface's empty state is a page that says something instead.
    */
-  readonly drawer?: ReactNode
+  readonly drawer: ReactNode
 }
 
 /**

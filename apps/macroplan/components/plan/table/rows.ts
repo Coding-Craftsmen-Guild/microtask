@@ -2,6 +2,7 @@ import { treatmentsOf } from '@repo/canvas'
 import type { Treatment } from '@repo/canvas'
 import { breakdown, effectiveEstimate, itemsByFeature, railsOf, sprintOf } from '@repo/schedule'
 import type { ScheduleFeature, ScheduleItem, Span } from '@repo/schedule'
+import { cache } from 'react'
 import { railNames } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
 
@@ -166,6 +167,14 @@ const itemRow = (item: ScheduleItem, feature: ScheduleFeature, rows: Rows): Tabl
   blockedBy: [],
 })
 
+const rowsOf = (plan: PlanScreenModel, rows: Rows): readonly TableRow[] =>
+  railsOf(plan).flatMap((rail) =>
+    rail.flatMap((feature) => [
+      featureRow(feature, rows),
+      ...(rows.items.get(feature.id) ?? []).map((item) => itemRow(item, feature, rows)),
+    ]),
+  )
+
 const context = (plan: PlanScreenModel): Rows => ({
   plan,
   items: itemsByFeature(plan),
@@ -218,6 +227,33 @@ const context = (plan: PlanScreenModel): Rows => ({
  * about an item naming no feature; that the same list is where this belongs is an inference, and it
  * is the one `UnplacedFeatures` already draws for what falls off the gutter.
  *
+ * ### One derivation per request, not one per caller
+ *
+ * `cache()` wraps this function, keyed on the plan object it is handed. Three callers want the same
+ * rows on one render — `PlanTable`, which draws every one of them, and each of the two drawer pages,
+ * which find one among them so that a panel cannot word an estimate the table worded differently —
+ * and `readPlan` is `cache()`d too, so all three are handed the **same** `PlanScreenModel` object and
+ * so meet the same entry (`app/(admin)/plans/[planId]/read-plan.ts`). Without this a cold drawer load
+ * built all 2,200 rows twice, and a soft navigation rebuilt every one of them to display one, which is
+ * the cost `[planId]/layout.tsx` moved the canvas and the table into a layout to avoid in the first
+ * place.
+ *
+ * It is memoised **here** rather than as a `rowsFor(planId)` beside that read, which was the other way
+ * to do it. This function is the only thing the callers share: `PlanTable` takes a plan and not a plan
+ * id, and it renders on `/s/<token>` as well, where the read is `readSeatPlan` and there is no
+ * `readPlan` to build such a helper on — and a component under `components/` reaching up into
+ * `app/(admin)/` for one would invert the dependency this app's boundaries run the other way. Wrapping
+ * the pure function instead leaves each call site reading as what it is, `tableRows(plan)`, and leaves
+ * the plan the only key there is.
+ *
+ * **No test here can demonstrate that**, and the reason is worth stating rather than discovering.
+ * React ships two builds, and outside the `react-server` condition `cache` is `function (fn) { return
+ * function () { return fn.apply(null, arguments) } }` — a pass-through holding nothing
+ * (`node_modules/react/cjs/react.development.js`), and that is the build vitest resolves. So the cases
+ * below pin this function's **answers**, a test asserting one derivation would pass against a
+ * pass-through and prove nothing, and the sharing itself rests on the same request-scoped store
+ * `readPlan` rests on — whose own tests count two reads for exactly this reason.
+ *
  * ### This file, if it grows
  *
  * Four concerns share it — the derived walk, the four edge states, §3.2's estimate wording and the
@@ -231,12 +267,6 @@ const context = (plan: PlanScreenModel): Rows => ({
  * than a ceiling on the one component that used to be the only way in.
  * @returns One row per feature and per item, features before their own items.
  */
-export function tableRows(plan: PlanScreenModel): readonly TableRow[] {
-  const rows = context(plan)
-  return railsOf(plan).flatMap((rail) =>
-    rail.flatMap((feature) => [
-      featureRow(feature, rows),
-      ...(rows.items.get(feature.id) ?? []).map((item) => itemRow(item, feature, rows)),
-    ]),
-  )
-}
+export const tableRows = cache((plan: PlanScreenModel): readonly TableRow[] =>
+  rowsOf(plan, context(plan)),
+)

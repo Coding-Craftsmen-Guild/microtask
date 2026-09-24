@@ -1,5 +1,6 @@
 import type { ScopeValue } from '@repo/contracts'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
 import { planCapabilities, type PlanControls } from '../../lib/plan-capabilities'
@@ -11,11 +12,31 @@ const AT = new Date('2026-10-05T09:00:00.000Z')
 
 const SEAT: ScopeValue = { kind: 'plan', planId: PLAN_A }
 
+// A marker rather than a `DrawerPanel`: what is asserted below is where the slot puts whatever fills
+// it and whether it draws anything when nothing does, and a real panel would make those two facts
+// depend on a second component's markup.
+const MARKER: ReactNode = <p data-testid="drawer-marker">whatever is open</p>
+
 // The fixture is a `StoredPlan`, where `shareLinks` is required, and `PlanScreen.plan` is the type a
 // token cannot be represented in — so the fixture is reduced by the component's own reducer rather
 // than cast past it. That the unwrapped call no longer compiles is the narrowing working.
-const show = (controls: PlanControls = ADMIN_CONTROLS) =>
-  render(<PlanScreen at={AT} controls={controls} plan={planScreenModel(atlasPlan())} />)
+//
+// `drawer` defaults to `null` here because that is what a surface with no drawer route passes: the
+// prop is required, so every case below states which of the two it is rendering.
+const show = (controls: PlanControls = ADMIN_CONTROLS, drawer: ReactNode = null) =>
+  render(<PlanScreen at={AT} controls={controls} drawer={drawer} plan={planScreenModel(atlasPlan())} />)
+
+const gridChildren = (container: HTMLElement): readonly Element[] => {
+  const grid = container.firstElementChild
+  if (grid === null) throw new Error('the screen rendered nothing at all')
+  return [...grid.children]
+}
+
+const firstRadio = (): HTMLElement => {
+  const found = screen.getAllByRole('radio')[0]
+  if (found === undefined) throw new Error('the view switch drew no radio')
+  return found
+}
 
 const radio = (name: string): HTMLInputElement => {
   const found = screen.getByRole('radio', { name })
@@ -107,6 +128,31 @@ describe('the switch between them', () => {
       'plan-view-timeline',
       'plan-view-table',
     ])
+  })
+})
+
+// Two documented decisions, unguarded until now — and both are edited again by the tasks that draw a
+// conflict list and a share manager into this same file, where markup order regresses silently.
+describe('the slot whatever is open beside the plan fills', () => {
+  it('adds nothing to the screen where there is no drawer, rather than an empty container', () => {
+    const empty = gridChildren(show().container)
+    const filled = gridChildren(show(ADMIN_CONTROLS, MARKER).container)
+    expect(empty).toHaveLength(2)
+    expect(filled).toHaveLength(empty.length + 1)
+    expect(screen.getAllByTestId('drawer-marker')).toHaveLength(1)
+  })
+
+  it('puts it above the view switch, so a drawer never opens below 2,200 rows of table', () => {
+    show(ADMIN_CONTROLS, MARKER)
+    const marker = screen.getByTestId('drawer-marker')
+    expect(marker.compareDocumentPosition(firstRadio()) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
+      marker.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it('leaves it outside the flex parent the radios and the panels share, being no peer of them', () => {
+    show(ADMIN_CONTROLS, MARKER)
+    expect(screen.getByTestId('drawer-marker').parentElement).not.toBe(firstRadio().parentElement)
   })
 })
 

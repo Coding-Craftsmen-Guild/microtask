@@ -314,13 +314,16 @@ describe('which controls the seat’s own role draws', () => {
 
   // The role and the scope are what `planCapabilities` is asked with, and neither goes down: a
   // permission restated below this point is one nothing authorises, and a component added later
-  // could ask a second question of it. What the screen gets is three props and no fourth.
+  // could ask a second question of it. What the screen gets is the plan, the instant, the controls and
+  // an explicitly empty drawer — four props and no fifth. `drawer` is in the set because the slot is
+  // required and this surface has no drawer route yet, so `null` is what this page states about it.
   it('hands the screen the controls and never the role, the scope or the share view itself', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await LinkPlanPage(props(WRITE_SEAT_TOKEN))
     expect(isValidElement(element)).toBe(true)
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    expect(Object.keys(handed).sort()).toEqual(['at', 'controls', 'plan'])
+    expect(Object.keys(handed).sort()).toEqual(['at', 'controls', 'drawer', 'plan'])
+    expect(handed['drawer']).toBeNull()
     const groups = Object.values(handed['controls'] as Record<string, Record<string, unknown>>)
     expect(groups.flatMap((group) => Object.values(group)).every((one) => typeof one === 'boolean')).toBe(true)
   })

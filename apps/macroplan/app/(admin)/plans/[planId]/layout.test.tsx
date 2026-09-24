@@ -12,6 +12,7 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../components/plan/testing/fake-plan-api'
+import { handedBy, tokensHandedBy } from '../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
   atlasPlan,
@@ -117,57 +118,14 @@ const redirectOf = async (planId: string): Promise<string> => {
 // demand every plan id be a leak.
 const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 
-interface Handed {
-  readonly strings: string[]
-  readonly functions: string[]
-}
-
-// Ported from this segment's page.test.tsx, where it guarded the surface that read the plan. It
-// guards this file now because **the read moved here**: the layout is what hands a plan to a
-// component, and a sweep left behind on a page that reads none would pass by having nothing to look
-// at. The page keeps its own copy of the last assertion, for the same reason in reverse.
+// The walk itself lives in `components/plan/testing/handed.ts`, which is also where what it can and
+// cannot see is written out — three surfaces run it and each carried its own copy before that, which
+// is the last thing a leak sweep should be able to drift in.
 //
-// 1. `key`. React moves it out of `props` onto `element.key`, so `<div key={token}>` is invisible to
-//    a walk that descends into `props` alone — and React does serialise keys into the Flight
-//    payload. `keysOf` reads it off the element, and the self-test below plants one.
-// 2. Functions. A bound argument is unreachable by reflection: `action.bind(null, token)` exposes
-//    neither the token nor its own name, so no walk can see inside one, and that is exactly the
-//    mechanism ADR 0040 describes for handing a token to a component. What is checkable is whether
-//    the layout hands over a function **at all**, so every function met is recorded and asserted
-//    empty. Phase 3's first bound server action therefore fails that assertion rather than passing
-//    it quietly, and whoever adds it has to say how its arguments are proved clean. The drawer this
-//    task added binds nothing — each drawer page is a Server Component reading its own route params
-//    and drawing words the row already decided — so the assertion stays at zero here and on
-//    `/s/<token>`, and reading a bound function's arguments is still owed by whoever binds one.
-const keysOf = (value: object): readonly string[] =>
-  isValidElement(value) && typeof value.key === 'string' ? [value.key] : []
-
-const childrenOf = (value: object): readonly unknown[] =>
-  Object.values(isValidElement(value) ? (value.props as object) : value)
-
-const sweep = (value: unknown, found: Handed, seen: WeakSet<object>): void => {
-  if (typeof value === 'string') {
-    found.strings.push(value)
-    return
-  }
-  if (typeof value === 'function') {
-    found.functions.push(value.name)
-    return
-  }
-  if (typeof value !== 'object' || value === null || seen.has(value)) return
-  seen.add(value)
-  found.strings.push(...keysOf(value))
-  for (const child of childrenOf(value)) sweep(child, found, seen)
-}
-
-const handedBy = (element: ReactNode): Handed => {
-  const found: Handed = { strings: [], functions: [] }
-  sweep(element, found, new WeakSet())
-  return found
-}
-
-const tokensHandedBy = (element: ReactNode): readonly string[] =>
-  handedBy(element).strings.filter((one) => EVERY_TOKEN.some((token) => one.includes(token)))
+// It guards this file because **the read moved here**: the layout is what hands a plan to a component,
+// and a sweep left behind on a page that reads none would pass by having nothing to look at. Each
+// drawer page keeps its own copy of the assertions, for the same reason in reverse.
+const tokensFrom = (element: ReactNode): readonly string[] => tokensHandedBy(element, EVERY_TOKEN)
 
 describe('the plan layout', () => {
   it('reads the one plan under the bearer the admin cookie carries, and reads nothing else', async () => {
@@ -305,8 +263,8 @@ describe('the plan layout hands no share token to a component, however senior th
         <p key={SEAT_TOKEN}>{[MANAGE_SEAT_TOKEN]}</p>
       </div>
     )
-    expect(tokensHandedBy(planted)).toHaveLength(3)
-    expect(tokensHandedBy(<p>Atlas rollout</p>)).toEqual([])
+    expect(tokensFrom(planted)).toHaveLength(3)
+    expect(tokensFrom(<p>Atlas rollout</p>)).toEqual([])
   })
 
   it('sees a function planted where a bound action would sit, so “none at all” is checkable', () => {
@@ -326,7 +284,7 @@ describe('the plan layout hands no share token to a component, however senior th
   it('hands not one of them to a component, and renders none of them', async () => {
     const element = await shown()
     const { container } = render(element)
-    expect(tokensHandedBy(element)).toEqual([])
+    expect(tokensFrom(element)).toEqual([])
     for (const token of EVERY_TOKEN) expect(container.innerHTML).not.toContain(token)
   })
 
