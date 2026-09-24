@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
-import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, ITEM_3 } from '../testing/plan-fixture'
+import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, ITEM_3, PLAN_GONE } from '../testing/plan-fixture'
 import { drawerSubject } from './subject'
 
 const plan = (overrides: Parameters<typeof atlasPlan>[0] = {}) =>
@@ -41,7 +41,7 @@ describe('resolving the one subject a drawer is open on', () => {
   })
 
   it('answers nothing for an id the plan does not hold at all', () => {
-    expect(drawerSubject(plan(), 'feature', '01MPFFFFFFFFFFFFFFFFFFFFF9')).toBeUndefined()
+    expect(drawerSubject(plan(), 'feature', PLAN_GONE)).toBeUndefined()
   })
 
   // The one absence narrower than "the plan holds this id", and the reason the row is the check: the

@@ -8,6 +8,7 @@ import {
   normalisedDescription,
   overBudget,
   paintUnfocused,
+  revertKey,
   FIELD,
   OVER_BUDGET,
   type SubjectWrite,
@@ -73,8 +74,13 @@ export interface DescriptionFieldProps {
  * Whitespace is still neither trimmed nor collapsed, and that is unchanged: the domain does not either,
  * so there is nothing to disagree about.
  *
- * It commits on blur and **not on Enter**, which in a `<textarea>` is a newline the user meant. That
- * is the one place this field departs from the drawer's field idiom (`./name-field.tsx`).
+ * ### The two places it departs from the drawer's field idiom
+ *
+ * It commits on blur and **not on Enter**, which in a `<textarea>` is a newline the user meant. So
+ * Escape is the whole of the keyboard here — {@link revertKey} rather than `commitKeys` — and it does
+ * what it does in the fields beside this one: puts the stored text back and leaves, which is a commit
+ * that sends nothing. Without it a half-rewritten description could not be abandoned at all, where a
+ * name or an estimate can.
  */
 export function DescriptionField({ planId, itemId, description, describe }: DescriptionFieldProps) {
   const box = useRef<HTMLTextAreaElement>(null)
@@ -114,6 +120,7 @@ export function DescriptionField({ planId, itemId, description, describe }: Desc
           defaultValue={description}
           onBlur={(event) => void commit(event.currentTarget.value)}
           onChange={(event) => setBytes(bytesOf(event.currentTarget.value))}
+          onKeyDown={(event) => revertKey(event, stored.current)}
           ref={box}
           rows={4}
         />

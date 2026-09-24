@@ -17,6 +17,9 @@ const TITLE_ID = 'plan-drawer-title'
 
 const KINDS: Readonly<Record<TableRow['kind'], string>> = { feature: 'Feature', item: 'Item' }
 
+const nameOf = (row: TableRow): string =>
+  row.kind === 'item' && row.item !== null ? row.item : row.feature
+
 /** Props for {@link DrawerPanel}. */
 export interface DrawerPanelProps {
   /** The plan this subject belongs to, which is what every write below is addressed at. */
@@ -93,9 +96,9 @@ export interface DrawerPanelProps {
  * create group is a **sibling** of the edits band here, taking the row for its context rather than as
  * its subject, and that is the one control group the frame gains rather than passes down.
  *
- * Two things here would move before anything else did: the
- * kind eyebrow and the heading, as one `./drawer-heading.tsx` taking the row, if a subtitle or a badge
- * ever joins them; and `KINDS`, which goes with them, being the only wording this file still owns. What
+ * Two things here would move before anything else did: the kind eyebrow and the heading, as one
+ * `./drawer-heading.tsx` taking the row — `nameOf` and `KINDS` going with them, being the only wording
+ * and the only reading of the row this file still owns — if a subtitle or a badge ever joins them. What
  * must **not** split is this file by row kind: a feature panel and an item panel answer the same
  * questions about different subjects, and `rows.ts` refuses the same split for the same reason.
  */
@@ -118,7 +121,7 @@ export function DrawerPanel({
     >
       <p className={LABEL}>{KINDS[row.kind]}</p>
       <h2 className={TITLE} id={TITLE_ID}>
-        {row.item ?? row.feature}
+        {nameOf(row)}
       </h2>
       <DrawerFacts row={row} />
       <DrawerEdits

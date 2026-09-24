@@ -249,3 +249,33 @@ describe('the two things the server would change besides truncating', () => {
     expect(onDescribe).toHaveBeenCalledWith(PLAN_A, ITEM_1, 'one\ntwo\nthree\tfour\nfive')
   })
 })
+
+// The second place this field departs from the idiom, and the one it was missing: Enter is a newline
+// here, so Escape is the whole of the keyboard — and without it a half-rewritten description could not
+// be abandoned at all, where a name or an estimate can.
+describe('abandoning an edit', () => {
+  it('puts the stored text back on Escape and sends nothing', async () => {
+    const { onDescribe, user } = setup('Ship behind a flag')
+    await user.clear(box())
+    await user.type(box(), 'Rewritten{Escape}')
+    expect(box().value).toBe('Ship behind a flag')
+    expect(onDescribe).not.toHaveBeenCalled()
+  })
+
+  it('clears a standing refusal on the way out, the box holding what the server has', async () => {
+    const { onDescribe, user } = setup('Ship behind a flag')
+    await paste('a'.repeat(MAX_ITEM_DESCRIPTION_BYTES + 1))
+    expect(screen.getByRole('alert')).toBeTruthy()
+    await user.type(box(), '{Escape}')
+    expect(box().value).toBe('Ship behind a flag')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(onDescribe).not.toHaveBeenCalled()
+  })
+
+  it('leaves Enter alone, it being the character Escape exists here instead of', async () => {
+    const { onDescribe, user } = setup('')
+    await user.type(box(), 'one{Enter}two')
+    expect(box().value).toBe('one\ntwo')
+    expect(onDescribe).not.toHaveBeenCalled()
+  })
+})

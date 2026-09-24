@@ -34,6 +34,12 @@ export interface NameFieldProps {
 /**
  * A feature's or an item's name, edited in place by the rules the field idiom already fixed.
  *
+ * A blur that sends nothing still **clears a standing refusal**, which is the one place this leaves
+ * `inline-name.tsx` behind and the one place both its siblings were already right: a refusal is about
+ * what was last sent, and once the box holds the stored name again there is nothing left for it to be
+ * about. A reader would otherwise be told the field was invalid while it held exactly what the server
+ * has.
+ *
  * `apps/microtask/components/task-tree/inline-name.tsx` is the model and this follows it: Enter and
  * Escape both commit by leaving the field, leaving it commits, and a value that is empty or unchanged
  * once whitespace is collapsed restores the stored name **with no request**. There is no
@@ -77,7 +83,7 @@ export function NameField({ planId, subjectId, kind, name, rename }: NameFieldPr
       const kept = result.ok ? subjectValues(result.value, kind, subjectId) : undefined
       if (kept !== undefined) stored.current = kept.name
       setProblem(result.ok ? '' : result.detail)
-    }
+    } else setProblem('')
     paintUnfocused(field.current, stored.current)
   }
   return (

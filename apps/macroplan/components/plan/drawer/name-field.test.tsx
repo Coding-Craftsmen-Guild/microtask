@@ -1,4 +1,5 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
+import { LIMITS } from '@repo/contracts'
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -112,7 +113,7 @@ describe('the name a drawer edits', () => {
 
   it('caps what can be typed at the name length the API accepts', () => {
     setup()
-    expect(field().maxLength).toBe(80)
+    expect(field().maxLength).toBe(LIMITS.nameLength)
   })
 
   it('shows the refusal and restores the stored name when the server refuses', async () => {
@@ -216,5 +217,37 @@ describe('what a reader is told about a refusal, rather than only what is painte
     await user.type(field(), 'Two{Enter}')
     expect(field().getAttribute('aria-describedby')).toBeNull()
     expect(field().getAttribute('aria-invalid')).toBeNull()
+  })
+})
+
+// Both siblings already cleared a standing refusal on a blur that sends nothing, and this field did
+// not: it matched `inline-name.tsx`, which has no refusal to clear. A reader would have been told the
+// field was invalid while it held exactly what the server has.
+describe('a blur that sends nothing', () => {
+  it('clears a standing refusal when the field is left holding the stored name', async () => {
+    const { onRename, user } = setup(() =>
+      Promise.resolve({ ok: false, status: 403, detail: 'Not permitted: feature:rename' }),
+    )
+    await user.clear(field())
+    await user.type(field(), 'Mine{Enter}')
+    expect(screen.getByRole('alert')).toBeTruthy()
+    await user.click(field())
+    await user.tab()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(field().getAttribute('aria-invalid')).toBeNull()
+    expect(onRename).toHaveBeenCalledTimes(1)
+  })
+
+  it('clears it on an emptied field too, which restores the name with no request', async () => {
+    const { onRename, user } = setup(() =>
+      Promise.resolve({ ok: false, status: 409, detail: 'No.' }),
+    )
+    await user.clear(field())
+    await user.type(field(), 'Mine{Enter}')
+    await user.clear(field())
+    await user.type(field(), '   {Enter}')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(field().value).toBe('Auth rewrite')
+    expect(onRename).toHaveBeenCalledTimes(1)
   })
 })

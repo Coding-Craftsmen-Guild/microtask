@@ -7,6 +7,8 @@ import {
   normalisedDescription,
   overBudget,
   OVER_BUDGET,
+  TOO_MANY_DAYS,
+  WHOLE_DAYS,
 } from './field'
 
 const days = (typed: string): number | null | string => {
@@ -37,9 +39,7 @@ describe('the three states an estimate field can be in', () => {
 
   it('refuses a fraction, a negative and a word with one sentence naming the field’s own rule', () => {
     for (const typed of ['2.5', '-3', 'abc', '5d', '-0']) {
-      expect(days(typed), typed).toBe(
-        'An estimate is a whole number of days, 0 or more — or empty for work nobody has sized yet.',
-      )
+      expect(days(typed), typed).toBe(WHOLE_DAYS)
     }
   })
 
@@ -51,9 +51,8 @@ describe('the three states an estimate field can be in', () => {
 
   it('refuses more days than the contract’s own maximum, naming it', () => {
     expect(days(String(MAX_ESTIMATE_DAYS))).toBe(MAX_ESTIMATE_DAYS)
-    expect(days(String(MAX_ESTIMATE_DAYS + 1))).toBe(
-      `An estimate cannot be more than ${String(MAX_ESTIMATE_DAYS)} days.`,
-    )
+    expect(days(String(MAX_ESTIMATE_DAYS + 1))).toBe(TOO_MANY_DAYS)
+    expect(TOO_MANY_DAYS).toContain(String(MAX_ESTIMATE_DAYS))
   })
 })
 
@@ -83,13 +82,14 @@ describe('counting a description in the unit the cap is written in', () => {
   })
 
   it('says what is left before the cap is reached, and by how much once it is passed', () => {
-    expect(budgetLine(0)).toBe(`${String(MAX_ITEM_DESCRIPTION_BYTES)} of 8192 bytes left`)
-    expect(budgetLine(MAX_ITEM_DESCRIPTION_BYTES)).toBe('0 of 8192 bytes left')
-    expect(budgetLine(MAX_ITEM_DESCRIPTION_BYTES + 12)).toBe('12 bytes over the 8192-byte cap')
+    const cap = String(MAX_ITEM_DESCRIPTION_BYTES)
+    expect(budgetLine(0)).toBe(`${cap} of ${cap} bytes left`)
+    expect(budgetLine(MAX_ITEM_DESCRIPTION_BYTES)).toBe(`0 of ${cap} bytes left`)
+    expect(budgetLine(MAX_ITEM_DESCRIPTION_BYTES + 12)).toBe(`12 bytes over the ${cap}-byte cap`)
   })
 
   it('refuses in terms of what the API would otherwise do, since it answers 200 either way', () => {
-    expect(OVER_BUDGET).toContain('8192')
+    expect(OVER_BUDGET).toContain(String(MAX_ITEM_DESCRIPTION_BYTES))
     expect(OVER_BUDGET).toContain('drops the rest without saying so')
   })
 })

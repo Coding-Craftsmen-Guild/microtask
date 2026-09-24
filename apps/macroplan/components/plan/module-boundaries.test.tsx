@@ -5,7 +5,7 @@ import { cleanup, render } from '@testing-library/react'
 import { isValidElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
-import type { PlanEditActions } from './edit-actions'
+import type { PlanContentControls } from '../../lib/plan-capabilities'
 import type { DrawerValues } from './drawer/values'
 import { PlanCanvas } from './canvas/plan-canvas'
 import { PlanScreen } from './plan-screen'
@@ -13,6 +13,7 @@ import { planScreenModel } from './plan-screen-model'
 import type { TableRow } from './table/rows'
 import { PlanTable } from './table/plan-table'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
+import { nothingDrawn, stubActions } from './testing/plan-writes'
 import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
 import { NameField } from './drawer/name-field'
@@ -61,14 +62,18 @@ const SCANNED_TOKENS = new Set(
   [...walk(APP), ...walk(UI_SRC)].flatMap((file) => literalTokens(read(file))),
 )
 
+// Comments above the directive are skipped, which they have to be: `'use client'` must be the first
+// **statement** of a module and a comment is not one, so a file with a TSDoc block over its directive
+// is a client file that reading the first non-blank line alone would have missed — and every file under
+// this subtree carries such a block. The sweep is now an allowlist, so a client file it cannot see is a
+// client file admitted without being named.
 const declaresUseClient = (source: string) => {
-  const first = source.split(/\r?\n/).find((line) => line.trim() !== '') ?? ''
+  const bare = source.replace(/\/\*[\s\S]*?\*\//g, '\n').replace(/^\s*\/\/.*$/gm, '')
+  const first = bare.split(/\r?\n/).find((line) => line.trim() !== '') ?? ''
   return /^["']use client["'];?$/.test(first.trim())
 }
 
 const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
-
-const SERVED = { ok: true as const, value: atlasPlan() }
 
 // Every `plan` prop under this subtree is `PlanScreenModel`, whose type cannot hold a share token,
 // and every fixture here is a `StoredPlan` that carries three. So each tree is handed its plan
@@ -101,24 +106,21 @@ const DRAWER_ROW: TableRow = {
 
 // The drawer now draws fields, so every tree below that mounts it hands over the pair a page hands
 // over — the row the table worded and the values a field edits — plus the controls and the writes. The
-// actions are stubs rather than `ADMIN_PLAN_ACTIONS`: what this file reads is class names and props,
-// and a real Server Action would drag `next/headers` into a sweep that has no request. `ADMIN_CONTROLS`
-// draws every field there is, which is the stricter answer for a class-name sweep, and one tree draws
-// none of them so the `empty:hidden` group is painted too.
-const STUB_ACTIONS = Object.fromEntries(
-  Object.keys(ADMIN_CONTROLS.content).map((name) => [name, vi.fn(() => Promise.resolve(SERVED))]),
-) as unknown as PlanEditActions
+// actions are the shared stubs rather than `ADMIN_PLAN_ACTIONS` (`testing/plan-writes.ts`, which is
+// where that scaffolding lives now that two files build it): what this file reads is class names and
+// props, and a real Server Action would drag `next/headers` into a sweep that has no request.
+// `ADMIN_CONTROLS` draws every field there is, which is the stricter answer for a class-name sweep, and
+// one tree draws none of them so the `empty:hidden` group is painted too.
+const STUB_ACTIONS = stubActions()
 
-const NOTHING_DRAWN = Object.fromEntries(
-  Object.keys(ADMIN_CONTROLS.content).map((name) => [name, false]),
-) as unknown as typeof ADMIN_CONTROLS.content
+const NOTHING_DRAWN = nothingDrawn()
 
 interface Panel {
   readonly key: string
   readonly row?: TableRow
   readonly values?: DrawerValues
   readonly description?: string | null
-  readonly controls?: typeof ADMIN_CONTROLS.content
+  readonly controls?: PlanContentControls
 }
 
 const panel = (over: Panel) => (
@@ -262,6 +264,20 @@ describe('the class-literal reader this sweep is built on', () => {
     const composed = 'const T = "bg-"\nexport const X = () => <div className={`${T}card`} />'
     expect(literalTokens(composed)).not.toContain('bg-card')
     expect(/className=\{`/.test(composed)).toBe(true)
+  })
+
+  it('sees a directive under a comment block, which is where every file here would put one', () => {
+    expect(declaresUseClient("/**\n * A field.\n */\n'use client'\n")).toBe(true)
+    expect(declaresUseClient("// a note\n'use client'\n")).toBe(true)
+    expect(declaresUseClient("'use client'\n")).toBe(true)
+  })
+
+  it('reads a directive that is not the first statement as no directive, which is what React does', () => {
+    expect(declaresUseClient("import { useState } from 'react'\n'use client'\n")).toBe(false)
+    expect(declaresUseClient("export const GROUP = 'grid gap-1'\n")).toBe(false)
+    expect(declaresUseClient("/** Not a directive: 'use client' in prose. */\nexport const A = 1\n")).toBe(
+      false,
+    )
   })
 
   it('knows a name no source holds, so “found under a scan root” means something', () => {

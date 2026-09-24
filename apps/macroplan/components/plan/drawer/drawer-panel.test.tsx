@@ -8,6 +8,7 @@ import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
+import { nothingDrawn, stubActions } from '../testing/plan-writes'
 import type { DrawerValues } from './values'
 
 vi.mock('next/link', async () => ({
@@ -42,25 +43,12 @@ const VALUES: DrawerValues = { name: 'Auth rewrite', estimateDays: 5 }
 
 const CLOSE = `/plans/${PLAN_A}`
 
-const NAMES = Object.keys(ADMIN_CONTROLS.content)
-
 const served: ActionResult<Plan> = { ok: true, value: atlasPlan() }
-
-// The eighteen, built off the control names rather than listed here: `plan-capabilities.test.ts`
-// already pins those keys against both wirings of `PlanEditActions`, so there is no second list to
-// fall behind. A member overridden by name is the one under test.
-const stubActions = (over: Partial<PlanEditActions> = {}): PlanEditActions => {
-  const every = Object.fromEntries(NAMES.map((name) => [name, vi.fn(() => Promise.resolve(served))]))
-  return { ...(every as unknown as PlanEditActions), ...over }
-}
 
 const drawing = (over: Partial<PlanContentControls> = {}): PlanContentControls => ({
   ...ADMIN_CONTROLS.content,
   ...over,
 })
-
-const nothing = (): PlanContentControls =>
-  Object.fromEntries(NAMES.map((name) => [name, false])) as unknown as PlanContentControls
 
 interface Open {
   readonly row?: TableRow
@@ -210,7 +198,7 @@ describe('the fields it draws, from the values rather than from the words', () =
   })
 
   it('draws no field at all for a surface that may write nothing', () => {
-    open({ row: ITEM_ROW, description: 'Ship behind a flag', controls: nothing() })
+    open({ row: ITEM_ROW, description: 'Ship behind a flag', controls: nothingDrawn() })
     expect(screen.queryAllByRole('textbox')).toEqual([])
   })
 

@@ -12,7 +12,7 @@ interface Fact {
 
 const factsOf = (row: TableRow): readonly Fact[] => [
   { label: 'Epic', value: row.epic },
-  ...(row.item === null ? [] : [{ label: 'Feature', value: row.feature }]),
+  ...(row.kind === 'item' ? [{ label: 'Feature', value: row.feature }] : []),
   { label: 'Estimate', value: row.estimate },
   { label: 'Sprint', value: row.sprint },
 ]
@@ -35,8 +35,13 @@ export interface DrawerFactsProps {
  * is where §3.2's estimate wording and the sprint label live. A panel that formatted `estimateDays`
  * itself would be a second opinion about the same field, and the two renderings of one plan would
  * disagree in the one place a reader compares them — `planned 40d · broken down to 5d · -35d` in the
- * table and `5d` here. `PlanTableRow` is this component's sibling in that respect: both are "only
- * cells" over one row's decided words.
+ * table and `5d` here. `PlanTableRow` is this component's sibling in that respect: each is only cells
+ * over one row's decided words.
+ *
+ * Which of the two kinds a row is is asked as `row.kind`, here and in every file of this drawer.
+ * `TableRow` is not a discriminated union, so `row.item === null` and `row.item ?? row.feature` answer
+ * the same question correctly and were each being used somewhere — three spellings of one test, one of
+ * them reading a **name** to learn a **kind**. `kind` is the field that declares it.
  *
  * The estimate is therefore here **and** in the field beside it, and the two are not a duplicated
  * fact. This one is the schedule's reading — `effectiveEstimate` over a feature's items, worded as a

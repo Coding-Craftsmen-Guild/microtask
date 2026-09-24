@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
+import { ESTIMATE_HINT, WHOLE_DAYS } from './field'
 import { EstimateField } from './estimate-field'
 
 type Estimate = (
@@ -116,7 +117,7 @@ describe('what the field refuses itself, rather than letting the API answer 422'
     const { onEstimate, user } = setup(5)
     await retype(user, '2.5')
     expect(onEstimate).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert').textContent).toContain('whole number of days')
+    expect(screen.getByRole('alert').textContent).toBe(WHOLE_DAYS)
     expect(field().value).toBe('2.5')
   })
 
@@ -236,18 +237,14 @@ describe('what is on screen once the server has answered', () => {
 describe('what a reader is told about the rule and about a refusal', () => {
   it('describes the field by its hint while nothing is refused', () => {
     setup(5)
-    expect(described(field())).toBe(
-      'Days of work. Empty means nobody has sized it; 0 is a milestone that takes no time.',
-    )
+    expect(described(field())).toBe(ESTIMATE_HINT)
     expect(field().getAttribute('aria-invalid')).toBeNull()
   })
 
   it('describes it by the hint and then the refusal, which is reading order', async () => {
     const { user } = setup(5)
     await retype(user, '2.5')
-    expect(described(field())).toBe(
-      'Days of work. Empty means nobody has sized it; 0 is a milestone that takes no time. | An estimate is a whole number of days, 0 or more — or empty for work nobody has sized yet.',
-    )
+    expect(described(field())).toBe(`${ESTIMATE_HINT} | ${WHOLE_DAYS}`)
     expect(field().getAttribute('aria-invalid')).toBe('true')
   })
 

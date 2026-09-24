@@ -62,8 +62,12 @@ export interface DrawerEditsProps {
  * rides along inside a closure (ADR 0040).
  *
  * The description is an **item's** alone: `PlanManifest` is "everything about a plan except its item
- * descriptions", there is no `describeFeature` among the eighteen, and `ItemDocument` is the only
- * schema in the product with a `description` at all. A `null` means the text was not read — a feature,
+ * descriptions", there is no `describeFeature` among the eighteen, and no epic, feature or plan schema
+ * carries a `description` field. The item's does appear in three, which is not the same claim as "one
+ * schema has it": `ItemDocument` is the file that stores it (`plan.ts`), `ItemView` is the item record
+ * with that text joined back on for a read — which is what `read-description.ts` beside this drawer
+ * projects (`plan-views.ts`) — and `DescriptionPayload` is the body that replaces it
+ * (`structure-payloads.ts`). A `null` means the text was not read — a feature,
  * or an item whose file the API would not answer for — and draws no box, because an empty box over a
  * description nobody saw would replace it with nothing on the first blur. The **kind** is checked as
  * well as the text, rather than trusting a caller to pass `null` for a feature: `describeItem` would

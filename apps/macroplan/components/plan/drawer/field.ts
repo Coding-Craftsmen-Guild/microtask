@@ -5,10 +5,12 @@ import type { KeyboardEvent } from 'react'
 
 const ENCODER = new TextEncoder()
 
-const WHOLE_DAYS =
+/** Why an estimate that is not a whole number of days is refused, in the field's own words. */
+export const WHOLE_DAYS =
   'An estimate is a whole number of days, 0 or more — or empty for work nobody has sized yet.'
 
-const TOO_MANY_DAYS = `An estimate cannot be more than ${String(MAX_ESTIMATE_DAYS)} days.`
+/** Why an estimate past the contract's maximum is refused, naming the maximum. */
+export const TOO_MANY_DAYS = `An estimate cannot be more than ${String(MAX_ESTIMATE_DAYS)} days.`
 
 const STRIPPED_CODES = [...[...Array(32).keys()].filter((code) => code !== 9 && code !== 10), 127]
 
@@ -25,9 +27,9 @@ const STRIPPED = new RegExp(
  * `PlanEditActions` member as a prop without naming the interface, and cannot reach a second one.
  *
  * It answers the **whole plan**, which is what every action behind it answers, and that is the point
- * rather than an accident: `subjectValues` (`./values.ts`) reads this subject's stored values back out of it, so
- * what a field shows after a write is what the server kept and not what was typed. The plan reaches
- * the browser as the **answer to a call** and never as a prop — no client file under
+ * rather than an accident: `subjectValues` (`./values.ts`) reads this subject's stored values back out
+ * of it, so what a field shows after a write is what the server kept and not what was typed. The plan
+ * reaches the browser as the **answer to a call** and never as a prop — no client file under
  * `components/plan` receives one, which `module-boundaries.test.tsx` asserts of the props themselves.
  */
 export type SubjectWrite<Value> = (
@@ -197,4 +199,22 @@ export const commitKeys = (event: KeyboardEvent<HTMLInputElement>, stored: strin
     event.preventDefault()
     event.currentTarget.blur()
   }
+}
+
+/**
+ * Escape alone reverts and leaves, for the one field where Enter is a character the user meant.
+ *
+ * The other half of {@link commitKeys}, and not a variant of it: a `<textarea>` must keep Enter as a
+ * newline, and abandoning an edit is the half of the idiom that has nothing to do with Enter. Without
+ * it a description that had been half-rewritten could only be committed or repaired by hand, which is
+ * the one gesture every other field in this drawer offers.
+ *
+ * Reverting **and** blurring rather than reverting alone: the blur is what the field commits on, and a
+ * box holding the stored text again is a commit that sends nothing and clears any standing refusal.
+ */
+export const revertKey = (event: KeyboardEvent<HTMLTextAreaElement>, stored: string): void => {
+  if (event.key !== 'Escape') return
+  event.currentTarget.value = stored
+  event.preventDefault()
+  event.currentTarget.blur()
 }

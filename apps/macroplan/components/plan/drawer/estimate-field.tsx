@@ -56,6 +56,13 @@ export interface EstimateFieldProps {
  * negative and the fraction are refused here rather than sent for the API to answer 422 with its own
  * generic sentence.
  *
+ * `2.5x` is a claim about the **spec** and not about this test environment, which does not reproduce
+ * it: happy-dom hands `2.5x` back off a number input unchanged, and empties only a value with no
+ * numeric prefix at all — `abc`. So the case `./estimate-field.test.tsx` pins is the word, which is
+ * emptied here as well as in a browser, and the fraction with a trailing letter is argued rather than
+ * demonstrated. Both are refused by this field either way: the rule is digits only, so nothing about
+ * its behaviour rests on which of the two the DOM would have thrown away.
+ *
  * **A refusal leaves what was typed on screen.** It is the one thing the user still needs in order to
  * fix it, where a refused *write* restores the stored value because the server is the authority on
  * what that is — read back out of the answered plan by `subjectValues` (`./values.ts`), never assumed
