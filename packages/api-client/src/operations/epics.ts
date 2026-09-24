@@ -27,7 +27,10 @@ export type NewEpic = Decoded<typeof CreateEpicPayload>
 export type EpicChange = Decoded<typeof UpdateEpicPayload>
 
 /**
- * Where a rail sits among its siblings.
+ * Where a rail sits among its siblings, counted from zero.
+ *
+ * `Position` is `int().min(0)` and the domain renumbers rails densely from zero, so a caller that
+ * assumes a 1-based order is accepted with a 200 and draws the rail in the wrong lane.
  *
  * The payload object rather than a bare `railOrder`, even though the domain's `EpicService.place`
  * takes the number and the handler destructures it out of the body. The wire shape is `{railOrder}`
@@ -65,9 +68,12 @@ export interface EpicsApi {
    *
    * It answers the **plan that remains** and not `void`, which is the one thing here that surprises
    * a reader: deleting a rail cascades wide enough to re-derive every span, so the route answers 200
-   * with the whole plan rather than 204. `plan-response.ts` names the three routes under a plan that
-   * do answer something else — `POST /plans`, `DELETE /plans/{planId}` and a share-link revoke — and
-   * an epic delete is not one of them. The obvious `Promise<void>` would typecheck against nothing.
+   * with the whole plan rather than 204. `apps/api/src/routes/macroplan/plan-response.ts` holds that
+   * rule and names its own exceptions; an epic delete is not among them. Read it there rather than
+   * from a list restated here, which is how a count drifts.
+   *
+   * `transport.empty` and a `Promise<void>` would compile and throw the timeline away, so this
+   * return type is the only thing holding the difference.
    */
   remove(planId: string, epicId: string): Promise<Plan>
 }

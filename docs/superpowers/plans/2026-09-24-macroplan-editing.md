@@ -101,8 +101,9 @@ finds itself editing a route handler has misread the plan and should stop.
    dependency editor runs `findCycles` on the graph it is about to send, names the cycle from the features' own
    names, and refuses locally. The API stays the authority and the client refusal is a **message, never a gate**
    — the same rule ADR 0038 sets for capabilities. The consequence is that the existing generic sentence becomes
-   *correct*: after this change, the only way to reach a 409 from the dependency route is a genuine race, which is
-   exactly what it says.
+   *correct*: after this change a 409 from the dependency route can only mean this page's copy of the plan is not
+   the server's — a concurrent edit, or a cycle that arrived some other way, which spec §6 contemplates as "a
+   hand-edited volume" — and "reload the page and try again" is exactly the right instruction for both.
 
    The alternative — letting the API's `detail` through for a 409 — was refused because `lib/problem.ts:56-59`
    argues at length that the API's wording is written for whoever reads the API, and because it would hand one
@@ -894,8 +895,9 @@ tested.
 - [ ] **Step 2: the editor refuses locally and the API stays the authority.** State it in the TSDoc in those
       words, because it is the same rule ADR 0038 sets for capabilities and the same rule this repo applies to
       every client-side check: **a message, never a gate.** The write is still sent in every case the local check
-      passes, and a 409 that comes back anyway is rendered — which after this task can only mean a genuine race,
-      and "Someone else changed this at the same time. Reload the page and try again." is then the true sentence.
+      passes, and a 409 that comes back anyway is rendered — which after this task can only mean this page's plan
+      is not the server's, and "Someone else changed this at the same time. Reload the page and try again." is then
+      the true sentence.
       That is the whole reason this design was chosen over letting the API's `detail` through: it makes an existing
       sentence correct rather than carving out an exception to `lib/problem.ts`'s rule.
 
@@ -1134,8 +1136,17 @@ bridge; do not renumber into it.
       is false rather than vague. Record the three options — let the API's `detail` through for one status, change
       the generic sentence, or detect locally — and why local detection wins: `findCycles` is already exported and
       already browser-bundled, the client already holds the graph, and detecting locally leaves
-      `lib/problem.ts`'s rule intact **and makes the generic sentence true**, because after this the only way to
-      reach that 409 is a real race. State the rule it inherits: a client-side check is a message, never a gate.
+      `lib/problem.ts`'s rule intact **and makes the generic sentence true**. State the rule it inherits: a
+      client-side check is a message, never a gate.
+
+      **Be precise about "true", because it has two cases and naming only one would make the ADR false.** The
+      domain refuses **any** cycle in the graph it is about to save, not only one the caller introduced
+      (`packages/macroplan-domain/src/services/feature-service.ts:81-86`). So a 409 is reachable from a concurrent
+      edit *and* from a cycle that arrived some other way — a hand-edited volume, which spec §6 contemplates by
+      name. Both mean the same thing, which is that this page's copy of the plan is not the server's, and that is
+      what "Someone else changed this at the same time. Reload the page and try again." says. The client check
+      catches both whenever its own copy is current, because Task 13 runs `findCycles` over the whole resulting
+      graph rather than over the one edge.
 
 - [ ] **Step 5: amend ADR 0055.** It was written for layout geometry. `drag.ts` adds a second kind of pure
       function — an inverse projection, a point to a target — and the ADR's argument covers it exactly, including
