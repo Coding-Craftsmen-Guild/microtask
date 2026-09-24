@@ -29,8 +29,14 @@ export interface PlanSeatControls {
  * that interface is the list: a control is a way of calling one of those eighteen, and a boolean
  * with no action behind it draws something the API has no endpoint for while a missing boolean
  * leaves a shipped action with no control able to call it. Neither is a type error — nothing pairs
- * the two interfaces at compile time — so `plan-capabilities.test.ts` compares these keys against
- * `ADMIN_PLAN_ACTIONS`, the one runtime enumeration of the eighteen there is.
+ * the two interfaces at compile time — so `plan-capabilities.test.ts` compares these keys against a
+ * runtime enumeration of the eighteen. There are **two** of those and not one:
+ * `ADMIN_PLAN_ACTIONS` (`components/plan/admin-actions.ts`) and `seatPlanActions`
+ * (`components/plan/seat-actions.ts`), each declared as a `PlanEditActions` and so each pinned to
+ * that interface by the compiler. The test compares these keys against both, from opposite ends of
+ * the file: against the admin wiring where it counts the eighteen, and against the seat wiring where
+ * it asserts that all eighteen stay wired whatever these booleans answer. So a nineteenth control
+ * with no action behind it, and a nineteenth action with no control able to call it, each fail there.
  *
  * There is deliberately **no nineteenth about the plan itself**. `plan:rename`, `plan:retime` and
  * `plan:delete` are real actions of the API with no Server Action on either surface behind them, so
@@ -40,6 +46,27 @@ export interface PlanSeatControls {
  * `epic:rename`, because `PATCH …/epics/{epicId}` authorises once for a name, a colour or both
  * (`apps/api/src/routes/macroplan/epics/handlers.ts`). They stay two controls because they are two
  * controls on screen, and `actions/epics.ts` argues why they are two actions.
+ *
+ * ### A combined PATCH is gated on every field it carries, not on one gate for the request
+ *
+ * The epic PATCH above is the exception rather than the rule. Two of these endpoints take more than
+ * one field, and each asks for **every** action the body's present keys imply:
+ * `PATCH …/features/{featureId}` takes `name`, `estimateDays` and `pinSprint` and makes up to three
+ * `authorize()` calls, `feature:rename`, `feature:estimate` and `feature:pin`, one per key that is
+ * there; `PATCH …/items/{itemId}` takes `name` and `estimateDays` and makes up to two, `item:rename`
+ * and `item:estimate` (`apps/api/src/routes/macroplan/{features,items}/handlers.ts`). **So a control
+ * that would send a combined body must be drawn only where every contributing boolean is true, and
+ * never where the first of them is.**
+ *
+ * One combination needs a higher role than one of its parts, and it is the feature pin:
+ * `feature:rename` and `feature:estimate` are `write` actions where `feature:pin` is `manage`-only
+ * (`packages/kernel/src/access/policy.ts`). A `write` seat therefore holds `renameFeature` and
+ * `estimateFeature` and not `pinFeature` — and one form posting a name and a pin together is refused
+ * for that seat although the rename alone would have been served. The refusal writes **neither**
+ * field: every gate runs before `features.update` is reached, so the first to fail throws with the
+ * plan untouched. A surface that wants both from a `write` seat must send two requests, or draw the
+ * pin only where `pinFeature` is true. `renameItem` and `estimateItem` are both `write`, so the item
+ * pair asks nothing that either of them does not ask alone.
  */
 export interface PlanContentControls {
   /** Adding a rail. */
@@ -66,7 +93,13 @@ export interface PlanContentControls {
   /** Re-estimating a feature, or clearing its estimate. */
   readonly estimateFeature: boolean
 
-  /** Pinning a feature to a sprint, or unpinning it. */
+  /**
+   * Pinning a feature to a sprint, or unpinning it.
+   *
+   * `feature:pin` is `manage`-only where `renameFeature` and `estimateFeature` beside it are `write`,
+   * and the feature PATCH gates on each field the body carries — so a form that would post a pin
+   * alongside a name or an estimate must be drawn on **this** boolean as well as on theirs.
+   */
   readonly pinFeature: boolean
 
   /** Moving a feature along its rail or onto another. */
@@ -154,9 +187,16 @@ export interface PlanControls {
  * an action whose target names a container.
  *
  * **The eighteen content rows are read off the record, and that is the same argument rather than a
- * different one.** Each is gated on exactly one target — `epic`, `feature` or `item`, the kind the
- * handler's own `authorize()` call builds — none of them carries an `alsoGatedOn`, and all three
- * kinds are in the family a `plan` scope reaches. So for these rows the record's answer and
+ * different one.** Each is gated on exactly one target kind — `epic`, `feature` or `item` — but a
+ * handler makes **more than one** `authorize()` call for a single request wherever its body carries
+ * more than one field: `PATCH …/features/{featureId}` makes up to three and `PATCH …/items/{itemId}`
+ * up to two, where `PATCH …/epics/{epicId}` makes exactly one
+ * (`apps/api/src/routes/macroplan/{epics,features,items}/handlers.ts`, and
+ * {@link PlanContentControls} spells out what that means for a control that would combine fields).
+ * What makes the record enough is not that there is one call: it is that every one of those calls
+ * builds the same target kind with the same `planId`, none of the eighteen actions carries an
+ * `alsoGatedOn`, and all three kinds are in `PLAN_FAMILY`, the set a `plan` scope reaches
+ * (`packages/contracts/src/capabilities.ts`). So for these rows the record's answer and
  * `mayReach(role, scope, action, ACTION_DECISIONS[action].target)` are the same call, and a
  * `mayReach` here would name the target twice while suggesting the record is wrong about it. What
  * separates the two halves of this function is therefore a property of the record, checked row by

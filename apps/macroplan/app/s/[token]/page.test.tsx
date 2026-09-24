@@ -272,7 +272,7 @@ describe('which controls the seat’s own role draws', () => {
     expect(handed).toEqual(planCapabilities(role, { kind: 'plan', planId: PLAN_A }))
   })
 
-  it('asks with the plan the API said this seat is rooted in, never with an id from the URL', async () => {
+  it('asks with a plan-kind scope, which a project-kind one of the same id answers differently', async () => {
     seated(MANAGE_SEAT_TOKEN)
     const element: ReactNode = await LinkPlanPage(props(MANAGE_SEAT_TOKEN))
     const handed = isValidElement<{ controls: { seats: { read: boolean } } }>(element)
@@ -296,15 +296,18 @@ describe('which controls the seat’s own role draws', () => {
   })
 
   it('draws no control for a view seat and every content one for a manage seat', async () => {
-    seated(SEAT_TOKEN)
-    const view = await LinkPlanPage(props(SEAT_TOKEN))
-    const drawn = (element: ReactNode): readonly boolean[] =>
+    const drawn = (element: ReactNode): readonly (readonly [string, boolean])[] =>
       isValidElement<{ controls: { content: Record<string, boolean> } }>(element)
-        ? Object.values(element.props.controls.content)
+        ? Object.entries(element.props.controls.content)
         : []
-    expect(drawn(view).some(Boolean)).toBe(false)
+    seated(SEAT_TOKEN)
+    const view = drawn(await LinkPlanPage(props(SEAT_TOKEN)))
+    expect(view).toHaveLength(18)
+    for (const [control, answer] of view) expect(answer, control).toBe(false)
     seated(MANAGE_SEAT_TOKEN)
-    expect(drawn(await LinkPlanPage(props(MANAGE_SEAT_TOKEN))).every(Boolean)).toBe(true)
+    const manage = drawn(await LinkPlanPage(props(MANAGE_SEAT_TOKEN)))
+    expect(manage).toHaveLength(18)
+    for (const [control, answer] of manage) expect(answer, control).toBe(true)
   })
 })
 

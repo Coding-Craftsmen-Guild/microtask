@@ -1,7 +1,11 @@
 import type { PlanControls } from './plan-capabilities'
 
 type Drawn<Controls> = {
-  readonly [Name in keyof Controls]: Controls[Name] extends boolean ? true : Drawn<Controls[Name]>
+  readonly [Name in keyof Controls]-?: NonNullable<Controls[Name]> extends boolean
+    ? true
+    : NonNullable<Controls[Name]> extends object
+      ? Drawn<NonNullable<Controls[Name]>>
+      : never
 }
 
 /**
@@ -28,10 +32,32 @@ type Drawn<Controls> = {
  * do. `admin-controls.test.ts` sweeps the same two facts at runtime, for a reader who wants to see
  * them asserted rather than inferred.
  *
- * It is not built with `Object.fromEntries` over a list of names, as Microtask's record is: there is
- * no list of control names to drive it — the names live in `PlanContentControls` and
- * `PlanSeatControls` as documented members — and `fromEntries` answers a bare index signature,
- * so that shape would need the type assertion this app's lint regime forbids in shipped source.
+ * The three pieces of `Drawn` that look like noise each close a hole the plain mapped type had, and
+ * each was compiled before it was written here. `-?` strips optionality, because a homomorphic mapped
+ * type **preserves** it: an optional `boolean` member maps to `true | undefined`, which a literal may
+ * both omit and write `false` into even under `exactOptionalPropertyTypes`. `NonNullable` is what the
+ * conditional's subject is wrapped in, so it sees `boolean` rather than `boolean | undefined` and
+ * reaches the `true` branch at all. And the `extends object` arm sends anything that is neither a
+ * boolean nor a group to `never`, because a homomorphic mapped type over a primitive answers that
+ * primitive unchanged — so a `string` member would have passed straight through as a `string`, and the
+ * sentence above would have been false of it. None of the three matters for today's
+ * {@link PlanControls}, which holds no optional and no non-boolean member. All three are what make
+ * that a property the compiler keeps rather than one the next member has to be noticed by.
+ *
+ * It is written out rather than derived, which is the one place this file differs from Microtask's
+ * answer to the same question. `apps/microtask/components/task-tree/controls.ts` keeps no admin
+ * literal at all: it pushes `ADMIN_CAPABILITIES` — an all-true `Capabilities` record — through the
+ * same `treeControls` projection a share link's controls come out of, so its admin row cannot
+ * disagree with a seat's. The equivalent here would be an all-true `Capabilities` pushed through
+ * `planCapabilities`, and there is nothing to push it with: `@repo/contracts` exports
+ * `CAPABILITY_ACTIONS` and `capabilities()` and **no** all-true record, `planCapabilities` asks for a
+ * role and a scope rather than a record, and building the record in this app means
+ * `Object.fromEntries`, which answers a bare index signature and so needs the type assertion
+ * `admin-capabilities.ts` itself writes (`as Capabilities`). Lint does not forbid that assertion —
+ * nothing in `packages/eslint-config` bans one, and that sibling ships under this very config — it is
+ * a **convention** this app keeps, and keeping it is what leaves the literal below as the honest
+ * choice. Adding an all-true export to `@repo/contracts` is a decision recorded for later rather than
+ * one this file makes.
  *
  * Like every control, each of these answers a rendering question and never a gate. The admin's
  * authority is the API's answer to `mp_admin`, and this constant adds nothing to it: a control drawn
