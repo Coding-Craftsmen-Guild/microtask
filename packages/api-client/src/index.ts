@@ -34,6 +34,7 @@ export {
   tabPath,
   taskPath,
 } from './paths.js'
+export type { EpicChange, EpicPlacement, EpicsApi, NewEpic } from './operations/epics.js'
 export type { FoldersApi } from './operations/folders.js'
 export type { Plan, PlansApi } from './operations/plans.js'
 export type { Project, ProjectsApi } from './operations/projects.js'

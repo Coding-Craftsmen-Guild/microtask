@@ -204,4 +204,45 @@ describe('every operation addresses the path the API actually serves', () => {
       'https://api.example.test/v1/macroplan/shares/current',
     )
   })
+
+  it('adds a rail with POST against the collection, which carries no placement', async () => {
+    const call = await sent(() => macroplan.epics.create('p1', { name: 'Platform' }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'POST',
+      'https://api.example.test/v1/macroplan/plans/p1/epics',
+      '{"name":"Platform"}',
+    ])
+  })
+
+  it('renames or recolours a rail with PATCH on the rail itself', async () => {
+    const call = await sent(() => macroplan.epics.update('p1', 'e1', { colour: '#1f2a37' }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/macroplan/plans/p1/epics/e1',
+      '{"colour":"#1f2a37"}',
+    ])
+  })
+
+  it('moves a rail through its own placement segment, sending the wire shape and not a bare number', async () => {
+    const call = await sent(() => macroplan.epics.place('p1', 'e1', { railOrder: 2 }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/macroplan/plans/p1/epics/e1/placement',
+      '{"railOrder":2}',
+    ])
+  })
+
+  it('removes a rail with DELETE, percent-encoding every id it was handed', async () => {
+    const call = await sent(() => macroplan.epics.remove('p 1', 'e 1'))
+    expect([call.init.method, call.url]).toEqual([
+      'DELETE',
+      'https://api.example.test/v1/macroplan/plans/p%201/epics/e%201',
+    ])
+  })
+
+  it('parses a plan back out of the delete, because that route answers 200 and not 204', async () => {
+    calls.length = 0
+    await expect(macroplan.epics.remove('p1', 'e1')).rejects.toThrow()
+    expect(calls[0]?.init.method).toBe('DELETE')
+  })
 })
