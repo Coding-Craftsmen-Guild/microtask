@@ -543,8 +543,9 @@ arbitrary. Do not clamp to the nearest rail: a clamp turns a mistaken drop into 
       - a point inside a rail's vertical band answers that rail, and the boundary belongs to exactly one rail —
         test both sides of every edge, so no y falls in two rails or in none.
       - dropping to the left of every bar answers position 0; to the right of all of them answers the count.
-      - dropping a feature onto the rail it is already on, at its own place, answers **its current position** —
-        which is what lets a caller recognise a no-op drag and send nothing at all.
+      - dropping a feature onto the rail it is already on, at its own place, answers **the index of its own bar**.
+        This step originally said "its current position", which is **false** whenever the rail holds a feature the
+        pass could not place, and Task 5b exists because of it — see there before relying on this answer.
       - a rail with no bars answers position 0.
       - `null` for a y above the first rail and below the last, and for an x inside the gutter.
       - the function mutates neither argument and two calls agree, following `rails.test.ts:144-148`.
@@ -559,6 +560,70 @@ arbitrary. Do not clamp to the nearest rail: a clamp turns a mistaken drop into 
 
 - [ ] **Step 5: green, then commit** `"Answer where a drop lands, with no DOM to measure"`.
 
+### Task 5b: a bar's index is not a feature's position
+
+**Files:** Modify `packages/canvas/src/drag.ts`, `src/drag.test.ts`, `src/index.ts`, `src/entry-points.test.ts`
+
+This task exists because **Task 5's Step 3 was wrong**, and the error is one that would have moved features to
+places nobody asked for rather than merely failing a check.
+
+`railLayout` **omits a feature the forward pass could not place** — asserted at `packages/canvas/src/rails.test.ts:102-106`,
+and the app draws those separately through `unplacedByRail`. But `Position` is "a dense 0-based order within one
+parent: no gaps, no ties" over **every** feature of the epic, placed or not
+(`packages/contracts/src/plan.ts`). So on a rail holding an unsized feature, a bar's index and its stored
+`position` differ.
+
+**A correction to this plan's own evidence, recorded rather than quietly reworded.** An earlier draft of this
+paragraph cited spec §3.2 for the claim that an unsized feature is the ordinary mid-planning state, quoting the
+executive who "types *Checkout: 40d* before a single item exists". §3.2 does not say that. Its example is a feature
+that **has** an authored estimate — which is placed and does draw a bar — and its one "cannot be scheduled"
+sentence is about an **item**. The fact this task rests on is owned by `@repo/schedule` instead:
+`effectiveEstimate` answers `null` for a feature with no authored estimate and no estimated children, and
+`packages/schedule/src/structure.ts` sends it to `unscheduled` as `'no-estimate'`. The defect is real on that
+evidence alone; how common the state is, is a judgement this plan makes and the spec does not.
+
+A drop therefore cannot send a bar index as `FeaturePlacementPayload.position`. It would reorder the feature
+against siblings the user cannot see.
+
+- [ ] **Step 1: one more pure function, not a fix inside the component.** Task 16's component is a thin renderer by
+      ADR 0055, and this is arithmetic, so it belongs here where it is testable with no DOM:
+
+```ts
+export const positionForDrop = (
+  features: readonly ScheduleFeature[],
+  placedIds: readonly string[],
+  barIndex: number,
+) => number
+```
+
+Take the rail's features in their stored order and the ids that actually got a bar, and answer the stored
+position to send. The rule is **land where the bar you were dropped in front of sits in the stored order**: the
+position of the placed feature now at `barIndex`, or one past the rail's last position when the drop is past every
+bar. That is the only rule with an observable meaning, because the user is reasoning about the bars they can see
+and cannot see the others at all.
+
+- [ ] **Step 2: the properties to pin.**
+      - a rail whose every feature is placed answers the bar's own stored position **for a feature arriving from
+        another rail**. For a feature moving along the rail it already sits on the answer is one lower on a
+        rightward move, because `placeAmong` lands it among the siblings left once it is lifted out. Those two
+        cannot both be "the identity" and an earlier draft of this step wrongly said they were.
+      - a rail with an unsized feature **before** the target answers the stored position, not the bar index, and
+        a test names the two numbers differing.
+      - a drop past every bar answers one past the rail's highest position, so a feature dragged to the end lands
+        at the end and not on top of an unplaced sibling.
+      - an unsized feature's relative order is **not** disturbed by a drop that lands elsewhere on the rail.
+      - a `barIndex` no bar has answers the past-the-end position rather than throwing, because that is what
+        `dropTargetFor` answers for a drop to the right of everything.
+
+- [ ] **Step 3: say in the TSDoc which of the two numbers each function speaks.** `DropTarget.position` is a bar
+      index and `positionForDrop`'s answer is a stored position, and the whole defect was those two sharing a name.
+      Consider renaming `DropTarget.position` to `barIndex` so the type system carries the distinction rather than
+      a comment — **prefer that** if it does not ripple past this package, since a name is the only thing that
+      survives a copy.
+
+- [ ] **Step 4: green, run `pnpm --filter macroplan test` as well, then commit**
+      `"Send the position a plan stores, not the index a bar happens to have"`.
+
 ### Task 6: the conflict list's rows
 
 **Files:** Create `apps/macroplan/components/plan/conflicts/conflict-rows.ts`, `conflict-rows.test.ts`. Modify
@@ -572,26 +637,53 @@ arbitrary. Do not clamp to the nearest rail: a clamp turns a mistaken drop into 
       Declare the three member types by extending `@repo/schedule`'s `Cycle`, `Unscheduled` and `IgnoredEdge`
       rather than restating them, exactly as `CanvasSpan extends Span`.
 
+      **Corrected after implementation: "widen it" means declare a widened interface, not mutate the base — and
+      mutating the base would have broken something real.** `treatment.ts:41-44` says of its own
+      `CanvasScheduleWithStatus extends CanvasSchedule`: "`cycles` is not here because it would be a second route
+      to the same answer — every feature in a cycle already carries an `'in-cycle'` entry in `unscheduled`, so
+      reading `cycles` too would let two derivations of one mark's treatment disagree." Putting `cycles` on the base
+      hands `treatmentOf` exactly that route back and leaves that paragraph claiming a protection the types no
+      longer give, while making `CanvasScheduleWithStatus` structurally identical to `CanvasSchedule` — a name that
+      lies. So this task declares its own `CanvasScheduleWithConflicts extends CanvasSchedule`, which is also how
+      the one module that already followed the instruction read it.
+
+      The extend-the-three instruction is also not literally possible: the wire carries `Cycle`, `Unscheduled` and
+      `IgnoredEdge` exactly as the forward pass holds them, so there is nothing to add and
+      `interface CanvasCycle extends Cycle {}` is a `no-empty-object-type` error under `tseslint.configs.strict`.
+      Import the three directly, which is what `treatment.ts` already does with `Unscheduled`.
+
 - [ ] **Step 2: three sections, three sentences, and the distinction that matters most.** The rows are a
       rendering of `ScheduleView`, and the whole reason `ignoredEdges` is carried separately is argued in
-      `packages/contracts/src/schedule-view.ts:34-42`: a client "that could not tell 'this bar ignores a
-      dependency' from 'this bar could not be placed' would have to guess which sentence to show". So:
+      `packages/contracts/src/schedule-view.ts:34-42`: "A canvas that could not tell 'this bar ignores a
+      dependency' from 'this bar could not be placed' would have to guess which sentence to show" — the subject is
+      a canvas, not "a client", which an earlier draft of this line had. So:
 
       - **`cycles`** — features waiting on each other. Every feature in the cycle is named, and the plan
         contradicts itself. This is the one section a user must act on.
       - **`ignoredEdges`** — a feature that **did** get a span, because one of its stated dependencies was set
         aside to produce it. Phase 2's `treatmentOf` deliberately refuses to draw this as a treatment, precisely
         so this section can say it properly (`packages/canvas/src/treatment.ts`, and the phase-2 plan's Task 10).
-      - **`unscheduled`** — `'no-estimate'`, nothing was sized; or `'in-cycle'`, it is inside a cycle already
-        named above. Two reasons, two sentences: `UnscheduledReason` is a two-case union and collapsing it into
-        "could not be scheduled" hides which one the user can fix.
+      - **`unscheduled`** — `'no-estimate'`, nothing was sized; or `'in-cycle'`, a cycle kept it off the axis.
+        Two reasons, two sentences: `UnscheduledReason` is a two-case union and collapsing it into "could not be
+        scheduled" hides which one the user can fix.
+
+        **Do not write "a cycle already named above".** An earlier draft did, and it is false for an item:
+        `Cycle` carries only `featureIds`, and an in-cycle feature "drags every item under it down too, whether or
+        not those items carry estimates of their own" (`schedule-view.ts:28-29`), so an **item** with that reason
+        appears in no `cycles` entry anywhere. Blame the cycle without claiming membership.
 
 - [ ] **Step 3: rows carry names, not ids.** An id is a ULID and means nothing on screen. Resolve each id against
       the plan's own features and items, and answer a row whose text is ready to render, following
       `components/plan/table/rows.ts`. An id the plan does not hold answers a row that says so rather than
       throwing — a schedule and a plan that disagree is a bug worth showing, not a crash.
 
-- [ ] **Step 4: assert the count, then the content.** A plan with no conflicts answers no rows at all, so the
+- [ ] **Step 4: assert the count, then the content.** Read "each lands in exactly one section" as **each schedule
+      entry becomes exactly one row**, not as each id appearing once: a feature in a cycle legitimately shows up
+      twice — once in its `cycles` row and once as an `'in-cycle'` unscheduled row — because the forward pass
+      reports it twice and the two statements say different things. An earlier draft of this step said "exactly one
+      section" without that distinction and is not satisfiable as written.
+
+      A plan with no conflicts answers no rows at all, so the
       component can render nothing rather than an empty heading. Build one fixture that has all four states at
       once — a cycle, an ignored edge, an unestimated feature and an in-cycle one — and assert each lands in
       exactly one section.
@@ -1042,8 +1134,40 @@ and 10 before starting.
       derived, never repaired." A solver that silently moved an executive's committed plan is named in §6 as a
       worse failure than a visible contradiction, and this test is what keeps that true.
 
-      Also assert the no-op: dropping a feature back where it started sends **no request at all**, which is what
-      Task 5's "answers its current position" property is for.
+      Also assert the no-op: dropping a feature back where it started sends **no request at all**. Compare against
+      the **bar index**, or against the stored position via `positionForDrop` — **not** against `feature.position`
+      directly, which sends a spurious `place` on any rail holding an unsized feature. Task 5b is why.
+
+- [ ] **Step 5b: pin the forward and inverse rail arithmetic against each other.** `railTop(index)` in
+      `apps/macroplan/components/plan/canvas/view.ts` decides where rail *n* is drawn; `railAtY` in `@repo/canvas`
+      decides which rail a `y` is in. They are the two directions of one number and they live in different
+      packages, which is the residual hazard Task 5 accepted when it chose to pass `RailMetrics` in rather than
+      move the metrics into the package. Only a test that calls both can catch them disagreeing, and it can only
+      live here, in the app that owns `LAYOUT`:
+
+```ts
+expect(railAtY(railTop(i) + 1, rails, LAYOUT)).toBe(rails[i])
+```
+
+      Assert it for every rail index a fixture has, and for the first pixel of each band rather than its middle,
+      because an off-by-one in either direction shows up at the edge and nowhere else.
+
+      **Then make the subset relation a compile error rather than a coincidence.** `LAYOUT` satisfies
+      `@repo/canvas`'s `RailMetrics` structurally — all `readonly` numbers, and passing the identifier rather than a
+      fresh literal means no excess-property check — so `dropTargetFor(…, LAYOUT)` compiles today by hand-maintained
+      luck. Write it `export const LAYOUT = { … } as const satisfies RailMetrics`. Then renaming a field in either
+      package is a compile error here instead of a surprise at the call site, which is what Task 5 accepted as the
+      residual cost of passing the metrics in rather than moving them.
+
+- [ ] **Step 5c: the drop refuses a gutter only on a canvas that starts at day 0, and this is where that stops
+      being true.** `dropTargetFor` refuses a point whose x names a day before **day 0**. `view.ts`'s `gutterX`
+      exists precisely because "a viewport scrolled to day 40 has its gutter at `dayToX(40) - 160`", so on a panned
+      canvas the label gutter sits over positive days and a drop on a rail's **name** would be accepted as a drop on
+      the axis at position 0. It cannot fire today because `CANVAS_RANGE` is `{fromDay: 0, toDay: 60}` and nothing
+      pans — but this task is the first to send a placement from a pointer, so either pass the `DayRange` into the
+      drop query and refuse below `range.fromDay`, or assert in a test that the canvas does not pan and say that the
+      refusal is a precondition rather than a property. **Do not leave it as a hedge in a TSDoc**, which is what it
+      is now: a component will be the thing that violates it.
 
 - [ ] **Step 6: replace the use-client sweep with an allowlist, in this commit.**
       `module-boundaries.test.tsx:99-103` asserts every non-test file under `components/plan/**` declares no
