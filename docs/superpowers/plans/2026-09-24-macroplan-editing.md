@@ -1053,22 +1053,33 @@ against what was actually asked.
 - Create: `apps/macroplan/components/plan/drawer/pin-field.tsx`, `breakdown-line.tsx`, and a test each
 - Modify: `apps/macroplan/components/plan/drawer/drawer-facts.tsx`, `subject.ts`, `drawer-panel.tsx`, and their tests
 
-**Where these go, and the wall Tasks 12–15 are walking into.** Task 11 filled the drawer to the `.tsx` cap, and the
-remaining budget is now the binding constraint on the next three tasks. Measured after Task 11:
-`drawer-edits.tsx` **80/80 — zero headroom**, `drawer-panel.tsx` 58/80, `drawer-facts.tsx` 29/80.
+**Where these go, and the wall Tasks 13–16 are walking into.** These figures were written when
+`drawer-edits.tsx` stood at **80/80**. Task 11's own follow-up refactor then reclaimed 23 lines of it — a shared
+`field-shell.tsx`, a `values.ts`, a `subject-writes.ts` — so the wall moved and part of this paragraph went stale
+before Task 12 read it. **Measured after Task 12** (ESLint's own count, blanks and comments excluded):
+`drawer-edits.tsx` **62/80**, `drawer-panel.tsx` 60/80, `drawer-facts.tsx` 35/80, `pin-field.tsx` 75/80,
+`field.ts` 85/150, `subject.ts` 39/150, `values.ts` 29/150.
+
+**Re-measure before budgeting.** Two tasks in a row have now planned against a number that a later commit had
+already changed, and the figure below that said the pin "cannot" go in `drawer-edits.tsx` was wrong for exactly that
+reason — Task 12 put it there, correctly, following that file's own documented growth path. A control group's real
+cost is about **eleven** lines, not the four that file's doc originally assumed: a client component takes primitives,
+so a calendar arrives as three of them.
 
 - `breakdown-line.tsx` is a **read** display, so it belongs with `drawer-facts.tsx`, whose whole argument is that it
   words nothing the row did not decide. But `breakdown()` from `@repo/schedule` needs the feature **and its items**,
   which `DrawerValues` does not carry — so widen `subject.ts` rather than letting the panel reach for a plan. That
   is the one rule Step 3c of Task 11 bought and it is the one a shortcut here would spend.
-- `pin-field.tsx` **cannot** go in `drawer-edits.tsx`: it has no room, and its own doc says it splits by control
-  group, one file per group. Its render site lands in `drawer-panel.tsx`'s 22 lines.
-- At roughly seven lines per control group, those 22 lines buy about three groups, and Tasks 12, 13 and 15 bring
-  five — the pin, the dependency editor, create, delete, and Task 16's reorder. **`drawer-panel.tsx` will overflow
-  during Task 13 or 15.** Do not shave the frame to fit. The natural cut is already in the code: `drawer-edits.tsx`
-  holds the **`write`**-tier controls, so the second container is the **`manage`** tier — `pinFeature`,
-  `placeFeature`/`placeItem`, `removeFeature`/`removeItem` — which is one capability tier, one file, and an
-  honest boundary rather than an arbitrary one. Whichever task hits the wall makes that split.
+- `pin-field.tsx` went **into** `drawer-edits.tsx` — the "cannot" this line used to assert was an artefact of the
+  stale 80/80 figure above. A control group's *file* is its own; its *mount* is a child of an existing container.
+- `drawer-edits.tsx`'s remaining 18 lines buy roughly one and a half more mounts at eleven lines each, and Tasks 13,
+  15 and 16 bring four groups — the dependency editor, create, delete, and the keyboard reorder. **So a second
+  container is owed during Task 13 or 15.** Do not shave the frame to fit. The cut is already latent in the code:
+  `drawer-edits.tsx` holds the **`write`**-tier controls, so the second is the **`manage`** tier — `pinFeature`,
+  `placeFeature`/`placeItem`, `removeFeature`/`removeItem` — one capability tier, one file, an honest boundary
+  rather than an arbitrary one. The pin moves into it when it opens, which is why Task 12 was right not to open it
+  for a single member: a container with one occupant cannot state or test the property that gives it its shape,
+  which is that a `write` seat sees one band and a `manage` seat two.
 
 - [ ] **Step 1: the pin is a sprint index, it is `manage`, and the server will not sanity-check it.**
       `pinSprint` is one nullable integer on features only, it joins `max()` as one more lower bound, and it is
