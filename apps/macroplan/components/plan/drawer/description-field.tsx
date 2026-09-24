@@ -7,19 +7,13 @@ import {
   descriptionBytes,
   overBudget,
   paintUnfocused,
-  BUDGET,
   FIELD,
-  LABEL,
   OVER_BUDGET,
-  PROBLEM,
   type SubjectWrite,
 } from './field'
-
-const GROUP = 'grid gap-1'
+import { FieldShell } from './field-shell'
 
 const FIELD_ID = 'plan-drawer-description'
-
-const BUDGET_ID = 'plan-drawer-description-budget'
 
 /** Props for {@link DescriptionField}. */
 export interface DescriptionFieldProps {
@@ -55,7 +49,8 @@ export interface DescriptionFieldProps {
  *
  * The budget is on screen from the first keystroke rather than only once it is exceeded, because the
  * thing being prevented is invisible: a user who learns about the cap when the text is already past it
- * has already written the part that would be dropped.
+ * has already written the part that would be dropped. It is the shell's `hint`, which is the same slot
+ * the estimate field states its rule in, so the box has one quiet line under it either way.
  *
  * ### The one field whose answer cannot be read back
  *
@@ -94,28 +89,18 @@ export function DescriptionField({ planId, itemId, description, describe }: Desc
     setProblem(result.ok ? '' : result.detail)
   }
   return (
-    <div className={GROUP}>
-      <label className={LABEL} htmlFor={FIELD_ID}>
-        Description
-      </label>
-      <textarea
-        aria-describedby={BUDGET_ID}
-        className={FIELD}
-        defaultValue={description}
-        id={FIELD_ID}
-        onBlur={(event) => void commit(event.currentTarget.value)}
-        onChange={(event) => setBytes(descriptionBytes(event.currentTarget.value))}
-        ref={box}
-        rows={4}
-      />
-      <p className={BUDGET} id={BUDGET_ID}>
-        {budgetLine(bytes)}
-      </p>
-      {problem === '' ? null : (
-        <p className={PROBLEM} role="alert">
-          {problem}
-        </p>
+    <FieldShell fieldId={FIELD_ID} hint={budgetLine(bytes)} label="Description" problem={problem}>
+      {(wiring) => (
+        <textarea
+          {...wiring}
+          className={FIELD}
+          defaultValue={description}
+          onBlur={(event) => void commit(event.currentTarget.value)}
+          onChange={(event) => setBytes(descriptionBytes(event.currentTarget.value))}
+          ref={box}
+          rows={4}
+        />
       )}
-    </div>
+    </FieldShell>
   )
 }

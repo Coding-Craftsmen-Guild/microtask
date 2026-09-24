@@ -8,7 +8,7 @@ import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
-import type { DrawerValues } from './field'
+import type { DrawerValues } from './values'
 
 vi.mock('next/link', async () => ({
   default: (await import('../testing/next-link')).LinkDouble,

@@ -5,7 +5,7 @@ import type { TableRow } from '../table/rows'
 import { DrawerEdits } from './drawer-edits'
 import { DrawerFacts } from './drawer-facts'
 import { LABEL } from './field'
-import type { DrawerValues } from './field'
+import type { DrawerValues } from './values'
 
 const PANEL = 'grid gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10'
 
@@ -85,7 +85,15 @@ export interface DrawerPanelProps {
  *
  * It is the frame now, so the next control group is a file beside `./drawer-edits.tsx` rather than a
  * block in here — the pin, the dependency editor, delete, and the two place actions, each on its own
- * boolean, which is the list that file keeps. Two things here would move before anything else did: the
+ * boolean, which is the list that file keeps, and each mounted as a child of that one.
+ *
+ * **Create is the exception this file mounts itself.** `createFeature` needs a rail and `createItem` a
+ * parent feature, so neither is a write about the subject `./drawer-edits.tsx` is handed — a group
+ * scoped to *this* item cannot mount "add an item" without inventing which feature it means. So a
+ * create group is a **sibling** of the edits band here, taking the row for its context rather than as
+ * its subject, and that is the one control group the frame gains rather than passes down.
+ *
+ * Two things here would move before anything else did: the
  * kind eyebrow and the heading, as one `./drawer-heading.tsx` taking the row, if a subtitle or a badge
  * ever joins them; and `KINDS`, which goes with them, being the only wording this file still owns. What
  * must **not** split is this file by row kind: a feature panel and an item panel answer the same

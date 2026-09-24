@@ -22,6 +22,13 @@ const kept: Rename = (_planId, _subjectId, name) => Promise.resolve(named(name))
 
 const field = (name = 'Feature name') => screen.getByRole<HTMLInputElement>('textbox', { name })
 
+const described = (control: HTMLElement): string =>
+  (control.getAttribute('aria-describedby') ?? '')
+    .split(' ')
+    .filter((one) => one !== '')
+    .map((id) => document.getElementById(id)?.textContent ?? '')
+    .join(' | ')
+
 const setup = (rename: Rename = kept, name = 'Auth rewrite') => {
   const onRename = vi.fn(rename)
   const view = render(
@@ -176,5 +183,38 @@ describe('the name a drawer edits', () => {
     await user.type(field(), ' and more')
     await act(async () => answer(named('First')))
     expect(field().value).toBe('First and more')
+  })
+})
+
+// The half `name-field.tsx` argued and did not wire. Keeping the refusal out of the accessible *name*
+// is what `htmlFor` is for; the refusal still has to reach a reader, and the only place left for it is
+// the accessible **description** — which a user tabbing back to a refused field is read.
+describe('what a reader is told about a refusal, rather than only what is painted', () => {
+  it('claims nothing invalid and describes nothing while the field is untouched', () => {
+    setup()
+    expect(field().getAttribute('aria-invalid')).toBeNull()
+    expect(field().getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('points the field at the refusal and marks it invalid while one stands', async () => {
+    const { user } = setup(() =>
+      Promise.resolve({ ok: false, status: 403, detail: 'Not permitted: feature:rename' }),
+    )
+    await user.clear(field())
+    await user.type(field(), 'Mine{Enter}')
+    expect(field().getAttribute('aria-invalid')).toBe('true')
+    expect(described(field())).toBe('Not permitted: feature:rename')
+    expect(screen.getByRole('alert').id).toBe(field().getAttribute('aria-describedby'))
+  })
+
+  it('stops pointing at it once a later rename is served, the sentence being gone', async () => {
+    const answers: StoredAnswer[] = [{ ok: false, status: 409, detail: 'No.' }, named('Second try')]
+    const { user } = setup(() => Promise.resolve(answers.shift() ?? named('x')))
+    await user.clear(field())
+    await user.type(field(), 'One{Enter}')
+    await user.clear(field())
+    await user.type(field(), 'Two{Enter}')
+    expect(field().getAttribute('aria-describedby')).toBeNull()
+    expect(field().getAttribute('aria-invalid')).toBeNull()
   })
 })

@@ -20,6 +20,13 @@ const box = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Desc
 
 const budget = () => screen.getByText(/bytes/).textContent ?? ''
 
+const described = (control: HTMLElement): string =>
+  (control.getAttribute('aria-describedby') ?? '')
+    .split(' ')
+    .filter((one) => one !== '')
+    .map((id) => document.getElementById(id)?.textContent ?? '')
+    .join(' | ')
+
 const setup = (description = 'Ship behind a flag', describe: Describe = () => Promise.resolve(served)) => {
   const onDescribe = vi.fn(describe)
   const view = render(
@@ -182,5 +189,21 @@ describe('when the write is refused', () => {
     expect(box().value).toBe('Another item’s note')
     expect(budget()).toBe('8171 of 8192 bytes left')
     expect('Another item’s note'.length).toBe(19)
+  })
+})
+
+describe('what a reader is told about the budget and about a refusal', () => {
+  it('describes the box by what is left of the budget while nothing is refused', () => {
+    setup('')
+    expect(described(box())).toBe('8192 of 8192 bytes left')
+    expect(box().getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('describes it by the budget and then the refusal, and marks it invalid', async () => {
+    setup('')
+    await paste('a'.repeat(MAX_ITEM_DESCRIPTION_BYTES + 1))
+    expect(box().getAttribute('aria-invalid')).toBe('true')
+    expect(described(box())).toContain('1 bytes over')
+    expect(described(box())).toContain('drops the rest without saying so')
   })
 })

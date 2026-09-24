@@ -11,38 +11,6 @@ const WHOLE_DAYS =
 const TOO_MANY_DAYS = `An estimate cannot be more than ${String(MAX_ESTIMATE_DAYS)} days.`
 
 /**
- * Which of the two things a drawer can be open on, which decides where a value is read back from.
- *
- * `TableRow['kind']`'s own two members, spelled here rather than imported from `../table/rows`,
- * because a client field may not reach that module: it pulls `@repo/canvas` and `@repo/schedule` in
- * with it, and a field needs one word out of it. `subject.ts` is where the two meet, and it imports
- * both.
- */
-export type SubjectKind = 'feature' | 'item'
-
-/**
- * The two fields of a feature or an item that are **values** rather than sentences.
- *
- * The estimate here is the **authored** number and not what the schedule made of it: a feature whose
- * items add up to something else still owns this field, and `effectiveEstimate` is a reading of both
- * (`packages/schedule/src/estimate.ts`). So this is not a second copy of `TableRow.estimate` — that
- * string is the schedule's verdict, wording a breakdown as `planned 40d · broken down to 5d · -35d`,
- * and no field can be edited from it.
- *
- * `estimateDays` is `number | null` and never `number | undefined`, because the contract's own
- * `EstimateDays.nullable()` is what `null` spells: **nothing was sized**. `0` is a different answer —
- * a milestone, reached and taking no time — and the two are told apart by `=== null` everywhere in
- * this product, the forward pass included.
- */
-export interface DrawerValues {
-  /** The name as stored, before any collapsing a rename would do to it. */
-  readonly name: string
-
-  /** The authored estimate in working days, `0` for a milestone, `null` for nothing sized. */
-  readonly estimateDays: number | null
-}
-
-/**
  * One field of one subject, written: the plan, the subject, and the new value.
  *
  * The shape every write a drawer field takes already has — `renameFeature`, `estimateFeature`,
@@ -50,7 +18,7 @@ export interface DrawerValues {
  * `PlanEditActions` member as a prop without naming the interface, and cannot reach a second one.
  *
  * It answers the **whole plan**, which is what every action behind it answers, and that is the point
- * rather than an accident: {@link subjectValues} reads this subject's stored values back out of it, so
+ * rather than an accident: `subjectValues` (`./values.ts`) reads this subject's stored values back out of it, so
  * what a field shows after a write is what the server kept and not what was typed. The plan reaches
  * the browser as the **answer to a call** and never as a prop — no client file under
  * `components/plan` receives one, which `module-boundaries.test.tsx` asserts of the props themselves.
@@ -89,41 +57,23 @@ export const FIELD =
 /** The refusal line under a field, which is `role="alert"` wherever this is used. */
 export const PROBLEM = 'text-[12.5px] text-destructive'
 
+/**
+ * The band every control group is drawn in, below the facts the same panel opens with.
+ *
+ * `empty:hidden` is what keeps a surface that may write nothing from being shown a bordered box with
+ * nothing in it, and it is a variant rather than a count so the condition cannot fall out of step with
+ * the groups inside it. It lives here beside the other four class names for the reason {@link LABEL}
+ * gives: one typographic thing is one constant, and a second group mounted in a second file must draw
+ * the same band rather than a string that looks like it.
+ */
+export const EDITS = 'grid gap-3 border-t border-foreground/10 pt-3 empty:hidden'
+
 /** What an estimate field says about its own three states, before anything has been refused. */
 export const ESTIMATE_HINT =
   'Days of work. Empty means nobody has sized it; 0 is a milestone that takes no time.'
 
 /** The quiet line under a field that is not a refusal: a remaining budget, or a rule worth repeating. */
 export const BUDGET = 'text-[12px] text-muted-foreground'
-
-/**
- * One subject's stored values, read out of a plan by id — the same read on both sides of a write.
- *
- * The server calls it to seed a field from the plan a page has already read, and a field calls it on
- * what its own write answered, so "what is on screen is what the server stored" is one function
- * rather than an intention. The API collapses a name's whitespace and truncates it at
- * `LIMITS.nameLength` (`cleanName`), so the two differ for real input.
- *
- * It takes `Omit<Plan, 'shareLinks'>` so that both a `PlanScreenModel` — the reduced plan a page
- * holds, whose type cannot carry a seat — and the `Plan` an action answers with satisfy it, without
- * this module naming the seat block at all.
- *
- * @param plan - Any plan-shaped value: the page's reduced model, or a write's answer.
- * @param kind - Which array to look in, features or items.
- * @param id - The subject's own id.
- * @returns Its name and authored estimate, or `undefined` when that plan no longer holds it.
- */
-export function subjectValues(
-  plan: Omit<Plan, 'shareLinks'>,
-  kind: SubjectKind,
-  id: string,
-): DrawerValues | undefined {
-  const found =
-    kind === 'feature'
-      ? plan.features.find((one) => one.id === id)
-      : plan.items.find((one) => one.id === id)
-  return found === undefined ? undefined : { name: found.name, estimateDays: found.estimateDays }
-}
 
 /**
  * What an estimate field will send for the text it holds, or the sentence it refuses with.

@@ -1,6 +1,6 @@
 import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows, type TableRow } from '../table/rows'
-import { subjectValues, type DrawerValues, type SubjectKind } from './field'
+import { subjectValues, type DrawerValues, type SubjectKind } from './values'
 
 /**
  * The one feature or item a drawer is open on, in the two shapes a panel needs it in.

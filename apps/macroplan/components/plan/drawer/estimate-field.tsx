@@ -6,21 +6,14 @@ import {
   commitKeys,
   estimateEntry,
   paintUnfocused,
-  subjectValues,
-  BUDGET,
   ESTIMATE_HINT,
   FIELD,
-  LABEL,
-  PROBLEM,
-  type SubjectKind,
   type SubjectWrite,
 } from './field'
-
-const GROUP = 'grid gap-1'
+import { FieldShell } from './field-shell'
+import { subjectValues, type SubjectKind } from './values'
 
 const FIELD_ID = 'plan-drawer-estimate'
-
-const HINT_ID = 'plan-drawer-estimate-hint'
 
 const shown = (days: number | null): string => (days === null ? '' : String(days))
 
@@ -65,9 +58,12 @@ export interface EstimateFieldProps {
  *
  * **A refusal leaves what was typed on screen.** It is the one thing the user still needs in order to
  * fix it, where a refused *write* restores the stored value because the server is the authority on
- * what that is — read back out of the answered plan by {@link subjectValues}, never assumed from what
- * was sent. Everything else is the drawer's field idiom: commit on Enter or blur, revert on Escape,
- * an inline `role="alert"`, and no `useTransition` (`./name-field.tsx` argues all of it).
+ * what that is — read back out of the answered plan by `subjectValues` (`./values.ts`), never assumed
+ * from what was sent. Everything else is the drawer's field idiom: commit on Enter or blur, revert on
+ * Escape, an inline `role="alert"` the shell points `aria-describedby` at, and no `useTransition`
+ * (`./name-field.tsx` argues all of it). The hint under the box is always there and the refusal only
+ * while it stands, and {@link FieldShell} names both in that order, so a reader tabbing back to a
+ * refused field hears the rule **and** what was refused about it.
  */
 export function EstimateField({ planId, subjectId, kind, estimateDays, estimate }: EstimateFieldProps) {
   const field = useRef<HTMLInputElement>(null)
@@ -92,29 +88,19 @@ export function EstimateField({ planId, subjectId, kind, estimateDays, estimate 
     paintUnfocused(field.current, shown(stored.current))
   }
   return (
-    <div className={GROUP}>
-      <label className={LABEL} htmlFor={FIELD_ID}>
-        Estimate in days
-      </label>
-      <input
-        aria-describedby={HINT_ID}
-        className={FIELD}
-        defaultValue={shown(estimateDays)}
-        id={FIELD_ID}
-        inputMode="numeric"
-        onBlur={(event) => void commit(event.currentTarget)}
-        onKeyDown={(event) => commitKeys(event, shown(stored.current))}
-        ref={field}
-        type="text"
-      />
-      <p className={BUDGET} id={HINT_ID}>
-        {ESTIMATE_HINT}
-      </p>
-      {problem === '' ? null : (
-        <p className={PROBLEM} role="alert">
-          {problem}
-        </p>
+    <FieldShell fieldId={FIELD_ID} hint={ESTIMATE_HINT} label="Estimate in days" problem={problem}>
+      {(wiring) => (
+        <input
+          {...wiring}
+          className={FIELD}
+          defaultValue={shown(estimateDays)}
+          inputMode="numeric"
+          onBlur={(event) => void commit(event.currentTarget)}
+          onKeyDown={(event) => commitKeys(event, shown(stored.current))}
+          ref={field}
+          type="text"
+        />
       )}
-    </div>
+    </FieldShell>
   )
 }

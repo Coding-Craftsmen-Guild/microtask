@@ -3,36 +3,10 @@ import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { DescriptionField } from './description-field'
 import { EstimateField } from './estimate-field'
+import { EDITS } from './field'
 import { NameField } from './name-field'
-import type { DrawerValues, SubjectKind, SubjectWrite } from './field'
-
-const EDITS = 'grid gap-3 border-t border-foreground/10 pt-3 empty:hidden'
-
-interface Pair {
-  readonly renamable: boolean
-  readonly rename: SubjectWrite<string>
-  readonly estimable: boolean
-  readonly estimate: SubjectWrite<number | null>
-}
-
-const pairFor = (
-  kind: SubjectKind,
-  controls: PlanContentControls,
-  actions: PlanEditActions,
-): Pair =>
-  kind === 'feature'
-    ? {
-        renamable: controls.renameFeature,
-        rename: actions.renameFeature,
-        estimable: controls.estimateFeature,
-        estimate: actions.estimateFeature,
-      }
-    : {
-        renamable: controls.renameItem,
-        rename: actions.renameItem,
-        estimable: controls.estimateItem,
-        estimate: actions.estimateItem,
-      }
+import { pairFor } from './subject-writes'
+import type { DrawerValues } from './values'
 
 /** Props for {@link DrawerEdits}. */
 export interface DrawerEditsProps {
@@ -74,17 +48,18 @@ export interface DrawerEditsProps {
  * wired on both surfaces whatever these booleans say (ADR 0038, ADR 0009).
  *
  * A surface that draws none of them draws no group either: every child being `null` leaves this
- * element childless, and `empty:hidden` is what keeps a read-only seat from being shown a bordered
- * box with nothing in it. A variant rather than a count, so the condition cannot fall out of step with
- * the three below it.
+ * element childless, and `EDITS`'s `empty:hidden` is what keeps a read-only seat from being shown a
+ * bordered box with nothing in it. A variant rather than a count, so the condition cannot fall out of
+ * step with the three below it.
  *
  * ### Three actions cross to the browser, not eighteen
  *
  * This component is server-rendered and the three fields are not, so what it hands each of them is
  * what the Flight payload carries: one action reference, two ids and one value. `PlanEditActions`
- * itself stays on the server, which is why the fields take a `SubjectWrite` — the shape all five of
- * these writes already have — instead of the interface. None of them can reach a second action, and
- * none of them is bound to anything, so nothing rides along inside a closure (ADR 0040).
+ * itself stays on the server — with `pairFor`, which names it (`./subject-writes.ts`) — which is why
+ * the fields take a `SubjectWrite`, the shape all five of these writes already have, instead of the
+ * interface. None of them can reach a second action, and none of them is bound to anything, so nothing
+ * rides along inside a closure (ADR 0040).
  *
  * The description is an **item's** alone: `PlanManifest` is "everything about a plan except its item
  * descriptions", there is no `describeFeature` among the eighteen, and `ItemDocument` is the only
@@ -95,15 +70,29 @@ export interface DrawerEditsProps {
  * otherwise be sent a `featureId` as its item, which the type cannot rule out because both ids are
  * strings.
  *
- * ### Where this file splits next
+ * ### Where this file splits next, and how a group mounts
  *
- * It is **at** the 80-line cap already, so the next group has nowhere else to go. It splits by
- * **control group**, one file per group, as each arrives: the pin on its own, `feature:pin` being
- * `manage` where these two are `write`; the dependency editor on its own, which is where `EDGE_SUFFIX`
- * moves to from `PlanTableRow`; delete on its own, being the only destructive one; and `placeFeature`
- * and `placeItem` together, a reorder a keyboard has to be able to drive. What must **not** split is
- * this file by row kind: a feature's fields and an item's answer the same questions about different
- * subjects, and `rows.ts` refuses the same split for the same reason.
+ * It splits by **control group**, one file per group, as each arrives: the pin on its own,
+ * `feature:pin` being `manage` where these two are `write`; the dependency editor on its own, which is
+ * where `EDGE_SUFFIX` moves to from `PlanTableRow`; delete on its own, being the only destructive one;
+ * and `placeFeature` and `placeItem` together, a reorder a keyboard has to be able to drive.
+ *
+ * A group **mounts as a child of this element** and takes the props this one takes: `planId`, `row`,
+ * `values` where it edits one, `controls` and `actions`. It picks its own writes out of `actions` the
+ * way `pairFor` does, so the kind is chosen once per group and never by a caller, and it draws its own
+ * `null` when its boolean is false — the `empty:hidden` band above keeps counting for all of them. So
+ * each new group is a four-line child here and a file of its own, and this file's own three fields
+ * stay where they are.
+ *
+ * **Create is the exception, and it is not subject-scoped.** `createItem` needs a parent feature and
+ * `createFeature` a rail, so neither is a write *about* the subject this component is handed — a
+ * drawer open on an item cannot mount "add an item" without inventing which feature it means. Create
+ * is therefore a sibling group mounted by `./drawer-panel.tsx` beside this one, on the row's
+ * `featureId`-shaped context rather than on its subject, and it is the one group that does not belong
+ * under here.
+ *
+ * What must **not** split is this file by row kind: a feature's fields and an item's answer the same
+ * questions about different subjects, and `rows.ts` refuses the same split for the same reason.
  */
 export function DrawerEdits({
   planId,

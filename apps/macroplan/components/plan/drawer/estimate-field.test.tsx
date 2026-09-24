@@ -27,6 +27,13 @@ const kept: Estimate = (_planId, _subjectId, days) => Promise.resolve(sized(days
 const field = (name = 'Estimate in days') =>
   screen.getByRole<HTMLInputElement>('textbox', { name })
 
+const described = (control: HTMLElement): string =>
+  (control.getAttribute('aria-describedby') ?? '')
+    .split(' ')
+    .filter((one) => one !== '')
+    .map((id) => document.getElementById(id)?.textContent ?? '')
+    .join(' | ')
+
 const setup = (estimateDays: number | null = 5, estimate: Estimate = kept) => {
   const onEstimate = vi.fn(estimate)
   const view = render(
@@ -223,5 +230,32 @@ describe('what is on screen once the server has answered', () => {
       />,
     )
     expect(field().value).toBe('')
+  })
+})
+
+describe('what a reader is told about the rule and about a refusal', () => {
+  it('describes the field by its hint while nothing is refused', () => {
+    setup(5)
+    expect(described(field())).toBe(
+      'Days of work. Empty means nobody has sized it; 0 is a milestone that takes no time.',
+    )
+    expect(field().getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('describes it by the hint and then the refusal, which is reading order', async () => {
+    const { user } = setup(5)
+    await retype(user, '2.5')
+    expect(described(field())).toBe(
+      'Days of work. Empty means nobody has sized it; 0 is a milestone that takes no time. | An estimate is a whole number of days, 0 or more — or empty for work nobody has sized yet.',
+    )
+    expect(field().getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('goes back to the hint alone once the value is fixed', async () => {
+    const { user } = setup(5)
+    await retype(user, '2.5')
+    await retype(user, '3')
+    expect(field().getAttribute('aria-invalid')).toBeNull()
+    expect(described(field())).toContain('0 is a milestone')
   })
 })
