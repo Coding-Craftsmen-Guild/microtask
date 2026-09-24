@@ -585,6 +585,14 @@ evidence alone; how common the state is, is a judgement this plan makes and the 
 A drop therefore cannot send a bar index as `FeaturePlacementPayload.position`. It would reorder the feature
 against siblings the user cannot see.
 
+> **Superseded by what shipped. Read this box before Steps 1–3.** The sketch below proposed a second exported
+> function, `positionForDrop`, taking a bar index. **It was refused and does not exist**, for a reason better than
+> the sketch: two exported functions both answering "a position" is the original defect under new names, and a
+> caller can reach the wrong one. `dropTargetFor` instead takes a `DropQuery` and its `DropTarget.position` **is**
+> the stored position `FeaturePlacementPayload` wants. **No bar index is exported from `@repo/canvas` at all.**
+> Anything below that speaks of a bar index, or of `positionForDrop`, describes a design that was rejected — do not
+> implement it and do not compare against it.
+
 - [ ] **Step 1: one more pure function, not a fix inside the component.** Task 16's component is a thin renderer by
       ADR 0055, and this is arithmetic, so it belongs here where it is testable with no DOM:
 
@@ -1100,9 +1108,26 @@ and 10 before starting.
       becomes a client component, no per-bar props enter the Flight payload, and `item-mark.tsx:22-27`'s
       one-element-per-item budget is untouched.
 
-- [ ] **Step 2: the maths is Task 5's, and the component converts exactly one thing.** A pointer event becomes one
-      `{x, y}` in the SVG's coordinate space, and `dropTargetFor` answers the rest. Nothing in this component
-      computes a position, a rail or a day. That is ADR 0055's rule and it is also the only way any of this is
+- [ ] **Step 2: the maths is Task 5's, and the component converts exactly one thing — but that conversion is where
+      this phase's likeliest defect lives.** A pointer event becomes one `{x, y}` in the SVG's coordinate space, and
+      `dropTargetFor` answers the rest. Nothing in this component computes a position, a rail or a day.
+
+      **Both coordinates carry a contract, and a raw pointer value is wrong for each.** `DropQuery` wants the
+      position the dragged **bar** landed at, not where the pointer is:
+
+      - `x` is `pointerX - (pointerDownX - bar.x)`. Pass the raw pointer x and "dropped back on its own x changes
+        nothing" fails by the grab offset — at `CANVAS_SCALE`'s 14 px/day, grabbing a five-day bar near its right
+        end and releasing without moving shifts the value by 70px, five days, which on a dense rail is past two
+        bars.
+      - `y` is `pointerY - (pointerDownY - railTop(start)) + railHeight / 2` — the y at which the bar's
+        **band-relative centre** landed. The half-band term is not a fudge: it is what makes the rail handoff
+        symmetric at half a band each way. Without it the handoff is one pixel upward and a full band downward,
+        because `railAtY` claims a band from its top, so a bar nudged up by a single pixel would change rails.
+
+      Neither can be checked by measuring, since `happy-dom` returns a zero `DOMRect` — but both are arithmetic, so
+      **both are testable without measuring anything**: assert that the x handed to `dropTargetFor` equals the bar's
+      own `x` attribute plus the pointer delta, and that a bar nudged up by `railHeight / 2 - 1` still answers its
+      own rail while `railHeight / 2` down answers the next one. That is ADR 0055's rule and it is also the only way any of this is
       testable: `happy-dom` answers `getBoundingClientRect` with a zero `DOMRect` and `getCTM` with an identity
       matrix, so a component that did the arithmetic would be tested against zeroes that always agree.
 
@@ -1134,9 +1159,12 @@ and 10 before starting.
       derived, never repaired." A solver that silently moved an executive's committed plan is named in §6 as a
       worse failure than a visible contradiction, and this test is what keeps that true.
 
-      Also assert the no-op: dropping a feature back where it started sends **no request at all**. Compare against
-      the **bar index**, or against the stored position via `positionForDrop` — **not** against `feature.position`
-      directly, which sends a spurious `place` on any rail holding an unsized feature. Task 5b is why.
+      Also assert the no-op: dropping a feature back where it started sends **no request at all**. The oracle is
+      **the answer `dropTargetFor` gives for the bar's own x** — compare the placement you are about to send with
+      that, and send nothing when they agree. Do **not** compare against `feature.position` directly, and do not
+      look for a bar index or a `positionForDrop`: neither exists, and an earlier draft of this step named both.
+      `dropTargetFor`'s `position` is already the stored position, and getting a no-op right in the presence of
+      hidden siblings is what Task 5b and its three follow-up fixes were about.
 
 - [ ] **Step 5b: pin the forward and inverse rail arithmetic against each other.** `railTop(index)` in
       `apps/macroplan/components/plan/canvas/view.ts` decides where rail *n* is drawn; `railAtY` in `@repo/canvas`
