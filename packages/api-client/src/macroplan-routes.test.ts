@@ -128,6 +128,8 @@ describe('every macroplan operation addresses the path the API actually serves',
       'https://api.example.test/v1/macroplan/plans/p1/features/f1',
       '{"estimateDays":null}',
     ])
+    const omitted = await sent(() => macroplan.features.update('p1', 'f1', { name: 'Sign in' }))
+    expect(omitted.init.body).toBe('{"name":"Sign in"}')
   })
 
   it('moves a feature through its own placement segment, sending both rail and position', async () => {
@@ -252,8 +254,9 @@ describe('every macroplan operation addresses the path the API actually serves',
 describe('a dependency cycle reaches the caller as an ApiError it can read', () => {
   const CYCLE_DETAIL = 'These features would wait on each other: f1, f3'
 
-  const conflicting: Fetcher = () =>
-    Promise.resolve(
+  const conflicting: Fetcher = (url, init) => {
+    calls.push({ url, init })
+    return Promise.resolve(
       new Response(
         JSON.stringify({
           type: '/problems/conflict',
@@ -266,13 +269,19 @@ describe('a dependency cycle reaches the caller as an ApiError it can read', () 
         { status: 409, headers: { 'content-type': 'application/problem+json' } },
       ),
     )
+  }
 
-  it('carries the status and the sentence naming both features, which is all the caller has', async () => {
+  it('carries the 409 out of the dependencies route with the sentence naming both features', async () => {
     const client = createMacroplanAdminClient({ ...OPTIONS, fetch: conflicting }, 'admin-token')
+    calls.length = 0
     const failure = await client.features
       .setDependencies('p1', 'f1', ['f3'])
       .then(() => null)
       .catch((error: unknown) => error)
+    expect([calls[0]?.init.method, calls[0]?.url]).toEqual([
+      'PUT',
+      'https://api.example.test/v1/macroplan/plans/p1/features/f1/dependencies',
+    ])
     expect(failure).toBeInstanceOf(ApiError)
     expect(failure).toMatchObject({ status: 409, code: 'conflict', detail: CYCLE_DETAIL })
   })

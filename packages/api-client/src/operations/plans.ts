@@ -82,8 +82,8 @@ export interface PlansApi {
    * structural writes: the schedule is derived from `startDate` and `sprintLengthDays`, so shifting
    * the origin shifts every derived date and every sprint boundary at once. Nothing is restructured
    * and the whole timeline is different, so it answers {@link Plan} for the same reason they do —
-   * and it is the one route under a plan that declares that response on itself rather than sharing
-   * the structural routes' constant.
+   * while declaring that response on itself rather than sharing the structural routes' constant,
+   * which is one of the exceptions `plan-response.ts` names and keeps the list of.
    *
    * **A body carrying both a name and a timing field is authorised against two gates**, as the
    * feature route is: a `name` needs `plan:rename`, and a `startDate`, `sprintLengthDays` or

@@ -1,6 +1,7 @@
 import {
   PlanView,
   type CreateItemPayload,
+  type DescriptionPayload,
   type ItemPlacementPayload,
   type UpdateItemPayload,
 } from '@repo/contracts'
@@ -60,10 +61,13 @@ export interface ItemsApi {
    * Renames one item, re-estimates it, or both, moving it nowhere.
    *
    * Authorised per **present** field, as the feature route is: a `name` asks `item:rename`, an
-   * `estimateDays` asks `item:estimate`, and a body carrying both is checked against both. Unlike
-   * the feature route that cannot half-refuse anyone today — `policy.ts` grants both to `write`,
-   * where `feature:pin` is `manage` — so this split is a seam for a later role split and not a
-   * reason to send one field per request.
+   * `estimateDays` asks `item:estimate`, and a body carrying both is checked against both. This
+   * route cannot half-refuse anyone today, because `policy.ts` grants both of those actions to
+   * `write`. The feature route can, because `feature:pin` sits at `manage` there.
+   *
+   * So the split here is a seam for a later role split rather than a reason to send one field per
+   * request — which is a reason the feature route does have, and which this route acquires the day
+   * either of its two actions moves. Not a promise that an item body may carry both fields for good.
    *
    * The API refuses an empty body, so a call asking for nothing is a 422 rather than a write that
    * stamps `updatedAt` and changes nothing.
@@ -110,12 +114,18 @@ export interface ItemsApi {
    * afterwards to answer what every other item write answers. That second read is outside the write's
    * lock on purpose — it can only ever be fresher, and a description moves no bar.
    *
-   * Takes a bare `string` rather than a `{description}` object, for the reason
+   * Takes the text rather than a `{description}` object, for the reason
    * `features.setDependencies` gives: the body has one field, so the wrapper would be ceremony at
-   * every call site. The read half of this pair is `plans.readItem`, which phase 2 put on `PlansApi`
+   * every call site. Its type is read off `DescriptionPayload` for the reason that method gives too —
+   * renaming the field in the contract is then a compile error here rather than a body the API
+   * silently strips. The read half of this pair is `plans.readItem`, which phase 2 put on `PlansApi`
    * and where it stays — moving it now would churn a shipped call site for tidiness.
    */
-  describe(planId: string, itemId: string, description: string): Promise<Plan>
+  describe(
+    planId: string,
+    itemId: string,
+    description: Decoded<typeof DescriptionPayload>['description'],
+  ): Promise<Plan>
 
   /**
    * Removes one item and the file holding its description, renumbering its group densely from zero.

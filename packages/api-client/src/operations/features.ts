@@ -1,6 +1,7 @@
 import {
   PlanView,
   type CreateFeaturePayload,
+  type DependenciesPayload,
   type FeaturePlacementPayload,
   type UpdateFeaturePayload,
 } from '@repo/contracts'
@@ -38,13 +39,21 @@ export type FeatureChange = Decoded<typeof UpdateFeaturePayload>
 /**
  * Which rail a feature sits on and where on it — both, always, even when only one is changing.
  *
- * The payload object rather than two bare arguments, for the reason `epics.ts` gives of its own:
- * the wire shape is `{epicId, position}` and this client speaks the wire. Neither key is optional,
- * so moving a feature along the rail it is already on means naming that rail again.
+ * The payload object rather than two bare arguments, because the wire shape is `{epicId, position}`
+ * and this client speaks the wire. Neither key is optional, so moving a feature along the rail it is
+ * already on means naming that rail again.
  */
 export type FeaturePlacement = Decoded<typeof FeaturePlacementPayload>
 
-/** Everything a caller may ask of the features on a plan's rails. */
+/**
+ * Everything a caller may ask of the features on a plan's rails.
+ *
+ * This is the group the role line cuts through, so a 403 is an ordinary outcome of half of it rather
+ * than a misconfiguration: some `feature:` actions are granted to `write` and some only to `manage`.
+ * `packages/kernel/src/access/policy.ts` holds which is which, and it is named here once instead of
+ * per member — the table copied into five doc blocks is five copies to find when a grant moves, and
+ * the member that gets missed is the one that stops being a warning and starts being a lie.
+ */
 export interface FeaturesApi {
   /** Adds a feature at the end of the rail the body names; the body carries no position. */
   create(planId: string, feature: NewFeature): Promise<Plan>
@@ -57,8 +66,12 @@ export interface FeaturesApi {
    * needs `feature:rename`, an `estimateDays` needs `feature:estimate` — both held by `write` — and
    * a `pinSprint` needs `feature:pin`, which only `manage` holds. Every gate runs before the store
    * is reached and the first refusal throws, so a `write` seat sending a rename and a pin together
-   * gets a 403 and keeps the old name as well as the old pin. Sending one field per request is
-   * therefore the only way a caller learns which of its edits was the refused one.
+   * gets a 403 and keeps the old name as well as the old pin. Which edit was refused is still
+   * legible: `apps/api/src/auth/authorize.ts` words every 403 as `Not permitted: <action>` and the
+   * problem document carries that string as its `detail`, so `ApiError.detail` names it. It names
+   * the first refusal and no other, the branch order above being fixed. So the reason to send one
+   * field per request is the sentence in bold above — the permitted half lands only when it travels
+   * alone — and not any difficulty in reading back which gate closed.
    *
    * The API refuses an empty body, so a call asking for nothing is a 422 rather than a write that
    * stamps `updatedAt` and changes nothing.
@@ -90,18 +103,30 @@ export interface FeaturesApi {
    * concurrent edge editing turns out to be real. Until then a caller that cares re-reads the plan
    * this call answers with, rather than trusting the list it sent.
    *
-   * A cycle is a **409** — the one status any Macroplan route declares beyond the common set — and
-   * its `detail` names the features that would wait on each other. Nothing is written: every check
-   * runs before the first store call. A self-edge and an id naming a feature in another plan are
-   * both 422 instead, the distinction {@link NewFeature} draws on its `epicId`. The cap is
-   * `LIMITS.edgesPerPlan` over the whole plan rather than per feature, so a list well inside the
-   * bound can still be refused by the edges every other feature already holds.
+   * A cycle is a **409**, a problem status beyond the common set that
+   * `apps/api/src/routes/macroplan/features/routes.ts` declares and gives its reason for, and its
+   * `detail` names the features that would wait on each other. Nothing is written: every check runs
+   * before the first store call. A self-edge and an id naming a feature in another plan are both 422
+   * instead, the distinction {@link NewFeature} draws on its `epicId`.
+   *
+   * The edge budget refuses twice, from two layers. `DependenciesPayload` caps this list on its own
+   * at `LIMITS.edgesPerPlan`, so a longer one is a schema 422 before a store is opened; and the
+   * domain then counts the **whole plan** rather than one feature, so a list well inside that same
+   * bound is still refused by the edges every other feature already holds. A caller that sizes its
+   * list against the constant has only cleared the first of the two.
    *
    * Takes the ids rather than a `{dependsOn}` object, unlike {@link FeaturesApi.place}: the body
    * has exactly one field, so the wrapper would be ceremony at every call site. `folders.ts` takes
-   * a bare `name` where its body is `{name}` for the same reason.
+   * a bare `name` where its body is `{name}` for the same reason. The type is read off
+   * `DependenciesPayload` rather than written out as `readonly string[]`, so renaming that field in
+   * the contract is a compile error here — nothing else would catch it, because the route test
+   * asserts what this client sends and would stay green while the API stripped the body to `{}`.
    */
-  setDependencies(planId: string, featureId: string, dependsOn: readonly string[]): Promise<Plan>
+  setDependencies(
+    planId: string,
+    featureId: string,
+    dependsOn: Decoded<typeof DependenciesPayload>['dependsOn'],
+  ): Promise<Plan>
 
   /**
    * Removes one feature, the items under it and every edge that named it, in one write.
