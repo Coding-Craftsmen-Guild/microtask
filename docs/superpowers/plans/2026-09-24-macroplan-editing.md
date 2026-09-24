@@ -823,9 +823,17 @@ Four things in that are load-bearing and each has a reason recorded somewhere in
 
 - [ ] **Step 1: widen `PlanControls` past the four share booleans.** It exists, it is correct, and it has **no
       shipped call site** — `planCapabilities` is called only by its own test, and its TSDoc says "Phase 2 draws
-      none of these". Add one boolean per control this phase draws: create and delete an epic, reorder a rail,
-      create / rename / estimate / delete / place / pin a feature, the same for an item, edit dependencies, and
-      change plan settings.
+      none of these". Add one boolean per control this phase draws: create, **rename**, **recolour**, reorder and
+      delete an epic; create / rename / estimate / delete / place / pin a feature; the same for an item;
+      edit dependencies; and change plan settings.
+
+      **Derive that list from `PlanEditActions` rather than from this sentence**, and say in the commit whether the
+      two agree. An earlier draft of this step omitted rename and recolour, which would have left `renameEpic` and
+      `recolourEpic` shipped in Task 7 with no control that could ever call them — dead surface nothing would have
+      caught, since a missing boolean is not a type error. Epic hue is not decoration: spec §4 settles that "**Epic
+      owns hue. Status owns treatment**", so an epic's colour is the only thing making it traceable across rails,
+      and a plan that cannot recolour one cannot fix a clash. One boolean each even though every `epic:*` action is
+      a single `manage` grant, because a control is a rendering answer and the drawer draws these separately.
 
       **Read the three `share:*` rows through `mayReach(role, scope, action, 'plan')` and the rest off the
       record.** This is not stylistic: `capabilities()` answers each action against its own declared `target`, and
@@ -994,6 +1002,14 @@ Four things in that are load-bearing and each has a reason recorded somewhere in
   `dependency-editor.tsx`, `dependency-editor.test.tsx`
 
 This is the phase gate's first half — "cycle refusal pinned by test" — and header decision 7 is the design.
+
+**The action already exists.** `setDependencies` is on `PlanEditActions` and wired into both audiences before this
+task opens, so this task creates no action file and modifies none. The plan inventory always declared it in
+`actions/features.ts`; this task's file list never did, and that disagreement was found by Task 7's spec review
+rather than by anybody reading the task. Take the write as given and spend the task on the refusal. Two properties
+of it are this task's to reckon with, and both are visible in `packages/api-client/src/operations/features.ts`
+rather than in this sentence — read them there: what the route replaces, and what it does **not** send that would
+let two editors' writes be ordered.
 
 - [ ] **Step 1: `cycle-check.ts` is pure, and it is where the gate is met.** Given the plan's features and a
       proposed `dependsOn` for one of them, answer either the cycle it would create — as the **names** of the
@@ -1402,6 +1418,17 @@ bridge; do not renumber into it.
         test of that property would not need editing every time the surface grows. Phase 4's bridge methods break
         the enumerated version again. Either rewrite it as the property or record why the list is worth the
         maintenance, and in the same step confirm no third copy exists.
+      - **7l:** every control on `PlanControls` has a call site, and **every member of `PlanEditActions` has a
+        control**. These are two different sweeps and neither is a type error: a boolean nothing reads is dead
+        weight, and an action no control can reach is a write the product cannot perform. Task 9's first draft
+        omitted the two epic controls that Task 7 had already shipped actions for, which is exactly this failure.
+        Enumerate both directions and name any survivor with the reason it survives.
+      - **7m:** `apps/macroplan/components/plan/admin-actions.test.ts` is scope neither Task 7's steps nor the file
+        inventory asked for — Task 7's spec review flagged it and I kept it. Confirm it still earns that: it asserts
+        each member's function `.name` equals its key, which is the one wiring error the compiler is blind to,
+        because `renameFeature` and `renameItem` have identical signatures and swapping them typechecks. If Task 8's
+        seat mirror binds its token, that sweep cannot work unchanged there — a bound function's `.name` is
+        `"bound renameFeature"`. Say how the seat side is checked, or why it needs no check.
 
 - [ ] **Step 8: update spec §11's table** with 0057–0060, leave 0052 reserved, and add the four to
       `docs/adr/README.md`.
