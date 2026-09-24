@@ -112,7 +112,8 @@ export async function placeFeature(
  * silently — the route takes no `If-Match` to catch it — so a caller that cares re-reads the plan
  * this action answers with rather than trusting the list it sent.
  *
- * A cycle is refused whole and nothing is written — every check runs before the first store call
+ * A cycle is refused whole and nothing is written — the service reads the plan, runs every check
+ * against it, and only then saves
  * (`packages/macroplan-domain/src/services/feature-service.ts`). **Nobody should plan to show that
  * refusal.** Its 409 detail lists raw ids (`These features would wait on each other: <ids>`), and
  * `lib/refusal.ts` answers a 409 from its status alone, so what a user would read is "Someone else

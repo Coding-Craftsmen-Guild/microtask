@@ -25,15 +25,25 @@ type ItemEstimate = Exclude<ItemChange['estimateDays'], undefined>
  * Every structural write a plan surface can ask for, each one a Server Action a page hands in.
  *
  * A prop rather than an import, so the same components render for a link holder with actions that
- * carry the seat's authority instead of the admin's: nothing under `components/` decides whose
- * credential a write goes out under, and nothing under `components/` imports an action. It is also
- * what lets a test hand a surface `vi.fn()`s typed off this interface rather than a live client.
+ * carry the seat's authority instead of the admin's: no component that renders a plan imports an
+ * action, and one that gains a write takes this interface, so none of them decides whose credential a
+ * write goes out under. That is a property of the plan subtree rather than a rule — no lint pattern
+ * and no boundary test forbids an import from `actions/` under `components/`, and two modules there
+ * make one: `admin-actions.ts` beside this file, the admin page's wiring, and
+ * `components/shared/sign-out-form.tsx` — neither of them a plan surface. The prop is also what lets
+ * a test hand a surface `vi.fn()`s typed off this interface rather than a live client.
  *
- * **Flat, and it has to be.** `eachOrNoAnswer` maps one level of `Object.entries`, so a member that
- * was itself an object of actions would come back wrapped as a function and fail its own
- * `Refusable` constraint. Every member answers `ActionResult<Plan>` for the same reason: that
- * constraint admits only actions that can already answer an `ActionFailure`, and one typed
- * `Promise<void>` would not typecheck into the guard.
+ * **Flat, for the guard it exists to pass.** `eachOrNoAnswer` (`@repo/app-session/no-answer`) maps
+ * one level of `Object.entries`,
+ * and its `Refusable` constraint admits only members that are functions answering a promise an
+ * `ActionFailure` fits into. So a member that was itself an object of actions is a compile error at
+ * the call rather than a wrapper discovered at runtime, and a member answering `Promise<void>` would
+ * not typecheck into the guard either — which is why every member here answers `ActionResult<Plan>`.
+ * That constrains each object handed to the guard and not how many there are: `apps/microtask` hands
+ * it three, one per surface. This one is undivided for the reason `admin-actions.ts` records — a
+ * surface gains an action without every page that renders it gaining an argument. No caller in this
+ * app reaches the guard yet: every plan surface renders on the server, and it is a client component
+ * that would need it.
  *
  * Every member answers the **whole plan** because every route behind it does. A drop therefore has
  * the authoritative timeline in the same round trip, and an undo reads the placement it is undoing

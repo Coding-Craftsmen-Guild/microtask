@@ -8,8 +8,8 @@ import { adminCall, type ActionResult } from './result'
  * page it changed.
  *
  * The body every action in `epics.ts`, `features.ts` and `items.ts` shares. Written once rather than
- * sixteen times because the two rules in it are the kind that survive fifteen copies and fail in the
- * sixteenth, where nothing but a reader would notice.
+ * once per action, because the two rules in it are the kind that survive every copy but one, where
+ * nothing but a reader would notice.
  *
  * `refresh` runs **only when the write succeeded**. A refused write changed nothing, so there is
  * nothing to re-render, and re-rendering would replace the sentence the caller is about to show with
