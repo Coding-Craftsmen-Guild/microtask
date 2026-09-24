@@ -19,6 +19,12 @@ const drawerPath = (root: string, segment: string, id: string): string =>
  * and none of them may build it by concatenation. That is the same rule `lib/routes.ts` states for
  * `planPath`: "a caller building a path by hand is how a `..` segment reaches a router".
  *
+ * **Nothing in the app calls either of these yet.** None of those three surfaces draws a link today:
+ * the task that turns a table row into one is the first caller, and it is also what forced the two
+ * pages these paths address to exist before any link to them did. So the pages are reachable by typing
+ * an address and by nothing else for the moment, and `drawer-routes.test.ts` is the only code that
+ * spends a built path — which is a fact about this phase rather than about these two functions.
+ *
  * `encodeURIComponent` is therefore unconditional on the id, for that file's own reason: a feature
  * id is a ULID and normally needs no encoding, which is exactly why the one value that would need
  * it is the one that arrived from somewhere unexpected. The plan half is not encoded here at all —

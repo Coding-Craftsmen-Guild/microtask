@@ -177,8 +177,8 @@ describe('an id that names nothing the plan can place', () => {
   // `itemsByFeature` groups an item under a `featureId` the plan does not hold and it is then "simply
   // never asked for" (`@repo/schedule`), so the canvas draws nothing for it and `tableRows` gives it
   // no row. There is no rail, no feature and no sprint to draw such an item against, and deleting a
-  // feature takes its items with it (`PlanContentControls.removeFeature`), so no plan the API served
-  // holds one.
+  // feature takes its items with it on the server — `withoutFeatures` in
+  // `packages/macroplan-domain/src/services/cascade.ts` — so no plan the API served holds one.
   it('renders not-found for an item whose feature the plan no longer holds, having nothing to place it in', async () => {
     api.plans = [atlasPlan({ features: [] })]
     expect(atlasPlan().items.some((one) => one.id === ITEM_1)).toBe(true)

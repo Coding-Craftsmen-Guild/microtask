@@ -145,7 +145,8 @@ const tokensServed = (): readonly string[] => {
 //
 // The gap is unchanged and unrelaxed. What has changed is that it can no longer be walked into
 // unnoticed: `functionsIn` below is a second walk, over the same tree, that records every function
-// this page hands over, and the last test in the sweep asserts there are none. Phase 3's drawer
+// this page hands over, and the case named for it — second from last in the sweep, the reduction
+// assertion following it — asserts there are none. Phase 3's drawer
 // route — the task that was expected to bind the first one — binds nothing at all: it is a Server
 // Component reading its own route params, and it draws words a table row had already decided. So a
 // bound action still cannot reach this surface silently: it fails the zero-functions assertion first,

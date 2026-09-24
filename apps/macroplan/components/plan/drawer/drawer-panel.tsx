@@ -81,6 +81,30 @@ export interface DrawerPanelProps {
  * because they are one typographic thing — a small uppercase label — and the same string under two
  * names is a diff away from claiming they are two. A control group that needs a label unlike this one
  * gets its own name then, not in advance.
+ *
+ * ### This file, if it grows, and it will
+ *
+ * Two thirds of the 80 lines an `.tsx` may hold are spent, and what arrives here is every content control
+ * `PlanContentControls` names about a feature or an item: `renameFeature` and `renameItem`,
+ * `estimateFeature` and `estimateItem`, `pinFeature`, `setDependencies` — the editor the paragraph
+ * above defers — `removeFeature` and `removeItem`, and `placeFeature` and `placeItem`, which is a
+ * reorder a keyboard has to be able to drive. Each is a form and a refusal sentence, so any two of
+ * them exhaust what is left.
+ *
+ * **The facts `<dl>` is the first extraction**: `factsOf`, the `Fact` shape it answers in, and the
+ * `FACTS`, `LABEL` and `VALUE` classes those three lines spend, into a `./drawer-facts.tsx` this file
+ * renders one element of. It goes first because it is the part of this panel that words nothing and
+ * decides nothing — it lays out strings the row already chose — so it can leave without taking an
+ * argument with it, and what stays behind is the landmark, the heading and the close link, which is
+ * the frame every control group is then added inside.
+ *
+ * **Each control group after that, one file per group** — the name and estimate edits together, since
+ * the API authorises the two fields of one PATCH separately and a single form must be drawn on both
+ * booleans; the pin on its own, `feature:pin` being `manage` where those two are `write`; the
+ * dependency editor on its own, which is where `EDGE_SUFFIX` moves to from `PlanTableRow`; delete on
+ * its own, being the only destructive one. What must **not** split is this file by row kind: a feature
+ * panel and an item panel answer the same questions about different subjects, and `rows.ts` refuses
+ * the same split for the same reason.
  */
 export function DrawerPanel({ row, closeHref }: DrawerPanelProps) {
   return (

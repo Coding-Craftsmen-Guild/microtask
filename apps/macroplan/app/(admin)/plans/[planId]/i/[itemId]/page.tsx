@@ -29,8 +29,12 @@ export interface ItemDrawerPageProps {
  * There is no rail, no feature and no sprint to draw such an item against, a panel of one name and
  * three blanks would be worse than the not-found sentence, and inventing a rail for it would be a
  * claim about where the work sits (`rows.ts` refuses the same invention for the same reason). No plan
- * the API served holds one anyway: deleting a feature deletes its items with it
- * (`PlanContentControls.removeFeature`), so this is a state a fixture can build and an endpoint
+ * the API served holds one anyway: `withoutFeatures` in
+ * `packages/macroplan-domain/src/services/cascade.ts` drops every item whose `featureId` is in the
+ * removed set, and `withoutEpic` is built on it, so a feature delete and a rail delete both take their
+ * items with them. That is the cascade itself and not `PlanContentControls.removeFeature`, which is a
+ * boolean about whether a surface draws a delete control and is explicitly "a rendering answer and
+ * never a gate" (`lib/plan-capabilities.ts`). So this is a state a fixture can build and an endpoint
  * cannot.
  */
 export default async function ItemDrawerPage({ params }: ItemDrawerPageProps) {

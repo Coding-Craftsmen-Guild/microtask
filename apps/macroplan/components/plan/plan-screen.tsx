@@ -128,6 +128,19 @@ export interface PlanScreenProps {
  * both panels has to stay one flat list of siblings here; a component drawn around any part of it is
  * the wrapper the paragraph above rules out. The strings are the part of the switch that can leave, and
  * `view-switch.ts` says why each of them is coupled to the others.
+ *
+ * ### Where this file divides next
+ *
+ * Under a quarter of the 80 lines an `.tsx` may hold is left, and two more tasks mount things here — a
+ * conflict list and a share manager. The paragraphs above have already ruled out everything inside
+ * `VIEW_SWITCH.views`: the radios, their labels and both panels are peers of one another by necessity,
+ * and a component drawn around any of them breaks the selector the switch is built on.
+ *
+ * What is left, and so **the next split, is the heading block** — the `h1` and the settings line under
+ * it, the one `<div className="grid gap-1">` in here. It is a self-contained pair of elements with no
+ * peer relationship to anything, it reads three fields of the plan and nothing else, and it sits above
+ * the drawer slot, so lifting it out moves no sibling past another. `./plan-heading.tsx` taking one
+ * `PlanScreenModel`, and this file keeps the grid, the slot and the switch.
  */
 export function PlanScreen({ plan, at, drawer }: PlanScreenProps) {
   return (
