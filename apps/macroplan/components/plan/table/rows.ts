@@ -1,9 +1,9 @@
-import type { Plan } from '@repo/api-client'
 import { treatmentsOf } from '@repo/canvas'
 import type { Treatment } from '@repo/canvas'
 import { breakdown, effectiveEstimate, itemsByFeature, railsOf, sprintOf } from '@repo/schedule'
 import type { ScheduleFeature, ScheduleItem, Span } from '@repo/schedule'
 import { railNames } from '../canvas/view'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
  * What the forward pass did with one dependency a feature states.
@@ -86,7 +86,7 @@ export interface TableRow {
 }
 
 interface Rows {
-  readonly plan: Plan
+  readonly plan: PlanScreenModel
   readonly items: ReadonlyMap<string, readonly ScheduleItem[]>
   readonly spans: ReadonlyMap<string, Span>
   readonly treatments: ReadonlyMap<string, Treatment>
@@ -166,7 +166,7 @@ const itemRow = (item: ScheduleItem, feature: ScheduleFeature, rows: Rows): Tabl
   blockedBy: [],
 })
 
-const context = (plan: Plan): Rows => ({
+const context = (plan: PlanScreenModel): Rows => ({
   plan,
   items: itemsByFeature(plan),
   spans: new Map(plan.schedule.spans.map((span) => [span.id, span])),
@@ -226,10 +226,12 @@ const context = (plan: Plan): Rows => ({
  * the cap, the split is the answer, and it splits by **column** rather than by row kind: a feature
  * row and an item row must keep answering the same seven questions in one place.
  *
- * @param plan - The plan and the schedule derived from it, exactly as `GET /plans/{planId}` answered.
+ * @param plan - The plan and the schedule derived from it, as `GET /plans/{planId}` answered it minus
+ * the seats: a `PlanScreenModel`, which is the floor for everything under `components/plan` rather
+ * than a ceiling on the one component that used to be the only way in.
  * @returns One row per feature and per item, features before their own items.
  */
-export function tableRows(plan: Plan): readonly TableRow[] {
+export function tableRows(plan: PlanScreenModel): readonly TableRow[] {
   const rows = context(plan)
   return railsOf(plan).flatMap((rail) =>
     rail.flatMap((feature) => [

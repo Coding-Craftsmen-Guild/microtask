@@ -1,6 +1,6 @@
-import type { Plan } from '@repo/api-client'
 import { dayToX, scaleFor, widthOfDays } from '@repo/canvas'
 import type { DayRange, ItemMark, PlanScale, RailBox, Rung, Treatment } from '@repo/canvas'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
  * The stretch of working days the canvas draws, and the one number on this screen that nothing
@@ -216,7 +216,7 @@ export const labelX = (x: number, scale: PlanScale, range: DayRange): number =>
  * the layout could have handed over. A rail whose `epicId` names no epic gets no entry here, which
  * is the same absence its `colour: null` states.
  */
-export const railNames = (plan: Plan): ReadonlyMap<string, string> =>
+export const railNames = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
   new Map(plan.epics.map((epic) => [epic.id, epic.name]))
 
 /**

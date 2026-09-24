@@ -1,6 +1,6 @@
-import type { Plan } from '@repo/api-client'
 import { todayLine } from '@repo/canvas'
 import type { PlanScale } from '@repo/canvas'
+import type { PlanScreenModel } from '../plan-screen-model'
 import { todayHover } from './hover'
 
 const TODAY_STROKE = 'stroke-gold-deep stroke-2'
@@ -8,7 +8,7 @@ const TODAY_STROKE = 'stroke-gold-deep stroke-2'
 /** Props for {@link TodayMark}. */
 export interface TodayMarkProps {
   /** The plan, whose own `timezone` decides what date today is. */
-  readonly plan: Plan
+  readonly plan: PlanScreenModel
 
   /** The scale the x is computed at. */
   readonly scale: PlanScale

@@ -14,7 +14,14 @@ import {
   STAMP,
   unplacedPlan,
 } from '../testing/plan-fixture'
-import { tableRows, type TableRow } from './rows'
+import { planScreenModel } from '../plan-screen-model'
+import { tableRows as rowsOfModel, type TableRow } from './rows'
+
+// `tableRows` takes a `PlanScreenModel` now — the type a share token cannot be represented in — and
+// every fixture here is a `StoredPlan` carrying three seats. The reducer both surfaces' reads use is
+// what turns one into the other, so it is applied here rather than at forty call sites, and the name
+// stays `tableRows` so each case below still reads as a call to the function under test.
+const tableRows = (plan: Plan): readonly TableRow[] => rowsOfModel(planScreenModel(plan))
 
 const SCALE = CANVAS_SCALE
 

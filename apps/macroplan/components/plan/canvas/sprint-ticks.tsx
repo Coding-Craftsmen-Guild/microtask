@@ -1,6 +1,6 @@
-import type { Plan } from '@repo/api-client'
 import { sprintTicks } from '@repo/canvas'
 import type { DayRange, PlanScale } from '@repo/canvas'
+import type { PlanScreenModel } from '../plan-screen-model'
 import { sprintHover } from './hover'
 import { LAYOUT, labelX } from './view'
 
@@ -15,7 +15,7 @@ const TICK_TOP = 26
 /** Props for {@link SprintTickLayer}. */
 export interface SprintTickLayerProps {
   /** The plan, read for its `startDate` and `sprintLengthDays` alone. */
-  readonly plan: Plan
+  readonly plan: PlanScreenModel
 
   /** The scale every x and width is computed at. */
   readonly scale: PlanScale

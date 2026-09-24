@@ -1,3 +1,4 @@
+import type { PlanControls } from '../../lib/plan-capabilities'
 import { PlanCanvas } from './canvas/plan-canvas'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
@@ -38,6 +39,21 @@ export interface PlanScreenProps {
 
   /** The instant the page was rendered, threaded down so the whole screen dates itself alike. */
   readonly at: Date
+
+  /**
+   * Which controls this surface may draw, already decided by the page that read the credential.
+   *
+   * A {@link PlanControls} and never a role, a scope or a `PlanShareView`: the page asks
+   * `planCapabilities` once — or passes `ADMIN_CONTROLS` — so nothing under here can re-derive a
+   * permission from a credential-shaped value, and no token can reach the Flight payload through it.
+   * Each answer is a rendering answer and never a gate; `lib/plan-capabilities.ts` holds that
+   * argument in full.
+   *
+   * **Nothing below draws one yet.** This phase decides the answer and threads it; the drawer, the
+   * conflict list and the share manager that spend it are the tasks after this one, and they mount
+   * beside this screen as well as under it.
+   */
+  readonly controls: PlanControls
 }
 
 /**
@@ -55,8 +71,9 @@ export interface PlanScreenProps {
  * read answered before anything sees it, and this prop is what makes that a **compile** error to skip
  * rather than a leak sweep away from shipping: a plan carrying `shareLinks` is not assignable here, so
  * no page can hand this subtree a token and no client component added inside it later can drag one
- * into the Flight payload (ADR 0033). The canvas and the table below still take a whole `Plan`,
- * because the model is assignable to one — the narrowing is a ceiling and costs them nothing.
+ * into the Flight payload (ADR 0033). The canvas and the table below take the **same** type, and no
+ * longer a whole `Plan`: this screen is no longer the only surface a plan is rendered through, and a
+ * narrowing that lives one level up reaches nothing mounted beside it.
  *
  * Neither the name nor the settings line carries a `data-testid`. The name is the page's `h1` and the
  * settings line is one unambiguous sentence, so a role query and a text query reach both — and those

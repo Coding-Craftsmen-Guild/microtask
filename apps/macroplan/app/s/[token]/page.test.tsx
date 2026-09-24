@@ -19,6 +19,7 @@ import {
   SEAT_TOKEN,
   WRITE_SEAT_TOKEN,
 } from '../../../components/plan/testing/plan-fixture'
+import { planCapabilities } from '../../../lib/plan-capabilities'
 import { SERVICE_UNAVAILABLE } from '../../../lib/problem'
 import { ACTION_REFUSALS } from '../../../lib/refusal'
 import { LINK_UNAVAILABLE_PATH } from '../../../lib/routes'
@@ -256,6 +257,54 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
       : undefined
     expect(plan).toBeTruthy()
     expect(Object.keys(plan ?? {})).not.toContain('shareLinks')
+  })
+})
+
+describe('which controls the seat’s own role draws', () => {
+  it.each([
+    [SEAT_TOKEN, 'view'],
+    [WRITE_SEAT_TOKEN, 'write'],
+    [MANAGE_SEAT_TOKEN, 'manage'],
+  ] as const)('hands %s the answers planCapabilities gives a %s seat of this plan', async (token, role) => {
+    seated(token)
+    const element: ReactNode = await LinkPlanPage(props(token))
+    const handed = isValidElement<{ controls: unknown }>(element) ? element.props.controls : null
+    expect(handed).toEqual(planCapabilities(role, { kind: 'plan', planId: PLAN_A }))
+  })
+
+  it('asks with the plan the API said this seat is rooted in, never with an id from the URL', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    const element: ReactNode = await LinkPlanPage(props(MANAGE_SEAT_TOKEN))
+    const handed = isValidElement<{ controls: { seats: { read: boolean } } }>(element)
+      ? element.props.controls
+      : null
+    expect(handed?.seats.read).toBe(true)
+    expect(planCapabilities('manage', { kind: 'project', projectId: PLAN_A }).seats.read).toBe(false)
+  })
+
+  // The role and the scope are what `planCapabilities` is asked with, and neither goes down: a
+  // permission restated below this point is one nothing authorises, and a component added later
+  // could ask a second question of it. What the screen gets is three props and no fourth.
+  it('hands the screen the controls and never the role, the scope or the share view itself', async () => {
+    seated(WRITE_SEAT_TOKEN)
+    const element: ReactNode = await LinkPlanPage(props(WRITE_SEAT_TOKEN))
+    expect(isValidElement(element)).toBe(true)
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    expect(Object.keys(handed).sort()).toEqual(['at', 'controls', 'plan'])
+    const groups = Object.values(handed['controls'] as Record<string, Record<string, unknown>>)
+    expect(groups.flatMap((group) => Object.values(group)).every((one) => typeof one === 'boolean')).toBe(true)
+  })
+
+  it('draws no control for a view seat and every content one for a manage seat', async () => {
+    seated(SEAT_TOKEN)
+    const view = await LinkPlanPage(props(SEAT_TOKEN))
+    const drawn = (element: ReactNode): readonly boolean[] =>
+      isValidElement<{ controls: { content: Record<string, boolean> } }>(element)
+        ? Object.values(element.props.controls.content)
+        : []
+    expect(drawn(view).some(Boolean)).toBe(false)
+    seated(MANAGE_SEAT_TOKEN)
+    expect(drawn(await LinkPlanPage(props(MANAGE_SEAT_TOKEN))).every(Boolean)).toBe(true)
   })
 })
 

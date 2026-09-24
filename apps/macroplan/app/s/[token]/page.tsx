@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { PlanScreen } from '../../../components/plan/plan-screen'
+import { planCapabilities } from '../../../lib/plan-capabilities'
 import { readSeatPlan, readShare } from './read-share'
 
 const TITLE = 'Shared plan · CC Guild Macroplan'
@@ -48,10 +49,27 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  *
  * What it renders is the **same `PlanScreen` the admin plan page renders**, with no seat-facing
  * variant: the timeline and its table are what a plan is, and a second rendering of one would be a
- * second place for a span to be drawn wrong. Nothing about a seat changes it, because everything a
- * role decides on this surface is decided by the API — phase 2 draws no control a seat could be
- * refused. The clock is read once, here — `new Date()`, which is what `PlanScreen.at` takes — and
- * threaded down as the instant the today line is drawn at, as the admin page does.
+ * second place for a span to be drawn wrong. What differs between the two audiences is which controls
+ * are drawn, and that is one prop rather than a second component. The clock is read once, here —
+ * `new Date()`, which is what `PlanScreen.at` takes — and threaded down as the instant the today line
+ * is drawn at, as the admin page does.
+ *
+ * ### What the bootstrap's answer is spent on, and what is not handed down
+ *
+ * `PlanShareView` carries three things — `role`, `scope` and `plan: { id, name }` — and all three are
+ * used here: the scope's `planId` says which plan to read, the name titles the tab, and the role and
+ * the scope together are what `planCapabilities` needs. The scope is passed rather than rebuilt from
+ * the id because a `ScopeValue` carries the id the kernel compares, and the answers are for the
+ * plan the *API* said this seat is rooted in (ADR 0038, ADR 0053).
+ *
+ * **The controls go down; the role, the scope and the view itself do not.** A boolean set is a
+ * decision already made, so nothing under the screen can re-derive a permission from a
+ * credential-shaped value, and a component added later cannot ask a second question of a role it was
+ * never given. None of the three could leak the token either — the bootstrap answers no token at all,
+ * and the plan read's `shareLinks` block is dropped on the server by `read-share.ts` before this
+ * function sees it — but a role in the Flight payload is a permission restated where nothing
+ * authorises it, which is the shape ADR 0033's second amendment refuses to rely on the tree to
+ * prevent. The leak sweep in `page.test.tsx` is what proves the token half of that, token by token.
  *
  * A refusal of either read is said in place of the timeline, in this surface's own words rather than
  * the API's; a plan the API no longer holds is `not-found.tsx`; and anything actually thrown is
@@ -61,7 +79,8 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
   const { token } = await params
   const share = await readShare(token)
   if (!share.ok) return refused(share.detail)
-  const plan = await readSeatPlan(token, share.value.scope.planId)
+  const { role, scope } = share.value
+  const plan = await readSeatPlan(token, scope.planId)
   if (!plan.ok) return refused(plan.detail)
-  return <PlanScreen at={new Date()} plan={plan.value} />
+  return <PlanScreen at={new Date()} controls={planCapabilities(role, scope)} plan={plan.value} />
 }

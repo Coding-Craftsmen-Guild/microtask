@@ -1,6 +1,6 @@
-import type { Plan } from '@repo/api-client'
 import { dayToX, itemsToMarks, railLayout, rungFor, treatmentsOf } from '@repo/canvas'
 import type { DayRange, PlanScale } from '@repo/canvas'
+import type { PlanScreenModel } from '../plan-screen-model'
 import { QuarterBandLayer } from './quarter-bands'
 import { Rail } from './rail'
 import { SprintTickLayer } from './sprint-ticks'
@@ -25,8 +25,15 @@ const CANVAS = 'block shrink-0'
 
 /** Props for {@link PlanCanvas}. */
 export interface PlanCanvasProps {
-  /** The plan and the schedule derived from it, exactly as `GET /plans/{planId}` answered. */
-  readonly plan: Plan
+  /**
+   * The plan and the schedule derived from it, as `GET /plans/{planId}` answered it minus the seats.
+   *
+   * A {@link PlanScreenModel} rather than a `Plan`, so the type that cannot hold a share token is
+   * this component's own floor and not a ceiling one level up on `PlanScreen`. Phase 3 mounts
+   * surfaces **beside** that screen — a drawer, a conflict list, a share manager — and a narrowing
+   * that lives above it reaches none of them.
+   */
+  readonly plan: PlanScreenModel
 
   /** The instant to draw the today line at. Read once by the page and threaded down. */
   readonly at: Date
@@ -52,7 +59,7 @@ export interface PlanCanvasProps {
  * `PlanView` satisfies `CanvasPlan` and `PlanCalendar` structurally with no adapter and no cast, and
  * `plan.schedule` satisfies both `CanvasSchedule` and `CanvasScheduleWithStatus`; `{ ...plan }` would
  * be a fresh object literal, and excess-property checking would then reject `id`, `name`,
- * `shareLinks`, `createdAt`, `updatedAt` and `schedule` one by one.
+ * `createdAt`, `updatedAt` and `schedule` one by one.
  *
  * `range` and `scale` are props with defaults rather than constants read inside, and that is what
  * keeps every rung reachable: `rungFor` reads the range, a range wider than a quarter is the epic

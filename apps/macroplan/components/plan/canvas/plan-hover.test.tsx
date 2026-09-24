@@ -2,6 +2,7 @@ import { sprintTicks } from '@repo/canvas'
 import { dateToDay, dayToDate } from '@repo/schedule'
 import { cleanup, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan } from '../testing/plan-fixture'
 import { sprintHover, todayHover } from './hover'
 import { PlanCanvas } from './plan-canvas'
@@ -54,7 +55,7 @@ const nth = <T,>(list: readonly T[], index: number): T => {
 const ticksOf = () => sprintTicks(atlasPlan(), CANVAS_SCALE, CANVAS_RANGE)
 
 const todayAt = (date: string) => {
-  render(<PlanCanvas at={new Date(`${date}T09:00:00.000Z`)} plan={atlasPlan()} />)
+  render(<PlanCanvas at={new Date(`${date}T09:00:00.000Z`)} plan={planScreenModel(atlasPlan())} />)
   const group = only('[data-slot="today"]')
   const read = {
     title: titleOf('[data-slot="today"]'),
@@ -69,7 +70,7 @@ const todayAt = (date: string) => {
 describe('the calendar dates a hover reveals', () => {
   it('gives every sprint a target naming the two dates sprintTicks carried, and recomputes neither', () => {
     const ticks = ticksOf()
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     const targets = all('[data-slot="sprint-date"]')
     expect(targets).toHaveLength(ticks.length)
     expect(targets.length).toBeGreaterThan(1)
@@ -103,7 +104,7 @@ describe('the calendar dates a hover reveals', () => {
 
   it('covers each sprint’s whole column, so a one-px gridline is not the thing to point at', () => {
     const ticks = ticksOf()
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     const canvasHeight = numberOf(only('[data-slot="plan-canvas"]'), 'height')
     const targets = all('[data-slot="sprint-date"]')
     for (const [index, tick] of ticks.entries()) {
@@ -116,7 +117,7 @@ describe('the calendar dates a hover reveals', () => {
   })
 
   it('sits over the bands and under the rails, which is a paint order and not a hover guarantee', () => {
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     const slotsInOrder = [...only('[data-slot="plan-canvas"]').children].map((child) =>
       child.getAttribute('data-slot'),
     )
@@ -129,7 +130,7 @@ describe('the calendar dates a hover reveals', () => {
   })
 
   it('is behind every mark, so a painted fill absorbs the pointer and no sentence is revealed', () => {
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     const target = only('[data-slot="sprint-date"]')
     const bar = only('[data-slot="feature-bar"]')
     expect(target.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -175,7 +176,7 @@ describe('the today line’s own hover, and the weekend it has no offset for', (
 
 describe('what the canvas still does not draw, and still does not name', () => {
   it('puts no calendar date in any text the canvas draws, which is §5’s whole condition', () => {
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     const drawn = all('[data-slot="plan-canvas"] text')
     expect(drawn.length).toBeGreaterThan(1)
     for (const text of drawn) expect(text.textContent).not.toMatch(ISO_DATE)
@@ -183,7 +184,7 @@ describe('what the canvas still does not draw, and still does not name', () => {
   })
 
   it('names no feature bar, item mark or quarter band, because one title per mark is one node per mark', () => {
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     expect(all('[data-slot="feature-bar"] title')).toHaveLength(0)
     expect(all('[data-slot="item-mark"] title')).toHaveLength(0)
     expect(all('[data-slot="quarter-band"] title')).toHaveLength(0)
@@ -191,13 +192,13 @@ describe('what the canvas still does not draw, and still does not name', () => {
   })
 
   it('leaves the canvas’s own accessible name to its aria-label, which outranks any descendant title', () => {
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
     expect(only('[data-slot="plan-canvas"]').querySelector(':scope > title')).toBeNull()
   })
 
   it('hides every titled group explicitly, because role=img prunes a subtree only as a SHOULD NOT', () => {
-    render(<PlanCanvas at={AT} plan={atlasPlan()} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />)
     expect(only('[data-slot="sprint-dates"]').getAttribute('aria-hidden')).toBe('true')
     expect(only('[data-slot="today"]').getAttribute('aria-hidden')).toBe('true')
     for (const title of all('[data-slot="plan-canvas"] title')) {
@@ -206,7 +207,7 @@ describe('what the canvas still does not draw, and still does not name', () => {
   })
 
   it('reveals nothing at all when this runtime cannot resolve the plan’s zone', () => {
-    render(<PlanCanvas at={AT} plan={atlasPlan({ timezone: 'Mars/Phobos' })} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(atlasPlan({ timezone: 'Mars/Phobos' }))} />)
     expect(all('[data-slot="today"]')).toHaveLength(0)
     expect(all('[data-slot="sprint-date"]').length).toBeGreaterThan(1)
   })

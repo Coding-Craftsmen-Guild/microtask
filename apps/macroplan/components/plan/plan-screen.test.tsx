@@ -1,15 +1,21 @@
+import type { ScopeValue } from '@repo/contracts'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { ADMIN_CONTROLS } from '../../lib/admin-controls'
+import { planCapabilities, type PlanControls } from '../../lib/plan-capabilities'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
-import { atlasPlan, FEATURE_1, ITEM_1 } from './testing/plan-fixture'
+import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from './testing/plan-fixture'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
+
+const SEAT: ScopeValue = { kind: 'plan', planId: PLAN_A }
 
 // The fixture is a `StoredPlan`, where `shareLinks` is required, and `PlanScreen.plan` is the type a
 // token cannot be represented in — so the fixture is reduced by the component's own reducer rather
 // than cast past it. That the unwrapped call no longer compiles is the narrowing working.
-const show = () => render(<PlanScreen at={AT} plan={planScreenModel(atlasPlan())} />)
+const show = (controls: PlanControls = ADMIN_CONTROLS) =>
+  render(<PlanScreen at={AT} controls={controls} plan={planScreenModel(atlasPlan())} />)
 
 const radio = (name: string): HTMLInputElement => {
   const found = screen.getByRole('radio', { name })
@@ -101,5 +107,25 @@ describe('the switch between them', () => {
       'plan-view-timeline',
       'plan-view-table',
     ])
+  })
+})
+
+describe('the controls the screen is handed', () => {
+  it('draws the whole plan for the weakest seat there is, no control being load-bearing', () => {
+    show(planCapabilities('view', SEAT))
+    expect(screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
+    expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
+    expect(screen.getByTestId(`row-${FEATURE_1}`)).toBeTruthy()
+    expect(screen.getByTestId(`row-${ITEM_1}`)).toBeTruthy()
+  })
+
+  // This phase decides which controls to draw and draws none of them, so the two audiences' markup
+  // is identical — which is the assertion, not an accident of the fixture. The first task to draw a
+  // control has to change this case deliberately rather than discover it.
+  it('renders alike for the admin and for a view seat, this phase drawing none of them', () => {
+    const { container: admin } = show()
+    const { container: seat } = show(planCapabilities('view', SEAT))
+    expect(seat.innerHTML).toBe(admin.innerHTML)
   })
 })

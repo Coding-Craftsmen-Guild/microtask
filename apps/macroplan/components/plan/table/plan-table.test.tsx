@@ -5,6 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { PlanCanvas } from '../canvas/plan-canvas'
 import { CANVAS_SCALE } from '../canvas/view'
+import { planScreenModel } from '../plan-screen-model'
 import {
   atlasPlan,
   FEATURE_1,
@@ -86,7 +87,7 @@ describe('the parity that makes the table a second rendering of the same data', 
     const drawn = railLayout(plan, plan.schedule, CANVAS_SCALE).flatMap((rail) =>
       rail.bars.map((bar) => bar.id),
     )
-    render(<PlanTable plan={plan} />)
+    render(<PlanTable plan={planScreenModel(plan)} />)
     expect(drawn).toEqual([FEATURE_1, FEATURE_2])
     for (const id of drawn) expect(rowFor(id), id).toBeTruthy()
   })
@@ -94,7 +95,7 @@ describe('the parity that makes the table a second rendering of the same data', 
   it('names every item the canvas draws a mark for, which a table of features alone would not', () => {
     const plan = atlasPlan()
     const drawn = itemsToMarks(plan, plan.schedule, CANVAS_SCALE).map((mark) => mark.id)
-    render(<PlanTable plan={plan} />)
+    render(<PlanTable plan={planScreenModel(plan)} />)
     expect(drawn).toEqual([ITEM_1, ITEM_2, ITEM_3])
     for (const id of drawn) expect(rowFor(id), id).toBeTruthy()
   })
@@ -106,7 +107,7 @@ describe('the parity that makes the table a second rendering of the same data', 
       { plan: unplacedPlan('in-cycle'), stubs: [FEATURE_2] },
     ]
     for (const one of cases) {
-      render(<PlanCanvas at={AT} plan={one.plan} />)
+      render(<PlanCanvas at={AT} plan={planScreenModel(one.plan)} />)
       const drawn = all('[data-feature-id], [data-item-id]').map(
         (mark) => mark.getAttribute('data-feature-id') ?? mark.getAttribute('data-item-id') ?? '',
       )
@@ -116,7 +117,7 @@ describe('the parity that makes the table a second rendering of the same data', 
       cleanup()
       expect(stubbed, 'the off-axis stubs the canvas drew').toEqual(one.stubs)
       expect(drawn.length).toBeGreaterThan(2)
-      render(<PlanTable plan={one.plan} />)
+      render(<PlanTable plan={planScreenModel(one.plan)} />)
       for (const id of [...drawn, ...stubbed]) expect(rowFor(id), id).toBeTruthy()
       cleanup()
     }
@@ -124,15 +125,15 @@ describe('the parity that makes the table a second rendering of the same data', 
 
   it('names an unplaced feature’s own items too, which the canvas draws nothing whatever for', () => {
     const plan = unplacedPlan('no-estimate')
-    render(<PlanCanvas at={AT} plan={plan} />)
+    render(<PlanCanvas at={AT} plan={planScreenModel(plan)} />)
     expect(all(`[data-item-id="${ITEM_3}"]`)).toHaveLength(0)
     cleanup()
-    render(<PlanTable plan={plan} />)
+    render(<PlanTable plan={planScreenModel(plan)} />)
     expect(rowFor(ITEM_3).getAttribute('data-treatment')).toBe('hollow')
   })
 
   it('carries the canvas’s own treatment on the row, so neither rendering states it alone', () => {
-    render(<PlanTable plan={unplacedPlan('in-cycle')} />)
+    render(<PlanTable plan={planScreenModel(unplacedPlan('in-cycle'))} />)
     expect(rowFor(FEATURE_2).getAttribute('data-treatment')).toBe('contradicted')
     expect(rowFor(FEATURE_1).getAttribute('data-treatment')).toBe('solid')
   })
@@ -140,15 +141,15 @@ describe('the parity that makes the table a second rendering of the same data', 
 
 describe('the table as a screen reader meets it', () => {
   it('is one named table, reached by its role and its name and never by a test hook', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     expect(screen.getByRole('table', { name: NAME })).toBeTruthy()
   })
 
   it('is named for what it is, against the canvas’s own name for the same plan', () => {
     render(
       <div>
-        <PlanCanvas at={AT} plan={atlasPlan()} />
-        <PlanTable plan={atlasPlan()} />
+        <PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />
+        <PlanTable plan={planScreenModel(atlasPlan())} />
       </div>,
     )
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
@@ -156,14 +157,14 @@ describe('the table as a screen reader meets it', () => {
   })
 
   it('heads every column with a scoped header, in §5’s own order', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     const heads = screen.getAllByRole('columnheader')
     expect(heads.map((head) => head.textContent)).toEqual(COLUMNS)
     for (const head of heads) expect(head.getAttribute('scope'), head.textContent ?? '').toBe('col')
   })
 
   it('makes each row’s own subject its row header, so a cell is never read without one', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     const headers = screen.getAllByRole('rowheader')
     expect(headers.map((header) => header.textContent)).toEqual([
       'Auth rewrite',
@@ -176,13 +177,13 @@ describe('the table as a screen reader meets it', () => {
   })
 
   it('discriminates a feature row from an item row by an attribute and not by paint', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     expect(rowFor(FEATURE_1).getAttribute('data-kind')).toBe('feature')
     expect(rowFor(ITEM_1).getAttribute('data-kind')).toBe('item')
   })
 
   it('repeats the epic and the feature on every row, rather than spanning a cell down the table', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     expect(cells(ITEM_2)).toEqual(['Platform', 'Auth rewrite', 'Password reset', '2d', 'S1', ''])
     expect(cells(FEATURE_1)).toEqual(['Platform', 'Auth rewrite', '', '5d', 'S1', ''])
     expect(all('[rowspan], [colspan]')).toHaveLength(0)
@@ -191,46 +192,46 @@ describe('the table as a screen reader meets it', () => {
 
 describe('the progress column §5 names and phase 2 cannot fill', () => {
   it('heads no column with it, rather than heading one that renders nothing', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     expect(COLUMNS).not.toContain('Progress')
     expect(screen.queryByRole('columnheader', { name: 'Progress' })).toBeNull()
   })
 
   it('says in the table itself that it is absent, and why, where a reader of either kind finds it', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     const caption = document.querySelector('caption')
     expect(caption?.textContent).toContain('No progress column yet')
     expect(caption?.textContent).toContain('counted from a linked Microtask task')
   })
 
   it('invents no percentage anywhere, which is the failure the note exists to prevent', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     expect(screen.getByRole('table', { name: NAME }).textContent).not.toContain('%')
   })
 })
 
 describe('the blocked-by cell', () => {
   it('names the feature a feature waits on, rather than the id it states it by', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     const edges = rowFor(FEATURE_2).querySelectorAll('[data-slot="blocked-by"]')
     expect([...edges].map((edge) => edge.textContent)).toEqual(['Auth rewrite'])
     expect(edges[0]?.getAttribute('data-edge')).toBe('honoured')
   })
 
   it('says in words that an edge was set aside, and carries the same fact as an attribute', () => {
-    render(<PlanTable plan={withIgnoredEdge(atlasPlan(), FEATURE_2, FEATURE_1)} />)
+    render(<PlanTable plan={planScreenModel(withIgnoredEdge(atlasPlan(), FEATURE_2, FEATURE_1))} />)
     expect(edgeIn(FEATURE_2)?.textContent).toBe('Auth rewrite · set aside to keep rail order')
     expect(edgeIn(FEATURE_2)?.getAttribute('data-edge')).toBe('set-aside')
   })
 
   it('says in words that an edge names nothing in this plan, which the pass never reports at all', () => {
-    render(<PlanTable plan={withDependsOn(atlasPlan(), FEATURE_2, [GHOST])} />)
+    render(<PlanTable plan={planScreenModel(withDependsOn(atlasPlan(), FEATURE_2, [GHOST]))} />)
     expect(edgeIn(FEATURE_2)?.textContent).toBe(`${GHOST} · names nothing in this plan`)
     expect(edgeIn(FEATURE_2)?.getAttribute('data-edge')).toBe('unknown')
   })
 
   it('says in words that an edge points at something unplaced, which the pass also never reports', () => {
-    render(<PlanTable plan={withDependsOn(unplacedPlan('no-estimate'), FEATURE_1, [FEATURE_2])} />)
+    render(<PlanTable plan={planScreenModel(withDependsOn(unplacedPlan('no-estimate'), FEATURE_1, [FEATURE_2]))} />)
     expect(edgeIn(FEATURE_1)?.textContent).toBe('Billing · not placed, so it gave this no date')
     expect(edgeIn(FEATURE_1)?.getAttribute('data-edge')).toBe('unplaced')
   })
@@ -246,7 +247,7 @@ describe('the blocked-by cell', () => {
     const said: string[] = []
     const states: string[] = []
     for (const one of cases) {
-      render(<PlanTable plan={one.plan} />)
+      render(<PlanTable plan={planScreenModel(one.plan)} />)
       said.push(edgeIn(one.row)?.textContent ?? '')
       states.push(edgeIn(one.row)?.getAttribute('data-edge') ?? '')
       cleanup()
@@ -256,7 +257,7 @@ describe('the blocked-by cell', () => {
   })
 
   it('leaves the cell empty for a feature nothing blocks, and for every item row', () => {
-    render(<PlanTable plan={atlasPlan()} />)
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     expect(rowFor(FEATURE_1).querySelectorAll('[data-slot="blocked-by"]')).toHaveLength(0)
     expect(rowFor(ITEM_1).querySelectorAll('[data-slot="blocked-by"]')).toHaveLength(0)
   })
@@ -270,7 +271,7 @@ const CAP_RENDER_MS = 60_000
 
 describe('the table at this product’s own cap', { timeout: CAP_RENDER_MS }, () => {
   it('renders a row per feature and per item at the 2 000-item cap, and no wrapper per row', () => {
-    render(<PlanTable plan={planAtCap()} />)
+    render(<PlanTable plan={planScreenModel(planAtCap())} />)
     const rows = all('[data-slot="plan-table-row"]')
     expect(rows).toHaveLength(LIMITS.itemsPerPlan + LIMITS.featuresPerPlan)
     for (const row of rows) expect(row.children).toHaveLength(COLUMNS.length)

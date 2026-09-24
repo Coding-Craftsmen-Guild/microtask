@@ -1,4 +1,4 @@
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows } from './rows'
 import { PlanTableRow } from './table-row'
 
@@ -15,8 +15,14 @@ const PROGRESS_NOTE =
 
 /** Props for {@link PlanTable}. */
 export interface PlanTableProps {
-  /** The plan and the schedule derived from it, exactly as `GET /plans/{planId}` answered. */
-  readonly plan: Plan
+  /**
+   * The plan and the schedule derived from it, as `GET /plans/{planId}` answered it minus the seats.
+   *
+   * A {@link PlanScreenModel} rather than a `Plan`, for the reason `PlanCanvasProps.plan` records:
+   * the type a share token cannot be represented in is this component's own floor, so it holds for a
+   * surface mounted beside `PlanScreen` as well as under it.
+   */
+  readonly plan: PlanScreenModel
 }
 
 /**

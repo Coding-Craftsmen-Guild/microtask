@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { PlanScreen } from '../../../../components/plan/plan-screen'
+import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { readPlan } from './read-plan'
 
 /** The route's own parameters, which Next hands a page as a promise. */
@@ -35,6 +36,11 @@ export async function generateMetadata({ params }: PlanPageProps): Promise<Metad
  * the same type `PlanScreen` takes and the same one `/s/<token>` reduces to, so the guarantee is one
  * compiler check on both surfaces rather than a mechanism per page.
  *
+ * What it hands down about authority is {@link ADMIN_CONTROLS} and not a principal: the admin is not
+ * a role in the capability model, so there is no role for this page to pass and nothing for the
+ * screen to derive one from (`lib/admin-controls.ts`). The seat page asks `planCapabilities` for its
+ * own answers and hands down the same shape, which is what lets one screen serve both audiences.
+ *
  * A plan the API does not hold, and an id that is not a ULID, are both `not-found.tsx`; `read-plan.ts`
  * is where that is argued. Every other refusal is said in place of the timeline, in this surface's own
  * words rather than the API's, and an expired session redirects to `/login?next=/plans/<id>` from
@@ -49,5 +55,5 @@ export default async function PlanPage({ params }: PlanPageProps) {
       </p>
     )
   }
-  return <PlanScreen at={new Date()} plan={loaded.value} />
+  return <PlanScreen at={new Date()} controls={ADMIN_CONTROLS} plan={loaded.value} />
 }

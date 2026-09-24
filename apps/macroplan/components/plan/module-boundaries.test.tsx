@@ -3,6 +3,7 @@ import { join, relative, resolve } from 'node:path'
 import type { Plan } from '@repo/api-client'
 import { cleanup, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { ADMIN_CONTROLS } from '../../lib/admin-controls'
 import { PlanCanvas } from './canvas/plan-canvas'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
@@ -53,18 +54,38 @@ const declaresUseClient = (source: string) => {
 
 const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
 
-// `PlanScreen.plan` is `PlanScreenModel`, whose type cannot hold a share token, and every fixture
-// here is a `StoredPlan` that carries three. So each screen is handed the plan through the same
-// reducer both surfaces' reads use — which is stricter than a cast would be, since it renders the
-// object a page really hands over. `PlanCanvas` and `PlanTable` still take a whole `Plan`, so their
-// trees below are unwrapped on purpose: the ceiling is `PlanScreen`'s, one level up.
+// Every `plan` prop under this subtree is `PlanScreenModel`, whose type cannot hold a share token,
+// and every fixture here is a `StoredPlan` that carries three. So each tree is handed its plan
+// through the same reducer both surfaces' reads use — which is stricter than a cast would be, since
+// it renders the object a page really hands over. `PlanCanvas` and `PlanTable` are wrapped too now:
+// the narrowing is their own floor rather than a ceiling on `PlanScreen` one level up, because this
+// phase mounts surfaces beside that screen where a ceiling above it reaches nothing.
+//
+// `ADMIN_CONTROLS` is what the admin page passes, and it draws every control there is — so a tree
+// rendered with it paints whatever markup a control brings with it, which is the stricter of the two
+// answers for a sweep of class names.
 const TREES = [
-  <PlanScreen at={AT} key="a" plan={planScreenModel(atlasPlan())} />,
-  <PlanScreen at={AT} key="b" plan={planScreenModel(unplacedPlan('no-estimate'))} />,
-  <PlanScreen at={AT} key="c" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
-  <PlanScreen at={AT} key="d" plan={planScreenModel(unclaimed())} />,
-  <PlanCanvas at={AT} key="e" plan={atlasPlan()} range={{ fromDay: 0, toDay: 61 }} />,
-  <PlanTable key="f" plan={unplacedPlan('in-cycle')} />,
+  <PlanScreen at={AT} controls={ADMIN_CONTROLS} key="a" plan={planScreenModel(atlasPlan())} />,
+  <PlanScreen
+    at={AT}
+    controls={ADMIN_CONTROLS}
+    key="b"
+    plan={planScreenModel(unplacedPlan('no-estimate'))}
+  />,
+  <PlanScreen
+    at={AT}
+    controls={ADMIN_CONTROLS}
+    key="c"
+    plan={planScreenModel(unplacedPlan('in-cycle'))}
+  />,
+  <PlanScreen at={AT} controls={ADMIN_CONTROLS} key="d" plan={planScreenModel(unclaimed())} />,
+  <PlanCanvas
+    at={AT}
+    key="e"
+    plan={planScreenModel(atlasPlan())}
+    range={{ fromDay: 0, toDay: 61 }}
+  />,
+  <PlanTable key="f" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
 ]
 
 describe('the class-literal reader this sweep is built on', () => {

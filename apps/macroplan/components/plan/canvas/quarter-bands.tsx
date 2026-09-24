@@ -1,6 +1,6 @@
-import type { Plan } from '@repo/api-client'
 import { quarterBands } from '@repo/canvas'
 import type { DayRange, PlanScale } from '@repo/canvas'
+import type { PlanScreenModel } from '../plan-screen-model'
 import { LAYOUT, labelX } from './view'
 
 const EVEN_BAND = 'fill-foreground/[0.03]'
@@ -12,7 +12,7 @@ const BAND_LABEL = 'fill-muted-foreground text-[11px] font-semibold tracking-wid
 /** Props for {@link QuarterBandLayer}. */
 export interface QuarterBandLayerProps {
   /** The plan, read for its `startDate`, `sprintLengthDays` and `timezone` alone. */
-  readonly plan: Plan
+  readonly plan: PlanScreenModel
 
   /** The scale every x and width is computed at. */
   readonly scale: PlanScale
