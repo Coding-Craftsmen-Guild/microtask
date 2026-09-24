@@ -864,8 +864,15 @@ against what was actually asked.
 - [ ] **Step 1: widen `PlanControls` past the four share booleans.** It exists, it is correct, and it has **no
       shipped call site** — `planCapabilities` is called only by its own test, and its TSDoc says "Phase 2 draws
       none of these". Add one boolean per control this phase draws: create, **rename**, **recolour**, reorder and
-      delete an epic; create / rename / estimate / delete / place / pin a feature; the same for an item; and
-      edit dependencies. **Eighteen booleans, one per member of `PlanEditActions`, and no nineteenth.**
+      delete an epic; create / rename / estimate / place / pin / delete a feature; create / rename / estimate /
+      **describe** / place / delete an item; and edit dependencies. **Eighteen booleans, one per member of
+      `PlanEditActions`, and no nineteenth.**
+
+      This sentence read "the same for an item" until Task 9 checked it against the interface. That asked for a
+      `pinItem` — no action, no route, no grant, and none by design: spec §3.1 makes a pin the way a fixed point in
+      time enters the model, which is a *feature's* business, while an item is the breakdown under one. It also
+      dropped `describeItem`, which both surfaces ship. The two lists both total eighteen, which is why the error
+      survived four readings. Derive from the interface; a count agreeing proves nothing.
 
       **Derive that list from `PlanEditActions` rather than from this sentence**, and say in the commit whether the
       two agree. An earlier draft of this step omitted rename and recolour, which would have left `renameEpic` and
@@ -911,8 +918,16 @@ against what was actually asked.
       both declare `readonly plan: Plan`, which includes `shareLinks`; the narrowing to `PlanScreenModel` sits one
       level up on `PlanScreen`, and `plan-screen.tsx:58-59` calls it a ceiling. This phase mounts components
       **beside** `PlanScreen` — a drawer, a conflict list, a share manager — where a ceiling one level up reaches
-      nothing. Change both props to `PlanScreenModel`. It is a one-word change in each and it makes the guarantee
-      structural instead of positional.
+      nothing. Change both props to `PlanScreenModel`. It makes the guarantee structural instead of positional.
+
+      **It is not "a one-word change in each", as this step claimed.** `PlanScreenModel` is deliberately *not*
+      assignable to `Plan` — `shareLinks?: never` is what makes the strip a `TS2375` rather than a silent pass, and
+      `plan-screen-model.ts` argues that at length — so the floor has to go all the way down to everything those
+      two hand a plan to: `railNames`, `tableRows`, `QuarterBandLayer`, `SprintTickLayer` and `TodayMark`, each
+      typed `Plan` today. That is the step working as intended rather than a complication, since a ceiling that
+      stops above the layers is the positional guarantee this step exists to replace. Two more files also need it:
+      `app/(admin)/plans/[planId]/page.tsx` must pass `ADMIN_CONTROLS` once `controls` is required, and
+      `plan-hover.test.tsx` and `rows.test.ts` move with the narrowed props.
 
 - [ ] **Step 6: green, then commit** `"Decide which controls to draw, and make the token-free type the floor"`.
 
