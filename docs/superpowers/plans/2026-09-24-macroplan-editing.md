@@ -1051,6 +1051,24 @@ against what was actually asked.
 
 **Files:**
 - Create: `apps/macroplan/components/plan/drawer/pin-field.tsx`, `breakdown-line.tsx`, and a test each
+- Modify: `apps/macroplan/components/plan/drawer/drawer-facts.tsx`, `subject.ts`, `drawer-panel.tsx`, and their tests
+
+**Where these go, and the wall Tasks 12–15 are walking into.** Task 11 filled the drawer to the `.tsx` cap, and the
+remaining budget is now the binding constraint on the next three tasks. Measured after Task 11:
+`drawer-edits.tsx` **80/80 — zero headroom**, `drawer-panel.tsx` 58/80, `drawer-facts.tsx` 29/80.
+
+- `breakdown-line.tsx` is a **read** display, so it belongs with `drawer-facts.tsx`, whose whole argument is that it
+  words nothing the row did not decide. But `breakdown()` from `@repo/schedule` needs the feature **and its items**,
+  which `DrawerValues` does not carry — so widen `subject.ts` rather than letting the panel reach for a plan. That
+  is the one rule Step 3c of Task 11 bought and it is the one a shortcut here would spend.
+- `pin-field.tsx` **cannot** go in `drawer-edits.tsx`: it has no room, and its own doc says it splits by control
+  group, one file per group. Its render site lands in `drawer-panel.tsx`'s 22 lines.
+- At roughly seven lines per control group, those 22 lines buy about three groups, and Tasks 12, 13 and 15 bring
+  five — the pin, the dependency editor, create, delete, and Task 16's reorder. **`drawer-panel.tsx` will overflow
+  during Task 13 or 15.** Do not shave the frame to fit. The natural cut is already in the code: `drawer-edits.tsx`
+  holds the **`write`**-tier controls, so the second container is the **`manage`** tier — `pinFeature`,
+  `placeFeature`/`placeItem`, `removeFeature`/`removeItem` — which is one capability tier, one file, and an
+  honest boundary rather than an arbitrary one. Whichever task hits the wall makes that split.
 
 - [ ] **Step 1: the pin is a sprint index, it is `manage`, and the server will not sanity-check it.**
       `pinSprint` is one nullable integer on features only, it joins `max()` as one more lower bound, and it is
