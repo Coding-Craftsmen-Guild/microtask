@@ -1091,6 +1091,18 @@ remaining budget is now the binding constraint on the next three tasks. Measured
       screen intact: it answers `null` when there is no **pair** to compare, and a **negative delta is a real and
       reportable state** — a part-sized breakdown under a whole-feature estimate — not an error to hide.
 
+      **This step was wrong about what was missing, and Task 12 caught it.** `rows.ts`'s `estimateOf` *already*
+      calls `breakdown()` and already prints `planned 40d · broken down to 62d · +22d` whenever `delta !== 0`, and
+      `DrawerFacts` already shows that cell under **Estimate**. The delta was fully on screen before this task
+      opened. Writing the sentence again is precisely the second wording of one fact that Task 11's single-lookup
+      rule exists to forbid — so a line that printed those numbers would have been the defect, not the feature.
+
+      What the row genuinely cannot say is **which of the two numbers placed the bar, and that both are kept**. That
+      is the line's whole content, and it carries no numbers at all. Nothing is missing as a result: when the two
+      disagree the row prints all three, and when they agree `estimateOf` falls through to `effectiveEstimate` and
+      prints the one number that is both. A reader checking this step should confirm the line still renders nothing
+      for a `null` pair and renders *identically* for a negative delta — nothing may branch on the sign.
+
 - [ ] **Step 3: an estimate authored on a feature that has estimated items does not move a bar.** That is ADR 0051
       and `effectiveEstimate`'s gate is *at least one estimated item*, not *has items*. So a `write` seat typing a
       feature estimate under a broken-down feature sees the discrepancy change and the canvas stay still. Assert
