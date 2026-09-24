@@ -181,6 +181,8 @@ describe('every macroplan operation addresses the path the API actually serves',
       'https://api.example.test/v1/macroplan/plans/p1/items/i1',
       '{"estimateDays":null}',
     ])
+    const omitted = await sent(() => macroplan.items.update('p1', 'i1', { name: 'Card expiry' }))
+    expect(omitted.init.body).toBe('{"name":"Card expiry"}')
   })
 
   it('moves an item through its own placement segment, sending the 0-based position with it', async () => {

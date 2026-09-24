@@ -41,9 +41,9 @@ export type ItemChange = Decoded<typeof UpdateItemPayload>
  * `position` is **0-based**: `Position` is `int().min(0)` and the domain renumbers a feature's items
  * densely from zero, so the first item under a feature is at `0` and a caller that assumes 1-based is
  * off by one, silently, with a 200 and a plan back. The payload object rather than two bare
- * arguments, for the reason `epics.ts`
- * records of its own placement: the wire shape is `{featureId, position}` and this client speaks the
- * wire.
+ * arguments, because the wire shape is `{featureId, position}` and this client speaks the wire.
+ * `ItemService.place` takes the same object, so unlike a rail there is no domain asymmetry being
+ * refused here.
  */
 export type ItemPlacement = Decoded<typeof ItemPlacementPayload>
 

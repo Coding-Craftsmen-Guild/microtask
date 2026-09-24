@@ -91,7 +91,7 @@ describe('each macroplan client presents its own principal token and the shared 
 })
 
 describe('the macroplan surface reaches no microtask operation', () => {
-  it('holds plans, their rails, their seats and the bootstrap, and nothing a project reaches through', () => {
+  it('holds every group the write surface needs, and nothing a project reaches through', () => {
     const admin: Record<string, unknown> = { ...createMacroplanAdminClient(OPTIONS, 'a') }
     expect(Object.keys(admin).sort()).toEqual([
       'credential',
