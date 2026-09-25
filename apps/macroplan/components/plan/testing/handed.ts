@@ -56,12 +56,16 @@ const sweep = (value: unknown, found: Found, seen: WeakSet<object>): void => {
  *    `action.bind(null, token)` exposes neither the token nor its own name, so no walk can see inside
  *    one — and that is exactly the mechanism ADR 0040 describes for handing a token to a component.
  *    What *is* checkable is which functions a surface hands over, by name, so every function met is
- *    recorded. `layout.tsx` hands over none and asserts the list is empty. The two drawer pages hand
- *    over the eighteen writes — a field needs one — and assert the names are **exactly**
- *    `Object.keys(ADMIN_PLAN_ACTIONS)` and that not one of them begins with `bound `, which is what
- *    `Function.prototype.bind` names its result. So a module action imported by name passes and the
- *    first *bound* action still fails, which is the case this list was really for; whoever adds one
- *    owes a walk that reads a bound function's arguments.
+ *    recorded. All three callers now assert an **exact** list rather than an empty one: the two drawer
+ *    pages hand over the eighteen writes — a field needs one — and require the names to be exactly
+ *    `Object.keys(ADMIN_PLAN_ACTIONS)`, and `layout.tsx` hands over those eighteen plus the share
+ *    manager's four and requires that set. (It did hand over none, and that sentence stood here until
+ *    the canvas's drag and the share manager gave it something to pass; an empty list was never the
+ *    guarantee, only the state.) Each of the three also requires that no name begins with `bound `,
+ *    which is what `Function.prototype.bind` names its result, and none is `''`, which is what an
+ *    inline closure would be. So a module action imported by name passes and the first *bound* action
+ *    still fails, which is the case this list was really for; whoever adds one owes a walk that reads
+ *    a bound function's arguments.
  *
  * `app/s/[token]/page.test.tsx` deliberately keeps its own narrower walker rather than calling this
  * one: its KNOWN GAP comment is about that walker, and the comment is the record.

@@ -54,7 +54,10 @@ export interface CreateControlsProps {
  * payloads differ — `CreateFeaturePayload` names an `epicId`, `CreateItemPayload` a `featureId`
  * (`packages/contracts/src/structure-payloads.ts`) — while a server-side wrapper that made them one
  * shape could not cross a client boundary at all, an arbitrary closure being unserialisable where an
- * action reference is not (ADR 0040). So each draft is built in the browser beside the box that typed
+ * action reference is not. That is React's own rule rather than a decision this repo took, and **no ADR
+ * states it** — what this repo requires of the boundary on top of it is
+ * `../module-boundaries.test.tsx`'s, which admits primitives, unbound functions, `null` and markup on
+ * `children`. So each draft is built in the browser beside the box that typed
  * it, and each box is handed one closure over one action and one parent id.
  *
  * ### A parent and a name, and deliberately nothing else

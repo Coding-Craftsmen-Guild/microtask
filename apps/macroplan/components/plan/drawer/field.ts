@@ -207,7 +207,9 @@ export const budgetLine = (bytes: number): string =>
  * literal of escapes — every C0 code but tab and newline, plus DEL — which is both how the domain
  * builds it and, per that module's own note, the spelling a tool in this pipeline cannot silently
  * mangle into a raw control byte. It is rebuilt rather than imported because `apps/macroplan` may not
- * import `@repo/macroplan-domain` at all (ADR 0014, ADR 0027); `field.test.ts` pins the set against
+ * import `@repo/macroplan-domain` at all (ADR 0027, which is the record that states it as an app rule and
+ * enforces it; ADR 0014 bans the two packages from importing each other and leaves the app seam
+ * documented rather than enforced); `field.test.ts` pins the set against
  * the rule in words, so a change to either has to be a change to both.
  *
  * The order matters and is the domain's: normalise first, strip second. `\r` is itself in the stripped

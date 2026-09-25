@@ -289,5 +289,6 @@ describe('the item drawer hands no share token to a component either', () => {
     const handed = handedBy(await ItemDrawerPage(propsOf(ITEM_1)))
     expect([...handed.functions].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
     expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
+    expect(handed.functions.filter((name) => name === '')).toEqual([])
   })
 })

@@ -104,8 +104,10 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  * never given. None of the three could leak the token either — the bootstrap answers no token at all,
  * and the plan read's `shareLinks` block is dropped on the server by `read-share.ts` before this
  * function sees it — but a role in the Flight payload is a permission restated where nothing
- * authorises it, which is the shape ADR 0033's second amendment refuses to rely on the tree to
- * prevent. The leak sweep in `page.test.tsx` is what proves the token half of that, token by token.
+ * authorises it. That is this file's own argument by analogy rather than a claim ADR 0033 makes: 0033
+ * is about share **tokens** end to end, and what carries over is the shape of its rejected
+ * alternative — relying on a page never passing the value to a client component is "a convention,
+ * enforced by nobody". The leak sweep in `page.test.tsx` is what proves the token half of that, token by token.
  *
  * A refusal of either read is said in place of the timeline, in this surface's own words rather than
  * the API's; a plan the API no longer holds is `not-found.tsx`; and anything actually thrown is

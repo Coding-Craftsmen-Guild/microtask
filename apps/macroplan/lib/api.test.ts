@@ -68,6 +68,16 @@ describe('apiForSession', () => {
     expect(sent[0]?.url.startsWith('http://api.internal:4321/')).toBe(true)
   })
 
+  // **The enumeration stays, and audit 7n's sibling question is why.** What this case is really
+  // asserting is a property — "this client reaches this product's routes and no Microtask route" — and
+  // the two URL assertions below are that property, so the key list looks like maintenance the property
+  // would save. It is not: a property can only be exercised by *calling* something, so a `folders` or
+  // `tabs` group added to `MacroplanApi` and called by nothing would leave both URL assertions green.
+  // The list is what fails then. Phase 4's bridge methods will break it, and breaking is the right
+  // outcome — a new group on this client is exactly the review this exists to force. There are two
+  // copies of the list and deliberately no third: this one and
+  // `packages/api-client/src/macroplan-clients.test.ts`, which checks the factory where this checks what
+  // a session hands a page.
   it('reaches this product own routes and no project route, the surface holding none', async () => {
     held.admin = { kind: 'admin', token: 'admin.1.sig' }
     const client = await apiForSession()

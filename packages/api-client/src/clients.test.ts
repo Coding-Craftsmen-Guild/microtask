@@ -77,7 +77,7 @@ describe('each client presents its own principal token and the shared service ke
     expect(apiKeyOf(calls[0])).toBe('svc-key')
   })
 
-  it('cannot be built without a service key, because a bearer alone is a 401 (ADR 0012)', () => {
+  it('takes a service key in its options, both credentials being required on every guarded route (ADR 0012)', () => {
     const built = createAdminClient(OPTIONS, 'admin-token')
     expect(Object.keys(built)).toContain('credential')
   })

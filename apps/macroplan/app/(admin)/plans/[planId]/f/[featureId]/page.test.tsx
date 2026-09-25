@@ -131,8 +131,9 @@ const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 // The same walk `layout.test.tsx` runs, out of the one module the three of them share, for the same
 // reason: this page reads the very plan the API answers an admin with every live token on, so "no
 // token reaches a component" has to be checked here too rather than inherited from the surface one
-// segment up. Functions are collected and asserted empty because a bound argument is unreachable by
-// reflection (ADR 0040), and this page binds nothing.
+// segment up. Functions are collected and asserted by name because a bound argument is unreachable by
+// reflection — which is a fact about `bind` and not an ADR's claim — and binding is the mechanism ADR
+// 0040 describes for handing a token to a component. This page binds nothing.
 
 describe('the drawer one feature is open in', () => {
   // The panel is open on **one** subject, and the other feature of the plan is on screen for exactly

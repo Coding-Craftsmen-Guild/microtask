@@ -54,7 +54,7 @@ export interface PlaceControlProps {
  *
  * `FeaturePlacementPayload` names an `epicId` and `ItemPlacementPayload` a `featureId`, so there is no one
  * `SubjectWrite<Value>` both fit and no closure that could unify them — a closure cannot cross this boundary
- * at all (ADR 0040). `./placement.ts` argues that in full; what lands here is the two action references and
+ * at all, which is React's rule and not an ADR's. `./placement.ts` argues that in full; what lands here is the two action references and
  * the one primitive that says which is right, and the payload is built beside the call.
  *
  * ### A button, disabled at the ends, and nothing controlled

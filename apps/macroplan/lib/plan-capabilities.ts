@@ -1,4 +1,10 @@
-import { capabilities, mayReach, type RoleValue, type ScopeValue } from '@repo/contracts'
+import {
+  capabilities,
+  mayReach,
+  type CapabilityAction,
+  type RoleValue,
+  type ScopeValue,
+} from '@repo/contracts'
 
 /**
  * What a plan seat may do about **the plan's other seats**, one boolean per question a share
@@ -37,6 +43,16 @@ export interface PlanSeatControls {
  * the file: against the admin wiring where it counts the eighteen, and against the seat wiring where
  * it asserts that all eighteen stay wired whatever these booleans answer. So a nineteenth control
  * with no action behind it, and a nineteenth action with no control able to call it, each fail there.
+ *
+ * **Five of the eighteen have no call site yet, and they are the five epic controls.** `createEpic`,
+ * `renameEpic`, `recolourEpic`, `reorderEpic` and `removeEpic` are read by nothing: spec §9's phase-3
+ * row is "drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo, the share
+ * manager", and a rail is not among the things it names — the canvas draws rails from the plan and
+ * nothing edits one. They are here anyway because this interface is `PlanEditActions`' own list name
+ * for name, the actions are shipped and wired on both surfaces, and dropping the booleans would leave
+ * five writes with no control able to call them the day a rail editor arrives. The audit that found
+ * this is the one direction of the pair below that is not a type error either way, so the survivors are
+ * named here rather than counted.
  *
  * There is deliberately **no nineteenth about the plan itself**. `plan:rename`, `plan:retime` and
  * `plan:delete` are real actions of the API with no Server Action on either surface behind them, so
@@ -202,11 +218,13 @@ export interface PlanControls {
  * separates the two halves of this function is therefore a property of the record, checked row by
  * row in `plan-capabilities.test.ts` and not assumed from the fact that they are seat rows.
  *
- * There is no admin case, because an admin is not a role in this model and holds no scope to ask
- * about: `can()` short-circuits on `principal.kind === 'admin'` before any scope or grant is
- * consulted (`packages/kernel/src/access/policy.ts`). The admin surface passes `ADMIN_CONTROLS`
- * instead (`lib/admin-controls.ts`), and a fourth role invented to pass through here would be a
- * second policy living in a client.
+ * There is no admin case **in this function**, because an admin is not a role in this model and holds
+ * no scope to ask about: `can()` short-circuits on `principal.kind === 'admin'` before any scope or
+ * grant is consulted (`packages/kernel/src/access/policy.ts`), and a fourth role invented to pass
+ * through here would be a second policy living in a client. What the admin surface shares is the
+ * **projection** rather than this entry point: `ADMIN_CONTROLS` is {@link planControls} asked
+ * `() => true`, so the mapping from actions to controls exists once and neither surface holds a list
+ * of control names the other could fall behind (`lib/admin-controls.ts`).
  *
  * It is asked with the scope the seat holds — `PlanShareView.scope` — because a {@link ScopeValue}
  * carries the id the kernel compares, and reusing one plan's answers for another plan's controls
@@ -214,32 +232,67 @@ export interface PlanControls {
  */
 export function planCapabilities(role: RoleValue, scope: ScopeValue): PlanControls {
   const can = capabilities(role, scope)
+  return planControls((action) => can[action], {
+    read: mayReach(role, scope, 'share:read', 'plan'),
+    create: can['share:create'],
+    update: mayReach(role, scope, 'share:update', 'plan'),
+    revoke: mayReach(role, scope, 'share:revoke', 'plan'),
+  })
+}
+
+/**
+ * The one mapping from actions to controls, which **both** surfaces' answers come out of.
+ *
+ * `may` is asked rather than a `Capabilities` record read, and that is what lets the admin surface
+ * through here at all: an admin is not a role and holds no scope, so it has no record — it answers
+ * `true` to every question, and `() => true` is that sentence written once instead of eighteen times
+ * (`lib/admin-controls.ts`). The parameter is a `CapabilityAction`, so a misspelt action is a compile
+ * error on whichever side asks it, exactly as indexing a record was.
+ *
+ * `apps/microtask/components/task-tree/controls.ts` reaches the same place from the other direction:
+ * it pushes an all-true `Capabilities` — `ADMIN_CAPABILITIES` — through `treeControls`. A record is
+ * right there because four of that app's components take one directly, so it already exists; nothing
+ * in this app takes a `Capabilities` at all, every component here taking a {@link PlanControls}. An
+ * all-true record added to `@repo/contracts` for this one call would be a second spelling of `() =>
+ * true` behind a package boundary, and it would need the `Object.fromEntries` assertion that sibling
+ * writes. So the duplication both quality reviews objected to is gone, and the export it was said to
+ * need turned out not to be the thing that removed it.
+ *
+ * What the seats group cannot come out of `may` is the point of its being a parameter. Three of the
+ * four are `mayReach(role, scope, …, 'plan')` rather than record reads — the `share:*` rows name a
+ * `project` target, so the record answers `false` for a plan seat the server would serve — and an
+ * admin's four are simply `true`. Neither is a function of an action alone, so the caller decides
+ * them and this decides the eighteen.
+ *
+ * @param may - Whether this surface's principal clears one action. `() => true` for the admin.
+ * @param seats - The four seat answers, which no action lookup can decide (see above).
+ * @returns Which controls to draw, in the two groups {@link PlanControls} names.
+ */
+export function planControls(
+  may: (action: CapabilityAction) => boolean,
+  seats: PlanSeatControls,
+): PlanControls {
   return {
     content: {
-      createEpic: can['epic:create'],
-      renameEpic: can['epic:rename'],
-      recolourEpic: can['epic:rename'],
-      reorderEpic: can['epic:reorder'],
-      removeEpic: can['epic:delete'],
-      createFeature: can['feature:create'],
-      renameFeature: can['feature:rename'],
-      estimateFeature: can['feature:estimate'],
-      pinFeature: can['feature:pin'],
-      placeFeature: can['feature:place'],
-      setDependencies: can['feature:depend'],
-      removeFeature: can['feature:delete'],
-      createItem: can['item:create'],
-      renameItem: can['item:rename'],
-      estimateItem: can['item:estimate'],
-      describeItem: can['item:describe'],
-      placeItem: can['item:place'],
-      removeItem: can['item:delete'],
+      createEpic: may('epic:create'),
+      renameEpic: may('epic:rename'),
+      recolourEpic: may('epic:rename'),
+      reorderEpic: may('epic:reorder'),
+      removeEpic: may('epic:delete'),
+      createFeature: may('feature:create'),
+      renameFeature: may('feature:rename'),
+      estimateFeature: may('feature:estimate'),
+      pinFeature: may('feature:pin'),
+      placeFeature: may('feature:place'),
+      setDependencies: may('feature:depend'),
+      removeFeature: may('feature:delete'),
+      createItem: may('item:create'),
+      renameItem: may('item:rename'),
+      estimateItem: may('item:estimate'),
+      describeItem: may('item:describe'),
+      placeItem: may('item:place'),
+      removeItem: may('item:delete'),
     },
-    seats: {
-      read: mayReach(role, scope, 'share:read', 'plan'),
-      create: can['share:create'],
-      update: mayReach(role, scope, 'share:update', 'plan'),
-      revoke: mayReach(role, scope, 'share:revoke', 'plan'),
-    },
+    seats,
   }
 }

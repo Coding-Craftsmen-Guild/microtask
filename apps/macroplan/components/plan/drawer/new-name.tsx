@@ -50,7 +50,8 @@ export interface NewNameProps {
  * `./create-controls.tsx`, which is a client module, imports it. A directive here would put a second
  * name in `../module-boundaries.test.tsx`'s allowlist for a boundary that is not here: what crosses is
  * `CreateControls`' props, and `add` is a closure built **in** the browser around one action and one
- * parent id, which is the shape that could not have crossed a boundary at all (ADR 0040).
+ * parent id, which is the shape that could not have crossed a boundary at all — React's rule, stated in
+ * no ADR.
  * `./field-shell.tsx` carries the same note for the same reason.
  *
  * The box empties on success and nothing is read back, which is the one place the field idiom does not

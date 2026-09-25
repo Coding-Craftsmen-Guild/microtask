@@ -28,7 +28,8 @@ export interface SubjectPlacement {
  * `FeaturePlacementPayload` names an `epicId` and `ItemPlacementPayload` a `featureId`
  * (`packages/contracts/src/structure-payloads.ts`) — so there is no single `SubjectWrite<Value>` both fit,
  * and a server-side wrapper that made them one shape could not cross a client boundary at all, an
- * arbitrary closure being unserialisable where an action reference is not (ADR 0040).
+ * arbitrary closure being unserialisable where an action reference is not — React's own rule, which no
+ * ADR states.
  * `./create-controls.tsx` is handed two actions for exactly that reason and argues it at length, and this
  * is the second instance of it. The `kind` picks in the browser, beside the payload it builds.
  *

@@ -57,7 +57,8 @@ export interface BreakdownLineProps {
  *
  * **A shortfall and an overrun are one sentence.** There is no number here to carry a sign, so a
  * breakdown of 5 under an authored 40 renders exactly what a breakdown of 62 renders. ADR 0051 is
- * explicit that a part-sized breakdown is "a real and reportable state — not an error", and a component
+ * explicit that "a part-sized breakdown under a whole-feature estimate, is a real and reportable state;
+ * `planned` is never edited to force it to zero", and a component
  * that showed an overrun and swallowed a shortfall would be reporting the half that flatters the plan.
  *
  * It is server-rendered, like `./drawer-facts.tsx` beside it and unlike every control: it has no state,

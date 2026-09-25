@@ -1,11 +1,10 @@
-import type { PlanControls } from './plan-capabilities'
+import { planControls, type PlanControls, type PlanSeatControls } from './plan-capabilities'
 
-type Drawn<Controls> = {
-  readonly [Name in keyof Controls]-?: NonNullable<Controls[Name]> extends boolean
-    ? true
-    : NonNullable<Controls[Name]> extends object
-      ? Drawn<NonNullable<Controls[Name]>>
-      : never
+const EVERY_SEAT_ANSWER: PlanSeatControls = {
+  read: true,
+  create: true,
+  update: true,
+  revoke: true,
 }
 
 /**
@@ -22,72 +21,41 @@ type Drawn<Controls> = {
  * layer down: it hands components the record rather than a role, so every component reads one shape
  * whichever principal is rendering (ADR 0038).
  *
- * **It cannot fall behind {@link PlanControls}, and the compiler is what guarantees it.** `Drawn`
- * maps over `keyof`, recursing into a group rather than stopping at it, so this constant's declared
- * type is "every boolean this interface holds at any depth, and each one `true`". A control added to
- * either group — or a third group added beside them — makes the literal below fail with a missing
- * property rather than defaulting to `false`, and a member written `false` fails too because `true`
- * is the only value the type admits. Neither a `satisfies` nor a `Record` of the names would do
- * both: the first accepts `false`, and the second cannot carry the per-control TSDoc the interfaces
- * do. `admin-controls.test.ts` sweeps the same two facts at runtime, for a reader who wants to see
- * them asserted rather than inferred.
+ * **It is one call and no longer a list, which is the amendment this file carries.** Until phase 3's
+ * last task it was a hand-written literal naming all twenty-two controls, held to
+ * {@link PlanControls} by a recursive mapped type that made each one `true`. Two quality reviews
+ * judged that the weaker of the monorepo's two answers to one question, and they were right:
+ * `apps/microtask/components/task-tree/controls.ts` keeps no admin literal, deriving its admin row
+ * from the same `treeControls` projection a share link's row comes out of, so drift there is
+ * unreachable rather than merely a type error. This is now the same shape.
  *
- * The three pieces of `Drawn` that look like noise each close a hole the plain mapped type had, and
- * each was compiled before it was written here. `-?` strips optionality, because a homomorphic mapped
- * type **preserves** it: an optional `boolean` member maps to `true | undefined`, which a literal may
- * both omit and write `false` into even under `exactOptionalPropertyTypes`. `NonNullable` is what the
- * conditional's subject is wrapped in, so it sees `boolean` rather than `boolean | undefined` and
- * reaches the `true` branch at all. And the `extends object` arm sends anything that is neither a
- * boolean nor a group to `never`, because a homomorphic mapped type over a primitive answers that
- * primitive unchanged — so a `string` member would have passed straight through as a `string`, and the
- * sentence above would have been false of it. None of the three matters for today's
- * {@link PlanControls}, which holds no optional and no non-boolean member. All three are what make
- * that a property the compiler keeps rather than one the next member has to be noticed by.
+ * What it took was not the export the deferral had assumed. The blocker on record was that
+ * `@repo/contracts` publishes no all-true `Capabilities` to push through the projection, and that
+ * `Object.fromEntries` cannot build one without the type assertion `admin-capabilities.ts` writes. It
+ * turned out the record was never the thing needed: {@link planControls} asks a **predicate**, so the
+ * admin's answer is `() => true` and no record, no export and no assertion is involved. A record is
+ * right one product over because four Microtask components take a `Capabilities` directly and it
+ * therefore already exists; nothing in this app takes one, so an all-true export would have been a
+ * second spelling of `() => true` behind a package boundary — and one that changed a package every
+ * app and the API load from `dist/`.
  *
- * It is written out rather than derived, which is the one place this file differs from Microtask's
- * answer to the same question. `apps/microtask/components/task-tree/controls.ts` keeps no admin
- * literal at all: it pushes `ADMIN_CAPABILITIES` — an all-true `Capabilities` record — through the
- * same `treeControls` projection a share link's controls come out of, so its admin row cannot
- * disagree with a seat's. The equivalent here would be an all-true `Capabilities` pushed through
- * `planCapabilities`, and there is nothing to push it with: `@repo/contracts` exports
- * `CAPABILITY_ACTIONS` and `capabilities()` and **no** all-true record, `planCapabilities` asks for a
- * role and a scope rather than a record, and building the record in this app means
- * `Object.fromEntries`, which answers a bare index signature and so needs the type assertion
- * `admin-capabilities.ts` itself writes (`as Capabilities`). Lint does not forbid that assertion —
- * nothing in `packages/eslint-config` bans one, and that sibling ships under this very config — it is
- * a **convention** this app keeps, and keeping it is what leaves the literal below as the honest
- * choice. Adding an all-true export to `@repo/contracts` is a decision recorded for later rather than
- * one this file makes.
+ * The seat half stays written out, and it is four booleans rather than an oversight.
+ * {@link planControls} decides the eighteen content controls from actions alone; the four seat
+ * answers are not a function of an action, because three of them are `mayReach(role, scope, …,
+ * 'plan')` on the seat side — the `share:*` rows name a `project` target, so the record answers
+ * `false` for a plan seat the server would serve — and an admin's are simply `true`. Microtask's
+ * `ADMIN_TREE` passes a bare `true` for `foldersVisible` for exactly this reason.
+ *
+ * **What used to be a type guarantee is now an assertion**, and the trade is stated rather than
+ * hidden. The mapped type made "every control drawn" a property the compiler kept; a projection makes
+ * it a property of the argument, so a nineteenth control added to {@link PlanControls} is a compile
+ * error in `planControls` — which is where it should be — while a member written as something other
+ * than `may(...)` would leave the admin answering `false` with nothing failing. `admin-controls.test.ts`
+ * is what closes that: it sweeps every boolean at both levels and requires all twenty-two to be
+ * `true`, and it compares this record's keys against `planCapabilities`' group for group.
  *
  * Like every control, each of these answers a rendering question and never a gate. The admin's
  * authority is the API's answer to `mp_admin`, and this constant adds nothing to it: a control drawn
  * here for a plan the API has since refused still meets that refusal on click.
  */
-export const ADMIN_CONTROLS: Drawn<PlanControls> = {
-  content: {
-    createEpic: true,
-    renameEpic: true,
-    recolourEpic: true,
-    reorderEpic: true,
-    removeEpic: true,
-    createFeature: true,
-    renameFeature: true,
-    estimateFeature: true,
-    pinFeature: true,
-    placeFeature: true,
-    setDependencies: true,
-    removeFeature: true,
-    createItem: true,
-    renameItem: true,
-    estimateItem: true,
-    describeItem: true,
-    placeItem: true,
-    removeItem: true,
-  },
-  seats: {
-    read: true,
-    create: true,
-    update: true,
-    revoke: true,
-  },
-}
+export const ADMIN_CONTROLS: PlanControls = planControls(() => true, EVERY_SEAT_ANSWER)

@@ -29,7 +29,8 @@ export interface SubjectPair {
  *
  * It is not a client module and must not become one: it names `PlanEditActions` and
  * `PlanContentControls`, which are the whole actions object and the whole control set. What crosses
- * into the browser is one member of each, handed down as a `SubjectWrite` and a `boolean` (ADR 0040).
+ * into the browser is one member of each, handed down as a `SubjectWrite` and a `boolean`, which is what
+ * `../module-boundaries.test.tsx` admits across that boundary.
  *
  * @param kind - Which of the two the drawer is open on.
  * @param controls - What this surface draws, which is a rendering answer and never a gate.
