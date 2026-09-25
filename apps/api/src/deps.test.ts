@@ -10,6 +10,7 @@ const config = readConfig({
   DATA_DIR: '/srv/data',
   ADMIN_PASSWORD: 'correct horse battery',
   SESSION_SECRET: 's'.repeat(32),
+  BRIDGE_SECRET: 'b'.repeat(32),
   SERVICE_KEYS: 'microtask=k-microtask',
 })
 

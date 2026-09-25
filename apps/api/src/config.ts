@@ -21,6 +21,9 @@ export interface ApiConfig {
   /** Signing key for the admin tokens the API mints (ADR 0012). */
   readonly sessionSecret: string
 
+  /** Seals an epic's Microtask binding token at rest, with `@repo/kernel`'s sealing primitive (design §7.2, ADR 0052). */
+  readonly bridgeSecret: string
+
   /** How long a minted admin token stays valid. */
   readonly adminTokenTtlSeconds: number
 
@@ -110,6 +113,7 @@ export function readConfig(env: Env): ApiConfig {
     dataDir: required(env, 'DATA_DIR'),
     adminPassword: required(env, 'ADMIN_PASSWORD'),
     sessionSecret: readSessionSecret(env),
+    bridgeSecret: required(env, 'BRIDGE_SECRET'),
     adminTokenTtlSeconds: readInteger(env, 'ADMIN_TOKEN_TTL_SECONDS', TTL_BOUNDS),
     serviceKeys: readServiceKeys(env),
   }

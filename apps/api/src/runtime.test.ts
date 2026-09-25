@@ -39,6 +39,7 @@ const configFor = (dataDir: string) =>
     DATA_DIR: dataDir,
     ADMIN_PASSWORD: 'correct horse battery staple',
     SESSION_SECRET: 's'.repeat(32),
+    BRIDGE_SECRET: 'b'.repeat(32),
     SERVICE_KEYS: 'microtask=k-microtask',
   })
 

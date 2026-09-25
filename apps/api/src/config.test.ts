@@ -3,11 +3,13 @@ import { Invalid } from '@repo/kernel'
 import { readConfig, type Env } from './config.js'
 
 const SECRET = 'a'.repeat(32)
+const BRIDGE_SECRET = 'c'.repeat(32)
 
 const complete: Env = {
   DATA_DIR: '/srv/data',
   ADMIN_PASSWORD: 'correct horse battery',
   SESSION_SECRET: SECRET,
+  BRIDGE_SECRET,
   SERVICE_KEYS: 'microtask=k-microtask,macroplan=k-macroplan',
   PORT: '8080',
   ADMIN_TOKEN_TTL_SECONDS: '900',
@@ -18,7 +20,7 @@ const withKey = (key: string, value: string): Env => ({ ...complete, [key]: valu
 const without = (key: string): Env =>
   Object.fromEntries(Object.entries(complete).filter(([name]) => name !== key))
 
-const REQUIRED = ['DATA_DIR', 'ADMIN_PASSWORD', 'SESSION_SECRET', 'SERVICE_KEYS']
+const REQUIRED = ['DATA_DIR', 'ADMIN_PASSWORD', 'SESSION_SECRET', 'BRIDGE_SECRET', 'SERVICE_KEYS']
 
 describe('readConfig', () => {
   it('reads every value from the env argument it was given, never from process.env', () => {
@@ -26,6 +28,7 @@ describe('readConfig', () => {
     expect(config.dataDir).toBe('/srv/data')
     expect(config.adminPassword).toBe('correct horse battery')
     expect(config.sessionSecret).toBe(SECRET)
+    expect(config.bridgeSecret).toBe(BRIDGE_SECRET)
     expect(config.port).toBe(8080)
     expect(config.adminTokenTtlSeconds).toBe(900)
   })
@@ -93,6 +96,20 @@ describe('readConfig', () => {
       expect(() => readConfig(withKey('SESSION_SECRET', bad))).toThrow(
         expect.objectContaining({ message: expect.not.stringContaining(bad) as unknown as string }),
       )
+    })
+  })
+
+  describe('BRIDGE_SECRET, which has no default', () => {
+    it('refuses to produce a config without it, matching how ADMIN_PASSWORD is handled', () => {
+      expect(() => readConfig(without('BRIDGE_SECRET'))).toThrow(/BRIDGE_SECRET is required/)
+    })
+
+    it('accepts it at whatever length it is given, with no minimum enforced here', () => {
+      expect(readConfig(withKey('BRIDGE_SECRET', 'short')).bridgeSecret).toBe('short')
+    })
+
+    it('does not trim it, because a trailing space is part of a secret and not noise', () => {
+      expect(readConfig(withKey('BRIDGE_SECRET', ' spaced ')).bridgeSecret).toBe(' spaced ')
     })
   })
 
@@ -238,6 +255,10 @@ describe('readConfig', () => {
 
     it('gives SESSION_SECRET no default, because a shipped signing key forges admin tokens', () => {
       expect(() => readConfig(without('SESSION_SECRET'))).toThrow(/SESSION_SECRET/)
+    })
+
+    it('gives BRIDGE_SECRET no default, because a shipped key would seal every binding readably', () => {
+      expect(() => readConfig(without('BRIDGE_SECRET'))).toThrow(/BRIDGE_SECRET/)
     })
 
     it('gives SERVICE_KEYS no default, because an empty map must not mean "allow anything"', () => {

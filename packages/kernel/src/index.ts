@@ -18,6 +18,8 @@ export { effectiveBridgeRole } from './access/bridge-role.js'
 export type { TokenIndex, TokenOwner } from './access/token-index.js'
 export { ShareIndex } from './access/share-index.js'
 
+export { IV_BYTES, TAG_BYTES, open, seal } from './sealing.js'
+
 export type { Clock } from './ports/clock.js'
 export type { IdGenerator } from './ports/id-generator.js'
 export type { Lock } from './ports/lock.js'

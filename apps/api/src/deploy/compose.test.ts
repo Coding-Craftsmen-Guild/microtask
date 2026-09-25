@@ -30,6 +30,7 @@ const APPS: readonly (readonly [string, Service, string])[] = [
 const SECRETS = [
   'ADMIN_PASSWORD',
   'SESSION_SECRET',
+  'BRIDGE_SECRET',
   'MICROTASK_API_KEY',
   'COOKIE_SECRET',
   'NEXT_SERVER_ACTIONS_ENCRYPTION_KEY',
@@ -84,6 +85,7 @@ describe('docker-compose.yml', () => {
   it('takes every credential from the environment, never a literal in the file', () => {
     expect(variablesIn(api.environment?.ADMIN_PASSWORD)).toHaveLength(1)
     expect(variablesIn(api.environment?.SESSION_SECRET)).toHaveLength(1)
+    expect(variablesIn(api.environment?.BRIDGE_SECRET)).toHaveLength(1)
     expect(variablesIn(api.environment?.SERVICE_KEYS)).toEqual(['MICROTASK_API_KEY', 'MACROPLAN_API_KEY'])
     for (const [name, service] of APPS) {
       for (const key of ['API_KEY', 'COOKIE_SECRET', 'NEXT_SERVER_ACTIONS_ENCRYPTION_KEY']) {

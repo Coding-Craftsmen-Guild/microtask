@@ -81,6 +81,7 @@ export const testConfig = readConfig({
   DATA_DIR: '/srv/data',
   ADMIN_PASSWORD: 'correct horse battery staple',
   SESSION_SECRET: 's'.repeat(32),
+  BRIDGE_SECRET: 'b'.repeat(32),
   SERVICE_KEYS: `microtask=${SERVICE_KEY}`,
 })
 
