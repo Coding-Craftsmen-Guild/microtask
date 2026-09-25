@@ -71,6 +71,10 @@ in the working tree.
 | [0054](0054-one-token-index-identity-stays-a-capability.md) | One token index for both products, and identity stays a capability until there are users | Accepted |
 | [0055](0055-canvas-geometry-is-its-own-pure-package.md) | Canvas geometry is its own pure package, because a measurement cannot be tested here | Accepted |
 | [0056](0056-the-table-is-the-second-rendering.md) | The table is the second rendering of a plan, not the accessible fallback | Accepted |
+| [0057](0057-the-drawer-is-a-route.md) | The drawer is a route, so a selection is a URL and a save is per field | Accepted |
+| [0058](0058-one-delegation-root-over-a-server-rendered-canvas.md) | One delegation root over a server-rendered canvas, and `children` is the one exception it needed | Accepted |
+| [0059](0059-undo-is-a-compensating-placement.md) | Undo is a compensating placement, one step deep, and a delete has none | Accepted |
+| [0060](0060-a-cycle-is-named-before-the-write.md) | A cycle is named before the write, and the API stays the authority | Accepted |
 
 **0052 is reserved, not missing.** It belongs to the phase-4 bridge — an epic binding to a
 Microtask project by a sealed share token — and phase 1 reserved the fields for it while deciding
@@ -126,6 +130,19 @@ Amended on 2026-09-23, from what the Macroplan canvas measured against two recor
 | --- | --- |
 | [0027](0027-code-style-solid-enforced.md) | The app import rule was written as an allowlist — "may import `contracts`, `api-client`, `ui` — **nothing else**" — and enforced as a denylist of `@repo/store`, `@repo/kernel` and the two `*-domain` packages in each app's own config. Phase 2 added `@repo/canvas` and `@repo/schedule` to `apps/macroplan` with no config change at all, so the written rule had violations CI would always pass. First settled as the denylist; that resolution was withdrawn the same day, because its blocker was a scope restriction on the agent rather than a cost. The allowlist is now enforced — one negated pattern group per app, each app's set its own — with the denylist kept underneath it, since a denylist entry carries the invariant an import would break where an allowlist entry can only carry a count. Both amendments dated 2026-09-23 |
 | [0049](0049-per-rail-forward-pass-in-one-pure-package.md) | Three predictions falsified by phase 2: ADR 0027's list gained **two** entries rather than one, in `apps/macroplan` alone, and they are now real entries in that app's `eslint.config.js` rather than the prose the denylist would have left them as; the browser calls `schedule()` **nowhere** in phase 2 — it draws the schedule the API served and imports the package for the derived order and the estimate arithmetic, with the second derivation deferred to phase 3; and `ScheduleEpic` being `{ id, railOrder }` with no hue is what forced the canvas to extend it (ADR 0055) |
+
+Amended on 2026-09-25, from what Macroplan's editing phase measured against one record:
+
+| ADR | What was wrong |
+| --- | --- |
+| [0055](0055-canvas-geometry-is-its-own-pure-package.md) | Written for layout geometry, and phase 3 added the inverse — `drag.ts`, a point to a placement — which the ADR's own `happy-dom` argument covers and which it did not mention. Three counts falsified: seven modules are **eight**, 98 tests across eight files are **164 across nine**, and "the only `<svg>` element authored anywhere in `apps/` or `packages/`" is now two, the drag ghost being a second one at the same `viewBox`. And the guarantee that keeps `LAYOUT` and `RailMetrics` in step cannot be written `as const satisfies RailMetrics`, which does not compile — `satisfies` excess-checks an object literal and `LAYOUT` carries eight fields that interface does not name, measured as `TS2353` on `barHeight` — so it is `satisfies RailMetrics & Record<string, number>` |
+
+Also amended on 2026-09-25, in the design spec rather than in an ADR: **spec §7.1's role table was
+narrower than the `GRANTS` record it describes, in three entries** — `item:describe` and `item:link`
+are in `WRITE` and `epic:create` and `epic:rename` in `MANAGE`, none of which the prose admitted. The
+record is right and the table is what changed, checked row by row rather than at the one entry that was
+noticed first. Recorded here because the same table is what [0038](0038-capabilities-role-and-scope.md)
+and [0053](0053-a-plan-is-shared-at-plan-scope.md) are read against.
 
 Also on 2026-09-12, from the records audit, and **no ADR was factually wrong in that pass**. What
 was wrong is the design spec, in six places, and two behaviours had no record at all. So the spec is

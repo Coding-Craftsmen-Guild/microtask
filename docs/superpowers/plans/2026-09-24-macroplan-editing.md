@@ -8,7 +8,8 @@
 edges, a conflict list, an undo for a move, and the share manager — on both the admin surface and a `write` or
 `manage` seat's link surface.
 
-**Architecture:** The server is already finished; nothing in `apps/api` or either domain package changes.
+**Architecture:** The server is already finished bar two defects this phase uncovered in it (Task 18, steps 5b and
+6); nothing in either domain package changes.
 `@repo/api-client` grows four operation groups over routes that have shipped since phase 1. `@repo/canvas` grows
 the one impure thing a drag needs made pure: a drop target computed from a point. `apps/macroplan` grows its
 first Server Action with a body, its first client boundary inside the canvas, and a drawer that is a route rather
@@ -45,8 +46,24 @@ And `apps/macroplan/actions/result.ts:60-61` says of `adminCall`: "This is the s
 take once it has entities."
 
 So **no task in this plan touches `apps/api`, `@repo/macroplan-domain`, `@repo/kernel` or `@repo/contracts`**
-except one three-line correction (Task 18, step 4). What is missing is the typed client and the UI. A task that
-finds itself editing a route handler has misread the plan and should stop.
+except in Task 18. What is missing is the typed client and the UI. A task that finds itself editing a route
+handler has misread the plan and should stop.
+
+**Corrected at the end of the phase, as Task 18 step 5b requires.** The exceptions are **two**, both in
+`apps/api` and both in Task 18, and this paragraph originally admitted one ("one three-line correction"). Each
+earned itself by being a defect this phase's UI work uncovered rather than a feature it wanted:
+
+1. **Step 6, the 409 declaration** on the three plan share-link routes. Documentation only: the routes could
+   already answer a status `openapi.json` said was impossible. Found by reading what `PlanShareLinkService`
+   throws while building the typed client for it.
+2. **Step 5b, the create route's pin gate.** A real authorisation hole, open since phase 1 and unreachable
+   until a UI existed to send the field. `POST /features` ran one `write` gate over a body carrying a
+   `manage`-only pin. This is the one exception that changes behaviour, and it is the class of thing this
+   plan's own §7.1 principle exists to prevent — so leaving it for phase 4 would have meant shipping a phase
+   whose share manager hands out `write` seats that can pin.
+
+`@repo/macroplan-domain`, `@repo/kernel` and `@repo/contracts` are untouched, and the header's claim about
+them stands. Audit 7n considered adding one export to `@repo/contracts` and settled it without one.
 
 ### Decided before this plan was written
 
@@ -1603,7 +1620,8 @@ bridge; do not renumber into it.
       `PlanShareLinkService.#save` → `ShareIndex.add`, which throws `Conflict` on a cross-container token
       collision, and `errorHandler` passes an `AppError`'s status through untouched — but each route declares only
       `problemResponses()`, so `openapi.json` says a 409 cannot happen there. Add `problemResponses([409])` to all
-      three, exactly as `PUT .../dependencies` does. This is the only change to `apps/api` in the phase; if the
+      three, exactly as `PUT .../dependencies` does. This is one of **two** changes to `apps/api` in the phase, the
+      other being step 5b above; if the
       generated `openapi.json` is checked in, regenerate it in the same commit.
 
 - [ ] **Step 7: the audit.** Each of these found something in an earlier phase; run them all and report a verdict

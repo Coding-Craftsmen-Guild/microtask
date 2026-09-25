@@ -198,3 +198,68 @@ and one fewer branch. Rejected: taking the whole timeline away because one runti
 disagrees with another's would lose every bar, band and tick that is still correct. The converse —
 widening `null` to cover a bad instant too — is refused for the mirror reason: an absent today line
 would then be read as a tz-database mismatch when the cause was a bad clock read.
+
+## Amended · 2026-09-25 — a second kind of pure function, and three counts phase 3 falsified
+
+Phase 3 added a drag, and a drag needs the one thing this package did not have: an **inverse**. This
+record was written for layout geometry — a model in, a position out — and `packages/canvas/src/drag.ts`
+runs the other way, taking a point and answering the placement it names. The argument above covers it
+exactly, and the amendment is to say so rather than to change anything.
+
+**`drag.ts` is `railAtY` and `dropTargetFor`, and both are arithmetic over numbers.** `railAtY` is the
+inverse of `railTop` in `apps/macroplan/components/plan/canvas/view.ts` — that file holds the forward
+direction, this one the reverse — and `dropTargetFor` answers the `(epicId, position)` a drop falls in.
+Neither takes a pointer event and neither takes a rect: they take a `DragPoint` of two numbers and a
+`RailMetrics` of two more. That is the same split this ADR drew for the forward pass, and the
+`happy-dom` consequence is the whole reason for it. The impure step — turning one `pointerdown` into
+those numbers, which needs `getBoundingClientRect` for the screen-to-`viewBox` ratio — is **one line**
+in `components/plan/canvas/drag-root.tsx`, and it is the only measurement in the phase. Every test here
+is handed a zero `DOMRect`, so that line is asserted against 0 and against nothing else; the arithmetic
+around it (`originAt`, `travelledBy`, `settledAt`) is pure and tested directly, and ADR 0058 records the
+browser check the line is handed forward with. So the package grew an inverse projection without growing
+an untestable line, which is what the "geometry that is not pure is geometry that cannot be tested in
+this repository" sentence above was for.
+
+**`RailMetrics` is handed in rather than declared, for the reason this ADR gives about `@repo/ui`.** A
+rail's height and the chrome above the first rail are fitted to a type size, and a package with no
+viewport and no type size has no grounds to choose either. So `drag.ts` asks for the two numbers and
+`view.ts` supplies them out of the record it renders every rail from — "hand over the record that is
+rendered from, rather than a fresh literal at the call site", because a second literal is a band this
+reads and a band the SVG drew, free to disagree.
+
+**The guarantee that keeps those two spellings in step cannot be written the obvious way.** `LAYOUT`
+carries ten fields and `RailMetrics` names two, so passing an identifier runs no excess-property check
+and the subset relation held by hand until phase 3 wrote it down. The clause is
+`as const satisfies RailMetrics & Record<string, number>` and **not** `satisfies RailMetrics`, which does
+not compile: `satisfies` excess-checks an object **literal**, so each of the other eight fields is
+rejected as unknown to that interface. Measured rather than reasoned — with the intersection removed,
+`pnpm --filter macroplan typecheck` answers
+`view.ts(100,3): error TS2353: Object literal may only specify known properties, and 'barHeight' does not exist in type 'RailMetrics'`.
+The intersection says the two things that are wanted: the record carries whatever `RailMetrics` names,
+spelled the way that package spells it, and is otherwise a record of numbers. What it cannot check is
+that the other eight are only numbers of this file's own choosing — a field added to `RailMetrics` that
+this record already has under the same name and a different meaning would pass, which is a hazard the
+annotation shares with the assignment it replaced. `as const` still comes first, so nothing widens to
+`number`.
+
+**Three counts in the Decision above are now wrong, and they were right when written.**
+
+- **Seven modules are eight**, `drag.ts` being the new one, and the barrel still has one `.` in the
+  `exports` map. `entry-points.test.ts` pins the whole export list, so `DragPoint`, `DropQuery`,
+  `DropTarget`, `RailMetrics`, `dropTargetFor` and `railAtY` arriving on it was an assertion to update
+  rather than a thing to notice.
+- **98 tests across eight files are 164 across nine**, every one still a `.test.ts` in the node lane.
+- **"The only `<svg>` element authored anywhere in `apps/` or `packages/`" is no longer true.** There are
+  two: `plan-canvas.tsx`'s, still server-rendered, and `drag-ghost.tsx`'s — a second `<svg>` at the same
+  `viewBox`, absolutely positioned over the first, which is what places the ghost without measuring
+  anything. The sentence was a fact about phase 2 rather than a rule, and the rule it was evidence for —
+  that this is the only place in the repo laying out an SVG itself — still holds, both files being drawn
+  from this package's numbers.
+
+**One prediction held and is worth confirming.** "Phase 3 inherits the seam it needs: `range` and
+`scale` are props of `PlanCanvas` with defaults, so zoom and pan change an argument rather than a
+module." Phase 3 ships neither zoom nor pan, and it needed the seam anyway: `drag-root.tsx` is handed
+`pxPerDay`, `gutter` and `axisX` as numbers threaded out of the one `canvasLayout` call, so `scaleFor`
+rebuilds the scale that drew the bars rather than reading a module constant. A canvas whose scale came
+from an import would have made the drop resolvable against a scale the SVG was not drawn at, the first
+time a caller passed a different one.

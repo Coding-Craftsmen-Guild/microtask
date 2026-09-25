@@ -290,8 +290,21 @@ in clients' hands:
 | Role | May |
 | --- | --- |
 | `view` | read the plan and its derived schedule. Nothing else. |
-| `write` | that, plus create and rename features and items, and set their estimates |
-| `manage` | that, plus delete, reorder, re-pin, rewire dependencies, change plan settings, and mint, rename, re-role and revoke links over this plan |
+| `write` | that, plus create and rename features and items, set their estimates, **write an item's description**, and **link an item to a Microtask task** |
+| `manage` | that, plus **create and rename a rail**, delete, reorder, re-pin, rewire dependencies, change plan settings, and mint, rename, re-role and revoke links over this plan |
+
+**Amended 2026-09-25, phase 3.** This table was narrower than the grant record it describes, in three
+entries, and the record is what changes nothing: `GRANTS` in `packages/kernel/src/access/policy.ts`
+holds `item:describe` **and** `item:link` in `WRITE`, and `epic:create` and `epic:rename` in `MANAGE`,
+none of which the prose said. Each is right where it is, and the table was checked row by row against
+`GRANTS` rather than at the one entry that was noticed first. A description is what the work is, which
+is the `write` half of the principle below, and it is also the one field §3 caps and sanitises rather
+than refuses — a `write`-shaped decision. A rail is where work sits, which is the `manage` half, and
+§7.1's own "`manage` is everything an admin can do inside one plan" already said so. `item:link` is
+listed although nothing reaches it yet: it has no route, no payload and no service method until phase
+4, but §9 records why the grant could not wait — "a role is stored in every token a client holds, so
+§7.1's grants are decided in phase 1 or they are decided against links already issued". A grant no
+sentence here admits to is the one that will be read off the table by whoever writes that route.
 
 The line between `write` and `manage` is deliberate and is the spec's own principle applied to
 people: **`write` changes what the work is and what it costs; `manage` changes where it sits and what
@@ -451,6 +464,10 @@ links already issued. §7.3's behaviour is phase 4; the actions and scopes it de
 | 0054 | One token index for both products, and identity stays a capability until there are users | **Written.** |
 | 0055 | Canvas geometry is its own pure package, because a measurement cannot be tested here | **Written** in phase 2. §4's table put "layout maths" in `@repo/schedule` and §4.1 published that package's surface without any; the layout is `@repo/canvas`, and §4.1's surface is the half that was right. |
 | 0056 | The table is the second rendering of a plan, not the accessible fallback | **Written** in phase 2. §5's table view, with the data-parity test that keeps it a peer and the six of seven columns phase 2 can fill. |
+| 0057 | The drawer is a route, so a selection is a URL and a save is per field | **Written** in phase 3. §6's drawer, as a segment under `[planId]` with the canvas in the layout — so selecting re-renders the panel and not 2,200 nodes, and a selection is a link. Per-field saving is the same decision: the feature PATCH gates per field, so a combined body is refused wholesale for exactly the seat §7.1's `write` role exists for. |
+| 0058 | One delegation root over a server-rendered canvas, and `children` is the one exception it needed | **Written** in phase 3. §6's drag, as one client boundary over an SVG that stays a Server Component — against a client canvas, a client component per bar, and the transparent sheet phase 2 refused by name. Records that the screen-to-`viewBox` conversion is the one line no test here can cover. |
+| 0059 | Undo is a compensating placement, one step deep, and a delete has none | **Written** in phase 3. §6's "destructive drags get an undo", scoped to a move: a placement's inverse is two values already in hand, and a delete's is a new id with no items, no description and no incoming edges. There was no journal, soft delete, tombstone or restore route anywhere to build on, and four confirm dialogs already promise a delete is final. |
+| 0060 | A cycle is named before the write, and the API stays the authority | **Written** in phase 3. §6's "a write that would create a cycle is refused, with the cycle named", against a generic 409 sentence that was false for this cause. The check is a message and never a gate, and it cannot report the cycle "in the order they wait on each other" — `findCycles` answers a strongly connected component, and a component of three or more need not be one cycle. |
 
 ## 12. What this spec does not decide
 
