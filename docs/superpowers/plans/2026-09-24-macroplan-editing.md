@@ -1129,6 +1129,12 @@ so a calendar arrives as three of them.
 **Files:**
 - Create: `apps/macroplan/components/plan/drawer/cycle-check.ts`, `cycle-check.test.ts`,
   `dependency-editor.tsx`, `dependency-editor.test.tsx`, `dependency-toggle.tsx`, `drawer-manage.tsx`
+- Modify: `drawer-panel.tsx`, `drawer-edits.tsx`, `drawer-facts.tsx`, `field.ts`, `values.ts`, `subject.ts`, their
+  tests, `module-boundaries.test.tsx`, and `app/(admin)/plans/[planId]/f/[featureId]/page.test.tsx` — eleven files,
+  none optional. **Every task in this group has needed a Modify list this plan did not give it**, and the two that
+  matter here are the test narrowings: two pre-existing tests asserted the drawer names *no* other feature of the
+  plan, which a candidate list makes false by design. Narrow them to the property each was really protecting — the
+  facts `<dl>` words no edge, and no other feature is drawn as a **subject** — and do not delete either.
 
 This is the phase gate's first half — "cycle refusal pinned by test" — and header decision 7 is the design.
 
@@ -1167,12 +1173,18 @@ export interface ProposedCycle {
   readonly sentence: string
 }
 
-export const cycleFrom = (
-  features: readonly PlanFeature[],
+export const proposedCycle = (
+  features: readonly CycleFeature[],
   featureId: string,
   dependsOn: readonly string[],
 ) => ProposedCycle | null
 ```
+
+Two corrections to that block, both made by Task 13 and both improvements on it. It shipped as `proposedCycle`
+rather than `cycleFrom` — this sketch's name, kept here only because a plan that names a symbol the code does not
+export is a plan a reader stops trusting. And the parameter widened from `readonly PlanFeature[]` to a structural
+`CycleFeature`, which is what `findCycles`' own signature asks for: a narrower type would have forced the caller to
+hand over whole feature records where the walk needs two fields.
 
 Use `findCycles` from `@repo/schedule`; do not write a second graph walk. It is already exported, already
 property-tested, and this package is bundled for the browser by its own assertion
