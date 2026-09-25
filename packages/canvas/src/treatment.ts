@@ -15,13 +15,21 @@ import type { CanvasSchedule } from './plan.js'
  * outline, which is the one case where the plan contradicts itself rather than merely omitting
  * something.
  *
- * §5 names those three treatments for *done*, *not started* and *carry-over*, and **that is not what
- * they mean here**: done and carry-over both need progress, which arrives with the Microtask bridge
- * in phase 4 and does not exist on the wire yet. Phase 2's three schedule states map onto the same
- * three drawings without inventing data, so the channel §5 reserved is in use and nothing has to be
- * faked. Phase 4 widens this union rather than replacing it — a member added leaves every reading
- * here true, whereas re-pointing `'solid'` at *done* would silently turn every placed bar in the
- * product into a claim that work had finished.
+ * §5 names those three treatments for *done*, *not started* and *carry-over*. **Phase 4 widened this
+ * union rather than replacing it**, exactly as this paragraph asked: `'done'` is a fourth member, and
+ * every reading of the first three is still true. Re-pointing `'solid'` at *done* would have turned
+ * every placed bar in the product into a claim that work had finished.
+ *
+ * `'done'` is the only one of the four that is **not** a fact about the schedule: the other three come
+ * out of `unscheduled`, and this one comes from a linked Microtask task's own count (design §7.2). So it
+ * is not produced by {@link treatmentsOf} and cannot be — nothing in a schedule knows it — and a
+ * renderer overlays it onto that map from the bridge's answer. {@link countsAsDone} is the threshold.
+ *
+ * **Carry-over is still not here, and that is deliberate rather than pending.** It needs a
+ * schedule-versus-today reading as well as progress — a feature still open past the sprint it was
+ * expected in — and spec §9's phase-4 row does not name it. Adding it would also be the first member of
+ * this union that depended on *when it was drawn*, which is a different kind of thing from the four
+ * above and wants its own decision.
  *
  * `ignoredEdges` is deliberately **not** a treatment. `@repo/contracts`' `IgnoredEdge` is explicit
  * that it is "Neither a cycle nor an unscheduled entry: the feature named here *did* get a span, one
@@ -31,7 +39,21 @@ import type { CanvasSchedule } from './plan.js'
  * dashed would show the wrong sentence — it was placed, and what is wrong with it is a dependency,
  * not its dates. It belongs to the conflict list, which is phase 3's.
  */
-export type Treatment = 'solid' | 'hollow' | 'contradicted'
+export type Treatment = 'solid' | 'hollow' | 'contradicted' | 'done'
+
+/**
+ * Whether a counted task says this mark's work is finished.
+ *
+ * The fourth member's own question, here rather than in a renderer so the threshold is stated once:
+ * **`total` must be above zero**. A linked task with no checklist in it counts `{ done: 0, total: 0 }`,
+ * and `0 === 0` would call that finished — the one arithmetic mistake this union's arrival makes
+ * available, and the reason design §7.2 insists "a number on screen is always a counted number".
+ *
+ * It takes the pair rather than a whole row, so the caller's shape is its own business and this stays
+ * usable from a package that knows nothing about the bridge's wire types.
+ */
+export const countsAsDone = (counted: { readonly done: number; readonly total: number }): boolean =>
+  counted.total > 0 && counted.done >= counted.total
 
 /**
  * The schedule widened with the one collection a treatment is read from.

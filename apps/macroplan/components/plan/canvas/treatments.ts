@@ -21,6 +21,15 @@ const CONTRADICTED_FILL_OPACITY = 0.15
  * names no epic — `RailBox.colour` is `null` there, and there is no hue to carry — draws grey rather
  * than invisible.
  *
+ * `done` is a solid bar with an outline in the foreground colour, which is the one drawing available
+ * here that survives greyscale without taking a channel the split has already spent: the fill stays the
+ * epic's hue, so §5's "an item is always its epic's colour" holds, and the outline is what says finished.
+ * It is deliberately **not** a second element — no nested fill, no tick — because `item-mark.tsx` holds
+ * the canvas to exactly one element per item so a plan at the 2,000-item cap stays 2,000 nodes, and a
+ * partial fill for work half done would have doubled that for every linked item. The consequence,
+ * recorded rather than hidden: this canvas distinguishes **finished** from unfinished and draws no
+ * *degree* of progress. The number itself is in the table, which is the rendering a reader can read.
+ *
  * `contradicted` is §5's "dashed red outline", and its outline is **red rather than the epic's hue**
  * because that is the one case where the treatment owns the stroke: the plan contradicts itself, and
  * a dependency cycle is not a fact about an epic. The hue survives in the fill, at
@@ -30,12 +39,14 @@ export const TREATMENT_CLASS: Readonly<Record<Treatment, string>> = {
   solid: 'fill-muted-foreground stroke-none',
   hollow: 'fill-none stroke-muted-foreground stroke-2',
   contradicted: 'fill-destructive/15 stroke-destructive stroke-2 [stroke-dasharray:5_3]',
+  done: 'fill-muted-foreground stroke-foreground stroke-[1.5]',
 }
 
 const HUE_CHANNEL: Readonly<Record<Treatment, (colour: string) => CSSProperties>> = {
   solid: (colour) => ({ fill: colour }),
   hollow: (colour) => ({ stroke: colour }),
   contradicted: (colour) => ({ fill: colour, fillOpacity: CONTRADICTED_FILL_OPACITY }),
+  done: (colour) => ({ fill: colour }),
 }
 
 /**

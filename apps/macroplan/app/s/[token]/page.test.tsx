@@ -342,10 +342,12 @@ describe('which controls the seat’s own role draws', () => {
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
+      'bridge',
       'conflicts',
       'controls',
       'drawer',
       'plan',
+      'progress',
       'share',
     ])
     expect(handed['drawer']).toBeNull()
@@ -374,14 +376,22 @@ describe('which controls the seat’s own role draws', () => {
       isValidElement<{ controls: { content: Record<string, boolean> } }>(element)
         ? Object.entries(element.props.controls.content)
         : []
+    // A view seat draws none of the twenty-three, as before. A manage seat now draws twenty-one: the two
+    // binding controls are admin-only (`epic:bind`), which design §7.3 requires — an epic's binding is the
+    // ceiling on what a link holder reaches in Microtask, so a holder that could re-role one could raise
+    // its own ceiling. They are the first controls in this product that no seat of any role draws.
+    const ADMIN_ONLY = ['bindEpic', 'unbindEpic']
     seated(SEAT_TOKEN)
     const view = drawn(await LinkPlanPage(props(SEAT_TOKEN)))
-    expect(view).toHaveLength(18)
+    expect(view).toHaveLength(23)
     for (const [control, answer] of view) expect(answer, control).toBe(false)
     seated(MANAGE_SEAT_TOKEN)
     const manage = drawn(await LinkPlanPage(props(MANAGE_SEAT_TOKEN)))
-    expect(manage).toHaveLength(18)
-    for (const [control, answer] of manage) expect(answer, control).toBe(true)
+    expect(manage).toHaveLength(23)
+    for (const [control, answer] of manage) {
+      expect(answer, control).toBe(!ADMIN_ONLY.includes(control))
+    }
+    expect(manage.filter(([, answer]) => answer)).toHaveLength(21)
   })
 })
 

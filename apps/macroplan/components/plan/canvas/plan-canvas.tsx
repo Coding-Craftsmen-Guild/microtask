@@ -5,7 +5,7 @@ import { QuarterBandLayer } from './quarter-bands'
 import { Rail } from './rail'
 import { SprintTickLayer } from './sprint-ticks'
 import { TodayMark } from './today-mark'
-import { canvasLayout, CANVAS_RANGE, CANVAS_SCALE, railTop } from './view'
+import { canvasLayout, CANVAS_RANGE, CANVAS_SCALE, railTop, type Counted } from './view'
 
 const CANVAS = 'block shrink-0'
 
@@ -20,6 +20,18 @@ export interface PlanCanvasProps {
    * that lives above it reaches none of them.
    */
   readonly plan: PlanScreenModel
+
+  /**
+   * What each linked item's task counts, which is where `'done'` on a mark comes from.
+   *
+   * Defaults to `[]` so every existing caller — and every test that renders a canvas without a bridge —
+   * draws exactly what it drew before. `[]` and `null` would be the same drawing, so there is one
+   * spelling of "nothing counted" rather than two.
+   *
+   * It carries no task name, and could not: the API withholds one from any reader below an effective
+   * `write`, so there is nothing here for this canvas to decide or to hide.
+   */
+  readonly progress?: Counted
 
   /** The instant to draw the today line at. Read once by the page and threaded down. */
   readonly at: Date
@@ -102,10 +114,16 @@ export function PlanCanvas({
   plan,
   at,
   place,
+  progress = [],
   range = CANVAS_RANGE,
   scale = CANVAS_SCALE,
 }: PlanCanvasProps) {
-  const { rails, height, width, viewBox, names, unplaced, frame } = canvasLayout(plan, range, scale)
+  const { rails, height, width, viewBox, names, unplaced, frame } = canvasLayout(
+    plan,
+    range,
+    scale,
+    progress,
+  )
   return (
     <DragRoot
       axisX={frame.axisX}

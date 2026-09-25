@@ -1,3 +1,4 @@
+import { bindEpic, createTask, linkItem, unbindEpic, unlinkItem } from '../../actions/bridge'
 import {
   createEpic,
   recolourEpic,
@@ -55,4 +56,9 @@ export const ADMIN_PLAN_ACTIONS: PlanEditActions = {
   describeItem,
   placeItem,
   removeItem,
+  bindEpic,
+  unbindEpic,
+  linkItem,
+  unlinkItem,
+  createTask,
 }

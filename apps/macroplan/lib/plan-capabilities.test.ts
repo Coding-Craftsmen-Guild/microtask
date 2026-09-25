@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { problemAnswer } from '../components/plan/testing/fake-plan-api'
 import { PLAN_A, WRITE_SEAT_TOKEN } from '../components/plan/testing/plan-fixture'
-import { planCapabilities, type PlanContentControls } from './plan-capabilities'
+import { planCapabilities, planControls, type PlanContentControls } from './plan-capabilities'
 import { ACTION_REFUSALS, plainRefusal } from './refusal'
 
 // The two modules whose exports this file compares the controls against are reached through the
@@ -33,6 +33,8 @@ const PLAN: ScopeValue = { kind: 'plan', planId: '01HZZZZZZZZZZZZZZZZZZZZZZZ' }
 const SEAT_ACTIONS = ['share:read', 'share:update', 'share:revoke'] as const
 
 const ROLES: readonly RoleValue[] = ['view', 'write', 'manage']
+
+const SEATS = { read: true, create: true, update: true, revoke: true } as const
 
 // Which action of the record each content control asks about, stated here rather than read out of
 // the implementation, so a control wired to the like-named action of another entity fails this file
@@ -59,6 +61,11 @@ const WRITES: Readonly<Record<keyof PlanContentControls, CapabilityAction>> = {
   describeItem: 'item:describe',
   placeItem: 'item:place',
   removeItem: 'item:delete',
+  bindEpic: 'epic:bind',
+  unbindEpic: 'epic:bind',
+  linkItem: 'item:link',
+  unlinkItem: 'item:link',
+  createTask: 'item:link',
 }
 
 const CONTROLS = Object.keys(WRITES) as readonly (keyof PlanContentControls)[]
@@ -92,7 +99,7 @@ describe('the record this helper exists because of', () => {
     expect(capabilities('manage', PLAN)['share:create']).toBe(true)
   })
 
-  it('gates none of the eighteen writes on a second target, which is why the record answers them', () => {
+  it('gates none of the twenty-three writes on a second target, which is why the record answers them', () => {
     for (const control of CONTROLS) {
       expect(ACTION_DECISIONS[WRITES[control]].alsoGatedOn, control).toBeUndefined()
     }
@@ -154,13 +161,13 @@ describe('planCapabilities answers each seat action the way the server decides i
   })
 })
 
-describe('the eighteen content controls are the eighteen writes, and neither more nor fewer', () => {
+describe('the twenty-three content controls are the twenty-three writes, and neither more nor fewer', () => {
   it('holds one boolean per member of PlanEditActions, which the admin wiring enumerates', () => {
     expect(Object.keys(planCapabilities('manage', PLAN).content).sort()).toEqual(
       Object.keys(ADMIN_PLAN_ACTIONS).sort(),
     )
     expect([...CONTROLS].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
-    expect(CONTROLS).toHaveLength(18)
+    expect(CONTROLS).toHaveLength(23)
   })
 
   it('draws no nineteenth for the plan itself, there being no such action on either surface', () => {
@@ -197,20 +204,45 @@ describe('each content control is the record’s own answer for the action behin
     expect(drawn('view')).toEqual([])
   })
 
-  it('draws a write seat the seven that role is granted, and none of the manage eleven', () => {
+  // Three more than phase 3's seven, and all three are the same grant: item:link is a WRITE action
+  // (spec §7.1 as amended), so a write seat may link an item to a task, unlink one, and ask for the
+  // task to be created — the last of which the API then refuses unless the rail is bound at manage,
+  // which is not a question any control can answer.
+  it('draws a write seat the ten that role is granted, and none of the manage thirteen', () => {
     expect(drawn('write')).toEqual([
       'createFeature',
       'createItem',
+      'createTask',
       'describeItem',
       'estimateFeature',
       'estimateItem',
+      'linkItem',
       'renameFeature',
       'renameItem',
+      'unlinkItem',
     ])
   })
 
-  it('draws a manage seat all eighteen', () => {
-    expect(drawn('manage')).toEqual([...CONTROLS].sort())
+  // epic:bind is the one row of ACTION_DECISIONS whose minimum is 'admin', so these two are the first
+  // controls in this app that no seat of any role draws. A control answering true for a manage seat
+  // here would draw a control the API refuses every time (design §7.3: the binding is the ceiling, and
+  // a holder that could re-role one could raise its own).
+  it.each(ROLES)('draws no binding control for a %s seat, epic:bind being admin-only', (role) => {
+    const asked = planCapabilities(role, PLAN).content
+    expect([asked.bindEpic, asked.unbindEpic]).toEqual([false, false])
+  })
+
+  it('is not vacuous: the admin projection draws both of them', () => {
+    expect(planControls(() => true, SEATS).content.bindEpic).toBe(true)
+    expect(planControls(() => true, SEATS).content.unbindEpic).toBe(true)
+  })
+
+  // Twenty-one and not twenty-three: the two binding controls are admin-only, which is the first time
+  // in this product that a plan manage seat is refused a control an admin draws.
+  it('draws a manage seat twenty-one of the twenty-three, and never the two admin-only ones', () => {
+    const expected = [...CONTROLS].filter((one) => one !== 'bindEpic' && one !== 'unbindEpic').sort()
+    expect(drawn('manage')).toEqual(expected)
+    expect(expected).toHaveLength(21)
   })
 
   it('answers a recolour exactly as it answers a rename, that PATCH being one gate', () => {
@@ -272,7 +304,7 @@ describe('a control is a rendering answer and never a gate', () => {
     expect(answer).not.toMatchObject({ detail: 'Not permitted: epic:create' })
   })
 
-  it('wires all eighteen whatever the controls answer, which is what makes that the case', () => {
+  it('wires all twenty-three whatever the controls answer, which is what makes that the case', () => {
     expect(Object.keys(seatPlanActions(WRITE_SEAT_TOKEN)).sort()).toEqual(
       Object.keys(planCapabilities('view', PLAN).content).sort(),
     )

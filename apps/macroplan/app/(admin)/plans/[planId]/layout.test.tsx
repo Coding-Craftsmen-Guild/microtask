@@ -7,6 +7,7 @@ import {
   fakePlanFetch,
   holdingAdmin,
   holdingSeat,
+  bridgeReadKey,
   planReadKey,
   problemAnswer,
   trace,
@@ -152,11 +153,18 @@ const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 const tokensFrom = (element: ReactNode): readonly string[] => tokensHandedBy(element, EVERY_TOKEN)
 
 describe('the plan layout', () => {
-  it('reads the one plan under the bearer the admin cookie carries, and reads nothing else', async () => {
+  // **Two reads, and exactly two.** Phase 4 added the bridge, and it is a second request rather than
+  // fields on the first for a reason ADR 0061 records: a plan may hold forty bindings, so folding them in
+  // would put forty Microtask manifest reads on the path that draws the timeline. Both go out under the
+  // same bearer, and nothing else does — a third entry here would mean a component had started fetching.
+  it('reads the one plan and its bridge under the admin bearer, and reads nothing else', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     await show()
-    expect(trace(api)).toEqual([`${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`])
+    expect(trace(api)).toEqual([
+      `${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
+      `${bridgeReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
+    ])
   })
 
   it('draws the plan’s own timeline, named for the plan, with a bar per placed feature', async () => {
@@ -262,7 +270,14 @@ describe('the plan layout', () => {
     holdingSeat(api, PLAN_B, 'manage', MANAGE_SEAT_TOKEN)
     bearer = MANAGE_SEAT_TOKEN
     await show()
-    expect(trace(api)).toEqual([`${planReadKey(PLAN_A)} ${MANAGE_SEAT_TOKEN}`])
+    // Both reads go out, because the layout makes them concurrently: the refusal is discovered after
+    // the bridge request has already left. That is the deliberate trade — the timeline is the hot path
+    // and serialising the two would cost every successful load a second round trip — and it leaks
+    // nothing, since the bridge route gates on plan:read and refuses this bearer for the same reason.
+    expect(trace(api)).toEqual([
+      `${planReadKey(PLAN_A)} ${MANAGE_SEAT_TOKEN}`,
+      `${bridgeReadKey(PLAN_A)} ${MANAGE_SEAT_TOKEN}`,
+    ])
     expect(screen.getByRole('alert').textContent).toBe(ACTION_REFUSALS.admin.forbidden)
   })
 })
@@ -282,7 +297,7 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
   // links into this one's drawer routes, and may not present this one's cookie. So filling either is this
   // file's own decision and belongs in this file's assertions. The drawer stays identity-compared, being
   // `children` and not built here.
-  it('hands the screen both slots it builds, the writes and the three props it had', async () => {
+  it('hands the screen every slot it builds, the writes, and the bridge facts', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const element = await PlanLayout(propsOf(PLAN_A))
@@ -290,10 +305,12 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
+      'bridge',
       'conflicts',
       'controls',
       'drawer',
       'plan',
+      'progress',
       'share',
     ])
     expect(handed['drawer']).toBe(DRAWER)
@@ -327,7 +344,13 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
     const conflicts = handed['conflicts']
     const list = isValidElement<{ plan: unknown }>(conflicts) ? conflicts.props.plan : null
     expect(list).toBe(handed['plan'])
-    expect(trace(api)).toEqual([`${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`])
+    // The conflict list is built from the plan this layout already holds and never from a read of its
+    // own. The bridge request beside it is a read of something else — what the rails are bound to — and
+    // is the only other one there is.
+    expect(trace(api)).toEqual([
+      `${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
+      `${bridgeReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
+    ])
   })
 
   it('draws no slot at all when it could not read the plan, so one refusal is said once', async () => {
@@ -397,9 +420,14 @@ describe('the plan layout hands no share token to a component, however senior th
   // hand the screen the writes, so the assertion becomes the drawer pages': exactly the eighteen, each
   // named, none bound and none anonymous. Nothing is relaxed — the empty list only ever stood because
   // there was no write on this surface to hand over.
-  it('hands over the eighteen writes and nothing bound, so no token hides in an action’s arguments', async () => {
+  // The two binding actions are handed over **twice** — once inside `ADMIN_PLAN_ACTIONS` and once as the
+  // bindings panel's own two props — so this compares sets rather than lists. What it is actually about is
+  // unchanged and is the second assertion: not one function crossing this boundary is a `bound ` closure,
+  // which is the one mechanism ADR 0040 describes for smuggling a token into a component.
+  it('hands over every write by name and nothing bound, so no token hides in an action’s arguments', async () => {
     const handed = handedBy(await shown())
-    expect([...handed.functions].sort()).toEqual([...Object.keys(ADMIN_PLAN_ACTIONS), ...SEAT_ACTIONS].sort())
+    const expected = new Set([...Object.keys(ADMIN_PLAN_ACTIONS), ...SEAT_ACTIONS])
+    expect([...new Set(handed.functions)].sort()).toEqual([...expected].sort())
     expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
     expect(handed.functions.filter((name) => name === '')).toEqual([])
   })

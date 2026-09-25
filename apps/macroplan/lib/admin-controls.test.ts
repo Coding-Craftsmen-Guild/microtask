@@ -8,7 +8,7 @@ const PLAN: ScopeValue = { kind: 'plan', planId: '01HZZZZZZZZZZZZZZZZZZZZZZZ' }
 const PROJECT: ScopeValue = { kind: 'project', projectId: '01HZZZZZZZZZZZZZZZZZZZZZZZ' }
 
 // Both groups flattened to one list of `group.control` pairs, so a sweep below reads every boolean
-// the type holds at either level rather than the eighteen and then, separately, the four.
+// the type holds at either level rather than the twenty-three and then, separately, the four.
 const leaves = (controls: PlanControls): readonly (readonly [string, boolean])[] => [
   ...Object.entries(controls.content).map(([name, answer]): [string, boolean] => [
     `content.${name}`,
@@ -28,11 +28,11 @@ const refused = (controls: PlanControls): readonly string[] =>
 describe('the admin draws every control there is', () => {
   it('answers true for every one of them, at both levels, with none left false', () => {
     expect(refused(ADMIN_CONTROLS)).toEqual([])
-    expect(leaves(ADMIN_CONTROLS)).toHaveLength(22)
+    expect(leaves(ADMIN_CONTROLS)).toHaveLength(27)
   })
 
-  it('draws all eighteen content controls and all four seat controls', () => {
-    expect(Object.values(ADMIN_CONTROLS.content)).toHaveLength(18)
+  it('draws all twenty-three content controls and all four seat controls', () => {
+    expect(Object.values(ADMIN_CONTROLS.content)).toHaveLength(23)
     expect(Object.values(ADMIN_CONTROLS.seats)).toHaveLength(4)
   })
 
@@ -50,8 +50,25 @@ describe('the admin is not a role, which is why this is a constant and not a cal
     expect(Role.options).toEqual(['view', 'write', 'manage'])
   })
 
-  it('coincides with a plan manage seat, so what is missing is the scope and not the answers', () => {
-    expect(ADMIN_CONTROLS).toEqual(planCapabilities('manage', PLAN))
+  // **Phase 4 is where these two stopped coinciding**, and the divergence is the point rather than a
+  // regression. Through phase 3 every control an admin drew a plan manage seat drew too, so the only
+  // difference between them was the scope. `epic:bind` is the first action a control asks about whose
+  // minimum is `'admin'` — design §7.3 puts it there because an epic's binding is the ceiling on
+  // everything a link holder reaches in Microtask, so a holder that could re-role one could raise its
+  // own — and the two binding controls are therefore the first an admin draws and no seat does.
+  it('coincides with a plan manage seat on every control but the two admin-only ones', () => {
+    const seat = planCapabilities('manage', PLAN)
+    expect(ADMIN_CONTROLS.seats).toEqual(seat.seats)
+    const differ = Object.keys(ADMIN_CONTROLS.content).filter(
+      (name) => ADMIN_CONTROLS.content[name as keyof typeof seat.content] !== seat.content[name as keyof typeof seat.content],
+    )
+    expect(differ.sort()).toEqual(['bindEpic', 'unbindEpic'])
+  })
+
+  it('is the surface that holds those two, so the difference is not the seat being stronger', () => {
+    expect([ADMIN_CONTROLS.content.bindEpic, ADMIN_CONTROLS.content.unbindEpic]).toEqual([true, true])
+    const seat = planCapabilities('manage', PLAN).content
+    expect([seat.bindEpic, seat.unbindEpic]).toEqual([false, false])
   })
 
   it('differs from that same role in any other scope, which is the scope there is none of', () => {

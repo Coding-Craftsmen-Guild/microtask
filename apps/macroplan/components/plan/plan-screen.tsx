@@ -1,6 +1,8 @@
+import type { PlanBridge } from '@repo/api-client'
 import type { ReactNode } from 'react'
 import type { PlanControls } from '../../lib/plan-capabilities'
 import { PlanCanvas } from './canvas/plan-canvas'
+import { PlanHeading } from './plan-heading'
 import type { PlanEditActions } from './edit-actions'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
@@ -156,6 +158,47 @@ export interface PlanScreenProps {
    * somebody edits rather than a surface quietly missing a control its holder may use.
    */
   readonly share: ReactNode
+
+  /**
+   * What this plan's rails are bound to in Microtask: the bindings panel, or `null`.
+   *
+   * The inward half of §7's two links, beside the outward one. That section opens by warning that "two
+   * different things in this product are called a link, they point in opposite directions, and confusing
+   * them is the fastest way to build a credential leak" — {@link PlanScreenProps.share} hands a link
+   * **out** so somebody can see this plan, and this holds the credentials held **inward** so this plan
+   * can read Microtask. They sit beside each other because both are plan-wide administration rather
+   * than anything about a selection, and because putting them together is what makes the distinction
+   * visible to whoever is doing it.
+   *
+   * A **slot** for the reason the other three are: `epic:bind` is admin-only, so what fills this is a
+   * decision only the page that read the credential can make. `null` on `/s/<token>` — and there, unlike
+   * the other two, it is `null` **by policy rather than by an unfinished sweep**: no seat of any role
+   * holds `epic:bind`, so a seat surface has nothing to draw here and never will until that grant
+   * changes. That is worth stating, because the day somebody mounts the seat surface's share manager
+   * they must not reach for this one as well.
+   */
+  readonly bridge: ReactNode
+
+  /**
+   * What each linked item's task counts, as the bridge answered it — `[]` when nothing is linked.
+   *
+   * **Data and not a slot**, unlike the four above, and the difference is who renders it: a manager is a
+   * self-contained thing a page builds, where these numbers are read by the table's seventh column and by
+   * the canvas's bars. Handing those a slot would mean the page building 2,000 cells.
+   *
+   * `[]` rather than optional, and `[]` for three different reasons that a reader must not need to tell
+   * apart: nothing on this plan is linked, the bridge request did not land (`read-bridge.ts` collapses
+   * every failure to `null`), or this surface does not read the bridge at all. All three mean the same
+   * thing on screen — no counted number, so no progress — which is exactly what design §7.2 requires:
+   * "an unlinked item has a manual status only — not a manual percentage — so a number on screen is
+   * always a counted number". An empty array is that sentence, and an optional prop would have invited a
+   * fourth rendering for "not asked".
+   *
+   * It carries **no task name**, and could not: the row type's `taskName` is absent for any reader below
+   * an effective `write`, decided by the API and not here. So passing this array on is safe in a way a
+   * plan carrying `shareLinks` never was, and neither the table nor the canvas has a decision to make.
+   */
+  readonly progress: PlanBridge['items']
 }
 
 /**
@@ -227,33 +270,27 @@ export interface PlanScreenProps {
  *
  * ### Where this file divides next
  *
- * Sixty-seven of the 80 lines an `.tsx` may hold are used — **measure rather than trust that number**,
- * the count before the share manager having been stale by three. That manager cost four of them: a slot,
- * a prop, and the flex row the heading block and the slot now share. The paragraphs above have already
- * ruled out everything inside `VIEW_SWITCH.views`: the radios, their labels and both panels are peers of
- * one another by necessity, and a component drawn around any of them breaks the selector the switch is
- * built on.
+ * The heading row has **been** lifted, into `./plan-heading.tsx`, which is what made room for the fourth
+ * slot {@link PlanScreenProps.bridge} adds — the split this paragraph used to ask for. **Measure the
+ * count rather than trusting a number written here**: the figure in this block has been stale twice, once
+ * by three lines and once by a whole split, and `npx eslint components/plan/plan-screen.tsx` from inside
+ * the app is the only reading that is not a guess.
  *
- * What is left, and so **the next split, is the heading row** — the `h1`, the settings line under it and
- * the share slot beside them, the one `<div className="flex flex-wrap items-start justify-between gap-3">`
- * in here. It is still a self-contained group with no peer relationship to anything: it reads three fields
- * of the plan, places one slot, and sits above both the others, so lifting it out moves no sibling past
- * another. `./plan-heading.tsx` taking one `PlanScreenModel` and one `ReactNode`, and this file keeps the
- * grid, the two slots and the switch. Thirteen lines is room for one more prop, not for a fourth slot.
+ * What remains is the grid, the four slots and the switch, and **the switch cannot be divided at all**.
+ * The paragraphs above rule out everything inside `VIEW_SWITCH.views`: the radios, their labels and both
+ * panels are peers of one another by necessity, and a component drawn around any of them breaks the
+ * sibling selector the whole switch is built on. So the next thing to give way, if a fifth slot ever
+ * arrives, is the **grid wrapper and the slot order** — `./plan-body.tsx` taking the three `ReactNode`s
+ * and the two panels — and not another piece of the switch. A fifth slot is also a question before it is
+ * a refactor: four managers and lists above one timeline is already the most a heading can carry before
+ * the page needs a different shape.
  */
-export function PlanScreen({ plan, at, actions, controls, conflicts, drawer, share }: PlanScreenProps) {
+export function PlanScreen(props: PlanScreenProps) {
+  const { plan, at, actions, bridge, controls, conflicts, drawer, progress, share } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
     <div className="grid gap-4 pt-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <h1 className="text-xl font-semibold">{plan.name}</h1>
-          <p className="text-[13px] text-muted-foreground">
-            {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
-          </p>
-        </div>
-        {share}
-      </div>
+      <PlanHeading managers={<>{share}{bridge}</>} plan={plan} />
       {conflicts}
       {drawer}
       <div className={VIEW_SWITCH.views}>
@@ -282,10 +319,10 @@ export function PlanScreen({ plan, at, actions, controls, conflicts, drawer, sha
           Table
         </label>
         <div className={VIEW_SWITCH.scroller}>
-          <PlanCanvas at={at} place={place} plan={plan} />
+          <PlanCanvas at={at} place={place} plan={plan} progress={progress} />
         </div>
         <div className={VIEW_SWITCH.tablePanel}>
-          <PlanTable plan={plan} />
+          <PlanTable plan={plan} progress={progress} />
         </div>
       </div>
     </div>

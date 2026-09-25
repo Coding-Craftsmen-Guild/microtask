@@ -10,9 +10,17 @@ import {
 } from './testing/plan-fixture'
 
 // Every export of `actions/seat-writes.ts`, each replaced by a recorder that says which of the
-// eighteen was reached and with what. Names rather than `vi.fn()`s per export, because what this
+// twenty-three was reached and with what. Names rather than `vi.fn()`s per export, because what this
 // file has to prove is *which* action a member is wired to, and a recorder that carries its own
 // name proves it in one assertion.
+const SEAT_BRIDGE = [
+  'seatBindEpic',
+  'seatUnbindEpic',
+  'seatLinkItem',
+  'seatUnlinkItem',
+  'seatCreateTask',
+]
+
 const SEAT_WRITES = [
   'seatCreateEpic',
   'seatRenameEpic',
@@ -47,12 +55,21 @@ vi.mock('../../actions/seat-writes', () =>
   Object.fromEntries(SEAT_WRITES.map((name) => [name, recorder(name)])),
 )
 
+// The five bridge writes moved to their own module when `seat-writes.ts` hit the line cap. Mocked
+// separately rather than folded in, so a member that moved back would fail this file rather than resolve
+// against whichever mock happened to still name it.
+vi.mock('../../actions/seat-bridge', () =>
+  Object.fromEntries(SEAT_BRIDGE.map((name) => [name, recorder(name)])),
+)
+
 const { seatPlanActions } = await import('./seat-actions')
 
 const TOKEN = WRITE_SEAT_TOKEN
 const NAME = 'Auth rewrite II'
 const COLOUR = '#ef4444'
 const DESCRIPTION = 'Rotate the signing keys first.'
+const TOKEN_PASTED = 'shr_pasted_from_microtask'
+const TASK_1 = '01M240ERCRWWCN16Q5AHP1FZT1'
 
 const actions = seatPlanActions(TOKEN)
 
@@ -163,6 +180,31 @@ const WIRING: readonly Wiring[] = [
     run: () => actions.removeItem(PLAN_A, ITEM_1),
     sends: ['seatRemoveItem', TOKEN, PLAN_A, ITEM_1],
   },
+  {
+    key: 'bindEpic',
+    run: () => actions.bindEpic(PLAN_A, EPIC_1, { token: TOKEN_PASTED, role: 'manage' }),
+    sends: ['seatBindEpic', TOKEN, PLAN_A, EPIC_1, { token: TOKEN_PASTED, role: 'manage' }],
+  },
+  {
+    key: 'unbindEpic',
+    run: () => actions.unbindEpic(PLAN_A, EPIC_1),
+    sends: ['seatUnbindEpic', TOKEN, PLAN_A, EPIC_1],
+  },
+  {
+    key: 'linkItem',
+    run: () => actions.linkItem(PLAN_A, ITEM_1, TASK_1),
+    sends: ['seatLinkItem', TOKEN, PLAN_A, ITEM_1, TASK_1],
+  },
+  {
+    key: 'unlinkItem',
+    run: () => actions.unlinkItem(PLAN_A, ITEM_1),
+    sends: ['seatUnlinkItem', TOKEN, PLAN_A, ITEM_1],
+  },
+  {
+    key: 'createTask',
+    run: () => actions.createTask(PLAN_A, ITEM_1),
+    sends: ['seatCreateTask', TOKEN, PLAN_A, ITEM_1],
+  },
 ]
 
 beforeEach(() => {
@@ -179,9 +221,9 @@ describe("the seat surface's wiring, checked by calling every member", () => {
   // way, sorted, because what this sweep has to catch is a member missing from one side or the
   // other — not a reordering of `seatPlanActions`'s object literal, which `WIRING` above happens to
   // mirror for readability but which no test needs to hold.
-  it('wires all eighteen, so the sweep above is neither empty nor short of one', () => {
-    expect(WIRING).toHaveLength(18)
-    expect(Object.keys(actions)).toHaveLength(18)
+  it('wires all twenty-three, so the sweep above is neither empty nor short of one', () => {
+    expect(WIRING).toHaveLength(23)
+    expect(Object.keys(actions)).toHaveLength(23)
     expect(sorted(WIRING.map((one) => one.key))).toEqual(sorted(Object.keys(actions)))
   })
 

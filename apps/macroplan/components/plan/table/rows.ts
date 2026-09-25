@@ -105,6 +105,7 @@ const NOT_PLACED: Readonly<Record<Treatment, string>> = {
   solid: 'not placed',
   hollow: 'not placed · no estimate',
   contradicted: 'not placed · in a dependency cycle',
+  done: 'not placed',
 }
 
 const days = (count: number): string => `${String(count)}d`

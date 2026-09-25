@@ -11,6 +11,10 @@ import { ConflictList } from '../../../../components/plan/conflicts/conflict-lis
 import { PlanScreen } from '../../../../components/plan/plan-screen'
 import { ShareManager } from '../../../../components/plan/share/share-manager'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
+import { bindEpic, unbindEpic } from '../../../../actions/bridge'
+import { BindingsPanel } from '../../../../components/plan/bridge/bindings-panel'
+import { bindingRows } from '../../../../components/plan/bridge/binding-rows'
+import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
 
 const SEATS = ADMIN_CONTROLS.seats
@@ -143,7 +147,8 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  * reading — on the plan and not on the drawer, since the path in that redirect is the cache key's.
  */
 export default async function PlanLayout({ params, children }: PlanLayoutProps) {
-  const loaded = await readPlan((await params).planId)
+  const planId = (await params).planId
+  const [loaded, bridge] = await Promise.all([readPlan(planId), readBridge(planId)])
   if (!loaded.ok) {
     return (
       <p className="py-16 text-center text-muted-foreground" role="alert">
@@ -157,8 +162,17 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       at={new Date()}
       conflicts={<ConflictList plan={loaded.value} />}
       controls={ADMIN_CONTROLS}
+      bridge={
+        <BindingsPanel
+          bind={bindEpic}
+          planId={loaded.value.id}
+          rows={bindingRows(loaded.value, bridge)}
+          unbind={unbindEpic}
+        />
+      }
       drawer={children}
       plan={loaded.value}
+      progress={bridge?.items ?? []}
       share={
         <ShareManager
           editSeat={updatePlanSeat}

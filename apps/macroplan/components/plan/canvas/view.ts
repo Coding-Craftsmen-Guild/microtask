@@ -4,6 +4,7 @@ import {
   railLayout,
   rungFor,
   scaleFor,
+  countsAsDone,
   treatmentsOf,
   widthOfDays,
 } from '@repo/canvas'
@@ -301,6 +302,33 @@ export const marksByFeature = (
   return byFeature
 }
 
+/** What the bridge counted, keyed by item: the shape `PlanBridge['items']` already has. */
+export type Counted = readonly { readonly itemId: string; readonly progress: { readonly done: number; readonly total: number } }[]
+
+/**
+ * The schedule's treatments with `'done'` overlaid for every item a linked task reports finished.
+ *
+ * An overlay rather than a fourth case inside `treatmentsOf`, because the two answers come from
+ * different places: the first three are facts about the forward pass, and this one is a fact about
+ * another product (design §7.2). `@repo/canvas` cannot produce it — nothing in a schedule knows what a
+ * Microtask task counts — so the map is widened here, where both halves are in hand.
+ *
+ * **A mark the schedule already has an opinion about keeps it.** An item that is hollow was never sized
+ * and an item that is contradicted sits in a cycle; either is a more urgent sentence than "its task is
+ * finished", and a plan that contradicts itself must not be able to hide that behind a tick. Only a mark
+ * the schedule placed — absent from the map, so read as `'solid'` — can become `'done'`.
+ */
+export function withDone(
+  treatments: ReadonlyMap<string, Treatment>,
+  progress: Counted,
+): ReadonlyMap<string, Treatment> {
+  const widened = new Map(treatments)
+  for (const row of progress) {
+    if (!widened.has(row.itemId) && countsAsDone(row.progress)) widened.set(row.itemId, 'done')
+  }
+  return widened
+}
+
 /** One canvas's own `<svg>` box, its rails, and everything those rails need to draw themselves. */
 export interface CanvasLayout {
   /** Every rail, in the one order `railLayout` derived. One `<g>` each, top to bottom. */
@@ -349,9 +377,10 @@ export function canvasLayout(
   plan: PlanScreenModel,
   range: DayRange,
   scale: PlanScale,
+  progress: Counted = [],
 ): CanvasLayout {
   const rails = railLayout(plan, plan.schedule, scale)
-  const treatments = treatmentsOf(plan.schedule)
+  const treatments = withDone(treatmentsOf(plan.schedule), progress)
   return {
     rails,
     height: canvasHeight(rails.length),

@@ -124,10 +124,12 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
     <PlanScreen
       actions={null}
       at={new Date()}
+      bridge={null}
       conflicts={null}
       controls={planCapabilities(role, scope)}
       drawer={null}
       plan={plan.value}
+      progress={[]}
       share={null}
     />
   )

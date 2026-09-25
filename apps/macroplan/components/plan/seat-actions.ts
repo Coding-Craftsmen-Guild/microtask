@@ -18,6 +18,13 @@ import {
   seatReorderEpic,
   seatSetDependencies,
 } from '../../actions/seat-writes'
+import {
+  seatBindEpic,
+  seatCreateTask,
+  seatLinkItem,
+  seatUnbindEpic,
+  seatUnlinkItem,
+} from '../../actions/seat-bridge'
 import type { PlanEditActions } from './edit-actions'
 
 /**
@@ -64,4 +71,9 @@ export const seatPlanActions = (token: string): PlanEditActions => ({
   describeItem: seatDescribeItem.bind(null, token),
   placeItem: seatPlaceItem.bind(null, token),
   removeItem: seatRemoveItem.bind(null, token),
+  bindEpic: seatBindEpic.bind(null, token),
+  unbindEpic: seatUnbindEpic.bind(null, token),
+  linkItem: seatLinkItem.bind(null, token),
+  unlinkItem: seatUnlinkItem.bind(null, token),
+  createTask: seatCreateTask.bind(null, token),
 })

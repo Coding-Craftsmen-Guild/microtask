@@ -31,6 +31,9 @@ import { NameField } from './drawer/name-field'
 import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
 import { DragRoot } from './canvas/drag-root'
+import { BindFields } from './bridge/bind-fields'
+import { BindForm } from './bridge/bind-form'
+import { BindingsPanel } from './bridge/bindings-panel'
 import { ShareManager } from './share/share-manager'
 import { seatDoubles } from './share/testing/seat-doubles'
 import { drawerSubject } from './drawer/subject'
@@ -237,6 +240,8 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [PinField, 'drawer/pin-field.tsx'],
   [PlaceControl, 'drawer/place-control.tsx'],
   [DragRoot, 'canvas/drag-root.tsx'],
+  [BindForm, 'bridge/bind-form.tsx'],
+  [BindFields, 'bridge/bind-fields.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -302,6 +307,8 @@ const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
     at={AT}
+    bridge={null}
+    progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
@@ -312,6 +319,8 @@ const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
     at={AT}
+    bridge={null}
+    progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
@@ -322,6 +331,8 @@ const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
     at={AT}
+    bridge={null}
+    progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
@@ -332,6 +343,8 @@ const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
     at={AT}
+    bridge={null}
+    progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
@@ -347,9 +360,24 @@ const TREES = [
     range={{ fromDay: 0, toDay: 61 }}
   />,
   <PlanTable key="f" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
+  // The bindings panel, so the client form inside it is walked like every other boundary here. Its
+  // rows are plain data and its two actions are unbound module functions, which is exactly the shape
+  // this file admits — and the one a bound action carrying a seat token would fail.
+  // BindFields is rendered inside BindForm, and the walk stops at a client boundary rather than going
+  // through it — so it needs a tree of its own here or the allowlist would admit a file nothing checks.
+  <BindFields key="f3" onRole={() => undefined} onToken={() => undefined} role="view" token="" />,
+  <BindingsPanel
+    bind={STUB_ACTIONS.bindEpic}
+    key="f2"
+    planId={atlasPlan().id}
+    rows={[{ epicId: 'EP1', name: 'Checkout', projectId: null, role: null, stored: false }]}
+    unbind={STUB_ACTIONS.unbindEpic}
+  />,
   <PlanScreen
     actions={STUB_ACTIONS}
     at={AT}
+    bridge={null}
+    progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={panel({ key: 'g1' })}
@@ -367,6 +395,8 @@ const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
     at={AT}
+    bridge={null}
+    progress={[]}
     conflicts={<ConflictList plan={TANGLED} />}
     controls={ADMIN_CONTROLS}
     drawer={null}

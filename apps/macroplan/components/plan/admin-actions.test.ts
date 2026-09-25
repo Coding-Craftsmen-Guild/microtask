@@ -17,7 +17,7 @@ describe("the admin surface's writes", () => {
     expect(wiring).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).map((name) => [name, name]))
   })
 
-  it('collects all eighteen of them, so the sweep above is neither empty nor short of one', () => {
-    expect(Object.keys(ADMIN_PLAN_ACTIONS).length).toBe(18)
+  it('collects all twenty-three of them, so the sweep above is neither empty nor short of one', () => {
+    expect(Object.keys(ADMIN_PLAN_ACTIONS).length).toBe(23)
   })
 })

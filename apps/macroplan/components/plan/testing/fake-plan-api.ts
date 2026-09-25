@@ -65,6 +65,16 @@ export const listKey = (): string => `GET ${MACROPLAN_PLANS_PATH}`
 /** The `answers` key for `GET /v1/macroplan/plans/{planId}`. */
 export const planReadKey = (planId: string): string => `GET ${planPath(planId)}`
 
+/**
+ * The `answers` key for `GET /v1/macroplan/plans/{planId}/bridge`.
+ *
+ * Left **unanswered** by default on purpose: `read-bridge.ts` collapses every failure to `null`, so a
+ * fixture that has not set this one draws exactly the plan it drew before phase 4 — which is what lets
+ * every suite written before the bridge existed go on asserting what it asserted. A suite that wants the
+ * progress column or a filled bar sets it.
+ */
+export const bridgeReadKey = (planId: string): string => `GET ${planPath(planId)}/bridge`
+
 /** The `answers` key for `GET /v1/macroplan/plans/{planId}/items/{itemId}`. */
 export const itemReadKey = (planId: string, itemId: string): string =>
   `GET ${planItemPath(planId, itemId)}`

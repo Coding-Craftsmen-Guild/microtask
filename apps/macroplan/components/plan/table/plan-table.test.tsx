@@ -19,7 +19,7 @@ import { PlanTable } from './plan-table'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
-const COLUMNS = ['Epic', 'Feature', 'Item', 'Estimate', 'Sprint', 'Blocked by']
+const COLUMNS = ['Epic', 'Feature', 'Item', 'Estimate', 'Sprint', 'Progress', 'Blocked by']
 
 const NAME = 'Table of Atlas rollout'
 
@@ -184,29 +184,76 @@ describe('the table as a screen reader meets it', () => {
 
   it('repeats the epic and the feature on every row, rather than spanning a cell down the table', () => {
     render(<PlanTable plan={planScreenModel(atlasPlan())} />)
-    expect(cells(ITEM_2)).toEqual(['Platform', 'Auth rewrite', 'Password reset', '2d', 'S1', ''])
-    expect(cells(FEATURE_1)).toEqual(['Platform', 'Auth rewrite', '', '5d', 'S1', ''])
+    // Seven cells now, and the progress one is empty on both: nothing in this fixture is linked, and
+    // a feature never carries a counted number of its own whatever its items are linked to.
+    expect(cells(ITEM_2)).toEqual(['Platform', 'Auth rewrite', 'Password reset', '2d', 'S1', '', ''])
+    expect(cells(FEATURE_1)).toEqual(['Platform', 'Auth rewrite', '', '5d', 'S1', '', ''])
     expect(all('[rowspan], [colspan]')).toHaveLength(0)
   })
 })
 
-describe('the progress column §5 names and phase 2 cannot fill', () => {
-  it('heads no column with it, rather than heading one that renders nothing', () => {
-    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
-    expect(COLUMNS).not.toContain('Progress')
-    expect(screen.queryByRole('columnheader', { name: 'Progress' })).toBeNull()
+// §5's seventh column, which phase 2 left out and said why in a caption. Phase 4 fills it and the
+// caption is gone: what replaced it is that the column is now **empty** wherever there is no counted
+// number, which says the same thing in the one place a reader is looking.
+describe('the progress column, and the numbers it refuses to invent', () => {
+  const linked = (itemId: string, done: number, total: number) => ({
+    itemId,
+    progress: { done, total },
   })
 
-  it('says in the table itself that it is absent, and why, where a reader of either kind finds it', () => {
+  it('heads the column §5 names, in §5’s own order', () => {
     render(<PlanTable plan={planScreenModel(atlasPlan())} />)
-    const caption = document.querySelector('caption')
-    expect(caption?.textContent).toContain('No progress column yet')
-    expect(caption?.textContent).toContain('counted from a linked Microtask task')
+    expect(COLUMNS).toContain('Progress')
+    expect(screen.queryByRole('columnheader', { name: 'Progress' })).not.toBeNull()
   })
 
-  it('invents no percentage anywhere, which is the failure the note exists to prevent', () => {
+  it('carries no caption at all now, the column it apologised for being here', () => {
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
+    expect(document.querySelector('caption')).toBeNull()
+  })
+
+  it('invents no percentage for a plan with nothing linked, which is the whole rule (§7.2)', () => {
     render(<PlanTable plan={planScreenModel(atlasPlan())} />)
     expect(screen.getByRole('table', { name: NAME }).textContent).not.toContain('%')
+  })
+
+  it('says the percentage and the count for a linked item, so neither hides the other', () => {
+    const plan = planScreenModel(atlasPlan())
+    const item = plan.items[0]
+    if (item === undefined) throw new Error('the fixture holds items')
+    render(<PlanTable plan={plan} progress={[linked(item.id, 1, 4)]} />)
+    const row = screen.getByTestId(`row-${item.id}`)
+    expect(row.textContent).toContain('25%')
+    expect(row.textContent).toContain('1 of 4 done')
+  })
+
+  // A linked task with no checklist counts {done: 0, total: 0}. 0% would be a number nobody counted,
+  // and on screen indistinguishable from a task where everything is still to do.
+  it('says "nothing counted yet" for a linked task with no checklist, rather than 0%', () => {
+    const plan = planScreenModel(atlasPlan())
+    const item = plan.items[0]
+    if (item === undefined) throw new Error('the fixture holds items')
+    render(<PlanTable plan={plan} progress={[linked(item.id, 0, 0)]} />)
+    expect(screen.getByTestId(`row-${item.id}`).textContent).toContain('nothing counted yet')
+  })
+
+  it('leaves a feature row’s cell empty, a feature having no counted number of its own', () => {
+    const plan = planScreenModel(atlasPlan())
+    const feature = plan.features[0]
+    const item = plan.items[0]
+    if (feature === undefined || item === undefined) throw new Error('the fixture holds both')
+    render(<PlanTable plan={plan} progress={[linked(item.id, 2, 2)]} />)
+    const cell = screen.getByTestId(`row-${feature.id}`).querySelector('[data-slot="progress"]')
+    expect(cell?.textContent).toBe('')
+  })
+
+  it('leaves an unlinked item’s cell empty too, so absence is one rendering and not three', () => {
+    const plan = planScreenModel(atlasPlan())
+    const item = plan.items[1]
+    if (item === undefined) throw new Error('the fixture holds a second item')
+    render(<PlanTable plan={plan} progress={[]} />)
+    const cell = screen.getByTestId(`row-${item.id}`).querySelector('[data-slot="progress"]')
+    expect(cell?.textContent).toBe('')
   })
 })
 

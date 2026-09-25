@@ -50,6 +50,9 @@ export type NewPlan = Decoded<typeof CreatePlanPayload>
  */
 export type PlanChange = Decoded<typeof UpdatePlanPayload>
 
+/** A plan's bridge facts as a response carries them, already shaped for the caller that asked. */
+export type PlanBridge = Decoded<typeof PlanBridgeView>
+
 /** Every read a plan needs, and the three writes that are about the plan rather than its contents. */
 export interface PlansApi {
   /** Lists every plan the caller may be told about. `workspace:list-plans` is admin-only. */
@@ -72,7 +75,7 @@ export interface PlansApi {
    * `epics` block is absent for anybody but an admin, and `taskName` is absent on any row whose rail
    * this caller reaches at less than `write`. There is nothing here for a UI to hide.
    */
-  readBridge(planId: string): Promise<Decoded<typeof PlanBridgeView>>
+  readBridge(planId: string): Promise<PlanBridge>
 
   /**
    * Creates an empty plan, and is the one call on this surface **no seat can ever make**.

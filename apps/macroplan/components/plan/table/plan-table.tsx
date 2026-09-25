@@ -1,3 +1,4 @@
+import type { PlanBridge } from '@repo/api-client'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows } from './rows'
 import { PlanTableRow } from './table-row'
@@ -6,12 +7,7 @@ const TABLE = 'w-full border-collapse text-left text-[13px]'
 
 const HEAD = 'px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase'
 
-const CAPTION = 'pb-2 text-left text-[12px] text-muted-foreground'
-
-const COLUMNS = ['Epic', 'Feature', 'Item', 'Estimate', 'Sprint', 'Blocked by']
-
-const PROGRESS_NOTE =
-  'No progress column yet: a percentage here is only ever counted from a linked Microtask task, and the bridge that links one is phase 4.'
+const COLUMNS = ['Epic', 'Feature', 'Item', 'Estimate', 'Sprint', 'Progress', 'Blocked by']
 
 /** Props for {@link PlanTable}. */
 export interface PlanTableProps {
@@ -23,6 +19,18 @@ export interface PlanTableProps {
    * surface mounted beside `PlanScreen` as well as under it.
    */
   readonly plan: PlanScreenModel
+
+  /**
+   * What each linked item's task counts, as the bridge answered it. `[]` when nothing is counted.
+   *
+   * Keyed on the **item** id and never on a feature's: spec §5 asks for a progress column and design §7.2
+   * fixes what a number in it may be — "an item's percentage is the linked task's `{ done, total }`" — so
+   * a feature has no number of its own here. Summing its items' counts would invent one: two tasks at 1 of
+   * 2 and 3 of 4 are not "4 of 6 done" in any sense the linked tasks agree with, and a feature whose items
+   * are linked to tasks in two different projects would be adding across products. A feature row's cell is
+   * therefore **empty**, which is the same choice `TableRow.item` already makes for a feature's item cell.
+   */
+  readonly progress?: PlanBridge['items']
 }
 
 /**
@@ -64,10 +72,10 @@ export interface PlanTableProps {
  * mechanism is a role-based assertion with the reason in the test name: `plan-table.test.tsx` reaches
  * this table only through `getByRole('table', { name })` and asserts `scope` on every header cell.
  */
-export function PlanTable({ plan }: PlanTableProps) {
+export function PlanTable({ plan, progress = [] }: PlanTableProps) {
+  const counted = new Map(progress.map((row) => [row.itemId, row.progress]))
   return (
     <table aria-label={`Table of ${plan.name}`} className={TABLE} data-slot="plan-table">
-      <caption className={CAPTION}>{PROGRESS_NOTE}</caption>
       <thead>
         <tr>
           {COLUMNS.map((column) => (
@@ -79,7 +87,7 @@ export function PlanTable({ plan }: PlanTableProps) {
       </thead>
       <tbody>
         {tableRows(plan).map((row) => (
-          <PlanTableRow key={row.id} row={row} />
+          <PlanTableRow key={row.id} progress={counted.get(row.id) ?? null} row={row} />
         ))}
       </tbody>
     </table>

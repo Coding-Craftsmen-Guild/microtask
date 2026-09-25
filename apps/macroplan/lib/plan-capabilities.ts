@@ -144,6 +144,48 @@ export interface PlanContentControls {
 
   /** Deleting an item and the file holding its description. */
   readonly removeItem: boolean
+
+  /**
+   * Binding one rail to a Microtask project, and unbinding one. **Admin-only, both of them.**
+   *
+   * `epic:bind` is the one row of the record whose `minimum` is `'admin'`, so these two answer `false`
+   * for every seat role including `manage` — which is not a tier but design §7.3's own structure: an
+   * epic's binding is the ceiling on everything a link holder reaches in Microtask through the bridge,
+   * so a holder that could re-role a binding could raise its own ceiling and every bound would be
+   * decoration. A control that answered `true` here for a `manage` seat would draw a control the API
+   * refuses every time.
+   *
+   * Two controls off one action, as `renameEpic` and `recolourEpic` are: binding and unbinding are one
+   * authority, and the pair exists so a surface can ask about the control it is actually drawing.
+   */
+  readonly bindEpic: boolean
+
+  /** Unbinding one rail. The same `epic:bind` authority as {@link PlanContentControls.bindEpic}. */
+  readonly unbindEpic: boolean
+
+  /**
+   * Linking an item to a task in its rail's bound project, and unlinking one.
+   *
+   * `item:link` is a **`write`** grant (spec §7.1 as amended), so a write seat draws these and a view
+   * seat does not. What no control here can express is whether the *rail* is bound at all, or at what
+   * role — that depends on what its token holds in Microtask today, which only the bridge read knows.
+   * So a surface draws the field from this and its contents from the bridge.
+   */
+  readonly linkItem: boolean
+
+  /** Unlinking an item. The same `item:link` authority as {@link PlanContentControls.linkItem}. */
+  readonly unlinkItem: boolean
+
+  /**
+   * Creating the linked task in the bound project — the one write that reaches the other product.
+   *
+   * `item:link` again, and **that is not the whole question**: design §7.2 reserves creating a task to a
+   * binding held at `manage`, and §7.3 attenuates that by the reader's own plan role. Neither half is a
+   * function of an action, so this control answers only the first and a surface must ask the bridge for
+   * the second. It is here rather than absent so that a view seat is refused before the bridge is even
+   * consulted.
+   */
+  readonly createTask: boolean
 }
 
 /**
@@ -245,7 +287,7 @@ export function planCapabilities(role: RoleValue, scope: ScopeValue): PlanContro
  *
  * `may` is asked rather than a `Capabilities` record read, and that is what lets the admin surface
  * through here at all: an admin is not a role and holds no scope, so it has no record — it answers
- * `true` to every question, and `() => true` is that sentence written once instead of eighteen times
+ * `true` to every question, and `() => true` is that sentence written once instead of twenty-three times
  * (`lib/admin-controls.ts`). The parameter is a `CapabilityAction`, so a misspelt action is a compile
  * error on whichever side asks it, exactly as indexing a record was.
  *
@@ -262,7 +304,7 @@ export function planCapabilities(role: RoleValue, scope: ScopeValue): PlanContro
  * four are `mayReach(role, scope, …, 'plan')` rather than record reads — the `share:*` rows name a
  * `project` target, so the record answers `false` for a plan seat the server would serve — and an
  * admin's four are simply `true`. Neither is a function of an action alone, so the caller decides
- * them and this decides the eighteen.
+ * them and this decides the twenty-three.
  *
  * @param may - Whether this surface's principal clears one action. `() => true` for the admin.
  * @param seats - The four seat answers, which no action lookup can decide (see above).
@@ -292,6 +334,11 @@ export function planControls(
       describeItem: may('item:describe'),
       placeItem: may('item:place'),
       removeItem: may('item:delete'),
+      bindEpic: may('epic:bind'),
+      unbindEpic: may('epic:bind'),
+      linkItem: may('item:link'),
+      unlinkItem: may('item:link'),
+      createTask: may('item:link'),
     },
     seats,
   }

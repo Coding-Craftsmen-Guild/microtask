@@ -1,3 +1,4 @@
+import { progressWords, type Counted } from '../bridge/progress-words'
 import type { BlockedBy, EdgeState, TableRow } from './rows'
 
 const CELL = 'border-t border-border px-3 py-2 align-top'
@@ -19,6 +20,18 @@ const edgeText = (edge: BlockedBy): string => `${edge.name}${EDGE_SUFFIX[edge.st
 export interface PlanTableRowProps {
   /** The row, with every cell's words already decided by `tableRows`. */
   readonly row: TableRow
+
+  /**
+   * What this row's linked task counts, or `null` when there is no counted number for it.
+   *
+   * `null` covers every reason at once, and on purpose: the item is linked to nothing, its rail is bound
+   * to nothing, its rail's token no longer resolves, the bridge read did not land, or this is a feature
+   * row, which never has a number of its own. Design §7.2 makes all of those one outcome — "an unlinked
+   * item has a manual status only — not a manual percentage — so a number on screen is always a counted
+   * number" — so the cell is **empty** rather than a dash or a zero. A dash would say "nothing done" and
+   * a zero would say it more strongly; both are numbers nobody counted.
+   */
+  readonly progress: Counted | null
 }
 
 /**
@@ -49,7 +62,7 @@ export interface PlanTableRowProps {
  * name, and neither the paint nor a colour may be the only thing telling them apart. A feature that
  * states no dependency gets an empty cell, because it is blocked by nothing.
  */
-export function PlanTableRow({ row }: PlanTableRowProps) {
+export function PlanTableRow({ row, progress }: PlanTableRowProps) {
   return (
     <tr
       data-kind={row.kind}
@@ -74,6 +87,9 @@ export function PlanTableRow({ row }: PlanTableRowProps) {
       )}
       <td className={CELL}>{row.estimate}</td>
       <td className={CELL}>{row.sprint}</td>
+      <td className={CELL} data-slot="progress">
+        {progress === null ? null : progressWords(progress)}
+      </td>
       <td className={CELL}>
         {row.blockedBy.length === 0 ? null : (
           <ul className={EDGES}>

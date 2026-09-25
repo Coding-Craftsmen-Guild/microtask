@@ -32,4 +32,4 @@ export { dayToX, scaleFor, widthOfDays, xToDay } from './scale.js'
 
 export type { CanvasScheduleWithStatus, Treatment } from './treatment.js'
 
-export { treatmentOf, treatmentsOf } from './treatment.js'
+export { countsAsDone, treatmentOf, treatmentsOf } from './treatment.js'

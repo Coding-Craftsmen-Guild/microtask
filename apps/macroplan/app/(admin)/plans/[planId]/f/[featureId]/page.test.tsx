@@ -235,12 +235,18 @@ describe('what the drawer reads, and how often', () => {
     expect(trace(api)).toEqual([`${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`])
   })
 
-  it('reads it under the very key the layout reads it under, so one cached entry serves both', async () => {
+  // Three requests between them and not four: the drawer reads the plan, the layout reads the plan
+  // again under the same key, and the layout also reads the bridge, which the drawer does not need. The
+  // two plan reads being byte-identical is the point — `cache()` collapses them inside one render, and
+  // this asserts the key rather than the collapsing, since two separate calls here are two renders.
+  it('reads the plan under the very key the layout reads it under, so one cached entry serves both', async () => {
     await FeatureDrawerPage(propsOf(FEATURE_1))
     await PlanLayout({ params: Promise.resolve({ planId: PLAN_A }), children: null })
-    const both = trace(api)
-    expect(both).toHaveLength(2)
-    expect(both[0]).toBe(both[1])
+    const seen = trace(api)
+    const plans = seen.filter((one) => !one.includes('/bridge'))
+    expect(plans).toHaveLength(2)
+    expect(plans[0]).toBe(plans[1])
+    expect(seen.filter((one) => one.includes('/bridge'))).toHaveLength(1)
   })
 
   it('sends an expired admin back to the plan, one cached read knowing that path and not this one', async () => {

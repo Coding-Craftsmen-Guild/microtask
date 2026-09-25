@@ -34,7 +34,14 @@ export {
   tabPath,
   taskPath,
 } from './paths.js'
-export type { EpicChange, EpicPlacement, EpicsApi, NewEpic } from './operations/epics.js'
+export type {
+  BoundTasks,
+  EpicChange,
+  EpicPlacement,
+  EpicsApi,
+  NewBinding,
+  NewEpic,
+} from './operations/epics.js'
 export type {
   FeatureChange,
   FeaturePlacement,
@@ -42,13 +49,19 @@ export type {
   NewFeature,
 } from './operations/features.js'
 export type { FoldersApi } from './operations/folders.js'
-export type { ItemChange, ItemPlacement, ItemsApi, NewItem } from './operations/items.js'
+export type { ItemChange, ItemPlacement, ItemsApi, NewItem, TaskLink } from './operations/items.js'
 export type {
   NewPlanSeat,
   PlanSeatChange,
   PlanShareLinksApi,
 } from './operations/plan-share-links.js'
-export type { NewPlan, Plan, PlanChange, PlansApi } from './operations/plans.js'
+export type {
+  NewPlan,
+  Plan,
+  PlanBridge,
+  PlanChange,
+  PlansApi,
+} from './operations/plans.js'
 export type { Project, ProjectsApi } from './operations/projects.js'
 export type { NewShareLink, ShareLinkChange, ShareLinksApi } from './operations/share-links.js'
 export type { Document, TabsApi } from './operations/tabs.js'

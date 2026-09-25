@@ -56,6 +56,8 @@ const show = (over: Shown = {}) =>
     <PlanScreen
       actions={over.actions ?? null}
       at={AT}
+      bridge={null}
+      progress={[]}
       conflicts={over.conflicts ?? null}
       controls={over.controls ?? ADMIN_CONTROLS}
       drawer={over.drawer ?? null}

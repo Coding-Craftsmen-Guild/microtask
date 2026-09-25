@@ -4,6 +4,7 @@ import type {
   FeaturesApi,
   ItemChange,
   ItemPlacement,
+  NewBinding,
   NewEpic,
   NewFeature,
   NewItem,
@@ -111,4 +112,33 @@ export interface PlanEditActions {
 
   /** Removes one item and the file holding its description. */
   removeItem: (planId: string, itemId: string) => Answer
+
+  /**
+   * Binds one rail to a Microtask project by a token pasted from there. Admin-only (`epic:bind`).
+   *
+   * It is on this interface although no seat can ever succeed at it, and that is deliberate: both
+   * surfaces wire every member, so the two stay comparable member for member, and `planCapabilities`
+   * is what answers `false` for a seat rather than an interface that is a different shape per
+   * credential. The API is the gate either way — a control is a rendering answer and never one.
+   */
+  bindEpic: (planId: string, epicId: string, binding: NewBinding) => Answer
+
+  /** Unbinds one rail, leaving every item's link in place. Admin-only. */
+  unbindEpic: (planId: string, epicId: string) => Answer
+
+  /** Links one item to a task already in its rail's bound project. A `write` grant (`item:link`). */
+  linkItem: (planId: string, itemId: string, taskId: string) => Answer
+
+  /** Unlinks one item from its task. */
+  unlinkItem: (planId: string, itemId: string) => Answer
+
+  /**
+   * Creates the real task in the bound project, named after the item, and links the item to it.
+   *
+   * The one write that reaches the other product (design §7.2). Needs `item:link` **and** an effective
+   * `manage` on the rail, and the second is not a control this interface can express: it depends on
+   * what the rail's token holds in Microtask today, which only the bridge read knows. So a surface
+   * draws this from the bridge's answer rather than from `PlanControls`.
+   */
+  createTask: (planId: string, itemId: string) => Answer
 }

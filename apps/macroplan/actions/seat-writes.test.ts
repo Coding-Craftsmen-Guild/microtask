@@ -72,7 +72,7 @@ const options = (): ClientOptions => ({
 })
 
 // Both halves of `lib/api` over the one recorder, because this file runs the admin action and the
-// seat action for each of the eighteen writes and compares what went out.
+// seat action for each of the twenty-three writes and compares what went out.
 vi.mock('../lib/api', () => ({
   apiForSession: () => Promise.resolve(createMacroplanAdminClient(options(), ADMIN_TOKEN)),
   apiForLink: (token: string) => createMacroplanLinkClient(options(), token),
@@ -106,6 +106,12 @@ const {
 } = await import('./seat-writes')
 
 const { createEpic, recolourEpic, removeEpic, renameEpic, reorderEpic } = await import('./epics')
+
+const { bindEpic, createTask, linkItem, unbindEpic, unlinkItem } = await import('./bridge')
+
+const { seatBindEpic, seatCreateTask, seatLinkItem, seatUnbindEpic, seatUnlinkItem } = await import(
+  './seat-bridge',
+)
 const { createFeature, estimateFeature, pinFeature, placeFeature, removeFeature, renameFeature, setDependencies } =
   await import('./features')
 const { createItem, describeItem, estimateItem, placeItem, removeItem, renameItem } =
@@ -122,8 +128,15 @@ interface Mirror {
   readonly seat: (token: string) => Promise<unknown>
 }
 
-// The eighteen, each as the admin sends it and as a seat sends it from the same arguments. A row
+// The twenty-three, each as the admin sends it and as a seat sends it from the same arguments. A row
 // that named two different writes would fail the comparison rather than pass it quietly.
+// The pasted token and the task id the five bridge rows send. The token is a literal rather than a
+// fixture constant because that is what it is on this path — a string an admin typed, not an identifier
+// this app knows anything about.
+const BINDING = { token: 'shr_pasted_from_microtask', role: 'manage' } as const
+
+const TASK_1 = '01M240ERCRWWCN16Q5AHP1FZT1'
+
 const MIRRORS: readonly Mirror[] = [
   {
     name: 'createEpic',
@@ -215,6 +228,31 @@ const MIRRORS: readonly Mirror[] = [
     admin: () => removeItem(PLAN_A, ITEM_1),
     seat: (token) => seatRemoveItem(token, PLAN_A, ITEM_1),
   },
+  {
+    name: 'bindEpic',
+    admin: () => bindEpic(PLAN_A, EPIC_1, BINDING),
+    seat: (token) => seatBindEpic(token, PLAN_A, EPIC_1, BINDING),
+  },
+  {
+    name: 'unbindEpic',
+    admin: () => unbindEpic(PLAN_A, EPIC_1),
+    seat: (token) => seatUnbindEpic(token, PLAN_A, EPIC_1),
+  },
+  {
+    name: 'linkItem',
+    admin: () => linkItem(PLAN_A, ITEM_1, TASK_1),
+    seat: (token) => seatLinkItem(token, PLAN_A, ITEM_1, TASK_1),
+  },
+  {
+    name: 'unlinkItem',
+    admin: () => unlinkItem(PLAN_A, ITEM_1),
+    seat: (token) => seatUnlinkItem(token, PLAN_A, ITEM_1),
+  },
+  {
+    name: 'createTask',
+    admin: () => createTask(PLAN_A, ITEM_1),
+    seat: (token) => seatCreateTask(token, PLAN_A, ITEM_1),
+  },
 ]
 
 const wireOf = (requests: readonly Sent[]): readonly Wire[] =>
@@ -233,7 +271,7 @@ beforeEach(() => {
   refresh.mockReset()
 })
 
-describe('the same eighteen writes, sent from a seat', () => {
+describe('the same twenty-three writes, sent from a seat', () => {
   it.each(MIRRORS)(
     'sends $name to the very route, method and body the admin action sends it to',
     async (mirror) => {
@@ -256,8 +294,8 @@ describe('the same eighteen writes, sent from a seat', () => {
   // The table above already proves, per action, that whatever token an action is called with becomes
   // the bearer. What it cannot show is that the value is a genuine parameter rather than a constant
   // that happens to equal SEAT everywhere it is asserted — so this checks two representative actions,
-  // one from each end of the eighteen, against a second token instead of repeating the same plumbing
-  // eighteen times over.
+  // one from each end of the twenty-three, against a second token instead of repeating the same plumbing
+  // twenty-three times over.
   it.each(MIRRORS.filter((_, i) => i === 0 || i === MIRRORS.length - 1))(
     'presents whichever token it was handed for $name, never a fixed one',
     async (mirror) => {
@@ -266,15 +304,20 @@ describe('the same eighteen writes, sent from a seat', () => {
     },
   )
 
-  it('mirrors all eighteen, so the sweeps above are neither empty nor short of one', async () => {
-    const module = await import('./seat-writes')
-    expect(MIRRORS).toHaveLength(18)
-    expect(Object.keys(module)).toHaveLength(18)
+  it('mirrors all twenty-three, so the sweeps above are neither empty nor short of one', async () => {
+    // Eighteen plus five, and both numbers asserted: the split is where a write could go missing
+    // without either module noticing on its own.
+    expect(MIRRORS).toHaveLength(23)
+    expect(Object.keys(await import('./seat-writes'))).toHaveLength(18)
+    expect(Object.keys(await import('./seat-bridge'))).toHaveLength(5)
   })
 
-  it('exposes every one of them and narrows to no role, because the API is the gate', async () => {
-    const module = await import('./seat-writes')
-    expect(sorted(Object.keys(module))).toEqual(sorted(MIRRORS.map((one) => seatNameOf(one.name))))
+  // Both modules together, because phase 4 split the five bridge writes out of `seat-writes.ts` when it
+  // reached ADR 0027's line cap. The union is what has to match the mirrors — a write that went missing
+  // from one module and was never added to the other would fail here rather than quietly stop existing.
+  it('exposes every one of them across both modules, and narrows to no role', async () => {
+    const both = { ...(await import('./seat-writes')), ...(await import('./seat-bridge')) }
+    expect(sorted(Object.keys(both))).toEqual(sorted(MIRRORS.map((one) => seatNameOf(one.name))))
   })
 })
 
