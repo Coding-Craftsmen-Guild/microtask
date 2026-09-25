@@ -67,6 +67,7 @@ in the working tree.
 | [0049](0049-per-rail-forward-pass-in-one-pure-package.md) | Per-rail forward pass, in one pure package both sides import | Accepted |
 | [0050](0050-the-plan-directory-is-the-unit.md) | The plan directory is the unit; edges never cross it | Accepted |
 | [0051](0051-estimate-authored-at-any-level-children-win.md) | Estimate is authored at any level; children win, and the gap is shown | Accepted |
+| [0052](0052-an-epic-binds-to-a-microtask-project-by-a-sealed-share-token.md) | An epic binds to a Microtask project by a sealed share token, pasted by hand | Accepted |
 | [0053](0053-a-plan-is-shared-at-plan-scope.md) | A plan is shared at plan scope, by the share-link system that already exists | Accepted |
 | [0054](0054-one-token-index-identity-stays-a-capability.md) | One token index for both products, and identity stays a capability until there are users | Accepted |
 | [0055](0055-canvas-geometry-is-its-own-pure-package.md) | Canvas geometry is its own pure package, because a measurement cannot be tested here | Accepted |
@@ -75,12 +76,16 @@ in the working tree.
 | [0058](0058-one-delegation-root-over-a-server-rendered-canvas.md) | One delegation root over a server-rendered canvas, and `children` is the one exception it needed | Accepted |
 | [0059](0059-undo-is-a-compensating-placement.md) | Undo is a compensating placement, one step deep, and a delete has none | Accepted |
 | [0060](0060-a-cycle-is-named-before-the-write.md) | A cycle is named before the write, and the API stays the authority | Accepted |
+| [0061](0061-the-bridge-is-a-second-read-never-the-plans.md) | The bridge is a second read, never part of the plan's | Accepted |
+| [0062](0062-attenuation-is-one-minimum-applied-twice.md) | Attenuation is one minimum, applied twice, and a refused link reads as unlinked | Accepted |
+| [0063](0063-the-bounded-write-cannot-roll-back.md) | The bounded write cannot roll back, so it may leak a task and never delete one | Accepted |
 
-**0052 is reserved, not missing.** It belongs to the phase-4 bridge — an epic binding to a
-Microtask project by a sealed share token — and phase 1 reserved the fields for it while deciding
-nothing about it. Spec §12 leaves who mints that token undecided, and an ADR recording a decision
-nobody has taken is worse than an absent one. Numbers are permanent, so the gap stays until the
-decision is made.
+**0052 was reserved for three phases and is now written.** It belongs to the bridge — an epic binding
+to a Microtask project by a sealed share token — and phase 1 reserved the fields for it while deciding
+nothing about it, on the grounds that spec §12 left who mints that token undecided and that "an ADR
+recording a decision nobody has taken is worse than an absent one". Phase 4 took the decision and the
+number was there waiting, which is the argument for reserving one rather than renumbering later: the
+gap was visible in this table for three phases and nobody had to guess what it meant.
 
 ## Amendments
 

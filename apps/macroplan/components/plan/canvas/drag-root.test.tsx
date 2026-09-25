@@ -124,7 +124,7 @@ describe('the frame the canvas is wrapped in', () => {
 //
 // What an app test can and cannot assert about it is worth saying plainly. It asserts that **one** feature
 // is named by **one** request, that the placement in it is the one `dropTargetFor` answers for the point
-// the drag reached, that no other write of the eighteen is sent, and that nothing in the plan this surface
+// the drag reached, that no other plan write is sent, and that nothing in the plan this surface
 // holds is rewritten locally — spans are derived on read and never stored (§3.4), so the surface has no
 // copy of the geometry to repair and no code here to repair it with. What the **store** then does with that
 // one request is `apps/api`'s to assert and is asserted there:

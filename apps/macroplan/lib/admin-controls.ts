@@ -40,7 +40,7 @@ const EVERY_SEAT_ANSWER: PlanSeatControls = {
  * app and the API load from `dist/`.
  *
  * The seat half stays written out, and it is four booleans rather than an oversight.
- * {@link planControls} decides the eighteen content controls from actions alone; the four seat
+ * {@link planControls} decides the content controls from actions alone; the four seat
  * answers are not a function of an action, because three of them are `mayReach(role, scope, …,
  * 'plan')` on the seat side — the `share:*` rows name a `project` target, so the record answers
  * `false` for a plan seat the server would serve — and an admin's are simply `true`. Microtask's
@@ -48,7 +48,7 @@ const EVERY_SEAT_ANSWER: PlanSeatControls = {
  *
  * **What used to be a type guarantee is now an assertion**, and the trade is stated rather than
  * hidden. The mapped type made "every control drawn" a property the compiler kept; a projection makes
- * it a property of the argument, so a nineteenth control added to {@link PlanControls} is a compile
+ * it a property of the argument, so a further control added to {@link PlanControls} is a compile
  * error in `planControls` — which is where it should be — while a member written as something other
  * than `may(...)` would leave the admin answering `false` with nothing failing. `admin-controls.test.ts`
  * is what closes that: it sweeps every boolean at both levels and requires all twenty-two to be

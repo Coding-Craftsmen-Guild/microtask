@@ -104,7 +104,8 @@ const open = (over: Open = {}) =>
       actions={over.actions ?? stubActions()}
       closeHref={CLOSE}
       controls={over.controls ?? drawing()}
-      description={over.description ?? null}
+      link={null}
+    description={over.description ?? null}
       planId={PLAN_A}
       row={over.row ?? FEATURE_ROW}
       values={over.values ?? VALUES}

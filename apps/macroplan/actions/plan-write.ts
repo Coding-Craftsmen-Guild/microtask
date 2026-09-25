@@ -68,7 +68,7 @@ export async function adminWrite(
  *
  * The token is the whole credential here too, re-presented to the API and checked there on every
  * call — {@link linkCall} holds the full ADR 0040 argument for why that is safe — so this adds no
- * authority to it and takes none away: which of the eighteen writes the holder may actually perform
+ * authority to it and takes none away: which of the writes the holder may actually perform
  * is the API's own answer, from the seat's own role.
  *
  * Neither this nor {@link adminWrite} is exported from a `'use server'` module, for the reason

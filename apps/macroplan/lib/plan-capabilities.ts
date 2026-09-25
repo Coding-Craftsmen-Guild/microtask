@@ -11,7 +11,7 @@ import {
  * manager asks — and nothing at all about the plan's content.
  *
  * `create` means "may mint a share link". That is the collision this group exists to prevent: named
- * beside eighteen content booleans it would sit next to `createEpic`, and a reader has no way to see
+ * beside the content booleans it would sit next to `createEpic`, and a reader has no way to see
  * from either name that the two are about different things. {@link PlanControls} argues the shape.
  */
 export interface PlanSeatControls {
@@ -32,19 +32,19 @@ export interface PlanSeatControls {
  * One boolean per structural write of plan **content** a surface can draw a control for.
  *
  * The members are `PlanEditActions`' own, name for name (`components/plan/edit-actions.ts`), because
- * that interface is the list: a control is a way of calling one of those eighteen, and a boolean
+ * that interface is the list: a control is a way of calling one of those, and a boolean
  * with no action behind it draws something the API has no endpoint for while a missing boolean
  * leaves a shipped action with no control able to call it. Neither is a type error — nothing pairs
  * the two interfaces at compile time — so `plan-capabilities.test.ts` compares these keys against a
- * runtime enumeration of the eighteen. There are **two** of those and not one:
+ * runtime enumeration of them. There are **two** of those and not one:
  * `ADMIN_PLAN_ACTIONS` (`components/plan/admin-actions.ts`) and `seatPlanActions`
  * (`components/plan/seat-actions.ts`), each declared as a `PlanEditActions` and so each pinned to
  * that interface by the compiler. The test compares these keys against both, from opposite ends of
- * the file: against the admin wiring where it counts the eighteen, and against the seat wiring where
- * it asserts that all eighteen stay wired whatever these booleans answer. So a nineteenth control
- * with no action behind it, and a nineteenth action with no control able to call it, each fail there.
+ * the file: against the admin wiring where it counts them, and against the seat wiring where
+ * it asserts that all of them stay wired whatever these booleans answer. So a further control
+ * with no action behind it, and a further action with no control able to call it, each fail there.
  *
- * **Five of the eighteen have no call site yet, and they are the five epic controls.** `createEpic`,
+ * **Five of the twenty-three have no call site, and they are the five *rail* controls.** `createEpic`,
  * `renameEpic`, `recolourEpic`, `reorderEpic` and `removeEpic` are read by nothing: spec §9's phase-3
  * row is "drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo, the share
  * manager", and a rail is not among the things it names — the canvas draws rails from the plan and
@@ -54,7 +54,15 @@ export interface PlanSeatControls {
  * this is the one direction of the pair below that is not a type error either way, so the survivors are
  * named here rather than counted.
  *
- * There is deliberately **no nineteenth about the plan itself**. `plan:rename`, `plan:retime` and
+ * **The five bridge controls added in phase 4 are all read**, and getting there took a correction worth
+ * recording: they were wired as actions first and their booleans went unconsulted, which made them
+ * decoration of exactly the kind the paragraph above is about. Two are spent by a **page** deciding
+ * whether to mount a surface at all — `bindEpic` for the bindings panel, `linkItem` for the drawer's link
+ * field — and the other three cross into those surfaces as flat booleans, the shape `ShareManager`
+ * established. A grep for each of the twenty-three is the only way to tell the two groups apart, because
+ * neither the compiler nor either sweep below can: a control nobody reads typechecks.
+ *
+ * There is deliberately **no control about the plan itself**. `plan:rename`, `plan:retime` and
  * `plan:delete` are real actions of the API with no Server Action on either surface behind them, so
  * a boolean for plan settings would answer a question no control can act on.
  *
@@ -193,7 +201,7 @@ export interface PlanContentControls {
  *
  * ### Why two groups
  *
- * The four seat booleans and the eighteen content ones answer questions about different things, and
+ * The four seat booleans and the content ones answer questions about different things, and
  * flattening them puts `create` — "may mint a share link" — beside `createEpic`. Renaming the four
  * would fix the ambiguity of that one name and leave the deeper problem: the two kinds would still
  * be one shape, so a component needing only content controls would take the seat answers as well,
@@ -215,12 +223,12 @@ export interface PlanContentControls {
  * It answers "should this be on screen", the API answers "may this request proceed", and the two are
  * asked at different instants: a seat re-roled between render and click meets the API's own 403,
  * which the surface says in its own words (ADR 0038, ADR 0009). So no control is ever load-bearing —
- * both surfaces wire all eighteen writes whatever these booleans say, and `plan-capabilities.test.ts`
+ * both surfaces wire every write whatever these booleans say, and `plan-capabilities.test.ts`
  * asserts that a refused write still surfaces its sentence rather than asserting that a control was
  * hidden.
  */
 export interface PlanControls {
-  /** The eighteen structural writes of the plan's content. */
+  /** The twenty-three structural writes of the plan's content. */
   readonly content: PlanContentControls
 
   /** The four questions a share manager asks, which are about seats and not about content. */
@@ -244,7 +252,7 @@ export interface PlanControls {
  * guarding against the same thing as the other three, and hide that the record is only wrong about
  * an action whose target names a container.
  *
- * **The eighteen content rows are read off the record, and that is the same argument rather than a
+ * **The content rows are read off the record, and that is the same argument rather than a
  * different one.** Each is gated on exactly one target kind — `epic`, `feature` or `item` — but a
  * handler makes **more than one** `authorize()` call for a single request wherever its body carries
  * more than one field: `PATCH …/features/{featureId}` makes up to three and `PATCH …/items/{itemId}`
@@ -252,7 +260,7 @@ export interface PlanControls {
  * (`apps/api/src/routes/macroplan/{epics,features,items}/handlers.ts`, and
  * {@link PlanContentControls} spells out what that means for a control that would combine fields).
  * What makes the record enough is not that there is one call: it is that every one of those calls
- * builds the same target kind with the same `planId`, none of the eighteen actions carries an
+ * builds the same target kind with the same `planId`, none of these actions carries an
  * `alsoGatedOn`, and all three kinds are in `PLAN_FAMILY`, the set a `plan` scope reaches
  * (`packages/contracts/src/capabilities.ts`). So for these rows the record's answer and
  * `mayReach(role, scope, action, ACTION_DECISIONS[action].target)` are the same call, and a

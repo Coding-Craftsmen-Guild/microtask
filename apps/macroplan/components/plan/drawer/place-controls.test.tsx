@@ -100,7 +100,7 @@ describe('the group a keyboard reorders a feature with', () => {
     expect(callsOf(actions.placeItem)).toEqual([])
   })
 
-  it('sends one request and nothing else of the eighteen, whichever control was pressed', () => {
+  it('sends one request and nothing else of the plan writes, whichever control was pressed', () => {
     const actions = open({ id: FEATURE_6 })
     press('Move up')
     const spent = Object.entries(actions)

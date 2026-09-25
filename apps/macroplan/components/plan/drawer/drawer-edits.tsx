@@ -57,7 +57,7 @@ export interface DrawerEditsProps {
  *
  * Each control answers **whether the field is on screen** and nothing else. The API is the gate, asked
  * again at the instant of the click, and a seat re-roled in between meets its 403 — which arrives as
- * the sentence under the field that refused it. Nothing here is load-bearing: all eighteen writes stay
+ * the sentence under the field that refused it. Nothing here is load-bearing: every plan write stays
  * wired on both surfaces whatever these booleans say (ADR 0038, ADR 0009).
  *
  * A surface that draws none of them draws no group either: every child being `null` leaves this
@@ -66,7 +66,7 @@ export interface DrawerEditsProps {
  * step with the three below it — and `./drawer-manage.tsx` draws the same band for the same reason,
  * so a `write` seat is shown this box and not that one.
  *
- * ### Two actions cross to the browser, not eighteen
+ * ### Two actions cross to the browser, not all of them
  *
  * Three children are written below and no subject is ever handed more than two of them, the
  * description being an item's alone. This
@@ -78,7 +78,7 @@ export interface DrawerEditsProps {
  * rides along inside a closure (ADR 0040).
  *
  * The description is an **item's** alone: `PlanManifest` is "everything about a plan except its item
- * descriptions", there is no `describeFeature` among the eighteen, and no epic, feature or plan schema
+ * descriptions", there is no `describeFeature` among the plan writes, and no epic, feature or plan schema
  * carries a `description` field. The item's does appear in three, which is not the same claim as "one
  * schema has it": `ItemDocument` is the file that stores it (`plan.ts`), `ItemView` is the item record
  * with that text joined back on for a read — which is what `read-description.ts` beside this drawer
@@ -98,7 +98,7 @@ export interface DrawerEditsProps {
  * that followed — the delete, being the only destructive one, and `placeFeature` with `placeItem`
  * together, a reorder a keyboard has to be able to drive — are `manage`-tier as well, so the delete
  * landed in **that** file and the place pair will too, neither of them in this one. This file is
- * finished at three fields: the only `write`-tier actions left among the eighteen are `feature:create`
+ * finished at three fields: the only `write`-tier actions left among the plan writes are `feature:create`
  * and `item:create`, and those are not about this subject at all (see below).
  *
  * That was arithmetic rather than taste, and it is worth keeping the figures: a group costs four lines

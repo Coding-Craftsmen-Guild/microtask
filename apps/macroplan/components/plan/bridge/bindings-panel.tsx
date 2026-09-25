@@ -31,6 +31,17 @@ export interface BindingsPanelProps {
 
   /** Clears one. */
   readonly unbind: UnbindWrite
+
+  /**
+   * Whether to offer unbinding — `PlanContentControls.unbindEpic`, spread to a boolean.
+   *
+   * A flat boolean rather than the whole `PlanControls`, exactly as `ShareManager` takes its four: the
+   * form below is a client component, and `module-boundaries.test.tsx` admits nothing but primitives
+   * across that boundary. Whether to draw the panel **at all** is the page's own decision from
+   * `bindEpic`, which is why that answer does not arrive here — a panel drawn for a reader who may not
+   * bind would be a form that always 403s.
+   */
+  readonly mayUnbind: boolean
 }
 
 const SUMMARY =
@@ -81,7 +92,7 @@ const stateOf = (row: BindingRow): string => {
  * one nobody ever bound. That is not a leak: which project a rail stores is already on the plan read's
  * admin-only block, and this panel is drawn for the same principal.
  */
-export function BindingsPanel({ planId, rows, bind, unbind }: BindingsPanelProps) {
+export function BindingsPanel({ planId, rows, bind, unbind, mayUnbind }: BindingsPanelProps) {
   return (
     <details className="w-full">
       <summary className={SUMMARY}>{`Microtask bindings (${String(rows.length)} rails)`}</summary>
@@ -94,6 +105,7 @@ export function BindingsPanel({ planId, rows, bind, unbind }: BindingsPanelProps
               bind={bind}
               bound={row.stored}
               epicId={row.epicId}
+              mayUnbind={mayUnbind}
               planId={planId}
               unbind={unbind}
             />

@@ -108,7 +108,7 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  * The four `share:*` answers are spread into four flat booleans, and the four actions into four function
  * props, because `components/plan/module-boundaries.test.tsx` admits nothing but primitives and unbound
  * functions across a client boundary. Each is a **module** function imported by name, so reflection can see
- * all there is to see of one and this file's own sweep asserts exactly that: the eighteen writes plus these
+ * all there is to see of one and this file's own sweep asserts exactly that: the plan writes plus these
  * four, none beginning with `bound ` — which is what `Function.prototype.bind` would name a closure
  * carrying a credential (ADR 0040).
  *
@@ -125,7 +125,7 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  *
  * It also hands down `ADMIN_PLAN_ACTIONS`, and this is the first **page** in this app to hand a component a
  * Server Action. Every member is a module function imported by name, so reflection can see all there is to
- * see of one, and `layout.test.tsx` asserts exactly that: those eighteen names plus the four seat actions
+ * see of one, and `layout.test.tsx` asserts exactly that: those names plus the four seat actions
  * below, and nothing beginning with `bound `, which is what `Function.prototype.bind` would name a closure
  * carrying a credential (ADR 0040).
  * The screen spends one of them — `placeFeature`, which the canvas's drag sends — and the drawer pages get
@@ -163,12 +163,15 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       conflicts={<ConflictList plan={loaded.value} />}
       controls={ADMIN_CONTROLS}
       bridge={
-        <BindingsPanel
-          bind={bindEpic}
-          planId={loaded.value.id}
-          rows={bindingRows(loaded.value, bridge)}
-          unbind={unbindEpic}
-        />
+        ADMIN_CONTROLS.content.bindEpic ? (
+          <BindingsPanel
+            bind={bindEpic}
+            mayUnbind={ADMIN_CONTROLS.content.unbindEpic}
+            planId={loaded.value.id}
+            rows={bindingRows(loaded.value, bridge)}
+            unbind={unbindEpic}
+          />
+        ) : null
       }
       drawer={children}
       plan={loaded.value}

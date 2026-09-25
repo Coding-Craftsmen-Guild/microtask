@@ -11,7 +11,7 @@ const NAMES = Object.keys(ADMIN_CONTROLS.content)
 const served = (): ActionResult<Plan> => ({ ok: true, value: atlasPlan() })
 
 /**
- * The eighteen writes as spies, built off the control names rather than listed.
+ * Every plan write as a spy, built off the control names rather than listed.
  *
  * `plan-capabilities.test.ts` already pins those keys against both wirings of `PlanEditActions`, so
  * there is no second list here to fall behind one. Two test files wrote this same helper and the same
@@ -34,7 +34,7 @@ export const stubActions = (over: Partial<PlanEditActions> = {}): PlanEditAction
 /**
  * Every content control false: the surface that may write nothing and so draws nothing.
  *
- * Built off the same key list for the same reason, so a nineteenth control is false here the moment it
+ * Built off the same key list for the same reason, so a further control is false here the moment it
  * exists rather than absent from an object that claims to hold them all.
  *
  * @returns A control set in which no field is drawn.

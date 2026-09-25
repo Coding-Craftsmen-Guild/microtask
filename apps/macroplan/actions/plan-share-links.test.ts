@@ -19,7 +19,7 @@ import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 import { Redirected, redirectOf } from './testing/redirected'
 
 // A fake of its own rather than `testing/recording-admin.ts`, and the reason is the three routes this
-// file is about: that helper answers the **plan** to every request, which is right for eighteen writes
+// file is about: that helper answers the **plan** to every request, which is right for the plan's writes
 // that each answer a plan and wrong for a mint, whose response the real `PlanShareLink` schema parses.
 // `testing/fake-plan-api.ts` cannot serve either — it answers 405 to every method but GET. So this one
 // answers per method and path, through the real admin client, the real transport and the real schemas:

@@ -19,7 +19,7 @@ export interface SubjectPair {
 }
 
 /**
- * Which of the eighteen writes a subject of this kind is edited by, and which of them are drawn.
+ * Which of the plan writes a subject of this kind is edited by, and which of them are drawn.
  *
  * The **kind** chooses, rather than the caller: `renameFeature` and `renameItem` take a `planId` and a
  * subject id of types the compiler cannot tell apart, so a component handed the wrong one of the pair
@@ -66,7 +66,7 @@ export interface SubjectRemoval {
 }
 
 /**
- * Which of the eighteen writes deletes a subject of this kind, and whether its control is drawn.
+ * Which of the plan writes deletes a subject of this kind, and whether its control is drawn.
  *
  * {@link pairFor}'s argument, for the one write where getting it wrong is unrecoverable: `removeFeature`
  * and `removeItem` take a `planId` and a subject id of types the compiler cannot tell apart, so a control

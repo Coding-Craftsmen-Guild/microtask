@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
@@ -56,6 +57,21 @@ export interface DrawerPanelProps {
    * no password behind it (`./delete-control.tsx`, ADR 0032).
    */
   readonly closeHref: string
+
+  /**
+   * This item's link to a Microtask task, or `null` — on a feature, and on any surface without a bridge.
+   *
+   * A **slot** rather than props, and the reason is the same one `PlanScreen`'s four slots have: what it
+   * needs is not derivable from anything else this panel holds. The link field's state comes from the
+   * *bridge* read — whether the rail resolved, what its token is worth today, what the task is called —
+   * and this panel is handed a plan and a row. A page reads both and builds the element; nothing under
+   * here has to learn that a second read exists.
+   *
+   * `null` on a feature drawer, which has no link to show because a link belongs to an item (design
+   * §7.2: an item references a task within its epic's bound project). `null` too on a surface with no
+   * bridge read, which draws the drawer exactly as it drew before this phase.
+   */
+  readonly link: ReactNode
 }
 
 /**
@@ -135,15 +151,8 @@ export interface DrawerPanelProps {
  * by row kind: a feature panel and an item panel answer the same questions about different subjects, and
  * `rows.ts` refuses the same split for the same reason.
  */
-export function DrawerPanel({
-  planId,
-  row,
-  values,
-  description,
-  controls,
-  actions,
-  closeHref,
-}: DrawerPanelProps) {
+export function DrawerPanel(props: DrawerPanelProps) {
+  const { link, planId, row, values, description, controls, actions, closeHref } = props
   return (
     <aside
       aria-labelledby={TITLE_ID}
@@ -162,6 +171,7 @@ export function DrawerPanel({
         row={row}
         values={values}
       />
+      {link}
       <DrawerManage
         actions={actions}
         closeHref={closeHref}

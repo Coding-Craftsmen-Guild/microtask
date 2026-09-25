@@ -44,7 +44,7 @@ describe('which write places a subject of each kind', () => {
 
   // Both writes come back because the payloads differ and no closure can cross this boundary — the same
   // shape `create-controls.tsx` is handed two creates in, argued in `./placement.ts`.
-  it('hands over both place actions and no other member of the eighteen', () => {
+  it('hands over both place actions and no other plan write', () => {
     const actions = stubActions()
     const placement = placementFor('feature', ADMIN_CONTROLS.content, actions)
     expect(placement.placeFeature).toBe(actions.placeFeature)

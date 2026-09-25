@@ -34,20 +34,25 @@ type ItemEstimate = Exclude<ItemChange['estimateDays'], undefined>
  * signed in on the same browser lends a seat nothing. `apps/microtask/actions/link-share-links.ts`
  * takes the same argument first for the same reason.
  *
- * **All eighteen writes are here, and this file narrows none of them to a role.** A `view` seat may
- * write nothing, a `write` seat holds seven of them, and a `manage` seat holds every one — but that
- * table lives in `packages/kernel/src/access/policy.ts`, and a copy of it in an app would be a
- * second policy free to drift from the one that is actually enforced. So every action is exposed,
- * the API refuses what the seat may not do, and the refusal comes back as this surface's own
- * sentence (`lib/refusal.ts`). Which *control* a page draws for one of these is a separate,
- * rendering-only question, decided from the seat's own role and scope rather than from what this
- * file exports. `planCapabilities` answers that question today only for a plan's own seats
- * (`share:*`); no control for any of the eighteen writes above exists yet, and nothing on this
- * surface draws one.
+ * **Eighteen of the twenty-three writes are here, and this file narrows none of them to a role.** The
+ * other five are `./seat-bridge.ts` — the ones that reach Microtask — split out when this file met ADR
+ * 0027's line cap, and kept together because what they have in common is the other product rather than
+ * anything about this one.
+ *
+ * A `view` seat may write nothing, a `write` seat holds ten of the twenty-three, and a `manage` seat
+ * holds twenty-one: the two binding writes are admin-only, which makes them the first writes on this
+ * surface no seat of any role can ever succeed at. That table lives in
+ * `packages/kernel/src/access/policy.ts`, and a copy of it in an app would be a second policy free to
+ * drift from the one that is actually enforced. So every action is exposed, the API refuses what the seat
+ * may not do, and the refusal comes back as this surface's own sentence (`lib/refusal.ts`).
+ *
+ * Which *control* a page draws for one of these is a separate, rendering-only question, decided from the
+ * seat's own role and scope rather than from what this file exports — and `planCapabilities` now answers
+ * it for all twenty-three rather than only for a plan's own seats.
  *
  * Each action is the mirror of the like-named one in `epics.ts`, `features.ts` or `items.ts` — same
  * route, same method, same body — so the reasoning about *what* is sent lives there and is not
- * restated eighteen times here. What each doc below adds is the grant the API asks for it, because
+ * restated once per write here. What each doc below adds is the grant the API asks for it, because
  * that is the one thing a seat can be refused for and an admin cannot.
  *
  * `epic:create`, and only `manage` holds it: every `epic:*` action **this file sends** is a `manage`
@@ -104,7 +109,7 @@ export async function seatRemoveEpic(token: string, planId: string, epicId: stri
  * One gate stands in front of the whole body while `CreateFeaturePayload` accepts a `pinSprint`, so
  * a `write` seat may create a feature already pinned to a sprint — a pin {@link seatPinFeature}
  * would refuse if asked for afterwards — `createFeature` in `features.ts` holds that argument in
- * full. Nothing here strips the field, for the same reason nothing here narrows the eighteen.
+ * full. Nothing here strips the field, for the same reason nothing here narrows any of them.
  */
 export async function seatCreateFeature(
   token: string,

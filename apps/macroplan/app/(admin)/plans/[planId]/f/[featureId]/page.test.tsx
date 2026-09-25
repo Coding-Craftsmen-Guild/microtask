@@ -307,10 +307,15 @@ describe('the drawer hands no share token to a component either', () => {
       'closeHref',
       'controls',
       'description',
+      'link',
       'planId',
       'row',
       'values',
     ])
+    // A feature has no link to show: design §7.2 gives one to an item, which references a task within
+    // its epic's bound project. The slot is required so that `link={null}` is a sentence this page
+    // states rather than a prop nobody passed.
+    expect(handed['link']).toBeNull()
     expect(handed['values']).toEqual({
       name: 'Auth rewrite',
       estimateDays: 5,
@@ -334,7 +339,7 @@ describe('the drawer hands no share token to a component either', () => {
   // function imported by name, so reflection can see all there is to see of it. A **bound** action is
   // the shape that could carry a token invisibly — `action.bind(null, token)` exposes neither — and
   // `Function.prototype.bind` names its result `bound <name>`, which is what this rules out.
-  it('hands over the eighteen writes and nothing bound, so no token hides in an action’s arguments', async () => {
+  it('hands over every write by name and nothing bound, so no token hides in an action’s arguments', async () => {
     const handed = handedBy(await FeatureDrawerPage(propsOf(FEATURE_1)))
     expect([...handed.functions].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
     expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])

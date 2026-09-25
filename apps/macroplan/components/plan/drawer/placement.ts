@@ -17,7 +17,7 @@ export interface SubjectPlacement {
 }
 
 /**
- * Which of the eighteen writes places a subject of this kind, and whether its controls are drawn.
+ * Which of the plan writes places a subject of this kind, and whether its controls are drawn.
  *
  * `feature:place` and `item:place` are both `manage` actions (`packages/kernel/src/access/policy.ts`), so
  * this is read by the `manage` band and by nothing else — the same tier line `removalFor` is split along

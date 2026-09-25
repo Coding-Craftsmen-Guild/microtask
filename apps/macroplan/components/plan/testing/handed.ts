@@ -57,8 +57,8 @@ const sweep = (value: unknown, found: Found, seen: WeakSet<object>): void => {
  *    one — and that is exactly the mechanism ADR 0040 describes for handing a token to a component.
  *    What *is* checkable is which functions a surface hands over, by name, so every function met is
  *    recorded. All three callers now assert an **exact** list rather than an empty one: the two drawer
- *    pages hand over the eighteen writes — a field needs one — and require the names to be exactly
- *    `Object.keys(ADMIN_PLAN_ACTIONS)`, and `layout.tsx` hands over those eighteen plus the share
+ *    pages hand over every plan write — a field needs one — and require the names to be exactly
+ *    `Object.keys(ADMIN_PLAN_ACTIONS)`, and `layout.tsx` hands over those plus the share
  *    manager's four and requires that set. (It did hand over none, and that sentence stood here until
  *    the canvas's drag and the share manager gave it something to pass; an empty list was never the
  *    guarantee, only the state.) Each of the three also requires that no name begins with `bound `,

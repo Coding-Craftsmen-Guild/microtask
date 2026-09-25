@@ -4,6 +4,10 @@ import { DrawerPanel } from '../../../../../../components/plan/drawer/drawer-pan
 import { drawerSubject } from '../../../../../../components/plan/drawer/subject'
 import { ADMIN_CONTROLS } from '../../../../../../lib/admin-controls'
 import { planPath } from '../../../../../../lib/routes'
+import { itemLink } from '../../../../../../components/plan/bridge/item-link'
+import { LinkField } from '../../../../../../components/plan/drawer/link-field'
+import { readBoundTasks, railOfItem } from '../../read-bound-tasks'
+import { readBridge } from '../../read-bridge'
 import { readPlan } from '../../read-plan'
 import { readDescription } from './read-description'
 
@@ -59,13 +63,36 @@ export default async function ItemDrawerPage({ params }: ItemDrawerPageProps) {
   if (!loaded.ok) return null
   const subject = drawerSubject(loaded.value, 'item', itemId)
   if (subject === undefined) notFound()
-  const described = await readDescription(planId, itemId)
+  const [described, bridge] = await Promise.all([
+    readDescription(planId, itemId),
+    readBridge(planId),
+  ])
+  const rail = railOfItem(loaded.value, itemId)
+  const tasks = rail === null ? null : await readBoundTasks(planId, rail)
+  const state = itemLink(loaded.value, bridge, itemId, tasks)
   return (
     <DrawerPanel
       actions={ADMIN_PLAN_ACTIONS}
       closeHref={planPath(planId)}
       controls={ADMIN_CONTROLS.content}
       description={described.ok ? described.value : null}
+      link={
+        ADMIN_CONTROLS.content.linkItem ? (
+          <LinkField
+            bound={state.bound}
+            createTask={ADMIN_PLAN_ACTIONS.createTask}
+            itemId={itemId}
+            link={ADMIN_PLAN_ACTIONS.linkItem}
+            manages={state.manages}
+            mayCreate={ADMIN_CONTROLS.content.createTask}
+            mayUnlink={ADMIN_CONTROLS.content.unlinkItem}
+            options={state.options}
+            planId={planId}
+            taskName={state.taskName}
+            unlink={ADMIN_PLAN_ACTIONS.unlinkItem}
+          />
+        ) : null
+      }
       planId={planId}
       row={subject.row}
       values={subject.values}

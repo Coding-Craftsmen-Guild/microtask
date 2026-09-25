@@ -14,7 +14,7 @@ import { planCapabilities, planControls, type PlanContentControls } from './plan
 import { ACTION_REFUSALS, plainRefusal } from './refusal'
 
 // The two modules whose exports this file compares the controls against are reached through the
-// same mocks `components/plan/admin-actions.test.ts` uses, so importing eighteen `'use server'`
+// same mocks `components/plan/admin-actions.test.ts` uses, so importing twenty-three `'use server'`
 // actions here cannot touch a cookie or re-render anything. `lib/api` is deliberately **not**
 // mocked: the last describe drives a real client over a stubbed `fetch`, which is the only way the
 // refusal sentence it asserts is the one the app would really show.
@@ -170,7 +170,7 @@ describe('the twenty-three content controls are the twenty-three writes, and nei
     expect(CONTROLS).toHaveLength(23)
   })
 
-  it('draws no nineteenth for the plan itself, there being no such action on either surface', () => {
+  it('draws no control for the plan itself, there being no such action on either surface', () => {
     const asked: readonly string[] = Object.values(WRITES)
     expect(asked).not.toContain('plan:rename')
     expect(asked).not.toContain('plan:retime')
@@ -186,13 +186,13 @@ describe('the twenty-three content controls are the twenty-three writes, and nei
 })
 
 describe('each content control is the record’s own answer for the action behind it', () => {
-  it.each(ROLES)('answers every one of the eighteen as the record answers a %s seat', (role) => {
+  it.each(ROLES)('answers every one of the twenty-three as the record answers a %s seat', (role) => {
     const asked = planCapabilities(role, PLAN).content
     const record = capabilities(role, PLAN)
     for (const control of CONTROLS) {
       expect(asked[control], control).toBe(record[WRITES[control]])
       // Asked the way the three `share:*` rows above have to be asked — against `'plan'` rather than
-      // against the action's own declared target. For these eighteen the two agree, which is the
+      // against the action's own declared target. For these twenty-three the two agree, which is the
       // whole reason they may be read off the record; the share rows are the case where they do not.
       // Asking with `ACTION_DECISIONS[...].target` instead would assert nothing, `capabilities()`
       // being defined as exactly that call.
@@ -200,7 +200,7 @@ describe('each content control is the record’s own answer for the action behin
     }
   })
 
-  it('draws nothing at all for a view seat, every one of the eighteen being a write', () => {
+  it('draws nothing at all for a view seat, every one of the twenty-three being a write', () => {
     expect(drawn('view')).toEqual([])
   })
 

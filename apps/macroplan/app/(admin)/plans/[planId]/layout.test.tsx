@@ -40,7 +40,7 @@ import { ACTION_REFUSALS } from '../../../../lib/refusal'
 
 // The four seat actions by the names reflection can see, taken from the functions themselves so a rename
 // cannot leave this list standing. They are what the share manager is handed, and the sweep below requires
-// every function this layout hands over to be one of these or one of the eighteen writes.
+// every function this layout hands over to be one of these or one of the plan writes.
 const SEAT_ACTIONS = [readPlanSeats, createPlanSeat, updatePlanSeat, revokePlanSeat].map(
   (action) => action.name,
 )
@@ -417,7 +417,7 @@ describe('the plan layout hands no share token to a component, however senior th
   // there is to see of one, where a **bound** action could carry a token invisibly —
   // `action.bind(null, token)` exposes neither the token nor a name of its own, and
   // `Function.prototype.bind` names its result `bound <name>`. The canvas's drag is what made this layout
-  // hand the screen the writes, so the assertion becomes the drawer pages': exactly the eighteen, each
+  // hand the screen the writes, so the assertion becomes the drawer pages': exactly the plan writes, each
   // named, none bound and none anonymous. Nothing is relaxed — the empty list only ever stood because
   // there was no write on this surface to hand over.
   // The two binding actions are handed over **twice** — once inside `ADMIN_PLAN_ACTIONS` and once as the

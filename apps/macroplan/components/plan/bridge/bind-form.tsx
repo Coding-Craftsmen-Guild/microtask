@@ -33,6 +33,9 @@ export interface BindFormProps {
 
   /** Clears the binding. */
   readonly unbind: UnbindWrite
+
+  /** Whether to offer unbinding at all, which is `unbindEpic`'s own control. */
+  readonly mayUnbind: boolean
 }
 
 const ROW = 'flex flex-wrap items-end gap-2'
@@ -72,7 +75,7 @@ export const BIND_HINTS = {
  * one holding less than the role asked for means "re-role that seat, or bind lower". Collapsing them
  * into "that did not work" would leave an admin guessing which.
  */
-export function BindForm({ planId, epicId, bound, bind, unbind }: BindFormProps) {
+export function BindForm({ planId, epicId, bound, bind, unbind, mayUnbind }: BindFormProps) {
   const [token, setToken] = useState('')
   const [role, setRole] = useState<'view' | 'manage'>('view')
   const [problem, setProblem] = useState('')
@@ -99,7 +102,7 @@ export function BindForm({ planId, epicId, bound, bind, unbind }: BindFormProps)
         <Button onClick={() => void send()} size="sm" type="button">
           {bound ? 'Rebind' : 'Bind'}
         </Button>
-        {bound ? (
+        {bound && mayUnbind ? (
           <Button onClick={() => void clear()} size="sm" type="button" variant="outline">
             Unbind
           </Button>

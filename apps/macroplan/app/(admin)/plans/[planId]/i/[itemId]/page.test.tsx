@@ -5,6 +5,7 @@ import {
   fakePlanApiState,
   fakePlanFetch,
   holdingAdmin,
+  bridgeReadKey,
   itemReadKey,
   planReadKey,
   problemAnswer,
@@ -16,6 +17,7 @@ import { handedBy } from '../../../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
   atlasPlan,
+  EPIC_1,
   FEATURE_1,
   ITEM_1,
   ITEM_3,
@@ -167,12 +169,23 @@ describe('the drawer one item is open in', () => {
 
   // Two reads, and the second one is the description: a plan carries none, so the only way to seed the
   // field is the item's own file. Both go out under the bearer the cookie carries and nothing else does.
-  it('reads the plan and then the item’s own file, both under the admin cookie’s bearer', async () => {
+  // Four reads, all under the same bearer, and the order matters for the first: the plan comes first
+  // because the row it answers is what decides whether the other three are worth making at all. The
+  // description and the bridge go out together, and the rail's task list follows the plan because it
+  // needs the rail id the plan named.
+  it('reads the plan, the item’s file, the bridge and the rail’s tasks, all under the admin bearer', async () => {
     await show()
-    expect(trace(api)).toEqual([
-      `${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
-      `${itemReadKey(PLAN_A, ITEM_1)} ${ADMIN_TOKEN}`,
-    ])
+    const seen = trace(api)
+    expect(seen[0]).toBe(`${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`)
+    expect(seen).toHaveLength(4)
+    expect([...seen].sort()).toEqual(
+      [
+        `${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
+        `${itemReadKey(PLAN_A, ITEM_1)} ${ADMIN_TOKEN}`,
+        `${bridgeReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
+        `GET /v1/macroplan/plans/${PLAN_A}/bridge/epics/${EPIC_1}/tasks ${ADMIN_TOKEN}`,
+      ].sort(),
+    )
   })
 
   it('does not read a description for an item the plan does not place, a stale link costing one call', async () => {
@@ -285,9 +298,12 @@ describe('the item drawer hands no share token to a component either', () => {
     for (const token of EVERY_TOKEN) expect(container.innerHTML).not.toContain(token)
   })
 
-  it('hands over the eighteen writes and nothing bound, as the feature drawer does', async () => {
+  // The three link actions are handed over twice — once inside `ADMIN_PLAN_ACTIONS` and once as the
+  // link field's own props — so this compares sets. The load-bearing half is unchanged: not one function
+  // crossing this boundary is a `bound ` closure, which is ADR 0040's one smuggling mechanism.
+  it('hands over every write by name and nothing bound, as the feature drawer does', async () => {
     const handed = handedBy(await ItemDrawerPage(propsOf(ITEM_1)))
-    expect([...handed.functions].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
+    expect([...new Set(handed.functions)].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
     expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
     expect(handed.functions.filter((name) => name === '')).toEqual([])
   })

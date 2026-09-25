@@ -33,6 +33,8 @@ import { PlaceControl } from './drawer/place-control'
 import { DragRoot } from './canvas/drag-root'
 import { BindFields } from './bridge/bind-fields'
 import { BindForm } from './bridge/bind-form'
+import { LinkField } from './drawer/link-field'
+import { TaskPicker } from './drawer/task-picker'
 import { BindingsPanel } from './bridge/bindings-panel'
 import { ShareManager } from './share/share-manager'
 import { seatDoubles } from './share/testing/seat-doubles'
@@ -194,6 +196,7 @@ const panel = (over: Panel) => (
     actions={STUB_ACTIONS}
     closeHref="/plans/atlas"
     controls={over.controls ?? ADMIN_CONTROLS.content}
+    link={null}
     description={over.description ?? null}
     key={over.key}
     planId={PLAN_A}
@@ -242,6 +245,8 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [DragRoot, 'canvas/drag-root.tsx'],
   [BindForm, 'bridge/bind-form.tsx'],
   [BindFields, 'bridge/bind-fields.tsx'],
+  [LinkField, 'drawer/link-field.tsx'],
+  [TaskPicker, 'drawer/task-picker.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -366,8 +371,24 @@ const TREES = [
   // BindFields is rendered inside BindForm, and the walk stops at a client boundary rather than going
   // through it — so it needs a tree of its own here or the allowlist would admit a file nothing checks.
   <BindFields key="f3" onRole={() => undefined} onToken={() => undefined} role="view" token="" />,
+  <LinkField
+    bound
+    createTask={STUB_ACTIONS.createTask}
+    itemId={ITEM_1}
+    key="f4"
+    link={STUB_ACTIONS.linkItem}
+    manages
+    mayCreate
+    mayUnlink
+    options={`${ITEM_1} Ship it`}
+    planId={PLAN_A}
+    taskName={null}
+    unlink={STUB_ACTIONS.unlinkItem}
+  />,
+  <TaskPicker chosen="" key="f5" nothing="none" onChoose={() => undefined} options="" />,
   <BindingsPanel
     bind={STUB_ACTIONS.bindEpic}
+    mayUnbind
     key="f2"
     planId={atlasPlan().id}
     rows={[{ epicId: 'EP1', name: 'Checkout', projectId: null, role: null, stored: false }]}

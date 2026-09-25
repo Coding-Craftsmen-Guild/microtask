@@ -68,7 +68,7 @@ export interface FeatureDrawerPageProps {
  *
  * `description` is `null` and there is no second read behind it. A description belongs to an **item's**
  * own file — `PlanManifest` is "everything about a plan except its item descriptions" — and there is no
- * `describeFeature` among the eighteen writes, so a feature has no such text for this page to read or a
+ * `describeFeature` among the plan writes, so a feature has no such text for this page to read or a
  * box to draw.
  *
  * A refused read returns **nothing at all** rather than a second sentence. The layout met the same
@@ -88,6 +88,7 @@ export default async function FeatureDrawerPage({ params }: FeatureDrawerPagePro
       closeHref={planPath(planId)}
       controls={ADMIN_CONTROLS.content}
       description={null}
+      link={null}
       planId={planId}
       row={subject.row}
       values={subject.values}

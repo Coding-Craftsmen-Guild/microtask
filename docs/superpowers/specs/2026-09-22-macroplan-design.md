@@ -4,7 +4,7 @@
 **Date:** 2026-09-22
 **Branch:** `feat/macroplan-timeline`
 **Follows:** [the shell design](2026-09-22-macroplan-shell-design.md), whose §6 left this undesigned
-**Decisions this spec creates:** ADRs 0048–0056 (§11) — eight written; 0052 deferred to phase 4
+**Decisions this spec creates:** ADRs 0048–0056 (§11), all nine written, plus 0057–0063 the phases added
 **Amended:** 2026-09-22 — §7 split into the outward link and the inward one. The first draft had no
 notion of sharing a plan at all, and the phase 1 plan had written "every Macroplan action is
 admin-only" on the strength of that silence.
@@ -459,7 +459,7 @@ links already issued. §7.3's behaviour is phase 4; the actions and scopes it de
 | 0049 | Per-rail forward pass, in one pure package both sides import | **Written.** |
 | 0050 | The plan directory is the unit; edges never cross it | **Written.** |
 | 0051 | Estimate is authored at any level; children win, and the gap is shown | **Written.** |
-| 0052 | An epic binds to a Microtask project by a sealed share token | **Deferred to phase 4.** Phase 1 reserves the bridge fields and decides nothing about the bridge, and §12 leaves who mints the token undecided — an ADR recording a decision nobody has taken is worse than an absent one. |
+| 0052 | An epic binds to a Microtask project by a sealed share token, pasted by hand | **Written** in phase 4, which is the phase that took the decision. §12's open question is settled: the token is minted in Microtask's own share manager and pasted, because minting it from here would need authority to *manufacture* credentials in the client-facing product — a far larger exposure than the one sealed token §7.2 bounds. Also records why the cipher is duplicated rather than shared: one module would put the authorization kernel into both Next apps' `node_modules`, which ADR 0027's allowlist exists to prevent. |
 | 0053 | A plan is shared at plan scope, by the share-link system that already exists | **Written.** |
 | 0054 | One token index for both products, and identity stays a capability until there are users | **Written.** |
 | 0055 | Canvas geometry is its own pure package, because a measurement cannot be tested here | **Written** in phase 2. §4's table put "layout maths" in `@repo/schedule` and §4.1 published that package's surface without any; the layout is `@repo/canvas`, and §4.1's surface is the half that was right. |
@@ -468,11 +468,19 @@ links already issued. §7.3's behaviour is phase 4; the actions and scopes it de
 | 0058 | One delegation root over a server-rendered canvas, and `children` is the one exception it needed | **Written** in phase 3. §6's drag, as one client boundary over an SVG that stays a Server Component — against a client canvas, a client component per bar, and the transparent sheet phase 2 refused by name. Records that the screen-to-`viewBox` conversion is the one line no test here can cover. |
 | 0059 | Undo is a compensating placement, one step deep, and a delete has none | **Written** in phase 3. §6's "destructive drags get an undo", scoped to a move: a placement's inverse is two values already in hand, and a delete's is a new id with no items, no description and no incoming edges. There was no journal, soft delete, tombstone or restore route anywhere to build on, and four confirm dialogs already promise a delete is final. |
 | 0060 | A cycle is named before the write, and the API stays the authority | **Written** in phase 3. §6's "a write that would create a cycle is refused, with the cycle named", against a generic 409 sentence that was false for this cause. The check is a message and never a gate, and it cannot report the cycle "in the order they wait on each other" — `findCycles` answers a strongly connected component, and a component of three or more need not be one cycle. |
+| 0061 | The bridge is a second read, never part of the plan's | **Written** in phase 4. `planView` stays pure and synchronous, a plan may hold forty bindings, and Microtask's availability must not become the timeline's — §7.2 requires a dead binding to render as a stated state "never an error page and never an empty canvas", and the same holds of the product being unreachable. Records that `read-bridge.ts` was first written through `adminRead`, which turns a 404 into `notFound()`, and so did exactly what this ADR forbids. |
+| 0062 | Attenuation is one minimum, applied twice, and a refused link reads as unlinked | **Written** in phase 4. §7.3's function takes two roles and the product has three facts — declared, live, and the reader's own — so it is applied twice, which is sound because the minimum is associative and idempotent. Records why `linkedTaskId` is `null` rather than absent for a refused reader, a deliberate departure from ADR 0013 whose own argument inverts here; and why the stored binding role is two-valued while the attenuated one is three. |
+| 0063 | The bounded write cannot roll back, so it may leak a task and never delete one | **Written** in phase 4. §7.2 permits the bridge no delete, so the create-then-link pair has no undo: the task is created first and an orphan is the accepted failure, being strictly better than a dangling link that a retry would duplicate. Records that the two writes must be sequenced because `Lock` is not reentrant — a nested `run` deadlocks rather than failing — and that `BridgeService`'s two-method surface is what makes "exactly one operation" assertable. |
 
 ## 12. What this spec does not decide
 
-- **Who mints the epic's token.** Pasted by hand from Microtask's share manager, or minted through a
-  Microtask admin call from Macroplan. Phase 4 decides it and ADR 0052 records it.
+- ~~**Who mints the epic's token.**~~ **Settled 2026-09-25, phase 4: pasted by hand**, from Microtask's own
+  share manager (ADR 0052). Minting it through a Microtask admin call from Macroplan was refused on the
+  size of the authority it needs — creating a share link over there requires `share:create` at minimum and
+  in practice an admin credential, which would let this product manufacture credentials in the
+  client-facing one. That is strictly larger than the single sealed bearer §7.2 bounds, and it is the hole
+  §7.2 opens by ruling out. The cost, accepted: an admin visits two products to bind one rail, and there is
+  no picker of Microtask's links here — there cannot be, for the same reason.
 - **Whether the plan list needs search.** Microtask's names-only search
   ([ADR 0021](../../adr/0021-names-only-search.md)) is the obvious precedent if it does.
 - **Export/import of a plan.** Nothing here needs it; Microtask's drop-in import exists for a
