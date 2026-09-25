@@ -106,13 +106,48 @@ const leakCases: ReadonlyArray<readonly [string, z.ZodType, Record<string, unkno
   ['BoundTaskList', BoundTaskList, { tasks: [{ id: ID, name: 'Ship it' }] }],
 ]
 
+const LEAKED = 'shr_leaked_credential'
+
+// A stored `EpicBinding` (plan.ts) is `{ projectId, role, sealedToken }`, and these two schemas
+// are the ones built *from* one — so the mistake that will actually be made is `binding: stored`
+// and `epics: [{ ..., binding: stored }]`, which puts the token one level down where a top-level
+// injection never looks. Nested rather than spread at the root for exactly that reason.
+const nestedLeakCases: ReadonlyArray<readonly [string, z.ZodType, Record<string, unknown>]> = [
+  [
+    'BridgeEpicRow, handed a stored binding whole',
+    BridgeEpicRow,
+    { epicId: ID, state: 'bound', binding: { projectId: ID, role: 'view', sealedToken: LEAKED } },
+  ],
+  [
+    'PlanBridgeView, whose epics rows each carry one',
+    PlanBridgeView,
+    {
+      epics: [
+        { epicId: ID, state: 'bound', binding: { projectId: ID, role: 'manage', sealedToken: LEAKED } },
+      ],
+      items: [{ itemId: ID, progress: { done: 0, total: 0 } }],
+    },
+  ],
+]
+
 describe('a view schema in this file never lets a sealed token pass through (design §7.2)', () => {
   it('covers every view schema declared in bridge.ts, so the sweep below cannot cover nothing', () => {
     expect(leakCases).toHaveLength(5)
   })
 
   it.each(leakCases)('%s strips an injected sealedToken', (_name, schema, value) => {
-    const parsed = schema.parse({ ...value, sealedToken: 'shr_leaked_credential' })
-    expect(JSON.stringify(parsed)).not.toContain('shr_leaked_credential')
+    const parsed = schema.parse({ ...value, sealedToken: LEAKED })
+    expect(JSON.stringify(parsed)).not.toContain(LEAKED)
+  })
+
+  it.each(nestedLeakCases)('%s strips it from the nested binding too', (_name, schema, value) => {
+    const parsed = schema.parse(value)
+    expect(JSON.stringify(parsed)).not.toContain(LEAKED)
+  })
+
+  // Not vacuous: the two values above really do carry the token before parsing, so the two
+  // assertions could fail. A sweep over values that never held the string would pass for ever.
+  it('is not vacuous: each nested value holds the token before it is parsed', () => {
+    for (const [, , value] of nestedLeakCases) expect(JSON.stringify(value)).toContain(LEAKED)
   })
 })
