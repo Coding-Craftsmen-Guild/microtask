@@ -7,7 +7,15 @@ import {
   treatmentsOf,
   widthOfDays,
 } from '@repo/canvas'
-import type { DayRange, ItemMark, PlanScale, RailBox, Rung, Treatment } from '@repo/canvas'
+import type {
+  DayRange,
+  ItemMark,
+  PlanScale,
+  RailBox,
+  RailMetrics,
+  Rung,
+  Treatment,
+} from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
@@ -66,6 +74,25 @@ export const CANVAS_SCALE: PlanScale = scaleFor({ pxPerDay: 14, gutter: 160 })
  * they are **shared geometry**: {@link stubX} needs both to know where the next stub starts, so a
  * value changed in one place and not the other is a row of overlapping rects. A purely cosmetic
  * number that nothing else reads — a corner radius — stays local to its own component.
+ *
+ * It `satisfies RailMetrics`, and that clause is load-bearing rather than decoration. `railAtY` and
+ * `dropTargetFor` in `@repo/canvas` are handed **this record**: that package holds no viewport and no
+ * type size, so it takes the two numbers a rail band is made of rather than declaring them, and its own
+ * `RailMetrics` asks for "the record that is rendered from, rather than a fresh literal at the call
+ * site", a second literal being "a band this reads and a band the SVG drew, free to disagree". Passing
+ * an identifier runs no excess-property check, so until this clause the subset relation held by
+ * hand-maintained luck — `chromeHeight` renamed in either package compiled here and broke at the drop.
+ * With it, either rename is a compile error in this file. `as const` still comes first, so every field
+ * keeps its literal type and nothing widens to `number`.
+ *
+ * The clause is `RailMetrics & Record<string, number>` and **not** `RailMetrics` alone, which does not
+ * compile: `satisfies` runs an excess-property check against an object **literal**, so this record's other
+ * eight fields — `barHeight`, `markTop`, `stubGap` and the rest — are each rejected as unknown to that
+ * interface. The intersection says the two things that are true and wanted: the record carries whatever
+ * `RailMetrics` names, spelled the way that package spells it, and is otherwise a record of numbers. What
+ * it does not check, and cannot, is that the other eight are *only* numbers of this file's own choosing —
+ * a field added to `RailMetrics` that this record already has under the same name and a different meaning
+ * would pass, which is a hazard the annotation shares with the assignment it replaced.
  */
 export const LAYOUT = {
   chromeHeight: 46,
@@ -78,7 +105,7 @@ export const LAYOUT = {
   labelInset: 6,
   stubWidth: 22,
   stubGap: 5,
-} as const
+} as const satisfies RailMetrics & Record<string, number>
 
 /**
  * What each of §5's three rungs draws, as of phase 2.

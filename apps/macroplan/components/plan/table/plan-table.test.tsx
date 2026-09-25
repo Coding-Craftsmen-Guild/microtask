@@ -107,7 +107,7 @@ describe('the parity that makes the table a second rendering of the same data', 
       { plan: unplacedPlan('in-cycle'), stubs: [FEATURE_2] },
     ]
     for (const one of cases) {
-      render(<PlanCanvas at={AT} plan={planScreenModel(one.plan)} />)
+      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(one.plan)} />)
       const drawn = all('[data-feature-id], [data-item-id]').map(
         (mark) => mark.getAttribute('data-feature-id') ?? mark.getAttribute('data-item-id') ?? '',
       )
@@ -125,7 +125,7 @@ describe('the parity that makes the table a second rendering of the same data', 
 
   it('names an unplaced feature’s own items too, which the canvas draws nothing whatever for', () => {
     const plan = unplacedPlan('no-estimate')
-    render(<PlanCanvas at={AT} plan={planScreenModel(plan)} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />)
     expect(all(`[data-item-id="${ITEM_3}"]`)).toHaveLength(0)
     cleanup()
     render(<PlanTable plan={planScreenModel(plan)} />)
@@ -148,7 +148,7 @@ describe('the table as a screen reader meets it', () => {
   it('is named for what it is, against the canvas’s own name for the same plan', () => {
     render(
       <div>
-        <PlanCanvas at={AT} plan={planScreenModel(atlasPlan())} />
+        <PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />
         <PlanTable plan={planScreenModel(atlasPlan())} />
       </div>,
     )

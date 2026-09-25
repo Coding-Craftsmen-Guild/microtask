@@ -92,8 +92,17 @@ export interface PlanValues {
   readonly features: readonly CycleFeature[]
 }
 
+/** One other parent this subject could be moved under, named the way a control labels it. */
+export interface PlaceTarget {
+  /** The epic's id for a feature, the feature's id for an item — what a placement's parent field takes. */
+  readonly id: string
+
+  /** Its stored name, which is the only half of a control's label that is not a constant. */
+  readonly name: string
+}
+
 /**
- * The two **parents** a new sibling of this subject would join, which is all a create needs to send.
+ * Where this subject sits: the parents a sibling would join, and the order it is in among its own.
  *
  * A third group rather than two more members under {@link PlanValues}, and the reason is that group's
  * own first sentence: it is "what a drawer needs about the **plan** rather than about the subject it is
@@ -129,6 +138,34 @@ export interface SubjectPlace {
    * plan has no row at all, so a panel is on screen only where this feature is (`./subject.ts`).
    */
   readonly featureId: string
+
+  /**
+   * Every sibling under this subject's own parent, in stored order, this subject included.
+   *
+   * The order and not the positions, and the subject's **place is its index in it** — which is the convention
+   * both ends of a placement already use. `placeAmong` takes a position as "where the moved entry lands among
+   * the siblings that are left once it is lifted out" and reads the incoming order from the stored positions
+   * rather than from array order, and `dropTargetFor` answers `featureIds.indexOf(featureId)` for a drop that
+   * changes nothing. So an index here is a position there on every rail the domain wrote, every write in
+   * `packages/macroplan-domain/src/services/` renumbering densely from zero.
+   *
+   * Ids and not records, for `RailBox.featureIds`' reason: "the whole point of deriving this order once is
+   * that nothing downstream can derive a different one, and a consumer holding positions can."
+   */
+  readonly siblingIds: readonly string[]
+
+  /**
+   * The other parents this subject could be moved under: the plan's other rails, or its other features.
+   *
+   * A feature moves between **rails** and an item between **features**, because that is what each placement
+   * payload names — `FeaturePlacementPayload` an `epicId`, `ItemPlacementPayload` a `featureId`. Each carries
+   * the name a control has to say, which is why it is resolved in the one lookup rather than left to a panel:
+   * a rail's name is a fact about the epic record, and a panel holding a plan is what `./subject.ts` refuses.
+   *
+   * This subject's own parent is **not** here, so no control offers to move it where it already is. A rail no
+   * epic claims contributes none either, `assertEpic` refusing that id.
+   */
+  readonly targets: readonly PlaceTarget[]
 }
 
 /**

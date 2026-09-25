@@ -1,7 +1,13 @@
 import { breakdown, effectiveEstimate, type PlanCalendar } from '@repo/schedule'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows, type TableRow } from '../table/rows'
-import { subjectValues, type DrawerValues, type SubjectKind, type SubjectPlace } from './values'
+import {
+  subjectValues,
+  type DrawerValues,
+  type PlaceTarget,
+  type SubjectKind,
+  type SubjectPlace,
+} from './values'
 
 const calendarOf = (plan: PlanScreenModel): PlanCalendar => ({
   startDate: plan.startDate,
@@ -15,6 +21,28 @@ const featureOf = (plan: PlanScreenModel, kind: SubjectKind, id: string) => {
   return plan.features.find((one) => one.id === item?.featureId)
 }
 
+const ordered = <T extends { readonly id: string; readonly position: number }>(
+  group: readonly T[],
+): readonly T[] => [...group].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+
+const siblingsOf = (plan: PlanScreenModel, kind: SubjectKind, id: string): readonly string[] => {
+  if (kind === 'feature') {
+    const rail = plan.features.find((one) => one.id === id)?.epicId
+    return ordered(plan.features.filter((one) => one.epicId === rail)).map((one) => one.id)
+  }
+  const parent = plan.items.find((one) => one.id === id)?.featureId
+  return ordered(plan.items.filter((one) => one.featureId === parent)).map((one) => one.id)
+}
+
+const targetsOf = (plan: PlanScreenModel, kind: SubjectKind, own: string): readonly PlaceTarget[] =>
+  kind === 'feature'
+    ? ordered(plan.epics.map((one) => ({ ...one, position: one.railOrder })))
+        .filter((one) => one.id !== own)
+        .map((one) => ({ id: one.id, name: one.name }))
+    : ordered(plan.features)
+        .filter((one) => one.id !== own)
+        .map((one) => ({ id: one.id, name: one.name }))
+
 const placeOf = (
   plan: PlanScreenModel,
   kind: SubjectKind,
@@ -23,7 +51,13 @@ const placeOf = (
   const feature = featureOf(plan, kind, id)
   if (feature === undefined) return undefined
   const claimed = plan.epics.some((one) => one.id === feature.epicId)
-  return { featureId: feature.id, railId: claimed ? feature.epicId : null }
+  const own = kind === 'feature' ? feature.epicId : feature.id
+  return {
+    featureId: feature.id,
+    railId: claimed ? feature.epicId : null,
+    siblingIds: siblingsOf(plan, kind, id),
+    targets: targetsOf(plan, kind, own),
+  }
 }
 
 const sizedByItems = (plan: PlanScreenModel, kind: SubjectKind, id: string): boolean => {

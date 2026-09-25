@@ -12,6 +12,7 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../components/plan/testing/fake-plan-api'
+import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
 import { handedBy, tokensHandedBy } from '../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
@@ -267,13 +268,21 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
   // it is a slot on the screen because the seat surface renders the same screen and may not carry
   // links into this one's drawer routes, so filling it is this file's own decision and belongs in this
   // file's assertions. The drawer stays identity-compared, being `children` and not built here.
-  it('hands the screen that slot, the conflict list and the three props it had, and nothing else', async () => {
+  it('hands the screen that slot, the conflict list, the writes and the three props it had', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const element = await PlanLayout(propsOf(PLAN_A))
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    expect(Object.keys(handed).sort()).toEqual(['at', 'conflicts', 'controls', 'drawer', 'plan'])
+    expect(Object.keys(handed).sort()).toEqual([
+      'actions',
+      'at',
+      'conflicts',
+      'controls',
+      'drawer',
+      'plan',
+    ])
     expect(handed['drawer']).toBe(DRAWER)
+    expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)
     expect(isValidElement<{ plan: unknown }>(handed['conflicts'])).toBe(true)
   })
 
@@ -347,7 +356,18 @@ describe('the plan layout hands no share token to a component, however senior th
     expect(Object.keys(plan ?? {})).not.toContain('shareLinks')
   })
 
-  it('hands over no function at all, so no token is hiding in a bound action’s arguments', async () => {
-    expect(handedBy(await shown()).functions).toEqual([])
+  // This case was "hands over no function at all", and `handed.ts` set out what the first surface to hand
+  // one over owes: every function must be a module action imported by name, since reflection can see all
+  // there is to see of one, where a **bound** action could carry a token invisibly —
+  // `action.bind(null, token)` exposes neither the token nor a name of its own, and
+  // `Function.prototype.bind` names its result `bound <name>`. The canvas's drag is what made this layout
+  // hand the screen the writes, so the assertion becomes the drawer pages': exactly the eighteen, each
+  // named, none bound and none anonymous. Nothing is relaxed — the empty list only ever stood because
+  // there was no write on this surface to hand over.
+  it('hands over the eighteen writes and nothing bound, so no token hides in an action’s arguments', async () => {
+    const handed = handedBy(await shown())
+    expect([...handed.functions].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
+    expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
+    expect(handed.functions.filter((name) => name === '')).toEqual([])
   })
 })

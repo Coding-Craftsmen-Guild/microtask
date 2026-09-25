@@ -1,6 +1,7 @@
 import type { RailBox } from '@repo/canvas'
 import { FeatureBarMark } from './feature-bar'
 import { ItemMarkShape } from './item-mark'
+import { joinRailIds } from './selection'
 import { UnplacedFeatures } from './unplaced-features'
 import { insideRail, type RailFrame } from './view'
 
@@ -43,10 +44,25 @@ export interface RailProps {
  * What the rung decides is what goes on the rail, never the rail itself. `DRAWS` is that table, and
  * an epic-rung canvas draws every rail with its name and nothing on it — §5 puts feature nodes,
  * dependency arcs and milestone diamonds there, and none of the three is built yet.
+ *
+ * ### The two attributes nothing on this canvas reads
+ *
+ * `data-colour` and `data-feature-ids` are the two members of a `RailBox` the drawing does not otherwise
+ * leave in the markup: a rail's hue reaches the SVG only as each mark's inline style, so a rail with no
+ * marks carries it nowhere, and its feature **order** reaches it only as two runs of ids whose
+ * interleaving is lost. `./selection.ts` reads both back, and says why a drag has to rebuild the layout
+ * from the markup rather than be handed it. `data-colour` is **absent** for a rail no epic claims, which
+ * is the `colour: null` the layout answered and the one `dropTargetFor` refuses a drop on — an empty
+ * string would be a colour.
  */
 export function Rail({ rail, name, unplaced, frame, top }: RailProps) {
   return (
-    <g data-epic-id={rail.epicId} data-slot="rail">
+    <g
+      data-colour={rail.colour ?? undefined}
+      data-epic-id={rail.epicId}
+      data-feature-ids={joinRailIds(rail.featureIds)}
+      data-slot="rail"
+    >
       <text className={RAIL_LABEL} x={frame.labelX} y={insideRail(top, 'label')}>
         {name ?? UNCLAIMED}
       </text>

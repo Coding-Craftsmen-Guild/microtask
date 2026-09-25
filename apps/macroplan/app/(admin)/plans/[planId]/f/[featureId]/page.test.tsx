@@ -308,7 +308,12 @@ describe('the drawer hands no share token to a component either', () => {
       name: 'Auth rewrite',
       estimateDays: 5,
       pinSprint: null,
-      place: { featureId: FEATURE_1, railId: EPIC_1 },
+      place: {
+        featureId: FEATURE_1,
+        railId: EPIC_1,
+        siblingIds: [FEATURE_1, FEATURE_2],
+        targets: [],
+      },
       plan: {
         calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
         features: atlasPlan().features,

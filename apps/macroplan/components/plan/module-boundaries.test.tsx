@@ -29,6 +29,8 @@ import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
 import { NameField } from './drawer/name-field'
 import { PinField } from './drawer/pin-field'
+import { PlaceControl } from './drawer/place-control'
+import { DragRoot } from './canvas/drag-root'
 import { drawerSubject } from './drawer/subject'
 
 vi.mock('next/link', async () => ({
@@ -192,17 +194,24 @@ const FEATURE = subjectOf('feature', FEATURE_1)
 // on it would pass this file in silence. Deriving one from the other makes that state unreachable: a
 // new client file fails the allowlist until it is a key here, and being a key here is what stops the
 // walk at it.
+//
+// The values are paths **below `components/plan`** rather than bare file names, because the drawer is no
+// longer the only directory with a boundary in it: the canvas has one too, and it is one file — the
+// delegation root that wraps the server-rendered SVG. Naming the directory in the value is what keeps the
+// allowlist derived from this map rather than from a prefix that only fits one of them.
 const CLIENT_BY_FILE = new Map<unknown, string>([
-  [CreateControls, 'create-controls.tsx'],
-  [DeleteControl, 'delete-control.tsx'],
-  [DependencyToggle, 'dependency-toggle.tsx'],
-  [DescriptionField, 'description-field.tsx'],
-  [EstimateField, 'estimate-field.tsx'],
-  [NameField, 'name-field.tsx'],
-  [PinField, 'pin-field.tsx'],
+  [CreateControls, 'drawer/create-controls.tsx'],
+  [DeleteControl, 'drawer/delete-control.tsx'],
+  [DependencyToggle, 'drawer/dependency-toggle.tsx'],
+  [DescriptionField, 'drawer/description-field.tsx'],
+  [EstimateField, 'drawer/estimate-field.tsx'],
+  [NameField, 'drawer/name-field.tsx'],
+  [PinField, 'drawer/pin-field.tsx'],
+  [PlaceControl, 'drawer/place-control.tsx'],
+  [DragRoot, 'canvas/drag-root.tsx'],
 ])
 
-const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/drawer/${name}`)
+const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
 
 const PRIMITIVE = new Set(['string', 'number', 'boolean'])
 
@@ -215,6 +224,26 @@ const handedOk = (value: unknown): boolean => {
   if (typeof value === 'function') return !value.name.startsWith('bound ')
   return value === null || PRIMITIVE.has(typeof value)
 }
+
+// **The one exception, and it is a prop name and a shape rather than a component.** A client component may
+// *wrap* server-rendered markup, and `canvas/drag-root.tsx` is the first that does: it listens for a drag
+// over an SVG of 2,000 nodes that stays a Server Component, which is the only shape that is neither a
+// client canvas, nor a client component per bar, nor the transparent sheet `canvas/feature-bar.tsx` ruled
+// out. `children` is then an element, and `handedOk` refuses elements — as it must, since an element handed
+// on any *other* prop is a slot whose own props nothing here has inspected.
+//
+// So the exception is narrow in both directions: only the prop literally named `children`, and only a
+// React element or an array of them. Markup, not data. It admits nothing a bundler would serialise as
+// values — a plan, a row, a model, a token, an actions object and a bound function are each still refused
+// on `children` as well as everywhere else — and the three cases below are what prove that rather than
+// state it. What it does cost is stated plainly: the walk does not inspect what is *inside* the markup,
+// and it never did for any slot. The allowlist above is the guard that makes that safe, because a client
+// component nested in there would have to be a `'use client'` file, and every one of those is named here.
+const renderable = (value: unknown): boolean =>
+  Array.isArray(value) ? value.every(renderable) : isValidElement(value)
+
+const handedAs = (name: string, value: unknown): boolean =>
+  handedOk(value) || (name === 'children' && renderable(value))
 
 interface HandedToClient {
   readonly file: string
@@ -243,6 +272,7 @@ const clientProps = (node: unknown): readonly HandedToClient[] => {
 
 const TREES = [
   <PlanScreen
+    actions={STUB_ACTIONS}
     at={AT}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -251,6 +281,7 @@ const TREES = [
     plan={planScreenModel(atlasPlan())}
   />,
   <PlanScreen
+    actions={STUB_ACTIONS}
     at={AT}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -259,6 +290,7 @@ const TREES = [
     plan={planScreenModel(unplacedPlan('no-estimate'))}
   />,
   <PlanScreen
+    actions={STUB_ACTIONS}
     at={AT}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -267,6 +299,7 @@ const TREES = [
     plan={planScreenModel(unplacedPlan('in-cycle'))}
   />,
   <PlanScreen
+    actions={STUB_ACTIONS}
     at={AT}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -276,12 +309,14 @@ const TREES = [
   />,
   <PlanCanvas
     at={AT}
+    place={STUB_ACTIONS.placeFeature}
     key="e"
     plan={planScreenModel(atlasPlan())}
     range={{ fromDay: 0, toDay: 61 }}
   />,
   <PlanTable key="f" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
   <PlanScreen
+    actions={STUB_ACTIONS}
     at={AT}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -297,6 +332,7 @@ const TREES = [
   }),
   panel({ controls: NOTHING_DRAWN, key: 'i' }),
   <PlanScreen
+    actions={STUB_ACTIONS}
     at={AT}
     conflicts={<ConflictList plan={TANGLED} />}
     controls={ADMIN_CONTROLS}
@@ -389,14 +425,40 @@ describe('the plan subtree', () => {
     expect([...new Set(files)].sort()).toEqual([...CLIENT_BY_FILE.values()].sort())
   })
 
-  it('hands its client files nothing but primitives and unbound functions, in every tree it draws', () => {
+  it('hands its client files nothing but primitives, unbound functions and markup on children', () => {
     for (const tree of TREES) {
       for (const { file, props } of clientProps(tree)) {
         for (const [name, value] of Object.entries(props)) {
-          expect(handedOk(value), `${file}: ${name}`).toBe(true)
+          expect(handedAs(name, value), `${file}: ${name}`).toBe(true)
         }
       }
     }
+  })
+
+  it('really does hand one of them markup, so the exception is exercised and not merely declared', () => {
+    const handed = TREES.flatMap((tree) => clientProps(tree)).filter(
+      (one) => one.file === 'canvas/drag-root.tsx',
+    )
+    expect(handed.length).toBeGreaterThan(0)
+    for (const { props } of handed) expect(renderable(props['children'])).toBe(true)
+  })
+
+  it('admits markup on children alone, and refuses an element on any other prop', () => {
+    const marked = <p>markup</p>
+    expect(handedAs('children', marked)).toBe(true)
+    expect(handedAs('children', [marked, marked])).toBe(true)
+    expect(handedAs('drawer', marked)).toBe(false)
+    expect(handedAs('row', marked)).toBe(false)
+  })
+
+  it('admits no data on children either, which is what keeps the exception about markup', () => {
+    const seat = atlasPlan().shareLinks[0]?.token
+    expect(handedAs('children', atlasPlan())).toBe(false)
+    expect(handedAs('children', planScreenModel(atlasPlan()))).toBe(false)
+    expect(handedAs('children', DRAWER_ROW)).toBe(false)
+    expect(handedAs('children', STUB_ACTIONS)).toBe(false)
+    expect(handedAs('children', [atlasPlan()])).toBe(false)
+    expect(handedAs('children', ((token: string | undefined) => token).bind(null, seat))).toBe(false)
   })
 
   it('refuses a bound function the way testing/handed.ts does, that being how a token would ride', () => {

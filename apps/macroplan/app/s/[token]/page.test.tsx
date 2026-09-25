@@ -338,9 +338,21 @@ describe('which controls the seat’s own role draws', () => {
     const element: ReactNode = await LinkPlanPage(props(WRITE_SEAT_TOKEN))
     expect(isValidElement(element)).toBe(true)
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    expect(Object.keys(handed).sort()).toEqual(['at', 'conflicts', 'controls', 'drawer', 'plan'])
+    expect(Object.keys(handed).sort()).toEqual([
+      'actions',
+      'at',
+      'conflicts',
+      'controls',
+      'drawer',
+      'plan',
+    ])
     expect(handed['drawer']).toBeNull()
     expect(handed['conflicts']).toBeNull()
+    // `actions` is `null` here on purpose, and the zero-functions case below is why it must be: a seat's
+    // writes are bound to its token, and this file's walker cannot read a bound function's arguments. The
+    // screen's own prop says so as a sentence rather than by omission, so the day that gap is closed is a
+    // line somebody edits rather than a surface that quietly gained a write.
+    expect(handed['actions']).toBeNull()
     const groups = Object.values(handed['controls'] as Record<string, Record<string, unknown>>)
     expect(groups.flatMap((group) => Object.values(group)).every((one) => typeof one === 'boolean')).toBe(true)
   })

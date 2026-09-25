@@ -68,6 +68,15 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  * pages exist — and on the day they arrive this one line is a compile error rather than a seat screen
  * that goes on rendering without the panel it now has routes for.
  *
+ * `actions={null}` is a third such sentence, and its reason is narrower than a tier. A seat holding
+ * `manage` may place a feature, so the canvas's drag is a control this surface will eventually draw — but a
+ * seat's writes are bound to its token (`components/plan/seat-actions.ts`), and this page's own leak sweep
+ * cannot read a bound function's arguments: `page.test.tsx` records that as a KNOWN GAP and asserts
+ * instead that this surface hands over **no function at all**. Mounting the seat's writes is therefore the
+ * task that widens that sweep, and until then a seat holding `manage` reorders from the drawer's own
+ * controls rather than by dragging. Required and not optional, for the reason `drawer` is: this line is
+ * what makes that a decision somebody wrote down.
+ *
  * ### What the bootstrap's answer is spent on, and what is not handed down
  *
  * `PlanShareView` carries three things — `role`, `scope` and `plan: { id, name }` — and all three are
@@ -98,6 +107,7 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
   if (!plan.ok) return refused(plan.detail)
   return (
     <PlanScreen
+      actions={null}
       at={new Date()}
       conflicts={null}
       controls={planCapabilities(role, scope)}

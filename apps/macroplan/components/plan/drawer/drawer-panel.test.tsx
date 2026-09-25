@@ -70,7 +70,7 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
   name: 'Auth rewrite',
   estimateDays: 5,
   pinSprint: null,
-  place: { featureId: FEATURE_1, railId: EPIC_1 },
+  place: { featureId: FEATURE_1, railId: EPIC_1, siblingIds: [FEATURE_1, FEATURE_2], targets: [] },
   plan: { calendar: CALENDAR, features: atlasPlan().features },
   sizedByItems: false,
   ...over,
@@ -487,7 +487,7 @@ describe('the creates, which are about a parent and not about the subject', () =
     open({
       actions,
       row: ITEM_ROW,
-      values: valuesOf({ estimateDays: 3, name: 'Sessions', place: { featureId: FEATURE_1, railId: EPIC_1 } }),
+      values: valuesOf({ estimateDays: 3, name: 'Sessions', place: { featureId: FEATURE_1, railId: EPIC_1, siblingIds: [FEATURE_1, FEATURE_2], targets: [] } }),
     })
     const user = userEvent.setup()
     await user.click(screen.getByRole('textbox', { name: 'New item in this feature' }))
@@ -506,7 +506,7 @@ describe('the creates, which are about a parent and not about the subject', () =
   })
 
   it('draws no feature box where no epic of the plan claims the subject’s rail', () => {
-    open({ values: valuesOf({ place: { featureId: FEATURE_1, railId: null } }) })
+    open({ values: valuesOf({ place: { featureId: FEATURE_1, railId: null, siblingIds: [FEATURE_1, FEATURE_2], targets: [] } }) })
     expect(screen.queryByRole('textbox', { name: 'New feature on this rail' })).toBeNull()
     expect(screen.getByRole('textbox', { name: 'New item in this feature' })).toBeTruthy()
   })

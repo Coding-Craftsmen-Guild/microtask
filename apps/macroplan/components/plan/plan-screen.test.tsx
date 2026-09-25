@@ -4,9 +4,11 @@ import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
 import { planCapabilities, type PlanControls } from '../../lib/plan-capabilities'
+import type { PlanEditActions } from './edit-actions'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from './testing/plan-fixture'
+import { stubActions } from './testing/plan-writes'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
@@ -29,13 +31,18 @@ const CONFLICTS: ReactNode = <p data-testid="conflicts-marker">what is wrong wit
 //
 // `drawer` defaults to `null` here because that is what a surface with no drawer route passes: the
 // prop is required, so every case below states which of the two it is rendering.
+//
+// `actions` defaults to `null`, which is what `/s/<token>` passes and what every case about layout wants:
+// the writes decide whether the canvas's drag listens, and nothing else about this screen.
 const show = (
   controls: PlanControls = ADMIN_CONTROLS,
   drawer: ReactNode = null,
   conflicts: ReactNode = null,
+  actions: PlanEditActions | null = null,
 ) =>
   render(
     <PlanScreen
+      actions={actions}
       at={AT}
       conflicts={conflicts}
       controls={controls}
@@ -43,6 +50,9 @@ const show = (
       plan={planScreenModel(atlasPlan())}
     />,
   )
+
+const dragging = (container: HTMLElement): string | null =>
+  container.querySelector('[data-slot="drag-root"]')?.getAttribute('data-drag') ?? null
 
 const gridChildren = (container: HTMLElement): readonly Element[] => {
   const grid = container.firstElementChild
@@ -228,12 +238,29 @@ describe('the controls the screen is handed', () => {
     expect(screen.getByTestId(`row-${ITEM_1}`)).toBeTruthy()
   })
 
-  // This phase decides which controls to draw and draws none of them, so the two audiences' markup
-  // is identical — which is the assertion, not an accident of the fixture. The first task to draw a
-  // control has to change this case deliberately rather than discover it.
-  it('renders alike for the admin and for a view seat, this phase drawing none of them', () => {
+  // This case was "renders alike for the admin and for a view seat, this phase drawing none of them",
+  // and its own comment asked the first task to draw a control to change it deliberately. The canvas's
+  // drag is that control, and it is drawn from two answers rather than one — the writes this screen was
+  // handed, and `controls.placeFeature` — so the claim splits in two. **Handed no writes**, the two
+  // audiences' markup is still identical, which is what keeps the old assertion worth having: a surface
+  // that hands over nothing draws the same screen whatever its seat may do.
+  it('renders alike for the admin and for a view seat while it is handed no write at all', () => {
     const { container: admin } = show()
     const { container: seat } = show(planCapabilities('view', SEAT))
     expect(seat.innerHTML).toBe(admin.innerHTML)
+    expect(dragging(admin)).toBe('false')
+  })
+
+  it('listens for a drag once it holds the writes, and not for a seat that may not place', () => {
+    const actions = stubActions()
+    expect(dragging(show(ADMIN_CONTROLS, null, null, actions).container)).toBe('true')
+    const seat = show(planCapabilities('view', SEAT), null, null, actions)
+    expect(dragging(seat.container)).toBe('false')
+  })
+
+  it('refuses the drag to a write seat and offers it to a manage seat, which is where feature:place sits', () => {
+    const actions = stubActions()
+    expect(dragging(show(planCapabilities('write', SEAT), null, null, actions).container)).toBe('false')
+    expect(dragging(show(planCapabilities('manage', SEAT), null, null, actions).container)).toBe('true')
   })
 })

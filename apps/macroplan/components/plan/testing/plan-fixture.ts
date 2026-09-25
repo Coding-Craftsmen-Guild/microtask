@@ -29,6 +29,15 @@ export const PLAN_GONE = '01MPGGGGGGGGGGGGGGGGGGGGG9'
 /** Atlas's one rail, `Platform`. */
 export const EPIC_1 = '01MPEEEEEEEEEEEEEEEEEEEEE1'
 
+/** `Payments`, the second rail, which exists only in {@link railedPlan}. */
+export const EPIC_2 = '01MPEEEEEEEEEEEEEEEEEEEEE2'
+
+/** `Growth`, the third, which exists only in {@link railedPlan}. */
+export const EPIC_3 = '01MPEEEEEEEEEEEEEEEEEEEEE3'
+
+/** An epic id no plan's `epics` holds, for the rail {@link railedPlan} leaves unclaimed. */
+export const EPIC_UNCLAIMED = '01MPEEEEEEEEEEEEEEEEEEEEE9'
+
 /** `Auth rewrite`, the first feature on the rail. */
 export const FEATURE_1 = '01MPFFFFFFFFFFFFFFFFFFFFF1'
 
@@ -40,6 +49,12 @@ export const FEATURE_3 = '01MPFFFFFFFFFFFFFFFFFFFFF3'
 
 /** `Reporting`, which exists only in {@link tangledPlan}, where {@link FEATURE_3} waits on it. */
 export const FEATURE_4 = '01MPFFFFFFFFFFFFFFFFFFFFF4'
+
+/** `Onboarding`, which exists only in {@link railedPlan}, on the rail no epic there claims. */
+export const FEATURE_5 = '01MPFFFFFFFFFFFFFFFFFFFFF5'
+
+/** `Invoicing`, which exists only in {@link railedPlan}, second on its rail. */
+export const FEATURE_6 = '01MPFFFFFFFFFFFFFFFFFFFFF6'
 
 /**
  * A feature id {@link tangledPlan}'s schedule names and its manifest does not hold.
@@ -286,6 +301,68 @@ export const tangledPlan = (): StoredPlan =>
         { id: FEATURE_GONE, reason: 'no-estimate' },
       ],
       ignoredEdges: [{ featureId: FEATURE_3, dependsOnId: FEATURE_4 }],
+    },
+  })
+
+const railedEpics = () => [
+  { id: EPIC_1, name: 'Platform', colour: '#3b82f6', railOrder: 0 },
+  { id: EPIC_2, name: 'Payments', colour: '#f97316', railOrder: 1 },
+  { id: EPIC_3, name: 'Growth', colour: '#22c55e', railOrder: 2 },
+].map((one) => ({ ...one, binding: null, createdAt: CREATED, updatedAt: STAMP }))
+
+const railedFeatures = () =>
+  [
+    { id: FEATURE_1, epicId: EPIC_1, name: 'Auth rewrite', position: 0, estimateDays: 5 },
+    { id: FEATURE_2, epicId: EPIC_1, name: 'Billing', position: 1, estimateDays: null },
+    { id: FEATURE_3, epicId: EPIC_2, name: 'Checkout', position: 0, estimateDays: 4 },
+    { id: FEATURE_6, epicId: EPIC_2, name: 'Invoicing', position: 1, estimateDays: 3 },
+    { id: FEATURE_4, epicId: EPIC_3, name: 'Reporting', position: 0, estimateDays: 2 },
+    { id: FEATURE_5, epicId: EPIC_UNCLAIMED, name: 'Onboarding', position: 0, estimateDays: 3 },
+  ].map((one) => ({ ...one, pinSprint: null, dependsOn: [], createdAt: CREATED, updatedAt: STAMP }))
+
+/**
+ * Four rails, one of them unclaimed, one of them storing a feature that gets no bar.
+ *
+ * The shape every property about a **drag** is stated over, and the reason it is not {@link atlasPlan}: a
+ * canvas of one rail cannot show that a drop names the rail under the pointer rather than the only rail
+ * there is, and a rail whose bars are its whole feature list cannot tell a bar index apart from a stored
+ * position. So this holds all four shapes at once, in `railsOf`'s own order —
+ *
+ * - `Platform`, storing two features and drawing **one** bar: `Billing` has no estimate, so the forward
+ *   pass leaves it off the axis and `railLayout` omits it from `bars` while keeping it in `featureIds`.
+ *   That is the rail on which a drop that changes nothing and a drop one place along are different
+ *   numbers.
+ * - `Payments`, drawing two bars back to back, which is the rail a reorder is visible on.
+ * - `Growth`, drawing one.
+ * - the rail **no epic claims**, because `FEATURE_5`'s `epicId` names no epic here: `railsOf` gives it a
+ *   rail of its own ordered after every real one, `RailBox.colour` is `null` there, and `dropTargetFor`
+ *   refuses a drop on it.
+ *
+ * Its schedule is written out rather than derived, for {@link atlasPlan}'s reason — deriving one here
+ * would assert a second implementation of the forward pass — and it is coherent with the estimates:
+ * rails are independent, nothing waits on anything and nothing is pinned, so every rail starts at day 0
+ * and its bars run back to back.
+ *
+ * No items, so a rail's marks cannot be mistaken for its bars by a query that reads `[data-slot]`. The
+ * seats are {@link atlasPlan}'s three, so a sweep run over this plan is still run over a plan carrying
+ * live tokens.
+ */
+export const railedPlan = (): StoredPlan =>
+  atlasPlan({
+    epics: railedEpics(),
+    features: railedFeatures(),
+    items: [],
+    schedule: {
+      spans: [
+        { id: FEATURE_1, startDay: 0, endDay: 5 },
+        { id: FEATURE_3, startDay: 0, endDay: 4 },
+        { id: FEATURE_6, startDay: 4, endDay: 7 },
+        { id: FEATURE_4, startDay: 0, endDay: 2 },
+        { id: FEATURE_5, startDay: 0, endDay: 3 },
+      ],
+      cycles: [],
+      unscheduled: [{ id: FEATURE_2, reason: 'no-estimate' }],
+      ignoredEdges: [],
     },
   })
 

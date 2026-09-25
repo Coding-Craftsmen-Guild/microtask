@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { PlanControls } from '../../lib/plan-capabilities'
 import { PlanCanvas } from './canvas/plan-canvas'
+import type { PlanEditActions } from './edit-actions'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
 import { VIEW_SWITCH } from './view-switch'
@@ -27,15 +28,36 @@ export interface PlanScreenProps {
    * Each answer is a rendering answer and never a gate; `lib/plan-capabilities.ts` holds that
    * argument in full.
    *
-   * **Nothing this screen renders from these answers draws a control yet.** The canvas and the table
-   * below still draw none, and the drawer that now does is filled from the route rather than from here:
-   * a drawer page asks for its own `ADMIN_CONTROLS.content` because a layout cannot hand its children a
-   * prop, so the slot's controls do not arrive through this one. The conflict list that now fills
+   * **One answer is now spent here**, and it is `content.placeFeature`: with it and
+   * {@link PlanScreenProps.actions} together the canvas listens for a drag, and without either it draws the
+   * same timeline and listens for nothing (`canvas/drag-root.tsx`). That is a rendering answer and not a
+   * gate — the API is asked again at the instant of the drop — and it is the first of these this screen has
+   * read. The table below still draws no control, and the drawer that does is filled from the route rather
+   * than from here: a drawer page asks for its own `ADMIN_CONTROLS.content` because a layout cannot hand
+   * its children a prop, so the slot's controls do not arrive through this one. The conflict list that fills
    * {@link PlanScreenProps.conflicts} draws no control either — every link it draws is a navigation —
    * and it is handed no `PlanControls` at all: what decides whether it is drawn is which surface is
    * rendering rather than what the caller may do. The share manager is the task after this.
    */
   readonly controls: PlanControls
+
+  /**
+   * Every write of plan content, or `null` on a surface that hands none over.
+   *
+   * One member of it reaches a component from here — `placeFeature`, which the canvas's drag sends — and
+   * the rest are handed to the drawer by the route that fills {@link PlanScreenProps.drawer}, a layout
+   * being unable to pass its children a prop. Which of the two decides whether the drag is drawn is
+   * {@link PlanScreenProps.controls}: the object is the writes, the controls are the drawing answer, and
+   * the API is the gate (`lib/plan-capabilities.ts`).
+   *
+   * `null` today is `/s/<token>`, and the reason is specific rather than a tier: a seat's writes are bound
+   * to its token (`components/plan/seat-actions.ts`), and `app/s/[token]/page.test.tsx` asserts that this
+   * surface hands over **no function at all** — a stated known gap, since its leak sweep cannot read a
+   * bound function's arguments. Mounting them is the task that widens that sweep; until then a seat holding
+   * `manage` reorders from the drawer's own controls rather than by dragging, and this prop is required so
+   * that `actions={null}` is a sentence somebody wrote rather than a prop nobody passed.
+   */
+  readonly actions: PlanEditActions | null
 
   /**
    * The plan's own contradictions, or `null` on a surface that cannot link to the controls that fix
@@ -177,7 +199,8 @@ export interface PlanScreenProps {
  * the drawer slot, so lifting it out moves no sibling past another. `./plan-heading.tsx` taking one
  * `PlanScreenModel`, and this file keeps the grid, the slot and the switch.
  */
-export function PlanScreen({ plan, at, conflicts, drawer }: PlanScreenProps) {
+export function PlanScreen({ plan, at, actions, controls, conflicts, drawer }: PlanScreenProps) {
+  const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
     <div className="grid gap-4 pt-6">
       <div className="grid gap-1">
@@ -214,7 +237,7 @@ export function PlanScreen({ plan, at, conflicts, drawer }: PlanScreenProps) {
           Table
         </label>
         <div className={VIEW_SWITCH.scroller}>
-          <PlanCanvas at={at} plan={plan} />
+          <PlanCanvas at={at} place={place} plan={plan} />
         </div>
         <div className={VIEW_SWITCH.tablePanel}>
           <PlanTable plan={plan} />

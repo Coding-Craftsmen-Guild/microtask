@@ -24,7 +24,12 @@ describe('resolving the one subject a drawer is open on', () => {
       name: 'Auth rewrite',
       estimateDays: 5,
       pinSprint: null,
-      place: { featureId: FEATURE_1, railId: EPIC_1 },
+      place: {
+        featureId: FEATURE_1,
+        railId: EPIC_1,
+        siblingIds: [FEATURE_1, FEATURE_2],
+        targets: [],
+      },
       plan: {
         calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
         features: atlasPlan().features,
@@ -200,11 +205,13 @@ describe('the calendar it carries, which is the plan’s three scheduling fields
   })
 })
 
-describe('the place group, which is the two parents a create adds a sibling under', () => {
+describe('the place group, which is where this subject sits and the parents around it', () => {
   it('answers a feature its own id as the parent a new item joins, and its epic as the rail', () => {
     expect(drawerSubject(plan(), 'feature', FEATURE_1)?.values.place).toEqual({
       featureId: FEATURE_1,
       railId: EPIC_1,
+      siblingIds: [FEATURE_1, FEATURE_2],
+      targets: [],
     })
   })
 
@@ -214,7 +221,47 @@ describe('the place group, which is the two parents a create adds a sibling unde
     expect(drawerSubject(plan(), 'item', ITEM_1)?.values.place).toEqual({
       featureId: FEATURE_1,
       railId: EPIC_1,
+      siblingIds: [ITEM_1, ITEM_2],
+      targets: [{ id: FEATURE_2, name: 'Billing' }],
     })
+  })
+
+  it('orders the siblings by their stored positions, so an index in the list is a position', () => {
+    const reversed = plan({
+      items: atlasPlan()
+        .items.map((one) => (one.id === ITEM_1 ? { ...one, position: 5 } : one))
+        .reverse(),
+    })
+    expect(drawerSubject(reversed, 'item', ITEM_1)?.values.place.siblingIds).toEqual([ITEM_2, ITEM_1])
+  })
+
+  // A feature moves between **rails** and an item between **features**, because that is what each
+  // placement payload names — and neither list holds the subject's own parent, so no control can offer to
+  // move it where it already is.
+  it('offers a feature the plan’s other rails, named, and never the rail it is already on', () => {
+    const twoRails = plan({
+      epics: [
+        ...atlasPlan().epics,
+        {
+          id: 'epic-two',
+          name: 'Payments',
+          colour: '#112233',
+          railOrder: 1,
+          binding: null,
+          createdAt: '2026-09-01T09:00:00.000Z',
+          updatedAt: '2026-09-01T09:00:00.000Z',
+        },
+      ],
+    })
+    expect(drawerSubject(twoRails, 'feature', FEATURE_1)?.values.place.targets).toEqual([
+      { id: 'epic-two', name: 'Payments' },
+    ])
+  })
+
+  it('offers an item the plan’s other features and never the one it is under', () => {
+    expect(drawerSubject(plan(), 'item', ITEM_3)?.values.place.targets).toEqual([
+      { id: FEATURE_1, name: 'Auth rewrite' },
+    ])
   })
 
   it('answers the item’s own feature and not the plan’s first, for an item on another feature', () => {
@@ -234,8 +281,19 @@ describe('the place group, which is the two parents a create adds a sibling unde
     expect(drawerSubject(plan({ epics: [] }), 'item', ITEM_2)?.values.place.railId).toBeNull()
   })
 
-  it('carries exactly two members, so nothing feature-shaped or plan-shaped rides along in it', () => {
+  it('carries exactly four members, so nothing feature-shaped or plan-shaped rides along in it', () => {
     const place = drawerSubject(plan(), 'item', ITEM_1)?.values.place
-    expect(Object.keys(place ?? {}).sort()).toEqual(['featureId', 'railId'])
+    expect(Object.keys(place ?? {}).sort()).toEqual([
+      'featureId',
+      'railId',
+      'siblingIds',
+      'targets',
+    ])
+  })
+
+  it('carries ids and names and nothing else in a target, so no record rides along in one', () => {
+    const targets = drawerSubject(plan(), 'item', ITEM_3)?.values.place.targets ?? []
+    expect(targets.length).toBeGreaterThan(0)
+    for (const target of targets) expect(Object.keys(target).sort()).toEqual(['id', 'name'])
   })
 })

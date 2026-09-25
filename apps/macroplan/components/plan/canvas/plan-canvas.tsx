@@ -1,5 +1,6 @@
 import type { DayRange, PlanScale } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
+import { DragRoot, type FeaturePlace } from './drag-root'
 import { QuarterBandLayer } from './quarter-bands'
 import { Rail } from './rail'
 import { SprintTickLayer } from './sprint-ticks'
@@ -28,6 +29,21 @@ export interface PlanCanvasProps {
 
   /** The px per working day and the label gutter. Defaults to {@link CANVAS_SCALE}. */
   readonly scale?: PlanScale
+
+  /**
+   * The placement write a drag sends, or `null` on a surface where a bar may not be moved.
+   *
+   * Required and not optional, for the reason `PlanScreen`'s two slots are: `place={null}` is a sentence
+   * the surface states — "this canvas is read-only" — where an omitted prop is a question nobody asked,
+   * and it makes a surface that gains the write a compile error rather than a drawing that quietly stays
+   * inert. It is one member of `PlanEditActions` and never the object, so nothing under here can reach a
+   * second write (`./drag-root.tsx`).
+   *
+   * It is **not** a capability check. `lib/plan-capabilities.ts` decides whether a control is drawn and
+   * the API decides whether the write lands; a `null` here is the drawing answer and the route is asked
+   * again at the instant of the drop.
+   */
+  readonly place: FeaturePlace | null
 }
 
 /**
@@ -53,6 +69,14 @@ export interface PlanCanvasProps {
  * rung, and a canvas gated on the epic rung draws no bars. Phase 3's zoom and pan will pass them; the
  * admin page takes the defaults, which are one quarter and therefore the feature rung.
  *
+ * ### One client wrapper, and the `<svg>` still server-rendered inside it
+ *
+ * `./drag-root.tsx` is the only `'use client'` file under this directory, and this component's whole
+ * output is nested inside it as `children`. Nothing about the drawing changes: no bar becomes a client
+ * component, no per-bar prop enters the Flight payload, and the 2,000-node budget `./item-mark.tsx`
+ * defends is untouched. What crosses into it is the two fields of the scale, the axis's x out of this one
+ * `canvasLayout` call, the plan's id, and the write — never the plan, the layout or a token.
+ *
  * ### `role="img"`, and the honest version of that
  *
  * An SVG is invisible to a screen reader without help, and this one is a picture rather than a
@@ -77,33 +101,42 @@ export interface PlanCanvasProps {
 export function PlanCanvas({
   plan,
   at,
+  place,
   range = CANVAS_RANGE,
   scale = CANVAS_SCALE,
 }: PlanCanvasProps) {
   const { rails, height, width, viewBox, names, unplaced, frame } = canvasLayout(plan, range, scale)
   return (
-    <svg
-      aria-label={`Timeline of ${plan.name}`}
-      className={CANVAS}
-      data-slot="plan-canvas"
-      height={height}
-      role="img"
-      viewBox={viewBox}
-      width={width}
+    <DragRoot
+      axisX={frame.axisX}
+      gutter={scale.gutter}
+      place={place}
+      planId={plan.id}
+      pxPerDay={scale.pxPerDay}
     >
-      <QuarterBandLayer height={height} plan={plan} range={range} scale={scale} />
-      <SprintTickLayer height={height} plan={plan} range={range} scale={scale} />
-      {rails.map((rail, index) => (
-        <Rail
-          frame={frame}
-          key={rail.epicId}
-          name={names.get(rail.epicId)}
-          rail={rail}
-          top={railTop(index)}
-          unplaced={unplaced.get(rail.epicId) ?? []}
-        />
-      ))}
-      <TodayMark at={at} height={height} plan={plan} scale={scale} />
-    </svg>
+      <svg
+        aria-label={`Timeline of ${plan.name}`}
+        className={CANVAS}
+        data-slot="plan-canvas"
+        height={height}
+        role="img"
+        viewBox={viewBox}
+        width={width}
+      >
+        <QuarterBandLayer height={height} plan={plan} range={range} scale={scale} />
+        <SprintTickLayer height={height} plan={plan} range={range} scale={scale} />
+        {rails.map((rail, index) => (
+          <Rail
+            frame={frame}
+            key={rail.epicId}
+            name={names.get(rail.epicId)}
+            rail={rail}
+            top={railTop(index)}
+            unplaced={unplaced.get(rail.epicId) ?? []}
+          />
+        ))}
+        <TodayMark at={at} height={height} plan={plan} scale={scale} />
+      </svg>
+    </DragRoot>
   )
 }

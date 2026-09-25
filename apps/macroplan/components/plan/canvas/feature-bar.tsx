@@ -53,13 +53,31 @@ export interface FeatureBarMarkProps {
  * split is argued: a `#rrggbb` from the API is one of an unbounded set and no Tailwind class can be
  * chosen by a runtime value, while a treatment is a closed three-case union whose every class is
  * written out as a literal the scanner can read.
+ *
+ * ### The two days are carried as attributes, and that is what a drop is resolved against
+ *
+ * `data-start-day` and `data-end-day` are this bar's own `startDay` and `endDay`, written out beside
+ * the geometry they were turned into. Nothing on this canvas reads them; `./selection.ts` does, and it
+ * is what a drag needs: a client component may be handed primitives, an unbound function or `null` and
+ * nothing else (`../module-boundaries.test.tsx`), so the layout cannot cross into a drag as a prop, and
+ * the drag rebuilds the `RailBox[]` it hands `dropTargetFor` out of the markup the server drew. Those
+ * two numbers are the only members of a `FeatureBar` the geometry does not leave in the SVG.
+ *
+ * They are **carried** rather than derived from `x` and `width` on the way back, which would be the
+ * obvious saving. `xToDay` is the documented inverse of `dayToX` and would answer `startDay` exactly,
+ * but a width has no exported inverse at all, so the app would be dividing by `pxPerDay` itself — the
+ * one thing ADR 0055 puts in `@repo/canvas` rather than in a component. Two attributes on at most
+ * `LIMITS.featuresPerPlan` rects is the cheaper half of that trade, and `item-mark.tsx`'s budget is
+ * about **elements** rather than attributes, so nothing there is touched.
  */
 export function FeatureBarMark({ bar, colour, treatment, top }: FeatureBarMarkProps) {
   return (
     <rect
       className={TREATMENT_CLASS[treatment]}
+      data-end-day={bar.endDay}
       data-feature-id={bar.id}
       data-slot="feature-bar"
+      data-start-day={bar.startDay}
       data-treatment={treatment}
       height={LAYOUT.barHeight}
       rx={BAR_RADIUS}

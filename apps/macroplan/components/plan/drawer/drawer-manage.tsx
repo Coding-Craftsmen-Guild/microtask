@@ -5,6 +5,7 @@ import { DeleteControl } from './delete-control'
 import { DependencyEditor } from './dependency-editor'
 import { EDITS } from './field'
 import { PinField } from './pin-field'
+import { PlaceControls } from './place-controls'
 import { removalFor } from './subject-writes'
 import type { DrawerValues } from './values'
 
@@ -81,7 +82,11 @@ export interface DrawerManageProps {
  * **kind chooses the write**. That choice is `removalFor`'s and never a caller's (`./subject-writes.ts`),
  * because `removeFeature` and `removeItem` take ids of types the compiler cannot tell apart and a delete
  * sent to the wrong route is the one mistake in this band that cannot be taken back. `item:place` is the
- * same shape of control, which is the second reason this file must not split by row kind.
+ * same shape of control, which is the second reason this file must not split by row kind. Both have now
+ * arrived, in one group that asks the kind for both halves of the answer — `./place-controls.tsx`, which is
+ * mounted here unconditionally and draws nothing where the kind, the controls or the parent say so. That
+ * group is the **third** in this band, and it makes the file's own argument concrete: every control here is
+ * `manage`-tier, and a seat holding `write` and not `manage` is shown this whole band or none of it.
  */
 export function DrawerManage({
   planId,
@@ -113,6 +118,13 @@ export function DrawerManage({
           setDependencies={actions.setDependencies}
         />
       ) : null}
+      <PlaceControls
+        actions={actions}
+        controls={controls}
+        planId={planId}
+        row={row}
+        values={values}
+      />
       {removal.deletable ? (
         <DeleteControl
           closeHref={closeHref}

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
 import { ConflictList } from '../../../../components/plan/conflicts/conflict-list'
 import { PlanScreen } from '../../../../components/plan/plan-screen'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
@@ -87,6 +88,14 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  * one from (`lib/admin-controls.ts`). The seat page asks `planCapabilities` for its own answers and
  * hands down the same shape, which is what lets one screen serve both audiences.
  *
+ * It also hands down `ADMIN_PLAN_ACTIONS`, and this is the first **page** in this app to hand a component a
+ * Server Action. Every member is a module function imported by name, so reflection can see all there is to
+ * see of one, and `layout.test.tsx` asserts exactly that: the eighteen names and nothing beginning with
+ * `bound `, which is what `Function.prototype.bind` would name a closure carrying a credential (ADR 0040).
+ * The screen spends one of them — `placeFeature`, which the canvas's drag sends — and the drawer pages get
+ * their own copy of the object rather than this one, a layout being unable to hand its children a prop.
+ * `/s/<token>` hands `null` instead, and its own page says why.
+ *
  * ### The two refusals, and which page each lands on
  *
  * A plan the API does not hold, and an id that is not a ULID, are both `notFound()` — argued in
@@ -112,6 +121,7 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
   }
   return (
     <PlanScreen
+      actions={ADMIN_PLAN_ACTIONS}
       at={new Date()}
       conflicts={<ConflictList plan={loaded.value} />}
       controls={ADMIN_CONTROLS}
