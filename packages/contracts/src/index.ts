@@ -52,6 +52,15 @@ export {
   SprintIndex,
   Timezone,
 } from './plan.js'
+export {
+  BindEpicPayload,
+  BoundTaskList,
+  BridgeEpicRow,
+  BridgeItemRow,
+  EpicBindingView,
+  LinkItemPayload,
+  PlanBridgeView,
+} from './bridge.js'
 export { SearchResult, SearchResults } from './search.js'
 export {
   IgnoredEdge,
