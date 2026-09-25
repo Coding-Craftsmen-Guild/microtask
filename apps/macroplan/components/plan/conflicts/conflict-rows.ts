@@ -182,6 +182,14 @@ const unscheduledRow = (entry: Unscheduled, known: ReadonlyMap<string, string>):
  * too", so an item carrying that reason appears in no `cycles` entry anywhere and a sentence
  * pointing at the list above it would be pointing at a line that does not name it.
  *
+ * A cycle's sentence is the **indicative** one, and there is a subjunctive one elsewhere:
+ * `../drawer/cycle-check.ts` refuses a write that would close a cycle with "These features would wait
+ * on each other: …". The tense is the whole difference and it is load-bearing, so neither file can use
+ * the other's string. This one is about a cycle the stored plan **holds**, so it carries the
+ * consequence the forward pass reported — "so neither was placed" — where a refused write leaves
+ * nothing placed or unplaced to report. A reader who finds one of the two should be able to find the
+ * other.
+ *
  * An ignored edge's sentence says the feature **was placed**, which is the one thing about it that
  * a reader can otherwise get wrong. `@repo/canvas` refuses to give it a treatment for the same
  * reason, in `Treatment`'s own words: "A feature named there is in `spans`, so it is `'solid'`

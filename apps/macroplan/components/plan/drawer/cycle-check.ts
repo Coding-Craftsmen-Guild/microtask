@@ -94,6 +94,13 @@ export const SELF_EDGE = 'A feature cannot wait on itself.'
  * lost write and false of a cycle. The wording is kept and the ids are replaced by the names on
  * screen, so the two halves of the product say the same thing in the terms each audience has.
  *
+ * **This is the subjunctive one.** `../conflicts/conflict-rows.ts` words cycles too, and the two
+ * sentences are not one string with a variable in it: that one is about a cycle the **stored** plan
+ * holds and is indicative with a consequence — "Auth and Billing wait on each other, so neither was
+ * placed" — where this is about a write that is being **refused**, so nothing has been placed or left
+ * unplaced and there is no consequence to report. Neither file can use the other's string, and a
+ * reader of either should know the other exists.
+ *
  * @param names - The features of one cycle, already in the order they should be read.
  * @returns The sentence to put in front of the user instead of sending the write.
  */
@@ -198,20 +205,38 @@ export function edgeEntry(
  * One row per other feature of the plan: what it is called, whether this one waits on it, and both
  * answers the click needs.
  *
- * **The candidate list is this plan's features and never a search.** Spec §8 records cross-plan
- * dependencies as rejected and ADR 0050 is why — an id that names nothing in this plan is refused
- * rather than followed — so every candidate there could ever be is already in this argument. The
- * subject itself is left out, a self-edge being refused separately and so not a choice to offer.
+ * **Every candidate there could ever be is already in this argument, so nothing here looks anywhere
+ * else.** Spec §8 records cross-plan dependencies as rejected and ADR 0050 is why — an id that names
+ * nothing in this plan is refused rather than followed — which settles what the candidate *set* is and
+ * nothing about how many of it a screen should draw at once. The subject itself is left out, a
+ * self-edge being refused separately and so not a choice to offer.
  *
- * The whole cost of the design is paid here: for each candidate **both** lists a click on it could
- * send are put through the same three refusals {@link edgeEntry} asks, so a row carries its own two
- * refusals as strings and the graph never crosses into the browser. That is `findCycles` twice per
- * candidate — linear in features plus edges each time, against a plan capped at 200 features and 400
- * edges. The plan-wide edge total and this feature's own share of it are read **once** for the whole
- * list rather than once per candidate: neither changes between rows, the subject's stored list being
- * the one thing every row is built from. Nothing is deduped per row either, because the stored list is
- * already a set — the service writes `[...new Set(dependsOn)]` — and a candidate is only ever added
- * to a list that does not name it.
+ * ### The cost, in CPU and in payload, and one of the two is the interesting one
+ *
+ * For each candidate **both** lists a click on it could send are put through the same three refusals
+ * {@link edgeEntry} asks, so a row carries its own two refusals as strings and the graph never crosses
+ * into the browser. That is `findCycles` twice per candidate — linear in features plus edges each time,
+ * against a plan capped at 200 features and 400 edges. The plan-wide edge total and this feature's own
+ * share of it are read **once** for the whole list rather than once per candidate: neither changes
+ * between rows. Nothing is deduped per row either, because the stored list is already a set — the
+ * service writes `[...new Set(dependsOn)]` — and a candidate is only ever added to a list that does
+ * not name it.
+ *
+ * The **payload** is the larger number and is not CPU. Every row is a client component, so its props
+ * are serialised into the Flight payload and land in the HTML, and `storedIds` is the subject's whole
+ * list repeated once per row. Measured over a plan at `LIMITS.featuresPerPlan`: a feature waiting on
+ * all 199 others ships **about 1.1 MB** for one drawer open — 199 rows × a 5,372-byte list — nearly
+ * all of it the same string. A feature with three edges ships about **56 KB**, and one with none about
+ * **41 KB**, which is the floor two ids and a name per row cost; a plan already holding a cycle adds
+ * both sentences to every row, roughly 30 KB more. A local filter over the rows would cut what is
+ * *drawn* and not what is sent — the payload is decided here, on the server — so the thing that would
+ * cut it is shipping the list once for the editor instead of once per row, which needs a shared client
+ * node the boundary rule does not currently admit: `children` is neither a primitive, an unbound
+ * function nor `null` (`../module-boundaries.test.tsx`).
+ *
+ * That ceiling is also where 199 tab stops in one fieldset live, and neither is authorised by §8: the
+ * spec fixes the candidate set and says nothing about the control. Both are the same unbuilt thing —
+ * a way to narrow the list — and this file is where the price of not having it is recorded.
  *
  * @param features - Every feature of the plan, as stored.
  * @param featureId - The feature the drawer is open on.

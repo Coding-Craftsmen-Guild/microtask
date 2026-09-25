@@ -244,6 +244,44 @@ describe('the cycle refusal this phase is gated on', () => {
   })
 })
 
+// The refusal is worked out on the server and shipped to the row, so withholding it until the user
+// clicked a box that snapped back was telling them something the row already knew, after the fact.
+// It is the row's hint now, which is a message and not a gate — nothing is disabled and every click
+// the local check passes is still sent.
+describe('the refusal a row already knows, said before the click rather than after it', () => {
+  const hintOf = (name: string): string => {
+    const described = box(name).getAttribute('aria-describedby') ?? ''
+    return document.getElementById(described)?.textContent ?? ''
+  }
+
+  it('describes the box that would close a cycle before anything has been clicked', () => {
+    setup(FEATURE_1)
+    expect(hintOf('Billing')).toBe('These features would wait on each other: Auth rewrite, Billing.')
+    expect(said()).toEqual([])
+    expect(box('Billing').getAttribute('aria-invalid')).toBeNull()
+  })
+
+  it('describes nothing on a box whose click the local check has nothing to say about', () => {
+    setup(FEATURE_1)
+    expect(box('Reporting').getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('says it once, the alert replacing the hint rather than standing beside it', async () => {
+    const { user } = setup(FEATURE_1)
+    await user.click(box('Billing'))
+    expect(said()).toEqual(['These features would wait on each other: Auth rewrite, Billing.'])
+    expect(hintOf('Billing')).toBe('These features would wait on each other: Auth rewrite, Billing.')
+    expect(box('Billing').getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('is still no gate: a click on a described box is refused locally and sends nothing', async () => {
+    const { onWrite, user } = setup(FEATURE_1)
+    expect(box('Billing').hasAttribute('disabled')).toBe(false)
+    await user.click(box('Billing'))
+    expect(onWrite).not.toHaveBeenCalled()
+  })
+})
+
 // The local check is a message and never a gate: the write is still sent in every case it passes, and
 // whatever comes back is rendered under the box that sent it.
 describe('the API stays the authority, and its refusal is what is shown', () => {

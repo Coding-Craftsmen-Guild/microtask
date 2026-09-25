@@ -63,7 +63,18 @@ export interface DependencyToggleProps {
  * against what this browser has actually sent. That is also the immediate undo — a second click on
  * the same box takes the edge back rather than re-sending it and snapping the box to ticked again.
  *
- * ### The refusal is a message, never a gate
+ * ### The refusal is said before the click, and is still never a gate
+ *
+ * The refusal that applies to this box's next click is the row's **hint**: the local check worked it
+ * out on the server and shipped it here, and withholding it until the user clicked a box that snapped
+ * back was telling them something the row already knew, after the fact. `FieldShell` names the hint
+ * and then the refusal in `aria-describedby`, so a reader tabbing onto the box hears why it would be
+ * refused; the alert line stays for what the **write** came back with, and the hint stands down while
+ * one is standing so the same sentence is never on screen twice.
+ *
+ * Showing it changes nothing about who decides. The box is not disabled and the click is not swallowed
+ * — the write is still sent in every case the local check passes — so this is a message about the
+ * click, not a gate on it, which is the same thing the alert line was.
  *
  * A refusal is the local check's answer, and the API is still the authority: the write is sent in
  * every case the local check passes, and whatever comes back — a 403 for a seat re-roled since the
@@ -99,6 +110,7 @@ export function DependencyToggle(row: DependencyToggleProps) {
   const box = useRef<HTMLInputElement>(null)
   const [problem, setProblem] = useState('')
   const waiting = splitEdges(row.storedIds).includes(row.candidateId)
+  const refusal = waiting ? row.removeRefusal : row.addRefusal
   useEffect(() => {
     forgetEdges(row.planId, row.featureId)
     paint(box.current, splitEdges(row.storedIds).includes(row.candidateId))
@@ -119,7 +131,7 @@ export function DependencyToggle(row: DependencyToggleProps) {
   return (
     <FieldShell
       fieldId={`plan-drawer-depends-${row.candidateId}`}
-      hint={null}
+      hint={problem === '' && refusal !== '' ? refusal : null}
       label={row.candidateName}
       problem={problem}
     >

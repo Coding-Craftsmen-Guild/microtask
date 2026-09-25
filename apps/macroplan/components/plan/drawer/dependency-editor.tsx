@@ -32,12 +32,21 @@ export interface DependencyEditorProps {
  * `dependsOn` at all (`packages/contracts/src/plan.ts`), so the omission is the contract's rather than
  * this component's, and `./drawer-manage.tsx` asks `row.kind === 'feature'` before mounting this.
  *
- * The candidate list is **this plan's features and never a search**. Spec §8 records cross-plan
- * dependencies as rejected and ADR 0050 is the rule behind it — an id naming something outside the
- * plan is refused rather than followed — so every candidate there could ever be is already in the
- * `features` prop, and nothing here has anywhere else to look. A plan holding one feature gets
+ * The candidate list is **this plan's features, so there is nothing to search**. Spec §8 records
+ * cross-plan dependencies as rejected and ADR 0050 is the rule behind it — an id naming something
+ * outside the plan is refused rather than followed — so every candidate there could ever be is already
+ * in the `features` prop, and nothing here has anywhere else to look. A plan holding one feature gets
  * {@link NOTHING_TO_WAIT_ON} rather than an empty list, an empty control being indistinguishable from
  * a broken one.
+ *
+ * That settles where the candidates come from and **not** how many of them a screen should draw. §8
+ * licenses no remote lookup; it licenses no unfiltered fieldset either, and at
+ * `LIMITS.featuresPerPlan` this one is 199 boxes a keyboard tabs through in order, whose props are
+ * about 1.1 MB of Flight payload in the worst case (`./cycle-check.ts` measures it). A **local** filter
+ * over the rows — no search, the list being complete already — is what would fix the tabbing half, and
+ * it is not built here: it is a control with its own state, its own label and its own accessible
+ * relationship to the group, and this file is the place that records the debt rather than the place to
+ * pay it in passing.
  *
  * ### The whole list, because the route replaces it
  *

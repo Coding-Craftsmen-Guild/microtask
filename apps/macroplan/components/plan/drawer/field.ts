@@ -357,8 +357,11 @@ const EDGE_SEPARATOR = ' '
  * These two live here rather than beside the cycle check that builds the string for the reason
  * {@link LABEL} gives: `./cycle-check.ts` imports `findCycles` as a **value**, and a client control
  * importing the codec from there would pull the graph walk into the browser bundle to reach a
- * `join`. This module names `@repo/contracts` and nothing else, which is why every client field in
- * this drawer already imports it.
+ * `join`. This module's only **value** import is `@repo/contracts`; the three other modules it names
+ * — `@repo/api-client`, `../../../actions/result` and `react` — are each reached through an
+ * `import type` that compiles to nothing, the phrasing `./values.ts` uses for the same property. So
+ * what a client field importing this costs the browser is two numbers, which is why every client
+ * field in this drawer already imports it.
  */
 export const joinEdges = (ids: readonly string[]): string => ids.join(EDGE_SEPARATOR)
 

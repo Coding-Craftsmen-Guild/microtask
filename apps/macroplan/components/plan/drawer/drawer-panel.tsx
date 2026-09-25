@@ -76,7 +76,9 @@ export interface DrawerPanelProps {
  * one of them (`packages/kernel/src/access/policy.ts`, and `./drawer-manage.tsx` argues it). Each
  * draws its own `EDITS` band with its own `empty:hidden`, so a tier a surface may write nothing in is
  * a tier it is shown no bordered box for — and a read-only seat is shown neither. They take the same
- * five props, which is what keeps this file's own props stable as either grows.
+ * props out of this one set — `planId`, `row`, `values`, `controls`, `actions`, and `description` for
+ * the band that holds the one control an item's text is edited by — which is what keeps this file's
+ * own props stable as either grows.
  *
  * The read half is two elements rather than one: the facts `<dl>` and, under it,
  * `./breakdown-line.tsx`'s one sentence about which of a feature's two estimates the timeline used.
