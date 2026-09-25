@@ -1349,6 +1349,15 @@ and 10 before starting.
       and draws the ghost from the result. Do not hand-patch offsets: a patched span and a derived one disagreeing
       is the class of bug ADR 0048 exists to prevent.
 
+      **This step contradicts Step 6 and Step 6 wins.** Calling `schedule()` in the browser needs a whole
+      `PlanStructure` there, and Step 6 forbids any client file under `components/plan/**` from receiving a whole
+      plan — the rule phase 2 built and ADR 0033 argues. Task 16 found the contradiction and resolved it the only way
+      that keeps both guarantees: the ghost is the moving rect plus a refused state derived from `dropTargetFor`,
+      and no plan crosses. This plan's own file list agrees, calling `drag-ghost.tsx` "the moving rect", singular.
+      §3.4's budget sentence stays true — the pass really is that cheap — it is simply not spendable on this side of
+      the boundary. Whoever wants a full live preview must first answer how a plan reaches a client component, which
+      is a different decision from this one.
+
 - [ ] **Step 4: undo is a compensating placement, one step deep.** Read the feature's `(epicId, position)` from
       the plan **before** the drop, and keep it. On undo, send the same `place` call with those values. It is one
       step, it is cleared by any other write, and it is not a history — a stack would need every write to be
@@ -1359,12 +1368,22 @@ and 10 before starting.
       than mounting the never-used `sonner` Toaster for one affordance.
 
 - [ ] **Step 5: this is the phase gate's second half — "a test asserts nothing auto-moves".** Assert it as a
-      property, over a real placement against the fake API: after moving one feature, **every other feature's
+      property: after moving one feature, **every other feature's
       `position`, `railOrder` and `pinSprint` is byte-for-byte what it was**. Spans change — that is derivation,
       and spec §3.4 says the schedule is derived on read and never stored — but nothing the user did not move has
       moved. Spec §8 records auto-scheduling and a constraint solver as **rejected**: "Validation only. Dates are
       derived, never repaired." A solver that silently moved an executive's committed plan is named in §6 as a
       worse failure than a visible contradiction, and this test is what keeps that true.
+
+      **"Over a real placement against the fake API" is not available, and the gate is therefore in two halves.**
+      `testing/fake-plan-api.ts` answers 405 to every non-GET, and `testing/recording-admin.ts` says in its own words
+      that it is not a store, so "no test here may assert that a write was applied — asserting it from an app test
+      would be a second implementation of the forward pass". Task 16 established that. The half that asserts the
+      *store* does not move anything already exists, in
+      `packages/macroplan-domain/src/services/cascade.test.ts` ("nothing auto-moves when a feature is deleted from
+      the middle of a rail"); the half this task owes asserts what the **surface** sends and holds. **Task 18's audit
+      must name both**, because a reader looking for one test satisfying the spec's sentence will not find it and
+      should not conclude the gate is missing.
 
       Also assert the no-op: dropping a feature back where it started sends **no request at all**. The oracle is
       **the answer `dropTargetFor` gives for the bar's own x** — compare the placement you are about to send with
@@ -1390,9 +1409,16 @@ expect(railAtY(railTop(i) + 1, rails, LAYOUT)).toBe(rails[i])
       **Then make the subset relation a compile error rather than a coincidence.** `LAYOUT` satisfies
       `@repo/canvas`'s `RailMetrics` structurally — all `readonly` numbers, and passing the identifier rather than a
       fresh literal means no excess-property check — so `dropTargetFor(…, LAYOUT)` compiles today by hand-maintained
-      luck. Write it `export const LAYOUT = { … } as const satisfies RailMetrics`. Then renaming a field in either
-      package is a compile error here instead of a surprise at the call site, which is what Task 5 accepted as the
-      residual cost of passing the metrics in rather than moving them.
+      luck. Make it a compile error, so renaming a field in either package fails here instead of surprising a call
+      site — the residual cost Task 5 accepted when it passed the metrics in rather than moving them.
+
+      **Not with the plain `as const satisfies RailMetrics` this step used to prescribe: that does not compile.**
+      `satisfies` runs an excess-property check against an object *literal*, and `LAYOUT` carries eight fields
+      `RailMetrics` does not name, so each is rejected. Task 16 found this and wrote
+      `as const satisfies RailMetrics & Record<string, number>`, which keeps the rename guarantee in both directions
+      while admitting the extra fields — and recorded in the TSDoc both why the plain form is impossible and what the
+      intersection still cannot check. A plan prescribing a snippet should be read as prescribing the *property*; if
+      the snippet does not compile, the property is what survives.
 
 - [ ] **Step 5c: the drop refuses a gutter only on a canvas that starts at day 0, and this is where that stops
       being true.** `dropTargetFor` refuses a point whose x names a day before **day 0**. `view.ts`'s `gutterX`
