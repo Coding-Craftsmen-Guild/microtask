@@ -1231,8 +1231,21 @@ tested.
 - Modify: `apps/macroplan/components/plan/plan-screen.tsx`
 
 - [ ] **Step 1: render Task 6's rows, server-side, with no client boundary.** Three sections, each with a heading
-      that says what the section means, and nothing at all when there are no conflicts. It is the fourth thing
-      mounted beside the canvas and the table, so it takes `PlanScreenModel` like they now do.
+      that says what the section means, and nothing at all when there are no conflicts. It takes `PlanScreenModel`
+      as the canvas and the table now do.
+
+      **But it cannot mount where they mount, and this step was wrong to say it is "the fourth thing beside the
+      canvas and the table".** Those two are surface-agnostic; this list is not. Every link a conflict row draws is
+      an **admin** drawer path, and `/s/[token]` renders the very same `PlanScreen` — so a list mounted
+      unconditionally inside that component sends a seat holder who follows a row to `/login?next=…`, asking for a
+      password ADR 0032 says they do not have. `controls` cannot rescue it either: a `manage` seat has no cookie, so
+      the question is *which surface is rendering*, which no component under the screen can answer.
+
+      So it is a **slot on `PlanScreen` that each page fills** — the layout with the list, the seat page with `null`
+      — required rather than optional, for the reason the `drawer` slot is: when the seat surface gains the drawer
+      routes `drawer-routes.ts` is holding two builders back for, that `null` is a line somebody must revisit rather
+      than an absence nobody notices. Not a sibling *after* the screen either: the table is always mounted and 2,200
+      rows tall at this product's cap, so anything after it sits thousands of rows below the plan's name.
 
 - [ ] **Step 2: a conflict row links to the thing it names.** Each row's feature is a drawer link built from
       `lib/drawer-routes.ts`, so the list is how a user gets from "this is wrong" to the control that fixes it.
