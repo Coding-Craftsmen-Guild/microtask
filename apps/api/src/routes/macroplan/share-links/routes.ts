@@ -23,6 +23,14 @@ import { planParams, planShareLinkParams } from '../params.js'
  * under `own-scope`: the narrowest scope a holder can mint over is the one it already holds. For a
  * plan-scoped holder that is this same plan, so the effective question is the plan — asked as the
  * scope being minted so the rule stays true if spec §7.1's epic variant ever arrives.
+ *
+ * Declares **409** beyond the common set, as `PUT …/dependencies` does and for a reason of its own.
+ * Every write here goes through `PlanShareLinkService.#save`, which records the plan's whole token
+ * set through `ShareIndex.add` before the manifest is written — and that call throws `Conflict` for a
+ * token some **Microtask project** already holds, the two products drawing their ids and their tokens
+ * from one index and separate sequences (ADR 0054). `errorHandler` passes an `AppError`'s status
+ * through untouched, so the route really can answer 409 and said it could not. This is the route
+ * where a *fresh* token is the colliding one; the two below collide differently.
  */
 export const createPlanShareLinkRoute = createRoute({
   method: 'post',
@@ -42,7 +50,7 @@ export const createPlanShareLinkRoute = createRoute({
       description: 'The seat as minted, carrying the token it hands out',
       content: { 'application/json': { schema: PlanShareLink } },
     },
-    ...problemResponses(),
+    ...problemResponses([409]),
   },
 })
 
@@ -61,6 +69,14 @@ export const createPlanShareLinkRoute = createRoute({
  * project: the question is "may this caller administer this plan's seats", not "may it reach what
  * this seat reaches". The gate runs before the plan is read, so a refused caller learns nothing
  * about whether that token exists.
+ *
+ * Declares **409** for the same mechanism as the mint above and a different cause. It mints no token,
+ * so what `ShareIndex.add` is handed is the seats this plan already has — and that set collides only
+ * where the manifest has come to hold a token another container owns **without** this API putting it
+ * there. `warmTokenIndex` stops the boot on such a volume and an import refuses rather than records
+ * one, so the state does not arise from anything this API does; a volume edited by hand is the case
+ * spec §6 contemplates by name, and it is the caller's answer that changes rather than the plan's.
+ * A status a service can throw is not a route's to predict away.
  */
 export const updatePlanShareLinkRoute = createRoute({
   method: 'patch',
@@ -77,7 +93,7 @@ export const updatePlanShareLinkRoute = createRoute({
       description: 'The seat as it now is, carrying the token it already had',
       content: { 'application/json': { schema: PlanShareLink } },
     },
-    ...problemResponses(),
+    ...problemResponses([409]),
   },
 })
 
@@ -96,6 +112,12 @@ export const updatePlanShareLinkRoute = createRoute({
  * Deriving the target from the seat would mean reading it first, and this would become the one route
  * in the tree answering 404 ahead of 403 — telling a caller the policy refuses that a token, or a
  * plan, is real.
+ *
+ * Declares **409** exactly as the rename above does, and for that same cause: `#save` presents the
+ * seats that remain to `ShareIndex.add`, which replaces the plan's whole token set rather than
+ * deleting from it, so a token another container owns is refused here as well. It is the one of the
+ * three whose 409 would be surprising — a revoke takes tokens away — and that is why it is written
+ * down rather than left for a reader to rule out.
  */
 export const revokePlanShareLinkRoute = createRoute({
   method: 'delete',
@@ -106,6 +128,6 @@ export const revokePlanShareLinkRoute = createRoute({
   request: { params: planShareLinkParams },
   responses: {
     204: { description: 'The seat and its descendants are gone, and their tokens with them' },
-    ...problemResponses(),
+    ...problemResponses([409]),
   },
 })

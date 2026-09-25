@@ -214,9 +214,19 @@ describe('every macroplan handler is gated, because authorize throws rather than
     expect(handlers().length).toBeGreaterThan(20)
   })
 
+  // `createFeature` joined the three in phase 3, and it is the one that is not a `PATCH`.
+  // `CreateFeaturePayload` carries a `pinSprint`, whose action is `manage`-only where `feature:create`
+  // is a `write` action, so a create naming a sprint asks both — the gap that let a `write` seat mint a
+  // feature already pinned (ADR 0057, spec §7.1). The other three choose between actions the same body
+  // could carry; this one adds a second gate to a body that was only ever asked one question.
   it('names the handlers that gate more than once, which are the ones choosing on the body', () => {
     const branching = handlers().filter((one) => gatesIn(one) > 1).map((one) => one.name)
-    expect([...branching].sort()).toEqual(['updateFeature', 'updateItem', 'updatePlan'])
+    expect([...branching].sort()).toEqual([
+      'createFeature',
+      'updateFeature',
+      'updateItem',
+      'updatePlan',
+    ])
   })
 })
 

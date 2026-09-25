@@ -107,6 +107,74 @@ describe('POST /v1/macroplan/plans/{planId}/features', () => {
   })
 })
 
+/**
+ * The create route gates per field, so a `write` seat cannot mint a feature already pinned.
+ *
+ * `feature:create` is a `write` action and `feature:pin` is `manage`-only, and the body carries both
+ * concerns — so one gate for the request would hand a `write` seat the authority spec §7.1 reserves
+ * to whoever owns the timeline. Asserted by seat rather than by counting `authorize` calls: what
+ * matters is which holder is refused, and the pair below is what separates "the pin is refused" from
+ * "the create is refused".
+ */
+describe('POST /features gates the pin separately, as the PATCH beside it does', () => {
+  const postAs = async (token: string, payload: unknown): Promise<Response> =>
+    (await buildMacroplanApp()).request(FEATURES, {
+      method: 'POST',
+      headers: linkJson(token),
+      body: JSON.stringify(payload),
+    })
+
+  it('refuses a write seat creating a feature already pinned to a sprint', async () => {
+    const response = await postAs(PLAN_TOKENS.write, {
+      epicId: PLAN_IDS.e1,
+      name: 'Vouchers',
+      pinSprint: 3,
+    })
+    expect(response.status).toBe(403)
+    expect(await body(response)).toMatchObject({ code: 'forbidden' })
+  })
+
+  it('serves that same seat an unpinned one, so the refusal is the pin and not the create', async () => {
+    const response = await postAs(PLAN_TOKENS.write, { epicId: PLAN_IDS.e1, name: 'Vouchers' })
+    expect(response.status).toBe(200)
+    expect(featuresOf(await body(response))).toHaveLength(FIXTURE_FEATURES.length + 1)
+  })
+
+  it('serves it a null pin too, null and an absent key naming the same unpinned feature', async () => {
+    const response = await postAs(PLAN_TOKENS.write, {
+      epicId: PLAN_IDS.e1,
+      name: 'Vouchers',
+      pinSprint: null,
+    })
+    expect(response.status).toBe(200)
+    const added = featuresOf(await body(response)).find((one) => !FIXTURE_FEATURES.includes(one.id))
+    expect(added?.pinSprint).toBeNull()
+  })
+
+  it('serves the pinned create to a manage seat, which is the holder the pin belongs to', async () => {
+    const response = await postAs(PLAN_TOKENS.manage, {
+      epicId: PLAN_IDS.e1,
+      name: 'Vouchers',
+      pinSprint: 3,
+    })
+    expect(response.status).toBe(200)
+    const added = featuresOf(await body(response)).find((one) => !FIXTURE_FEATURES.includes(one.id))
+    expect(added?.pinSprint).toBe(3)
+  })
+
+  it('writes nothing when it refuses, the gate running before the service is reached', async () => {
+    const { app, deps } = await buildMacroplanFixture()
+    const response = await app.request(FEATURES, {
+      method: 'POST',
+      headers: linkJson(PLAN_TOKENS.write),
+      body: JSON.stringify({ epicId: PLAN_IDS.e1, name: 'Vouchers', pinSprint: 3 }),
+    })
+    expect(response.status).toBe(403)
+    const plan = await deps.plans.readManifest('macroplan', PLAN_IDS.plan)
+    expect(plan?.features).toHaveLength(FIXTURE_FEATURES.length)
+  })
+})
+
 describe('the plan-wide feature cap, probed at the cap itself', () => {
   const add = async (app: Awaited<ReturnType<typeof buildMacroplanApp>>): Promise<Response> =>
     app.request(FEATURES, {

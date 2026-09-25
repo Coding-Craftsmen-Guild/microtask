@@ -12,13 +12,36 @@ import type {
   updateFeatureRoute,
 } from './routes.js'
 
-/** Adds a feature to the end of a rail and answers the whole plan. */
+/**
+ * Adds a feature to the end of a rail and answers the whole plan.
+ *
+ * It gates **per field**, exactly as {@link updateFeature} below does, and for the same reason:
+ * `CreateFeaturePayload` carries a `pinSprint`, and a pin is `feature:pin`, which only `manage`
+ * holds, where `feature:create` is a `write` action. One gate for the whole body would let a `write`
+ * seat create a feature **already pinned to a sprint** and then be refused `pinFeature` on that same
+ * feature a second later — the authority spec §7.1 reserves to the executive who owns the timeline,
+ * reached through the one route that had not been asked to check it. Spec §3.1 calls a pin "the only
+ * way a fixed point in time enters the model", which is what makes this the create route's business
+ * rather than the edit route's alone.
+ *
+ * A `pinSprint` of `null` asks for nothing beyond `feature:create`, because `null` and an absent key
+ * mean the same thing here — a feature with no pin — and refusing the explicit spelling of a state a
+ * `write` seat may create by omission would be a refusal about JSON rather than about authority.
+ *
+ * The gap it closes was never opened by any UI: `create-controls.tsx` sends a rail and a name and
+ * declines the field. So this is a hole in the API being closed rather than a change to the product,
+ * and `features.test.ts` asserts it by seat — a `write` seat creating a pinned feature is refused, an
+ * unpinned one is not.
+ */
 export const createFeature =
   (features: FeatureService): RouteHandler<typeof createFeatureRoute, ApiEnv> =>
   async (c) => {
     const { planId } = c.req.valid('param')
     const draft = c.req.valid('json')
     const principal = authorize(c, 'feature:create', { kind: 'feature', planId })
+    if (draft.pinSprint !== undefined && draft.pinSprint !== null) {
+      authorize(c, 'feature:pin', { kind: 'feature', planId })
+    }
     const updated = await features.add({ product: PRODUCT, planId }, draft)
     return c.json(planView(updated, principal), 200)
   }
