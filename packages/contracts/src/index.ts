@@ -69,7 +69,7 @@ export {
   ScheduleView,
   UnscheduledEntry,
 } from './schedule-view.js'
-export { ItemView, PlanList, PlanListItem, PlanShareView, PlanView } from './plan-views.js'
+export { ItemView, PlanEpicView, PlanList, PlanListItem, PlanShareView, PlanView } from './plan-views.js'
 export {
   CreateEpicPayload,
   CreatePlanPayload,

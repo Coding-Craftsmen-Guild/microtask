@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Principal } from '@repo/kernel'
-import { ShareIndex } from '@repo/kernel'
+import type { Principal, Role } from '@repo/kernel'
+import { ROLES, ShareIndex } from '@repo/kernel'
 import { QueueLock } from '@repo/store'
 import type { PlanManifest } from '../entities/plan.js'
 import { EpicService } from '../services/epic-service.js'
@@ -18,6 +18,7 @@ import {
   sequentialIds,
   STAMP,
 } from '../testing/index.js'
+import { declaredBindingRole, planRoleOf, visibleTaskLink } from './bridge-view.js'
 import { itemView, planListItem, planSchedule, planView } from './plan-view.js'
 
 const NOW = '2026-09-23T12:00:00.000Z'
@@ -363,5 +364,135 @@ describe('planView and planListItem gate the share links on share:read', () => {
 
   it('says zero rather than nothing when a cleared caller has no links to see', () => {
     expect(planListItem(planManifest(PLAN), ADMIN).shareLinkCount).toBe(0)
+  })
+})
+
+describe('planRoleOf answers the plan role design §7.3 takes the weaker half of', () => {
+  const seat = (role: Role): Principal => ({
+    kind: 'link',
+    role,
+    scope: { kind: 'plan', planId: PLAN },
+    token: TOKEN,
+  })
+
+  it('answers manage for an admin, which is its floor and its ceiling at once', () => {
+    // An admin stores no role. `can()` answers yes for it on every action and every target, so
+    // manage is the only answer that is neither an under- nor an over-statement — and answering
+    // view instead would make the admin the weakest reader of the bridge, silently.
+    expect(planRoleOf(ADMIN)).toBe('manage')
+  })
+
+  it('answers a link holder its own role, for every role the kernel declares', () => {
+    for (const role of ROLES) expect(planRoleOf(seat(role))).toBe(role)
+  })
+
+  it('is not vacuous: the three roles it was asked about are three different answers', () => {
+    expect(ROLES.map((role) => planRoleOf(seat(role)))).toEqual(['view', 'write', 'manage'])
+  })
+})
+
+describe('planView shapes the bridge on the weaker of the two roles (design §7.3)', () => {
+  const BOUND = marked('PJ', 1)
+  const TASK = marked('TK', 1)
+  const SEALED = 'shr_ptarmigan_sealedbindingtoken'
+
+  const seat = (role: Role): Principal => ({
+    kind: 'link',
+    role,
+    scope: { kind: 'plan', planId: PLAN },
+    token: TOKEN,
+  })
+
+  const bound = (role: 'view' | 'manage'): PlanManifest =>
+    planManifest(PLAN, {
+      epics: [epic(ALPHA, { binding: { projectId: BOUND, role, sealedToken: SEALED } })],
+      features: [feature(F1, ALPHA)],
+      items: [item(I1, F1, { linkedTaskId: TASK })],
+    })
+
+  const unbound = (): PlanManifest =>
+    planManifest(PLAN, {
+      epics: [epic(ALPHA)],
+      features: [feature(F1, ALPHA)],
+      items: [item(I1, F1, { linkedTaskId: TASK })],
+    })
+
+  const railOf = (manifest: PlanManifest, principal: Principal) =>
+    planView(manifest, principal).epics[0]
+
+  const linkOf = (manifest: PlanManifest, principal: Principal) =>
+    planView(manifest, principal).items[0]?.linkedTaskId
+
+  it('carries the binding to an admin as two fields, the sealed token dropped', () => {
+    expect(railOf(bound('manage'), ADMIN)?.binding).toEqual({ projectId: BOUND, role: 'manage' })
+  })
+
+  it('carries binding: null to an admin reading an unbound rail, which is a fact about the rail', () => {
+    // null here is not a refusal: an admin is never refused, so it can only mean "bound to nothing".
+    expect(railOf(unbound(), ADMIN)?.binding).toBeNull()
+  })
+
+  it('leaves the binding block absent for a seat holder of any role, since epic:bind is admin-only', () => {
+    for (const role of ROLES) {
+      expect(Object.keys(railOf(bound('manage'), seat(role)) ?? {})).not.toContain('binding')
+    }
+  })
+
+  it('hides the link from a plan manage holder under a view-role binding, the binding being the ceiling', () => {
+    expect(linkOf(bound('view'), seat('manage'))).toBeNull()
+  })
+
+  it('shows the link to a plan write holder under a manage-role binding', () => {
+    expect(linkOf(bound('manage'), seat('write'))).toBe(TASK)
+  })
+
+  it('hides the link from a plan view holder under a manage-role binding', () => {
+    expect(linkOf(bound('manage'), seat('view'))).toBeNull()
+  })
+
+  it('keeps the link under an unbound rail for every caller, since no binding exists to attenuate', () => {
+    for (const role of ROLES) expect(linkOf(unbound(), seat(role))).toBe(TASK)
+    expect(linkOf(unbound(), ADMIN)).toBe(TASK)
+  })
+
+  it('refuses the link to the admin too under a view-role binding, the binding being the ceiling', () => {
+    // effectiveBridgeRole(manage, view) is view, so even the admin is refused the id here: the
+    // binding's own role is the ceiling and §7.3 gives nobody a way over it.
+    expect(linkOf(bound('view'), ADMIN)).toBeNull()
+  })
+})
+
+describe('declaredBindingRole reads the stored role, and says which kind of nothing it found', () => {
+  const bound = planManifest(PLAN, {
+    epics: [epic(ALPHA, { binding: { projectId: marked('PJ', 1), role: 'view', sealedToken: 'x' } })],
+    features: [feature(F1, ALPHA)],
+    items: [item(I1, F1, { linkedTaskId: marked('TK', 1) })],
+  })
+
+  const orphan = item(I2, F2, { linkedTaskId: marked('TK', 2) })
+
+  it('answers the declared role for an item under a bound rail', () => {
+    const only = bound.items[0]
+    expect(only && declaredBindingRole(bound, only)).toBe('view')
+  })
+
+  it('answers null for an item under a rail bound to nothing, which is proof there is no bridge', () => {
+    const manifest = planManifest(PLAN, {
+      epics: [epic(ALPHA)],
+      features: [feature(F1, ALPHA)],
+      items: [item(I1, F1)],
+    })
+    const only = manifest.items[0]
+    expect(only && declaredBindingRole(manifest, only)).toBeNull()
+  })
+
+  it('answers undefined when the item names a feature the plan does not hold', () => {
+    expect(declaredBindingRole(bound, orphan)).toBeUndefined()
+  })
+
+  it('refuses the link for that unresolvable item at every role, rather than guessing it is unbound', () => {
+    // A corrupt chain proves nothing about what is bound, so it fails closed. An unbound rail is
+    // the opposite case and keeps its id, which the sweep above pins.
+    for (const role of ROLES) expect(visibleTaskLink(bound, orphan, role)).toBeNull()
   })
 })

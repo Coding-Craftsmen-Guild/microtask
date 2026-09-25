@@ -2,6 +2,13 @@ import { can, type Principal } from '@repo/kernel'
 import { schedule, type Cycle, type IgnoredEdge, type Span, type Unscheduled } from '@repo/schedule'
 import type { PlanItem } from '../entities/item.js'
 import type { PlanManifest, PlanShareLink } from '../entities/plan.js'
+import {
+  epicView,
+  planRoleOf,
+  visibleBinding,
+  visibleTaskLink,
+  type PlanEpicView,
+} from './bridge-view.js'
 
 /** One feature or item on the axis, in working-day offsets from the first working day. */
 export interface PlanSpan extends Span {
@@ -22,7 +29,8 @@ export interface PlanScheduleView {
   readonly ignoredEdges: readonly IgnoredEdge[]
 }
 
-interface PlanBody extends Omit<PlanManifest, 'shareLinks'> {
+interface PlanBody extends Omit<PlanManifest, 'shareLinks' | 'epics'> {
+  readonly epics: readonly PlanEpicView[]
   readonly schedule: PlanScheduleView
 }
 
@@ -150,25 +158,43 @@ export function visibleLinks(
  * would save no read at all, and would add the one thing that cannot otherwise exist — a stored span
  * left behind by a retimed `startDate`. `PlanManifest` must never grow a `schedule` field.
  *
- * Shapes rather than gates: the one thing the principal decides is the share block, and the route's
- * own `authorize()` is what decides who reaches a plan at all (ADR 0009). So the contents below are
- * the plan's contents, not a filtered version of them — there is nothing to filter, because every
- * principal that gets this far holds `plan:read` on this plan.
+ * Shapes rather than gates: what the principal decides is the share block and the bridge, and the
+ * route's own `authorize()` is what decides who reaches a plan at all (ADR 0009). Structure,
+ * estimates and schedule are the plan's own and are the same for every caller that gets this far,
+ * because every one of them holds `plan:read` on this plan.
  *
  * The fields are copied one by one rather than spread from the manifest, so a field added to
  * `PlanManifest` later does not reach a response by default: a view is the list of what a caller is
  * told, and the next field added to the stored shape should have to be put on that list on purpose.
+ *
+ * **Copying by name was necessary and not sufficient, and a real leak is what proved it.** `epics`
+ * was on the list, deliberately, and it carried `EpicBinding.sealedToken` to every caller cleared to
+ * read the plan — a `view`-role link holder included, and on into `apps/macroplan`'s Flight payload
+ * and page HTML — for as long as no epic was bound. The field was named; its *contents* were the
+ * leak. So a collection of stored entities is now reshaped per entity too ({@link epicView}), and the
+ * rule this file states is the stronger one: a response carries what a caller is told all the way
+ * down, not one level deep. `features` is passed through whole because `PlanFeature` holds no
+ * credential and no bridge field; the day it holds either, it belongs in a shaping of its own.
+ *
+ * `items` are mapped rather than passed through, and the spread there overrides exactly the one field
+ * design §7.3 decides ({@link visibleTaskLink}). A rewrite by name would read the same today and cost
+ * eight lines; what argues for the spread is that `linkedTaskId` is the only field on `PlanItem` that
+ * a reader's role touches, so naming the others would suggest a decision was taken about each.
  */
 export function planView(manifest: PlanManifest, principal: Principal): PlanView {
+  const planRole = planRoleOf(principal)
   const body: PlanBody = {
     id: manifest.id,
     name: manifest.name,
     startDate: manifest.startDate,
     sprintLengthDays: manifest.sprintLengthDays,
     timezone: manifest.timezone,
-    epics: manifest.epics,
+    epics: manifest.epics.map((each) => epicView(each, visibleBinding(each, manifest.id, principal))),
     features: manifest.features,
-    items: manifest.items,
+    items: manifest.items.map((each) => ({
+      ...each,
+      linkedTaskId: visibleTaskLink(manifest, each, planRole),
+    })),
     createdAt: manifest.createdAt,
     updatedAt: manifest.updatedAt,
     schedule: planSchedule(manifest),
@@ -195,7 +221,22 @@ export function planListItem(manifest: PlanManifest, principal: Principal): Plan
   return links === undefined ? row : { ...row, shareLinkCount: links.length }
 }
 
-/** One item with the description its own file holds. */
+/**
+ * One item with the description its own file holds.
+ *
+ * **It carries `linkedTaskId` unshaped, and that disagrees with {@link planView} — knowingly, and it
+ * is the route's to settle rather than this function's.** `GET /plans/{planId}/items/{itemId}` answers
+ * with this shape gated on `plan:read` alone, so once a writer for `linkedTaskId` exists a plan `view`
+ * holder will be told through this route the one thing design §7.3 refuses them through the other:
+ * that a link exists. Nothing leaks today, because no route writes the field yet.
+ *
+ * It cannot be settled here. §7.3's rule needs two facts this function is handed neither of — who is
+ * asking, and the declared role of the binding on the rail *above* the item's feature, which lives in
+ * the manifest. Giving it a principal alone would not be enough, and giving it the manifest as well
+ * would make an item view a plan read. So the decision belongs where both are already in hand: the
+ * handler, which holds the principal and can reach the manifest, and which should either shape the
+ * field with {@link visibleTaskLink} or refuse the route below effective `write`.
+ */
 export function itemView(item: PlanItem, description: string): ItemView {
   return { ...item, description }
 }

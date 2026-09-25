@@ -1,8 +1,33 @@
 import { z } from 'zod'
+import { EpicBindingView } from './bridge.js'
 import { EntityId, EntityName } from './document.js'
+import { LIMITS } from './limits.js'
 import { Role } from './share-link.js'
-import { IsoDate, PlanItem, PlanManifest, Timezone } from './plan.js'
+import { IsoDate, PlanEpic, PlanItem, PlanManifest, Timezone } from './plan.js'
 import { ScheduleView } from './schedule-view.js'
+
+/**
+ * One epic as a plan **response** carries it, which is not how storage carries it.
+ *
+ * The difference is one field and one credential: `PlanEpic` in `plan.ts` holds
+ * `binding.sealedToken`, because a manifest that stores a binding has to keep the token it was bound
+ * with; this schema's `binding` is {@link EpicBindingView}, which has no key for a token at all
+ * (design §7.2: the token never leaves the server, with no caller excepted). A schema with nowhere to
+ * put it is what makes that true by construction, and zod strips the key off any body built from a
+ * stored binding by hand.
+ *
+ * `binding` is optional **and** nullable, and the three states are three different sentences. Absent
+ * is "you were not told": `epic:bind` is in the kernel's `ADMIN_ONLY_ACTIONS`, so a link holder is
+ * refused the block, and a refused block is absent rather than empty (ADR 0013), for the reason
+ * `shareLinks` below is. `null` is "this rail is bound to nothing", which is a fact about the plan and
+ * not about the reader, and an admin — never refused — is the only caller that sees it. A value is the
+ * binding. Collapsing absent into `null` would tell a `view` holder that every rail is unbound, which
+ * is false whenever one is bound, and `@repo/macroplan-domain`'s `planView` is where the three are
+ * decided per caller.
+ */
+export const PlanEpicView = PlanEpic.extend({
+  binding: EpicBindingView.nullable().optional(),
+}).meta({ id: 'PlanEpicView', description: 'A rail as a response carries it: its binding, never its token' })
 
 /**
  * A plan and the schedule derived from it, which is never stored (spec §3.4).
@@ -11,9 +36,14 @@ import { ScheduleView } from './schedule-view.js'
  * than empty (ADR 0013): one handler serves an admin and a link holder, so a plan handed to a link
  * principal must not carry a field only an admin may see — and an empty array would not do, since
  * it states that a plan has no seats, which is a different sentence from "you were not told".
+ *
+ * `epics` is {@link PlanEpicView} and not `PlanManifest`'s own epic, which is the difference between a
+ * response and a record: this schema said `EpicBinding` — token included — until phase 4, so a route
+ * answering the stored shape typechecked and the wire *required* the credential it was meant to
+ * withhold. The cap travels with the override, since replacing the element type replaces the array.
  */
 export const PlanView = PlanManifest.extend({
-  epics: PlanManifest.shape.epics.readonly(),
+  epics: z.array(PlanEpicView).max(LIMITS.epicsPerPlan).readonly(),
   features: PlanManifest.shape.features.readonly(),
   items: PlanManifest.shape.items.readonly(),
   shareLinks: PlanManifest.shape.shareLinks.readonly().optional(),

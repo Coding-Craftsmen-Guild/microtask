@@ -1601,7 +1601,7 @@
           "epics": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/PlanEpic"
+              "$ref": "#/components/schemas/PlanEpicView"
             },
             "maxItems": 40
           },
@@ -1651,7 +1651,7 @@
         ],
         "description": "A plan, and the schedule computed from it"
       },
-      "PlanEpic": {
+      "PlanEpicView": {
         "type": "object",
         "properties": {
           "id": {
@@ -1667,7 +1667,7 @@
             "$ref": "#/components/schemas/Position"
           },
           "binding": {
-            "$ref": "#/components/schemas/EpicBinding"
+            "$ref": "#/components/schemas/EpicBindingView"
           },
           "createdAt": {
             "type": "string"
@@ -1681,11 +1681,10 @@
           "name",
           "colour",
           "railOrder",
-          "binding",
           "createdAt",
           "updatedAt"
         ],
-        "description": "A rail on the timeline, and what it is bound to, if anything"
+        "description": "A rail as a response carries it: its binding, never its token"
       },
       "RailColour": {
         "type": "string",
@@ -1697,7 +1696,7 @@
         "minimum": 0,
         "description": "A dense 0-based order within one parent"
       },
-      "EpicBinding": {
+      "EpicBindingView": {
         "type": [
           "object",
           "null"
@@ -1712,18 +1711,13 @@
               "view",
               "manage"
             ]
-          },
-          "sealedToken": {
-            "type": "string",
-            "minLength": 1
           }
         },
         "required": [
           "projectId",
-          "role",
-          "sealedToken"
+          "role"
         ],
-        "description": "A live link from one epic to one Microtask project"
+        "description": "An epic’s binding, without the token that grants it"
       },
       "PlanFeature": {
         "type": "object",

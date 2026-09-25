@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Principal, Role } from '@repo/kernel'
+import type { EpicBinding } from '../entities/binding.js'
 import type { PlanManifest, PlanShareLink } from '../entities/plan.js'
 import { epic, feature, item, marked, planManifest, STAMP } from '../testing/index.js'
 import { itemView, planListItem, planView } from './plan-view.js'
@@ -7,9 +8,11 @@ import { itemView, planListItem, planView } from './plan-view.js'
 const PLAN = marked('PN', 1)
 const ELSEWHERE = marked('PN', 2)
 const PROJECT = marked('PJ', 1)
+const BOUND_PROJECT = marked('PJ', 2)
 const RAIL = marked('EP', 1)
 const FEATURE = marked('FT', 1)
 const ITEM = marked('TM', 1)
+const LINKED_TASK = marked('TK', 9)
 
 const PLAN_NAME = 'Hollowmere Migration'
 const RAIL_NAME = 'Ashcombe hollowmere rail'
@@ -19,6 +22,15 @@ const ITEM_NAME = 'Audit the hollowmere invoices'
 const WHOLE_PLAN = 'shr_ptarmigan_wholeplanseat'
 const READ_ONLY_SEAT = 'shr_ptarmigan_readonlyseat'
 const WRITE_SEAT = 'shr_ptarmigan_writeonlyseat'
+
+// The sealed credential the rail's binding holds. It is deliberately not in EVERY_TOKEN: those three
+// are shaped per caller, where this one is owed to nobody at all, so it gets its own sweep below.
+const SEALED = 'shr_ptarmigan_sealedbindingtoken'
+
+// The binding is bound at manage, not view, so the effective role is the *caller's* role wherever the
+// two are compared — a view-role binding would hide the link from everybody and the sweep below could
+// not tell a working rule from a blanket refusal.
+const BINDING: EpicBinding = { projectId: BOUND_PROJECT, role: 'manage', sealedToken: SEALED }
 
 const EVERY_TOKEN = [WHOLE_PLAN, READ_ONLY_SEAT, WRITE_SEAT] as const
 const EVERY_NAME = [PLAN_NAME, RAIL_NAME, FEATURE_NAME, ITEM_NAME] as const
@@ -54,9 +66,9 @@ const projectHolder = (): Principal => ({
 const seed = (): PlanManifest =>
   planManifest(PLAN, {
     name: PLAN_NAME,
-    epics: [epic(RAIL, { name: RAIL_NAME })],
+    epics: [epic(RAIL, { name: RAIL_NAME, binding: BINDING })],
     features: [feature(FEATURE, RAIL, { name: FEATURE_NAME })],
-    items: [item(ITEM, FEATURE, { name: ITEM_NAME })],
+    items: [item(ITEM, FEATURE, { name: ITEM_NAME, linkedTaskId: LINKED_TASK })],
     shareLinks: Object.values(LINKS),
   })
 
@@ -64,38 +76,59 @@ interface Caller {
   readonly label: string
   readonly principal: Principal
   readonly tokens: readonly string[]
+  // Whether the epic's `binding` block is present at all, which `epic:bind` decides.
+  readonly binding: boolean
+  // Whether the item still names the task it is linked to, which design §7.3's weaker-of-two decides.
+  readonly linkedTask: boolean
 }
 
+// The last two callers are shown the linked task id, and that is this file's existing contract rather
+// than a hole: `planView` shapes the blocks a policy decides and gates nothing else — the second test
+// below asserts the same two callers see every name in the plan — because the route's own
+// `authorize()` is what refuses a principal whose scope reaches no plan (ADR 0009). What they are
+// refused here is the `binding` block, which is asked of the policy and so answers no for both.
 const CALLERS: readonly Caller[] = [
   {
     label: 'an admin, who owns the workspace',
     principal: { kind: 'admin' },
     tokens: EVERY_TOKEN,
+    binding: true,
+    linkedTask: true,
   },
   {
     label: 'a plan-scoped view holder, which holds no share:read',
     principal: planHolder(LINKS.readOnlySeat),
     tokens: [],
+    binding: false,
+    linkedTask: false,
   },
   {
     label: 'a plan-scoped write holder, which holds no share:read either',
     principal: planHolder(LINKS.writeSeat),
     tokens: [],
+    binding: false,
+    linkedTask: true,
   },
   {
     label: 'a plan-scoped manage holder, whose scope is the whole plan',
     principal: planHolder(LINKS.wholePlan),
     tokens: EVERY_TOKEN,
+    binding: false,
+    linkedTask: true,
   },
   {
     label: 'a manage holder of another plan entirely',
     principal: planHolder(LINKS.wholePlan, ELSEWHERE),
     tokens: [],
+    binding: false,
+    linkedTask: true,
   },
   {
     label: 'a Microtask project manage holder, whose scope reaches no plan',
     principal: projectHolder(),
     tokens: [],
+    binding: false,
+    linkedTask: true,
   },
 ]
 
@@ -116,6 +149,12 @@ describe('the serialised plan view holds exactly the tokens its caller may be to
       const serialised = JSON.stringify(planView(seed(), caller.principal))
       for (const name of EVERY_NAME) expect(serialised).toContain(name)
     })
+
+    it(`withholds the rail's sealed binding token from ${caller.label}`, () => {
+      // Design §7.2 without qualification: the token never leaves the server. So there is no caller
+      // this loop could give an allowance to, the admin included.
+      expect(JSON.stringify(planView(seed(), caller.principal))).not.toContain(SEALED)
+    })
   }
 
   it('leaves the block absent rather than empty for a caller refused it', () => {
@@ -126,6 +165,45 @@ describe('the serialised plan view holds exactly the tokens its caller may be to
   it('is not vacuous: an admin is shown every one of the three tokens', () => {
     const serialised = JSON.stringify(planView(seed(), { kind: 'admin' }))
     for (const token of EVERY_TOKEN) expect(serialised).toContain(token)
+  })
+})
+
+describe('the serialised plan view carries the bridge only as far as design §7.3 allows', () => {
+  const railOf = (principal: Principal) => planView(seed(), principal).epics[0]
+  const itemOf = (principal: Principal) => planView(seed(), principal).items[0]
+
+  for (const caller of CALLERS) {
+    it(`shapes the epic's binding block on epic:bind for ${caller.label}`, () => {
+      const serialised = JSON.stringify(planView(seed(), caller.principal))
+      if (caller.binding) {
+        // Exactly two fields, asserted by equality rather than by field: a `toMatchObject` here would
+        // pass with `sealedToken` sitting beside them.
+        expect(railOf(caller.principal)?.binding).toEqual({ projectId: BOUND_PROJECT, role: 'manage' })
+      } else {
+        expect(Object.keys(railOf(caller.principal) ?? {})).not.toContain('binding')
+        expect(serialised).not.toContain('binding')
+        expect(serialised).not.toContain(BOUND_PROJECT)
+      }
+    })
+
+    it(`names the linked task only at effective write, for ${caller.label}`, () => {
+      expect(itemOf(caller.principal)?.linkedTaskId).toBe(caller.linkedTask ? LINKED_TASK : null)
+      if (!caller.linkedTask) expect(JSON.stringify(planView(seed(), caller.principal))).not.toContain(LINKED_TASK)
+    })
+  }
+
+  it('refuses the link as null and never as an absent key, so a view holder cannot tell one exists', () => {
+    // §7.3's own words: a view holder is never told "that a link exists". `null` is what an unlinked
+    // item carries, so the two are the same sentence; an absent key would be the tell.
+    const refused = itemOf(planHolder(LINKS.readOnlySeat))
+    expect(Object.keys(refused ?? {})).toContain('linkedTaskId')
+    expect(refused).toEqual(item(ITEM, FEATURE, { name: ITEM_NAME }))
+  })
+
+  it('is not vacuous: an admin is shown the bound project and the linked task id', () => {
+    const serialised = JSON.stringify(planView(seed(), { kind: 'admin' }))
+    expect(serialised).toContain(BOUND_PROJECT)
+    expect(serialised).toContain(LINKED_TASK)
   })
 })
 

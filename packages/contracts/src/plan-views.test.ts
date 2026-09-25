@@ -5,7 +5,7 @@ import { LIMITS } from './limits.js'
 import { PlanManifest } from './plan.js'
 import { UpdateEpicPayload, UpdatePlanPayload } from './plan-payloads.js'
 import { CreatePlanShareLinkPayload } from './plan-share-payloads.js'
-import { ItemView, PlanList, PlanListItem, PlanShareView, PlanView } from './plan-views.js'
+import { ItemView, PlanEpicView, PlanList, PlanListItem, PlanShareView, PlanView } from './plan-views.js'
 import { IgnoredEdge, ScheduleView, UnscheduledEntry } from './schedule-view.js'
 import { DependenciesPayload, UpdateFeaturePayload, UpdateItemPayload } from './structure-payloads.js'
 
@@ -240,5 +240,63 @@ describe('PlanShareView, the answer a plan seat gets about itself', () => {
     const parsed = PlanShareView.parse(view)
     expect(capabilities(parsed.role, parsed.scope)['feature:create']).toBe(true)
     expect(capabilities(parsed.role, parsed.scope)['epic:create']).toBe(false)
+  })
+})
+
+describe('PlanEpicView, the rail as a response carries it rather than as storage holds it', () => {
+  const LEAKED = 'the sealed token a response must never carry'
+  const SCHEDULE = { spans: [], cycles: [], unscheduled: [], ignoredEdges: [] }
+
+  const rail = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: ID,
+    name: 'Checkout',
+    colour: '#1f2a37',
+    railOrder: 0,
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    ...over,
+  })
+
+  it('accepts a rail with no binding key at all, which is what a refused caller receives', () => {
+    const parsed = PlanEpicView.safeParse(rail())
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && 'binding' in parsed.data).toBe(false)
+  })
+
+  it('accepts binding: null, which says the rail is bound to nothing rather than "you were not told"', () => {
+    const parsed = PlanEpicView.safeParse(rail({ binding: null }))
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.binding).toBeNull()
+  })
+
+  it('accepts a binding of exactly a project and a role', () => {
+    expect(PlanEpicView.safeParse(rail({ binding: { projectId: ID, role: 'manage' } })).success).toBe(true)
+  })
+
+  it('strips a sealedToken smuggled inside the binding, having no key to keep it in', () => {
+    // The mistake this catches is `binding: stored` — handing a response the binding the manifest
+    // holds — which is exactly what `PlanView` required of every route until phase 4.
+    const parsed = PlanEpicView.parse(rail({ binding: { projectId: ID, role: 'view', sealedToken: LEAKED } }))
+    expect(JSON.stringify(parsed)).not.toContain(LEAKED)
+    expect(parsed.binding).toEqual({ projectId: ID, role: 'view' })
+  })
+
+  it('refuses role: write on a binding, which no binding carries (design §7.2)', () => {
+    expect(PlanEpicView.safeParse(rail({ binding: { projectId: ID, role: 'write' } })).success).toBe(false)
+  })
+
+  it('strips it through PlanView too, where a whole plan is parsed and not one rail', () => {
+    const epics = [rail({ binding: { projectId: ID, role: 'manage', sealedToken: LEAKED } })]
+    const parsed = PlanView.parse(plan({ schedule: SCHEDULE, epics }))
+    expect(JSON.stringify(parsed)).not.toContain(LEAKED)
+  })
+
+  it('accepts a plan whose rails carry no binding key, which is every link holder’s copy', () => {
+    expect(PlanView.safeParse(plan({ schedule: SCHEDULE, epics: [rail()] })).success).toBe(true)
+  })
+
+  it('is not vacuous: the bound project id does reach the parsed plan', () => {
+    const epics = [rail({ binding: { projectId: ID, role: 'manage', sealedToken: LEAKED } })]
+    expect(JSON.stringify(PlanView.parse(plan({ schedule: SCHEDULE, epics })))).toContain(ID)
   })
 })
