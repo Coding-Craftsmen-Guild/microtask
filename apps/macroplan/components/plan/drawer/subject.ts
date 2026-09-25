@@ -1,13 +1,30 @@
 import { breakdown, effectiveEstimate, type PlanCalendar } from '@repo/schedule'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows, type TableRow } from '../table/rows'
-import { subjectValues, type DrawerValues, type SubjectKind } from './values'
+import { subjectValues, type DrawerValues, type SubjectKind, type SubjectPlace } from './values'
 
 const calendarOf = (plan: PlanScreenModel): PlanCalendar => ({
   startDate: plan.startDate,
   sprintLengthDays: plan.sprintLengthDays,
   timezone: plan.timezone,
 })
+
+const featureOf = (plan: PlanScreenModel, kind: SubjectKind, id: string) => {
+  if (kind === 'feature') return plan.features.find((one) => one.id === id)
+  const item = plan.items.find((one) => one.id === id)
+  return plan.features.find((one) => one.id === item?.featureId)
+}
+
+const placeOf = (
+  plan: PlanScreenModel,
+  kind: SubjectKind,
+  id: string,
+): SubjectPlace | undefined => {
+  const feature = featureOf(plan, kind, id)
+  if (feature === undefined) return undefined
+  const claimed = plan.epics.some((one) => one.id === feature.epicId)
+  return { featureId: feature.id, railId: claimed ? feature.epicId : null }
+}
 
 const sizedByItems = (plan: PlanScreenModel, kind: SubjectKind, id: string): boolean => {
   const feature = kind === 'feature' ? plan.features.find((one) => one.id === id) : undefined
@@ -32,10 +49,10 @@ export interface DrawerSubject {
    * The same subject's values: the numbers and names a control edits, and the two a fact reads.
    *
    * Wider than what {@link subjectValues} answers, and the difference is the point of resolving a
-   * subject here rather than in a page: which of a feature's two estimates sized it, and the `plan`
-   * group's calendar and features, are each needed by the panel and carried by neither the row nor
-   * the record, so they are added **inside the one lookup** rather than fetched beside it
-   * (`./values.ts` argues each, and says which half of the shape is the subject's).
+   * subject here rather than in a page: which of a feature's two estimates sized it, the `plan` group's
+   * calendar and features, and the `place` group's two parents are each needed by the panel and carried
+   * by neither the row nor the record, so they are added **inside the one lookup** rather than fetched
+   * beside it (`./values.ts` argues each, and says which half of the shape is the subject's).
    */
   readonly values: DrawerValues
 }
@@ -97,6 +114,24 @@ export interface DrawerSubject {
  * say what sprint a pin means in dates, and that conversion happens in the browser as the number is
  * typed — so the fields travel, and `./pin-field.tsx` is handed the three of them as primitives.
  *
+ * ### Where the subject sits, which is the only thing a create control may know about it
+ *
+ * `place` is the fourth thing, and it is the one group that is neither the subject's own fields nor the
+ * plan's: the rail a new feature would join and the feature a new item would join (`./values.ts` argues
+ * the grouping). It takes a **second** lookup for an item — the item's `featureId`, then that feature —
+ * which is exactly why it is resolved here rather than by the panel: a panel holding a plan is the thing
+ * this signature exists to refuse, and a create group handed the row alone could only invent the rail.
+ *
+ * `railId` is checked against `plan.epics` rather than passed through, and that check is the whole
+ * reason it is nullable. `railsOf` gives a feature whose `epicId` names no epic a rail of its own, so
+ * such a feature has a row, a panel and a rail on screen — while `FeatureService.add` would answer
+ * `assertEpic` with a 404 for that same id. Passing it on would draw a box whose every submit failed.
+ *
+ * `placeOf` is asked a third time for a subject the plan does not hold, and answers `undefined` for one.
+ * That cannot happen while the row is the existence check — every feature with a row is in
+ * `plan.features`, and an item with a row sits under a feature that is — and it is **stated** rather
+ * than asserted because the type cannot say so, `find` answering `undefined` for both.
+ *
  * ### One derivation, and one existence check
  *
  * `tableRows` is `cache()`d on the plan object and `readPlan` is `cache()`d on the plan id, so the
@@ -114,9 +149,9 @@ export interface DrawerSubject {
  * @param plan - The reduced plan the page read, whose type cannot carry a seat.
  * @param kind - Which segment is asking: `f/[featureId]` or `i/[itemId]`.
  * @param id - The id out of the URL, untrusted.
- * @returns The row, the subject's values, whether the items sized this feature, and the `plan` group
- * the drawer reads the calendar and the graph out of — or `undefined` when no row of that kind
- * answers to that id.
+ * @returns The row, the subject's values, whether the items sized this feature, the `plan` group the
+ * drawer reads the calendar and the graph out of, and the `place` group a create adds a sibling under —
+ * or `undefined` when no row of that kind answers to that id.
  */
 export function drawerSubject(
   plan: PlanScreenModel,
@@ -125,11 +160,13 @@ export function drawerSubject(
 ): DrawerSubject | undefined {
   const row = tableRows(plan).find((one) => one.kind === kind && one.id === id)
   const values = subjectValues(plan, kind, id)
-  if (row === undefined || values === undefined) return undefined
+  const place = placeOf(plan, kind, id)
+  if (row === undefined || values === undefined || place === undefined) return undefined
   return {
     row,
     values: {
       ...values,
+      place,
       plan: { calendar: calendarOf(plan), features: plan.features },
       sizedByItems: sizedByItems(plan, kind, id),
     },

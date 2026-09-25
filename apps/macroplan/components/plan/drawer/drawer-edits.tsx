@@ -95,10 +95,11 @@ export interface DrawerEditsProps {
  * It split by **control group**, one file per group, and then by **capability tier** once there was a
  * second `manage`-tier control to make that cut real: the pin is `./pin-field.tsx`, what a feature
  * waits on is `./dependency-editor.tsx`, and both are mounted by `./drawer-manage.tsx`. The two groups
- * still queued — delete, being the only destructive one, and `placeFeature` with `placeItem` together,
- * a reorder a keyboard has to be able to drive — are `manage`-tier as well, so they land in **that**
- * file and not in this one. This file is finished at three fields unless a fourth `write`-tier action
- * appears, and there is none left among the eighteen.
+ * that followed — the delete, being the only destructive one, and `placeFeature` with `placeItem`
+ * together, a reorder a keyboard has to be able to drive — are `manage`-tier as well, so the delete
+ * landed in **that** file and the place pair will too, neither of them in this one. This file is
+ * finished at three fields: the only `write`-tier actions left among the eighteen are `feature:create`
+ * and `item:create`, and those are not about this subject at all (see below).
  *
  * That was arithmetic rather than taste, and it is worth keeping the figures: a group costs four lines
  * of scaffolding — the ternary, the element, its close and the `: null` — plus one per prop, which
@@ -115,9 +116,9 @@ export interface DrawerEditsProps {
  * **Create is the exception, and it is not subject-scoped.** `createItem` needs a parent feature and
  * `createFeature` a rail, so neither is a write *about* the subject this component is handed — a
  * drawer open on an item cannot mount "add an item" without inventing which feature it means. Create
- * is therefore a sibling group mounted by `./drawer-panel.tsx` beside this one, on the row's
- * `featureId`-shaped context rather than on its subject, and it is the one group that does not belong
- * under here.
+ * is therefore a sibling group mounted by `./drawer-panel.tsx` beside this one, on the parents
+ * `values.place` carries rather than on the subject, and it is the one group that does not belong under
+ * here although its two actions are `write`-tier like these three (`./create-controls.tsx`).
  *
  * What must **not** split is this file by row kind: a feature's fields and an item's answer the same
  * questions about different subjects, and `rows.ts` refuses the same split for the same reason.

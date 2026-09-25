@@ -58,6 +58,16 @@ vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new NotFound('notFound')
   },
+  // The drawer's delete navigates on success, so the panel holds a component that calls `useRouter`,
+  // which throws outside an App Router tree. Nothing here clicks it; it only has to exist for a render.
+  useRouter: () => ({
+    back: () => undefined,
+    forward: () => undefined,
+    prefetch: () => undefined,
+    push: () => undefined,
+    refresh: () => undefined,
+    replace: () => undefined,
+  }),
 }))
 vi.mock('next/link', async () => ({
   default: (await import('../../../../../../components/plan/testing/next-link')).LinkDouble,

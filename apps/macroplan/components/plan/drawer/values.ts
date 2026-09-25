@@ -93,6 +93,45 @@ export interface PlanValues {
 }
 
 /**
+ * The two **parents** a new sibling of this subject would join, which is all a create needs to send.
+ *
+ * A third group rather than two more members under {@link PlanValues}, and the reason is that group's
+ * own first sentence: it is "what a drawer needs about the **plan** rather than about the subject it is
+ * open on", and neither of these is that. A rail is not a fact about the plan — a plan has many — and
+ * it is not a field of the subject either: the question these answer is *where this subject sits*, which
+ * is the only thing a create control is allowed to know about it. So it is named for what it is, and a
+ * reader asking "is this the subject's?" gets the same structural answer the `plan` group gives.
+ *
+ * Both are resolved in the same lookup as the row (`./subject.ts`), for the reason {@link PlanValues}
+ * gives: the panel is handed one subject and never a plan, so anything that takes a second record to
+ * work out — an item's feature, that feature's epic — arrives through that one lookup or not at all.
+ *
+ * Neither is the subject's **own** id, and that is the point of the group: a drawer open on an item
+ * cannot mount "add an item" from its own id, because the parent a new item would join is the item's
+ * feature and not the item. `./drawer-panel.tsx` mounts create for exactly that reason.
+ */
+export interface SubjectPlace {
+  /**
+   * The rail a new feature would join: this subject's own epic, or `null` when no epic claims it.
+   *
+   * `null` is not "unpinned"-shaped optionality — it is a rail the plan does not hold. `railsOf` gives
+   * a feature whose `epicId` names no epic "a rail of its own, ordered after every real one"
+   * (`@repo/schedule`), so such a feature has a row, a panel and a visible rail while
+   * `FeatureService.add` would answer its `assertEpic` with a 404 for that same id. A create control
+   * draws no box for it rather than offering a write that cannot land.
+   */
+  readonly railId: string | null
+
+  /**
+   * The feature a new item would join: this feature, or the feature the open item sits under.
+   *
+   * Never `null`. The row is the existence check and an item whose `featureId` names no feature of the
+   * plan has no row at all, so a panel is on screen only where this feature is (`./subject.ts`).
+   */
+  readonly featureId: string
+}
+
+/**
  * Everything the drawer reads about one open subject: its own values, one fact about them, the plan's.
  *
  * {@link SubjectValues} is the part a field edits and re-reads out of the plan a write answered with.
@@ -121,6 +160,9 @@ export interface DrawerValues extends SubjectValues {
 
   /** What the drawer needs of the plan the subject belongs to, and nothing of the subject itself. */
   readonly plan: PlanValues
+
+  /** Where this subject sits: the two parents a create adds a new sibling under. */
+  readonly place: SubjectPlace
 }
 
 /**

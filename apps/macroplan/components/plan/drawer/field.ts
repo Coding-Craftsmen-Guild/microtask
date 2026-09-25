@@ -39,6 +39,32 @@ export type SubjectWrite<Value> = (
 ) => Promise<ActionResult<Plan>>
 
 /**
+ * One subject **deleted**: the plan and the subject, and nothing else there is to send.
+ *
+ * {@link SubjectWrite} minus the value, which is the whole difference between editing a thing and
+ * removing it — `removeFeature` and `removeItem` are each assignable to this, so a control takes one
+ * of them as a prop without naming `PlanEditActions` and cannot reach a second write.
+ *
+ * It answers the whole plan, as every action behind it does, and the one thing a delete control does
+ * with that answer is **nothing**: the subject it was reading back is gone, so there is no value to
+ * re-read and no box to repaint. What the success branch owes the user is the plan's own page
+ * (`./delete-control.tsx`).
+ */
+export type SubjectRemove = (planId: string, subjectId: string) => Promise<ActionResult<Plan>>
+
+/**
+ * One thing **created** under the parent its draft names, which is the whole of what a create sends.
+ *
+ * Not a {@link SubjectWrite}: a create is addressed at a *parent* rather than at a subject, and the
+ * parent travels inside the draft because that is the shape the route's body already has —
+ * `CreateFeaturePayload` names an `epicId` and `CreateItemPayload` a `featureId`
+ * (`packages/contracts/src/structure-payloads.ts`). `createFeature` and `createItem` are each
+ * assignable to this at their own `Draft`, which is what lets one control hold both without either
+ * call being able to take the other's parent.
+ */
+export type PlanCreate<Draft> = (planId: string, draft: Draft) => Promise<ActionResult<Plan>>
+
+/**
  * What a field decided about what was typed in it: a value to send, or why it is sending nothing.
  *
  * `days` is `null` for an empty field, which is the third state a string field does not have: in
@@ -394,3 +420,62 @@ export const splitEdges = (ids: string): readonly string[] =>
  */
 export const NOTHING_TO_WAIT_ON =
   'This is the only feature in the plan, so there is nothing for it to wait on. A dependency always names another feature of this plan.'
+
+/**
+ * Where a new feature lands, which is the one thing a create control has to say and not ask.
+ *
+ * Spec §6: "a new feature after the last feature on its epic's rail. Work is usually added in the
+ * order it will be done, so the common case requires no placement at all." So the sentence states the
+ * position rather than offering one, and it is the *whole* of what the position is — `FeatureService.add`
+ * appends after the last feature on the rail and nothing in the payload can move it
+ * (`packages/macroplan-domain/src/services/feature-service.ts`). `placeFeature` is the control for
+ * somewhere else, and it is `manage`-tier where this is `write`.
+ *
+ * Here for the reason {@link PIN_HINT} is here: a hint is a bare string, and this module is where a
+ * drawer control's strings live so that the `.tsx` holding the control is only the control.
+ */
+export const NEW_FEATURE_HINT =
+  'It is added after the last feature on this rail. Work is usually added in the order it will be done, so there is nothing to place.'
+
+/** The same sentence for a new item, whose siblings are the items of one feature (spec §6). */
+export const NEW_ITEM_HINT =
+  'It is added after the last item in this feature. Work is usually added in the order it will be done, so there is nothing to place.'
+
+/**
+ * Why an empty box creates nothing, said rather than swallowed.
+ *
+ * `EntityName` is `.trim().min(1)`, so a blank name is a 422 whose detail is the API's generic one
+ * (`packages/contracts/src/document.ts`). Refusing it here is what puts the field's own rule in front
+ * of the user, and it is refused rather than ignored because a create is a **deliberate** gesture: a
+ * submit that quietly did nothing is indistinguishable from one that failed.
+ */
+export const NEEDS_A_NAME = 'A name is the whole of what a new feature or item is created from, so type one first.'
+
+/**
+ * What a feature delete takes with it, and the truth about getting it back.
+ *
+ * The shape every destructive message in this repository already has — "All of its … are deleted.
+ * This cannot be undone." (`apps/microtask/components/projects/delete-project.tsx`,
+ * `components/task-tree/task-menu.tsx`) — with this cascade's own list in it: `withoutFeatures` drops
+ * the feature, drops every item whose `featureId` names it, and strips the removed id out of every
+ * surviving feature's `dependsOn` (`packages/macroplan-domain/src/services/cascade.ts`). The item
+ * files go with the items, in the one `deleteItems` call that carries all of them.
+ *
+ * **"This cannot be undone" is a claim about the store, and it is true.** Nothing is written aside for
+ * recovery anywhere in that cascade — the manifest is replaced and the files are deleted — and the
+ * undo a later task builds is an undo of a **move**, which reverses a placement by sending the
+ * placement back. There is no write that puts a deleted feature back.
+ */
+export const DELETE_FEATURE =
+  'All of its items and every dependency on it are deleted. This cannot be undone.'
+
+/**
+ * The same sentence for an item, whose one possession is the file its description is stored in.
+ *
+ * Worded after the one existing message about a leaf — "Everything written in this tab is deleted.
+ * This cannot be undone." (`apps/microtask/components/tabs/tab-dialogs.tsx`) — because an item has the
+ * same shape of loss: no children, one body of text, and `ItemService.remove` deletes that file in the
+ * same call that rewrites the manifest.
+ */
+export const DELETE_ITEM =
+  'Everything written in its description is deleted. This cannot be undone.'

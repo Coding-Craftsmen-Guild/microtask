@@ -9,12 +9,31 @@ import { ADMIN_CONTROLS } from '../../../lib/admin-controls'
 import { planCapabilities, type PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
-import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
+import { atlasPlan, EPIC_1, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { nothingDrawn, stubActions } from '../testing/plan-writes'
 import type { DrawerValues } from './values'
 
 vi.mock('next/link', async () => ({
   default: (await import('../testing/next-link')).LinkDouble,
+}))
+
+// The delete navigates on success, so the panel now holds a component that calls `useRouter` — which
+// throws outside an App Router tree. Only `replace` is exercised here; `./delete-control.test.tsx` is
+// where what it is called with is asserted.
+const replaced: string[] = []
+
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useRouter: () => ({
+    back: () => undefined,
+    forward: () => undefined,
+    prefetch: () => undefined,
+    push: () => undefined,
+    refresh: () => undefined,
+    replace: (href: string) => {
+      replaced.push(href)
+    },
+  }),
 }))
 
 const { DrawerPanel } = await import('./drawer-panel')
@@ -51,6 +70,7 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
   name: 'Auth rewrite',
   estimateDays: 5,
   pinSprint: null,
+  place: { featureId: FEATURE_1, railId: EPIC_1 },
   plan: { calendar: CALENDAR, features: atlasPlan().features },
   sizedByItems: false,
   ...over,
@@ -274,8 +294,10 @@ const itemsOfOne = () => atlasPlan().items.filter((one) => one.featureId === FEA
 
 const pinBox = () => screen.queryByRole<HTMLInputElement>('textbox', { name: 'Pinned to sprint' })
 
-// The two control bands, in the order the panel draws them: the `write` fields, then the `manage`
-// controls. Found by the variant that hides an empty one, which is what each of them *is*.
+// The three control bands, in the order the panel draws them: the `write` fields about the subject, the
+// `manage` controls, then the creates — which are `write`-tier and outside the tier split, being about a
+// parent rather than about this subject. Found by the variant that hides an empty one, which is what each
+// of them *is*.
 const bands = (): readonly Element[] => [...document.querySelectorAll('[class*="empty:hidden"]')]
 
 const breakdownLine = (): string | null =>
@@ -351,11 +373,11 @@ describe('the manage band, and the one control an item drawer must never draw', 
   // `empty:hidden` is a Tailwind variant and not a count, so what makes a band disappear is the
   // element being **childless** — which is the thing worth asserting, a stylesheet not being loaded
   // here. Both bands are checked, because a read-only seat must be shown neither box.
-  it('leaves both bands childless for a surface that may write nothing, so neither is shown', () => {
+  it('leaves every band childless for a surface that may write nothing, so none is shown', () => {
     open({ controls: nothingDrawn() })
     expect(screen.queryAllByRole('checkbox')).toEqual([])
     expect(pinBox()).toBeNull()
-    expect(bands().map((band) => band.childElementCount)).toEqual([0, 0])
+    expect(bands().map((band) => band.childElementCount)).toEqual([0, 0, 0])
   })
 
   // **The claim the second band was opened for**, which four files' prose asserted and no test asked:
@@ -371,12 +393,122 @@ describe('the manage band, and the one control an item drawer must never draw', 
     expect(screen.getByRole('textbox', { name: 'Feature name' })).toBeTruthy()
     expect(pinBox()).toBeNull()
     expect(screen.queryAllByRole('checkbox')).toEqual([])
-    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, false])
+    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, false, true])
     cleanup()
     open({ controls: planCapabilities('manage', SEAT).content })
-    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, true])
+    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, true, true])
     expect(pinBox()).toBeTruthy()
     expect(screen.getByRole('checkbox', { name: 'Billing' })).toBeTruthy()
+  })
+
+  // The create band is the `true` in the middle case above, and it is the one band whose tier is not the
+  // band's: `feature:create` and `item:create` are `write` actions, so a `write` seat is shown the creates
+  // and refused the pin, the edges and the delete beside them (`packages/kernel/src/access/policy.ts`).
+  it('shows a write seat the creates, whose actions are write-tier, and not the delete', () => {
+    open({ controls: planCapabilities('write', SEAT).content })
+    expect(screen.getByRole('textbox', { name: 'New feature on this rail' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'New item in this feature' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+  })
+
+  it('shows a view seat no band at all, there being nothing on this panel it may write', () => {
+    open({ controls: planCapabilities('view', SEAT).content })
+    expect(bands().map((band) => band.childElementCount)).toEqual([0, 0, 0])
+  })
+})
+
+// The one destructive control, which is `manage`-tier and so lives in the second band. What is asserted
+// here is the mount: that it is drawn for both kinds, on its own boolean, and wired to **this** kind's
+// write. `./delete-control.test.tsx` holds the dialog, the focus and the navigation.
+describe('the delete, and the fact that the kind picks the write rather than a caller', () => {
+  it('draws it for a feature and sends removeFeature with the plan and the feature', async () => {
+    const actions = stubActions()
+    open({ actions })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete feature' }))
+    expect(actions.removeFeature).toHaveBeenCalledWith(PLAN_A, FEATURE_1)
+    expect(actions.removeItem).not.toHaveBeenCalled()
+  })
+
+  it('draws it for an item and sends removeItem, the two ids being indistinguishable strings', async () => {
+    const actions = stubActions()
+    open({ actions, row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(screen.getByRole('button', { name: 'Delete item' }))
+    expect(actions.removeItem).toHaveBeenCalledWith(PLAN_A, ITEM_1)
+    expect(actions.removeFeature).not.toHaveBeenCalled()
+  })
+
+  // The stored value and not the row's wording: the two are the same string on the fixture, so the
+  // values are given a name the row does not carry to tell which of the two the question quotes.
+  it('quotes the subject’s stored name, which is the value the field edits', async () => {
+    open({ values: valuesOf({ name: 'Auth rewrite v2' }) })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('heading', { name: 'Delete “Auth rewrite v2”?' })).toBeTruthy()
+  })
+
+  it('draws none where removeFeature is false while still drawing the pin beside it', () => {
+    open({ controls: drawing({ removeFeature: false }) })
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+    expect(pinBox()).toBeTruthy()
+  })
+
+  it('draws none for an item where removeItem is false, the two booleans being two actions', () => {
+    open({
+      controls: drawing({ removeItem: false }),
+      row: ITEM_ROW,
+      values: valuesOf({ name: 'Sessions' }),
+    })
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+  })
+})
+
+// The create group, which is the one group mounted by the frame rather than by a band: its parents are
+// `values.place`, resolved in the same lookup as the row, so a drawer open on an **item** adds a feature
+// to that item's rail and an item to that item's feature — never to the item.
+describe('the creates, which are about a parent and not about the subject', () => {
+  it('adds a feature to the open feature’s own rail', async () => {
+    const actions = stubActions()
+    open({ actions })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('textbox', { name: 'New feature on this rail' }))
+    await user.paste('Sessions rework')
+    await user.click(screen.getByRole('button', { name: 'Add feature' }))
+    expect(actions.createFeature).toHaveBeenCalledWith(PLAN_A, {
+      epicId: EPIC_1,
+      name: 'Sessions rework',
+    })
+  })
+
+  it('adds an item to the open item’s **feature**, which is the parent an item drawer cannot invent', async () => {
+    const actions = stubActions()
+    open({
+      actions,
+      row: ITEM_ROW,
+      values: valuesOf({ estimateDays: 3, name: 'Sessions', place: { featureId: FEATURE_1, railId: EPIC_1 } }),
+    })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('textbox', { name: 'New item in this feature' }))
+    await user.paste('Token rotation')
+    await user.click(screen.getByRole('button', { name: 'Add item' }))
+    expect(actions.createItem).toHaveBeenCalledWith(PLAN_A, {
+      featureId: FEATURE_1,
+      name: 'Token rotation',
+    })
+  })
+
+  it('draws each box only where its own control says so', () => {
+    open({ controls: drawing({ createFeature: false }) })
+    expect(screen.queryByRole('textbox', { name: 'New feature on this rail' })).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'New item in this feature' })).toBeTruthy()
+  })
+
+  it('draws no feature box where no epic of the plan claims the subject’s rail', () => {
+    open({ values: valuesOf({ place: { featureId: FEATURE_1, railId: null } }) })
+    expect(screen.queryByRole('textbox', { name: 'New feature on this rail' })).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'New item in this feature' })).toBeTruthy()
   })
 })
 

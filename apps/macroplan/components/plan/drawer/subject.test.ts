@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
-import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, ITEM_3, PLAN_GONE } from '../testing/plan-fixture'
+import {
+  atlasPlan,
+  EPIC_1,
+  FEATURE_1,
+  FEATURE_2,
+  ITEM_1,
+  ITEM_2,
+  ITEM_3,
+  PLAN_GONE,
+} from '../testing/plan-fixture'
 import { drawerSubject } from './subject'
 
 const plan = (overrides: Parameters<typeof atlasPlan>[0] = {}) =>
@@ -15,6 +24,7 @@ describe('resolving the one subject a drawer is open on', () => {
       name: 'Auth rewrite',
       estimateDays: 5,
       pinSprint: null,
+      place: { featureId: FEATURE_1, railId: EPIC_1 },
       plan: {
         calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
         features: atlasPlan().features,
@@ -187,5 +197,45 @@ describe('the calendar it carries, which is the plan’s three scheduling fields
 
   it('answers it for an item too, a sprint meaning the same dates whichever subject is open', () => {
     expect(drawerSubject(plan(), 'item', ITEM_1)?.values.plan.calendar.sprintLengthDays).toBe(14)
+  })
+})
+
+describe('the place group, which is the two parents a create adds a sibling under', () => {
+  it('answers a feature its own id as the parent a new item joins, and its epic as the rail', () => {
+    expect(drawerSubject(plan(), 'feature', FEATURE_1)?.values.place).toEqual({
+      featureId: FEATURE_1,
+      railId: EPIC_1,
+    })
+  })
+
+  // The second lookup, which is the reason this is resolved here rather than by the panel: an item
+  // knows its feature and the panel is handed neither the item record nor the plan.
+  it('answers an item its own feature, so "add an item" means the feature and never the item', () => {
+    expect(drawerSubject(plan(), 'item', ITEM_1)?.values.place).toEqual({
+      featureId: FEATURE_1,
+      railId: EPIC_1,
+    })
+  })
+
+  it('answers the item’s own feature and not the plan’s first, for an item on another feature', () => {
+    expect(drawerSubject(plan(), 'item', ITEM_3)?.values.place.featureId).toBe(FEATURE_2)
+  })
+
+  // `railsOf` gives such a feature a rail of its own and the table words it `Unclaimed rail`, so the
+  // panel is on screen while `FeatureService.add` would answer `assertEpic` with a 404 for that id.
+  it('answers no rail where no epic of the plan claims the feature, rather than an id that 404s', () => {
+    const orphaned = plan({ epics: [] })
+    expect(drawerSubject(orphaned, 'feature', FEATURE_1)?.row.epic).toBe('Unclaimed rail')
+    expect(drawerSubject(orphaned, 'feature', FEATURE_1)?.values.place.railId).toBeNull()
+    expect(drawerSubject(orphaned, 'feature', FEATURE_1)?.values.place.featureId).toBe(FEATURE_1)
+  })
+
+  it('answers no rail for an item under such a feature either, the rail being the feature’s', () => {
+    expect(drawerSubject(plan({ epics: [] }), 'item', ITEM_2)?.values.place.railId).toBeNull()
+  })
+
+  it('carries exactly two members, so nothing feature-shaped or plan-shaped rides along in it', () => {
+    const place = drawerSubject(plan(), 'item', ITEM_1)?.values.place
+    expect(Object.keys(place ?? {}).sort()).toEqual(['featureId', 'railId'])
   })
 })

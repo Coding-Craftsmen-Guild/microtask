@@ -22,6 +22,8 @@ import {
   unplacedPlan,
 } from './testing/plan-fixture'
 import { nothingDrawn, stubActions } from './testing/plan-writes'
+import { CreateControls } from './drawer/create-controls'
+import { DeleteControl } from './drawer/delete-control'
 import { DependencyToggle } from './drawer/dependency-toggle'
 import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
@@ -31,6 +33,21 @@ import { drawerSubject } from './drawer/subject'
 
 vi.mock('next/link', async () => ({
   default: (await import('./testing/next-link')).LinkDouble,
+}))
+
+// The drawer's delete navigates on success, so one of the client files below calls `useRouter` — which
+// throws outside an App Router tree, and every tree here is rendered. What it is called with is asserted
+// where the control lives (`./drawer/delete-control.test.tsx`); here it only has to exist.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useRouter: () => ({
+    back: () => undefined,
+    forward: () => undefined,
+    prefetch: () => undefined,
+    push: () => undefined,
+    refresh: () => undefined,
+    replace: () => undefined,
+  }),
 }))
 
 const { DrawerPanel } = await import('./drawer/drawer-panel')
@@ -176,6 +193,8 @@ const FEATURE = subjectOf('feature', FEATURE_1)
 // new client file fails the allowlist until it is a key here, and being a key here is what stops the
 // walk at it.
 const CLIENT_BY_FILE = new Map<unknown, string>([
+  [CreateControls, 'create-controls.tsx'],
+  [DeleteControl, 'delete-control.tsx'],
   [DependencyToggle, 'dependency-toggle.tsx'],
   [DescriptionField, 'description-field.tsx'],
   [EstimateField, 'estimate-field.tsx'],
