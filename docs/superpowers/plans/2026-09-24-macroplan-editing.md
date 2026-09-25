@@ -1128,9 +1128,17 @@ so a calendar arrives as three of them.
 
 **Files:**
 - Create: `apps/macroplan/components/plan/drawer/cycle-check.ts`, `cycle-check.test.ts`,
-  `dependency-editor.tsx`, `dependency-editor.test.tsx`
+  `dependency-editor.tsx`, `dependency-editor.test.tsx`, `dependency-toggle.tsx`, `drawer-manage.tsx`
 
 This is the phase gate's first half — "cycle refusal pinned by test" — and header decision 7 is the design.
+
+**The editor is a server component, and that was not foreseen here.** The candidate list is a *list*, and
+`module-boundaries.test.tsx` admits only primitives, unbound functions and `null` across a client boundary — so the
+editor cannot be the client file this plan assumed. It renders server-side, computing one `findCycles` per candidate,
+and mounts one small client toggle per row carrying that row's own primitives. The single list it must send crosses as
+a space-joined string, which is safe because `EntityId` is `/^[0-9A-HJKMNP-TV-Z]{26}$/` and cannot contain a space.
+Hence two source files this list did not name. The other, `drawer-manage.tsx`, is the `manage`-tier container the
+capacity note above says is owed: Task 13 opened it, moved the pin into it, and `drawer-edits.tsx` fell 62 → 50.
 
 **The action already exists.** `setDependencies` is on `PlanEditActions` and wired into both audiences before this
 task opens, so this task creates no action file and modifies none. The plan inventory always declared it in
@@ -1142,7 +1150,16 @@ let two editors' writes be ordered.
 
 - [ ] **Step 1: `cycle-check.ts` is pure, and it is where the gate is met.** Given the plan's features and a
       proposed `dependsOn` for one of them, answer either the cycle it would create — as the **names** of the
-      features in it, in the order they wait on each other — or `null`.
+      features in it — or `null`.
+
+      This step used to ask for those names "in the order they wait on each other". **That is not obtainable, and
+      Task 13 established why rather than faking it.** `findCycles` answers a strongly connected component's ids in
+      ascending order, and a component of three or more need not be a single cycle at all: `a→b→a` beside `b→c→b`
+      is one component containing two cycles, so there is frequently no such order to report. Recovering one where
+      it does exist means a second walk over the graph — which this same step forbids, for the good reason that
+      `findCycles` is already property-tested and a second walk is a second thing to keep true. So
+      `ProposedCycle.featureIds` carries `findCycles`'s own ordering and the interface says so. The sentence still
+      names every feature caught, which is what the gate is about.
 
 ```ts
 export interface ProposedCycle {
