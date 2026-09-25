@@ -1,15 +1,30 @@
 import type { RouteHandler } from '@hono/zod-openapi'
+import { Invalid } from '@repo/kernel'
 import type { EpicService } from '@repo/macroplan-domain'
 import { planView } from '@repo/macroplan-domain'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
+import type { Bindings, BindingRefusal } from '../../../bridge/bindings.js'
 import { PRODUCT } from '../product.js'
 import type {
+  bindEpicRoute,
   createEpicRoute,
   deleteEpicRoute,
   placeEpicRoute,
+  unbindEpicRoute,
   updateEpicRoute,
 } from './routes.js'
+
+/**
+ * The sentence each refusal to bind is reported with.
+ *
+ * A closed record keyed by {@link BindingRefusal}, so a third reason added there is a compile error
+ * here rather than a refusal that reaches an admin as an empty detail.
+ */
+export const BIND_REFUSALS: Readonly<Record<BindingRefusal, string>> = {
+  unknown: 'That token names no Microtask project. Paste the token of a project share link.',
+  weaker: 'That token holds less in Microtask than the role asked for here.',
+}
 
 /**
  * Adds a rail at the bottom of the plan and answers the whole plan.
@@ -70,5 +85,38 @@ export const deleteEpic =
     const { planId, epicId } = c.req.valid('param')
     const principal = authorize(c, 'epic:delete', { kind: 'epic', planId })
     const updated = await epics.remove({ product: PRODUCT, planId }, epicId)
+    return c.json(planView(updated, principal), 200)
+  }
+
+/**
+ * Binds one rail to a Microtask project, deriving the project from the token the admin pasted.
+ *
+ * Two 422 sentences rather than one, because an admin fixes the two differently: a token that names no
+ * project is "paste a project share token from Microtask", and a token weaker than the role asked for
+ * is "that seat holds less than that — re-role it there, or bind at the role it has".
+ *
+ * The gate is asked **before** the token is resolved. Resolving reads a project manifest in the other
+ * product, and a caller with no authority here should not be able to make this API go and look
+ * something up in Microtask on the strength of a string it supplied.
+ */
+export const bindEpic =
+  (epics: EpicService, bindings: Bindings): RouteHandler<typeof bindEpicRoute, ApiEnv> =>
+  async (c) => {
+    const { planId, epicId } = c.req.valid('param')
+    const { token, role } = c.req.valid('json')
+    const principal = authorize(c, 'epic:bind', { kind: 'epic', planId })
+    const prepared = await bindings.prepare(token, role)
+    if (!prepared.ok) throw new Invalid(BIND_REFUSALS[prepared.reason])
+    const updated = await epics.bind({ product: PRODUCT, planId }, epicId, prepared.binding)
+    return c.json(planView(updated, principal), 200)
+  }
+
+/** Unbinds one rail, leaving every item's link in place, and answers the plan. */
+export const unbindEpic =
+  (epics: EpicService): RouteHandler<typeof unbindEpicRoute, ApiEnv> =>
+  async (c) => {
+    const { planId, epicId } = c.req.valid('param')
+    const principal = authorize(c, 'epic:bind', { kind: 'epic', planId })
+    const updated = await epics.unbind({ product: PRODUCT, planId }, epicId)
     return c.json(planView(updated, principal), 200)
   }

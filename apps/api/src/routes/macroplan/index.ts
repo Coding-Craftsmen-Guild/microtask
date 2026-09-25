@@ -7,12 +7,15 @@ import {
   PlanShareLinkService,
   type PlanContext,
 } from '@repo/macroplan-domain'
+import { TaskService } from '@repo/microtask-domain'
 import { AdminVerifier } from '../../auth/admin-verifier.js'
 import type { ApiEnv } from '../../auth/env.js'
 import { linkDirectories } from '../../auth/link-directory.js'
 import { PrincipalResolver } from '../../auth/principal-resolver.js'
 import { requirePrincipal } from '../../auth/require-principal.js'
 import { requireProduct } from '../../auth/require-product.js'
+import { BridgeService } from '../../bridge/bridge-service.js'
+import { Bindings } from '../../bridge/bindings.js'
 import type { ApiDeps } from '../../deps.js'
 import { createPlanScoped } from './plan-scoped.js'
 import { createPlan, listPlans } from './plans/handlers.js'
@@ -37,12 +40,31 @@ const contextFor = (deps: ApiDeps): PlanContext => ({
   tokens: deps.tokens,
 })
 
-const servicesFor = (ctx: PlanContext): PlanServices => ({
+/**
+ * The two collaborators that reach Microtask, built here because here is where both stores are in scope.
+ *
+ * `deps.store` is Microtask's and `deps.plans` is this product's, and this function is the only place in
+ * the Macroplan tree that sees both. The resolver handed to each is the **same instance** the guards
+ * above use, so a bound token and a request bearer are resolved by one code path — two resolvers would
+ * be two places a revocation could fail to take effect.
+ */
+export const bridgeFor = (deps: ApiDeps, resolver: PrincipalResolver): Pick<PlanServices, 'bridge' | 'bindings'> => ({
+  bridge: new BridgeService({
+    secret: deps.config.bridgeSecret,
+    bearers: resolver,
+    store: deps.store,
+    tasks: new TaskService(deps),
+  }),
+  bindings: new Bindings({ secret: deps.config.bridgeSecret, bearers: resolver }),
+})
+
+const servicesFor = (ctx: PlanContext, bridge: Pick<PlanServices, 'bridge' | 'bindings'>): PlanServices => ({
   plans: new PlanService(ctx),
   epics: new EpicService(ctx),
   features: new FeatureService(ctx),
   items: new ItemService(ctx),
   seats: new PlanShareLinkService(ctx),
+  ...bridge,
 })
 
 /**
@@ -88,9 +110,10 @@ const servicesFor = (ctx: PlanContext): PlanServices => ({
  */
 export function createMacroplan(deps: ApiDeps): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
-  app.use('*', requirePrincipal(resolverFor(deps), deps.config.serviceKeys))
+  const resolver = resolverFor(deps)
+  app.use('*', requirePrincipal(resolver, deps.config.serviceKeys))
   app.use('*', requireProduct(PRODUCT))
-  const services = servicesFor(contextFor(deps))
+  const services = servicesFor(contextFor(deps), bridgeFor(deps, resolver))
   app.openapi(listPlansRoute, listPlans(services.plans))
   app.openapi(createPlanRoute, createPlan(services.plans))
   app.openapi(currentPlanShareRoute, readCurrentPlanShare(services.plans))

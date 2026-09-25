@@ -130,6 +130,32 @@ const MINT_A_SEAT: Step = {
   body: JSON.stringify({ name: 'Acme', role: 'manage' }),
 }
 
+/**
+ * The bridge samples bind the rail to project one with a real token out of the fixture, so every one of
+ * them exercises a live binding rather than the unlinked branch.
+ *
+ * `TOKENS.p1Manage` is a manage seat on project one, which `buildDeps` seeds and warms into the token
+ * index — so the bind route resolves it, derives the project from it and stores a sealed copy. That is
+ * what lets `GET /bridge/epics/{epicId}/tasks` answer 200 rather than the 409 it owes an unbound rail,
+ * and what lets the two link routes find a task to point at.
+ */
+const BIND_THE_RAIL: Step = {
+  method: 'PUT',
+  path: `${EPIC_PATH}/binding`,
+  headers: adminJson(),
+  body: JSON.stringify({ token: TOKENS.p1Manage, role: 'manage' }),
+}
+
+const LINK_THE_ITEM: Step = {
+  method: 'PUT',
+  path: `${ITEM_PATH}/link`,
+  headers: adminJson(),
+  body: JSON.stringify({ taskId: IDS.t1 }),
+}
+
+const ON_A_BOUND_RAIL = [DRAFT_A_PLAN, ADD_AN_EPIC, BIND_THE_RAIL] as const
+const ON_A_BOUND_ITEM = [...ON_AN_ITEM, BIND_THE_RAIL] as const
+
 const ON_A_SEAT = [DRAFT_A_PLAN, MINT_A_SEAT] as const
 const SEAT_PATH = `${FIRST_PLAN_PATH}/share-links/${FIRST_SEAT}`
 
@@ -189,6 +215,43 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
   },
   [`GET ${PLANS}`]: { path: PLANS, headers: admin() },
   [`POST ${PLANS}`]: { path: PLANS, headers: adminJson(), body: DRAFT_PLAN },
+  [`PUT ${PLAN}/epics/{epicId}/binding`]: {
+    path: `${EPIC_PATH}/binding`,
+    headers: adminJson(),
+    body: JSON.stringify({ token: TOKENS.p1Manage, role: 'manage' }),
+    setup: ON_A_RAIL,
+  },
+  [`DELETE ${PLAN}/epics/{epicId}/binding`]: {
+    path: `${EPIC_PATH}/binding`,
+    headers: admin(),
+    setup: ON_A_BOUND_RAIL,
+  },
+  [`GET ${PLAN}/bridge`]: {
+    path: `${FIRST_PLAN_PATH}/bridge`,
+    headers: admin(),
+    setup: ON_A_BOUND_ITEM,
+  },
+  [`GET ${PLAN}/bridge/epics/{epicId}/tasks`]: {
+    path: `${FIRST_PLAN_PATH}/bridge/epics/${FIRST_EPIC}/tasks`,
+    headers: admin(),
+    setup: ON_A_BOUND_RAIL,
+  },
+  [`PUT ${PLAN}/items/{itemId}/link`]: {
+    path: `${ITEM_PATH}/link`,
+    headers: adminJson(),
+    body: JSON.stringify({ taskId: IDS.t1 }),
+    setup: ON_A_BOUND_ITEM,
+  },
+  [`DELETE ${PLAN}/items/{itemId}/link`]: {
+    path: `${ITEM_PATH}/link`,
+    headers: admin(),
+    setup: [...ON_A_BOUND_ITEM, LINK_THE_ITEM],
+  },
+  [`POST ${PLAN}/items/{itemId}/task`]: {
+    path: `${ITEM_PATH}/task`,
+    headers: admin(),
+    setup: ON_A_BOUND_ITEM,
+  },
   [`GET ${PLAN}`]: { path: FIRST_PLAN_PATH, headers: admin(), setup: [DRAFT_A_PLAN] },
   [`PATCH ${PLAN}`]: {
     path: FIRST_PLAN_PATH,

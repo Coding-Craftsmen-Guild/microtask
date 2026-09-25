@@ -1,5 +1,7 @@
 import {
+  BoundTaskList,
   PlanView,
+  type BindEpicPayload,
   type CreateEpicPayload,
   type EpicPlacementPayload,
   type UpdateEpicPayload,
@@ -39,6 +41,17 @@ export type EpicChange = Decoded<typeof UpdateEpicPayload>
  */
 export type EpicPlacement = Decoded<typeof EpicPlacementPayload>
 
+/**
+ * What an epic is bound to in Microtask: a share token pasted from there, and the role to hold it at.
+ *
+ * No `projectId`. The API derives the project by resolving the token, so the two can never disagree —
+ * a caller that supplied both would be asking the API to choose which half to believe.
+ */
+export type NewBinding = Decoded<typeof BindEpicPayload>
+
+/** The tasks of a rail's bound project, id and name only: what a picker chooses from. */
+export type BoundTasks = Decoded<typeof BoundTaskList>
+
 /** Everything a caller may ask of a plan's rails. */
 export interface EpicsApi {
   /** Adds a rail at the bottom of the plan; the body carries no placement, only a name and a hue. */
@@ -71,6 +84,32 @@ export interface EpicsApi {
    * that is what the whole subtree answers, and names the file the rule belongs to.
    */
   remove(planId: string, epicId: string): Promise<Plan>
+
+  /**
+   * Binds one rail to a Microtask project by a token pasted from there. Admin-only (`epic:bind`).
+   *
+   * **422** for a token that names no project, and **422** for one holding less in Microtask than the
+   * role asked for — two sentences a caller acts on differently, so read the detail rather than the
+   * status. Binding a rail that is already bound replaces its binding.
+   */
+  bind(planId: string, epicId: string, binding: NewBinding): Promise<Plan>
+
+  /**
+   * Unbinds one rail. Idempotent, and it leaves every item's link in place.
+   *
+   * Those links go inert rather than away: the API reports nothing for an item whose rail did not
+   * resolve, so rebinding the same project brings them all back (spec §7.2 permits no delete here).
+   */
+  unbind(planId: string, epicId: string): Promise<Plan>
+
+  /**
+   * The tasks of one rail's bound project. Admin-only, and **409** when the rail is bound to nothing.
+   *
+   * Gated on `epic:bind` rather than on a read action, which is a decision and not an oversight: spec
+   * §7.3 grants a seat one *linked* task's name, and a list of every task in a project is materially
+   * more than that.
+   */
+  tasks(planId: string, epicId: string): Promise<BoundTasks>
 }
 
 /** Binds the rail operations to a transport. */
@@ -87,5 +126,17 @@ export function epicsApi(transport: Transport): EpicsApi {
       ),
     remove: (planId, epicId) =>
       transport.json({ method: 'DELETE', path: epicPath(planId, epicId) }, PlanView),
+    bind: (planId, epicId, binding) =>
+      transport.json(
+        { method: 'PUT', path: `${epicPath(planId, epicId)}/binding`, body: binding },
+        PlanView,
+      ),
+    unbind: (planId, epicId) =>
+      transport.json({ method: 'DELETE', path: `${epicPath(planId, epicId)}/binding` }, PlanView),
+    tasks: (planId, epicId) =>
+      transport.json(
+        { method: 'GET', path: `${planPath(planId)}/bridge/epics/${encodeURIComponent(epicId)}/tasks` },
+        BoundTaskList,
+      ),
   }
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, createAdminClient, createLinkClient } from '@repo/api-client'
-import type { Fetcher, MicrotaskApi } from '@repo/api-client'
+import {
+  ApiError,
+  createAdminClient,
+  createLinkClient,
+  createMacroplanAdminClient,
+} from '@repo/api-client'
+import type { Fetcher, MacroplanApi, MicrotaskApi } from '@repo/api-client'
 import { LIMITS } from '@repo/contracts'
 import { AdminVerifier } from '../auth/admin-verifier.js'
 import { IDS, SERVICE_KEY, TOKENS, buildApp, testConfig } from '../testing/harness.js'
@@ -24,6 +29,12 @@ const asAdmin = async (): Promise<MicrotaskApi> =>
 const asLink = async (token: string): Promise<MicrotaskApi> =>
   createLinkClient({ baseUrl: BASE, serviceKey: SERVICE_KEY, fetch: await overApp() }, token)
 
+const macroplanAdmin = async (): Promise<MacroplanApi> =>
+  createMacroplanAdminClient(
+    { baseUrl: BASE, serviceKey: SERVICE_KEY, fetch: await overApp() },
+    adminToken(),
+  )
+
 const refused = async (call: () => Promise<unknown>): Promise<ApiError> => {
   try {
     await call()
@@ -33,6 +44,99 @@ const refused = async (call: () => Promise<unknown>): Promise<ApiError> => {
   }
   throw new Error('the call succeeded, so there is no error to inspect')
 }
+
+/**
+ * The bridge operations, driven through the real routes.
+ *
+ * Worth its own block rather than leaving it to `response-shapes.test.ts`: that walker builds requests
+ * from the document, so it proves each route answers the shape it declares and proves nothing about the
+ * paths **this client** builds. `epics.tasks` is the sharpest case — the one operation whose path is
+ * not under its own resource, hanging off `/bridge` instead — so a typo there would 404 with every
+ * other test in the repository still green.
+ */
+describe('the bridge operations reach the real routes the client builds paths for', () => {
+  interface Rail {
+    readonly planId: string
+    readonly epicId: string
+  }
+
+  const boundRail = async (client: MacroplanApi, name: string): Promise<Rail> => {
+    const plan = await client.plans.create({ name, startDate: '2026-03-02' })
+    const epicId = (await client.epics.create(plan.id, { name: 'Checkout' })).epics[0]?.id ?? ''
+    await client.epics.bind(plan.id, epicId, { token: TOKENS.p1Manage, role: 'manage' })
+    return { planId: plan.id, epicId }
+  }
+
+  const itemOn = async (client: MacroplanApi, rail: Rail): Promise<string> => {
+    const featureId =
+      (await client.features.create(rail.planId, { epicId: rail.epicId, name: 'Basket' })).features[0]
+        ?.id ?? ''
+    return (await client.items.create(rail.planId, { featureId, name: 'Add to basket' })).items[0]?.id ?? ''
+  }
+
+  it('binds a rail and carries no sealed token back in the plan it answers', async () => {
+    const client = await macroplanAdmin()
+    const plan = await client.plans.create({ name: 'Roadmap', startDate: '2026-03-02' })
+    const epicId = (await client.epics.create(plan.id, { name: 'Checkout' })).epics[0]?.id ?? ''
+    const bound = await client.epics.bind(plan.id, epicId, { token: TOKENS.p1Manage, role: 'manage' })
+    expect(JSON.stringify(bound)).not.toContain(TOKENS.p1Manage)
+    expect(bound.epics.find((one) => one.id === epicId)?.binding).toEqual({
+      projectId: IDS.p1,
+      role: 'manage',
+    })
+  })
+
+  it('lists the bound project’s tasks through a path that hangs off /bridge, not off /epics', async () => {
+    const client = await macroplanAdmin()
+    const rail = await boundRail(client, 'Third')
+    const listed = await client.epics.tasks(rail.planId, rail.epicId)
+    expect(listed.tasks.map((one) => one.name)).toContain('Write the spec')
+  })
+
+  it('creates the linked task and reads its count back off the bridge', async () => {
+    const client = await macroplanAdmin()
+    const rail = await boundRail(client, 'Fourth')
+    const itemId = await itemOn(client, rail)
+    await client.items.createTask(rail.planId, itemId)
+    const bridge = await client.plans.readBridge(rail.planId)
+    expect(bridge.items).toEqual([
+      { itemId, progress: { done: 0, total: 0 }, taskName: 'Add to basket' },
+    ])
+  })
+
+  it('unlinks and unbinds through their own paths, both idempotent', async () => {
+    const client = await macroplanAdmin()
+    const rail = await boundRail(client, 'Fifth')
+    const itemId = await itemOn(client, rail)
+    await client.items.link(rail.planId, itemId, { taskId: IDS.t1 })
+    await client.items.unlink(rail.planId, itemId)
+    await client.items.unlink(rail.planId, itemId)
+    const after = await client.epics.unbind(rail.planId, rail.epicId)
+    expect(after.epics.find((one) => one.id === rail.epicId)?.binding).toBeNull()
+  })
+
+  it('reports a 409 as an ApiError when the rail is bound to nothing', async () => {
+    const client = await macroplanAdmin()
+    const plan = await client.plans.create({ name: 'Sixth', startDate: '2026-03-02' })
+    const epicId = (await client.epics.create(plan.id, { name: 'Checkout' })).epics[0]?.id ?? ''
+    const featureId =
+      (await client.features.create(plan.id, { epicId, name: 'Basket' })).features[0]?.id ?? ''
+    const itemId = (await client.items.create(plan.id, { featureId, name: 'Add' })).items[0]?.id ?? ''
+    const error = await refused(() => client.items.link(plan.id, itemId, { taskId: IDS.t1 }))
+    expect(error.status).toBe(409)
+  })
+
+  it('reports a 422 when the pasted token names no project, with the sentence a form can show', async () => {
+    const client = await macroplanAdmin()
+    const plan = await client.plans.create({ name: 'Seventh', startDate: '2026-03-02' })
+    const epicId = (await client.epics.create(plan.id, { name: 'Checkout' })).epics[0]?.id ?? ''
+    const error = await refused(() =>
+      client.epics.bind(plan.id, epicId, { token: 'shr_names_nobody_at_all', role: 'manage' }),
+    )
+    expect(error.status).toBe(422)
+    expect(error.detail).toContain('no Microtask project')
+  })
+})
 
 describe('a 422 from the real API round-trips into a field a form can point at (ADR 0036)', () => {
   it('carries in: json and the path of the field that failed', async () => {

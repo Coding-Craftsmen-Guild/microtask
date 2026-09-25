@@ -3,6 +3,7 @@ import type { z } from 'zod'
 import {
   BindEpicPayload,
   BoundTaskList,
+  BridgeBinding,
   BridgeEpicRow,
   BridgeItemRow,
   EpicBindingView,
@@ -100,6 +101,7 @@ describe('BoundTaskList', () => {
 
 const leakCases: ReadonlyArray<readonly [string, z.ZodType, Record<string, unknown>]> = [
   ['EpicBindingView', EpicBindingView, { projectId: ID, role: 'view' }],
+  ['BridgeBinding', BridgeBinding, { projectId: ID, role: 'write' }],
   ['BridgeEpicRow', BridgeEpicRow, { epicId: ID, state: 'bound', binding: { projectId: ID, role: 'view' } }],
   ['BridgeItemRow', BridgeItemRow, { itemId: ID, progress: { done: 1, total: 2 }, taskName: 'Ship it' }],
   ['PlanBridgeView', PlanBridgeView, { items: [{ itemId: ID, progress: { done: 0, total: 0 } }] }],
@@ -132,7 +134,7 @@ const nestedLeakCases: ReadonlyArray<readonly [string, z.ZodType, Record<string,
 
 describe('a view schema in this file never lets a sealed token pass through (design §7.2)', () => {
   it('covers every view schema declared in bridge.ts, so the sweep below cannot cover nothing', () => {
-    expect(leakCases).toHaveLength(5)
+    expect(leakCases).toHaveLength(6)
   })
 
   it.each(leakCases)('%s strips an injected sealedToken', (_name, schema, value) => {

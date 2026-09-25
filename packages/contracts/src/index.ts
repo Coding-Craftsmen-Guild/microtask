@@ -55,6 +55,7 @@ export {
 export {
   BindEpicPayload,
   BoundTaskList,
+  BridgeBinding,
   BridgeEpicRow,
   BridgeItemRow,
   EpicBindingView,

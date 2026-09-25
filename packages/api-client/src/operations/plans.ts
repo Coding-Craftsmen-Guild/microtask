@@ -1,5 +1,6 @@
 import {
   ItemView,
+  PlanBridgeView,
   PlanList,
   PlanView,
   type CreatePlanPayload,
@@ -61,6 +62,19 @@ export interface PlansApi {
   readItem(planId: string, itemId: string): Promise<Decoded<typeof ItemView>>
 
   /**
+   * What this plan's rails are bound to in Microtask, and what each linked item's task counts.
+   *
+   * A **second** read rather than fields on {@link PlansApi.read}, and a caller may make both at once:
+   * a plan holding up to forty bindings would otherwise put forty cross-product reads on the path that
+   * draws the timeline, and Microtask being unavailable would take the plan down with it (ADR 0061).
+   *
+   * Shaped by the API per caller, so what comes back is already what this credential may be told: the
+   * `epics` block is absent for anybody but an admin, and `taskName` is absent on any row whose rail
+   * this caller reaches at less than `write`. There is nothing here for a UI to hide.
+   */
+  readBridge(planId: string): Promise<Decoded<typeof PlanBridgeView>>
+
+  /**
    * Creates an empty plan, and is the one call on this surface **no seat can ever make**.
    *
    * It breaks the pattern the rail, feature and item writes set in two ways. It takes no `planId`,
@@ -112,6 +126,8 @@ export function plansApi(transport: Transport): PlansApi {
   return {
     list: () => transport.json({ method: 'GET', path: MACROPLAN_PLANS_PATH }, PlanList),
     read: (planId) => transport.json({ method: 'GET', path: planPath(planId) }, PlanView),
+    readBridge: (planId) =>
+      transport.json({ method: 'GET', path: `${planPath(planId)}/bridge` }, PlanBridgeView),
     readItem: (planId, itemId) =>
       transport.json({ method: 'GET', path: planItemPath(planId, itemId) }, ItemView),
     create: (plan) =>

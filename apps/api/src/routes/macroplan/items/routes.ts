@@ -4,6 +4,7 @@ import {
   DescriptionPayload,
   ItemPlacementPayload,
   ItemView,
+  LinkItemPayload,
   UpdateItemPayload,
 } from '@repo/contracts'
 import { problemResponses } from '../../../http/error-responses.js'
@@ -129,6 +130,73 @@ export const deleteItemRoute = createRoute({
   path: '/{itemId}',
   tags: ['items'],
   summary: 'Remove one item and its description',
+  security: GUARDED_SECURITY,
+  request: { params: itemParams },
+  responses: { 200: PLAN_RESPONSE, ...problemResponses() },
+})
+
+/**
+ * Link one item to a task inside its rail's bound project. Answers the plan.
+ *
+ * `item:link` is granted to **`write`** (spec §7.1 as amended), so a write seat reaches this and a view
+ * seat does not. The task must already exist in the bound project: this route chooses which task an
+ * item points at and creates none — `POST /{itemId}/task` below is the one route that creates one.
+ *
+ * **409** when the rail is bound to nothing, or when its token no longer resolves. Both are a real
+ * conflict between the request and the plan's state rather than a malformed request, and both read the
+ * same way from here: there is no bound project in which to find a task.
+ *
+ * **422** when the rail is bound and the task named is not one of that project's.
+ */
+export const linkItemRoute = createRoute({
+  method: 'put',
+  path: '/{itemId}/link',
+  tags: ['items'],
+  summary: 'Link one item to a task in the bound project',
+  security: GUARDED_SECURITY,
+  request: {
+    params: itemParams,
+    body: { required: true, content: { 'application/json': { schema: LinkItemPayload } } },
+  },
+  responses: { 200: PLAN_RESPONSE, ...problemResponses() },
+})
+
+/** Unlink one item. Answers the plan, and is idempotent on an item that is linked to nothing. */
+export const unlinkItemRoute = createRoute({
+  method: 'delete',
+  path: '/{itemId}/link',
+  tags: ['items'],
+  summary: 'Unlink one item from its task',
+  security: GUARDED_SECURITY,
+  request: { params: itemParams },
+  responses: { 200: PLAN_RESPONSE, ...problemResponses() },
+})
+
+/**
+ * Create the real task in the bound project, named after this item, and link the item to it.
+ *
+ * Spec §7.2's whole `manage` case: "naming an item in Macroplan **creates the real task** in the bound
+ * project". It is its own route rather than a side effect of `POST /items` because it is the only write
+ * in this product that reaches into the other one, and folding it into item creation would mean one
+ * request writing into the client-facing product with no separate authority to ask and no separate
+ * refusal for a client to read.
+ *
+ * Gated on `item:link`, and additionally refused unless the **effective** role on the rail is `manage`:
+ * the weaker of this caller's plan role and what the rail's token holds today. A rail bound at `view`
+ * can never write, however strong the caller.
+ *
+ * **409** for a rail bound to nothing, a token that no longer resolves, and an item that is **already
+ * linked** — the last so that a retry cannot create a second task for one item.
+ *
+ * There is no rollback and cannot be. §7.2 permits this bridge no delete at all, so if the task is
+ * created and the item write then fails, the task stays — named, visible, and pointing at nothing.
+ * `POST` twice is refused by the already-linked conflict rather than by an undo.
+ */
+export const createTaskForItemRoute = createRoute({
+  method: 'post',
+  path: '/{itemId}/task',
+  tags: ['items'],
+  summary: 'Create the linked task in the bound project',
   security: GUARDED_SECURITY,
   request: { params: itemParams },
   responses: { 200: PLAN_RESPONSE, ...problemResponses() },

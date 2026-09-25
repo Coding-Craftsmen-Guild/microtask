@@ -1,3 +1,5 @@
+import type { BridgeService } from '../../bridge/bridge-service.js'
+import type { Bindings } from '../../bridge/bindings.js'
 import type {
   EpicService,
   FeatureService,
@@ -29,4 +31,19 @@ export interface PlanServices {
   readonly features: FeatureService
   readonly items: ItemService
   readonly seats: PlanShareLinkService
+
+  /**
+   * The one collaborator that reaches the other product: reads a bound project, and creates one task.
+   *
+   * It sits in this record rather than being built per subtree because three of them need it — the
+   * item routes that link, the bridge routes that read, and nothing else — and because building it
+   * needs both stores, which only `index.ts` tells apart.
+   */
+  readonly bridge: BridgeService
+
+  /**
+   * Turns a token an admin pasted into a storable binding. Only the epic routes receive it, so no
+   * other subtree can seal a credential.
+   */
+  readonly bindings: Bindings
 }

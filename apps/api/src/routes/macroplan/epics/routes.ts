@@ -1,5 +1,10 @@
 import { createRoute } from '@hono/zod-openapi'
-import { CreateEpicPayload, EpicPlacementPayload, UpdateEpicPayload } from '@repo/contracts'
+import {
+  BindEpicPayload,
+  CreateEpicPayload,
+  EpicPlacementPayload,
+  UpdateEpicPayload,
+} from '@repo/contracts'
 import { problemResponses } from '../../../http/error-responses.js'
 import { GUARDED_SECURITY } from '../../../http/security.js'
 import { epicParams, planParams } from '../params.js'
@@ -81,6 +86,54 @@ export const deleteEpicRoute = createRoute({
   path: '/{epicId}',
   tags: ['epics'],
   summary: 'Remove one rail and everything on it',
+  security: GUARDED_SECURITY,
+  request: { params: epicParams },
+  responses: { 200: PLAN_RESPONSE, ...problemResponses() },
+})
+
+/**
+ * Bind one rail to a Microtask project by the share token an admin pasted. Answers the plan.
+ *
+ * `PUT`, because the body is the whole binding rather than a change to part of one: re-roling a rail
+ * and re-pasting a rotated token for the same project are one operation from the store's point of
+ * view, and there is no field of a binding it makes sense to change alone.
+ *
+ * The body is a token and a role and **no project**. The project is derived by resolving the token, so
+ * the two can never disagree (`bridge/bindings.ts` argues it at length). `epic:bind` is in
+ * `ADMIN_ONLY_ACTIONS`, so no seat reaches this route whatever its role: an epic's binding is the
+ * ceiling on everything a link holder reaches in Microtask through the bridge, and a holder who could
+ * re-role a binding could raise its own ceiling (spec §7.3).
+ *
+ * **422** for a token that names no project and for one weaker than the role asked for, which are two
+ * different sentences an admin acts on differently.
+ */
+export const bindEpicRoute = createRoute({
+  method: 'put',
+  path: '/{epicId}/binding',
+  tags: ['epics'],
+  summary: 'Bind one rail to a Microtask project',
+  security: GUARDED_SECURITY,
+  request: {
+    params: epicParams,
+    body: { required: true, content: { 'application/json': { schema: BindEpicPayload } } },
+  },
+  responses: { 200: PLAN_RESPONSE, ...problemResponses() },
+})
+
+/**
+ * Unbind one rail. Answers the plan, and is idempotent on a rail that is bound to nothing.
+ *
+ * **Leaves every item's `linkedTaskId` in place.** A binding is permitted no delete (spec §7.2), and
+ * clearing the links would be destruction the admin did not ask for — an admin who unbinds and rebinds
+ * the same rail after rotating a revoked token finds every item still pointing at the task it did
+ * before. Those links are inert while the rail is unbound: `bridge-view.ts` reports nothing for an item
+ * whose rail did not resolve, and `planView` withholds the id from any reader below effective `write`.
+ */
+export const unbindEpicRoute = createRoute({
+  method: 'delete',
+  path: '/{epicId}/binding',
+  tags: ['epics'],
+  summary: 'Unbind one rail, leaving its items’ links in place',
   security: GUARDED_SECURITY,
   request: { params: epicParams },
   responses: { 200: PLAN_RESPONSE, ...problemResponses() },

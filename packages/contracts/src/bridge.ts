@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { EntityId, EntityName, ShareToken } from './document.js'
 import { Progress } from './progress.js'
+import { Role } from './share-link.js'
 
 const bridgeRole = z.enum(['view', 'manage'])
 
@@ -49,17 +50,34 @@ export const EpicBindingView = z
   .meta({ id: 'EpicBindingView', description: 'An epic’s binding, without the token that grants it' })
 
 /**
- * One epic, as the bridge reports it: bound to a project, or not.
+ * What a rail's binding is worth **today**, which is not the same shape as what it stores.
  *
- * `binding` is optional rather than nullable-and-always-present, matching the shape of `state`:
- * an `'unlinked'` epic never had a binding to describe, so there is no meaningful value to fill
- * the key with. A revoked or dead token also reports as `'unlinked'` with `binding` absent (design
- * §7.2) — the same stated state a caller sees whether the epic was never bound or its token has
- * since died, because a reader cannot act on the difference and an error page would suggest one
- * exists.
+ * `role` is the kernel's full {@link Role} and not the two a binding may be declared at, because this
+ * is an *attenuated* role: the weaker of the declared one and what the token holds in Microtask right
+ * now. A rail declared `manage` whose token is a `write` seat is worth `write`, which is a value
+ * {@link EpicBindingView} cannot express and which means something real here — a `write` reader is owed
+ * a linked task's name (design §7.3) while being unable to create one (§7.2 reserves that to `manage`).
+ *
+ * So the two shapes are two different facts and not a duplication: {@link EpicBindingView} is what an
+ * admin set, and this is what it currently buys. Collapsing them would force one of the two to lie.
+ */
+export const BridgeBinding = z
+  .object({ projectId: EntityId, role: Role })
+  .meta({ id: 'BridgeBinding', description: 'The project a rail is bound to, and what that binding is worth today' })
+
+/**
+ * One epic, as the bridge reports it: bound to a live project, or not.
+ *
+ * `binding` is optional rather than nullable-and-always-present, matching the shape of `state`: an
+ * `'unlinked'` epic has no live binding to describe, so there is no meaningful value to fill the key
+ * with. A revoked or dead token also reports as `'unlinked'` with `binding` absent (design §7.2) — the
+ * same stated state whether the rail was never bound or its token has since died, because a reader
+ * cannot act on the difference and an error page would suggest one exists. Which project it *was* bound
+ * to is still on the plan read's own admin-only block, so the admin who has to fix it is not left
+ * guessing.
  */
 export const BridgeEpicRow = z
-  .object({ epicId: EntityId, state: z.enum(['bound', 'unlinked']), binding: EpicBindingView.optional() })
+  .object({ epicId: EntityId, state: z.enum(['bound', 'unlinked']), binding: BridgeBinding.optional() })
   .meta({ id: 'BridgeEpicRow', description: 'One epic, and whether it is bound to a Microtask project' })
 
 /**

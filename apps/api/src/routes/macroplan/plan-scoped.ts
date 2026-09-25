@@ -1,5 +1,6 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { ApiEnv } from '../../auth/env.js'
+import { createBridge } from './bridge/app.js'
 import { createEpics } from './epics/app.js'
 import { createFeatures } from './features/app.js'
 import { createItems } from './items/app.js'
@@ -37,9 +38,10 @@ export function createPlanScoped(services: PlanServices): OpenAPIHono<ApiEnv> {
   app.openapi(readPlanRoute, readPlan(services.plans))
   app.openapi(updatePlanRoute, updatePlan(services.plans))
   app.openapi(deletePlanRoute, deletePlan(services.plans))
-  app.route('/epics', createEpics(services.epics))
+  app.route('/epics', createEpics(services.epics, services.bindings))
   app.route('/features', createFeatures(services.features))
-  app.route('/items', createItems(services.items, services.plans))
+  app.route('/items', createItems(services.items, services.plans, services.bridge))
   app.route('/share-links', createPlanShareLinks(services.seats))
+  app.route('/bridge', createBridge(services.plans, services.bridge))
   return app
 }

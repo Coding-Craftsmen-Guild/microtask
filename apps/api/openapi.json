@@ -2119,6 +2119,26 @@
         },
         "description": "A new name, a new colour, or both"
       },
+      "BindEpicPayload": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/ShareToken"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "view",
+              "manage"
+            ]
+          }
+        },
+        "required": [
+          "token",
+          "role"
+        ],
+        "description": "A share-link token and the bridge role it is bound at"
+      },
       "CreateFeaturePayload": {
         "type": "object",
         "properties": {
@@ -2301,6 +2321,18 @@
         },
         "description": "A new name, a new estimate, or a clear of it"
       },
+      "LinkItemPayload": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "$ref": "#/components/schemas/EntityId"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "description": "The task, within the epic’s bound project, an item points at"
+      },
       "CreatePlanShareLinkPayload": {
         "type": "object",
         "properties": {
@@ -2316,6 +2348,112 @@
           "role"
         ],
         "description": "A seat to mint on a plan: who for, what authority"
+      },
+      "PlanBridgeView": {
+        "type": "object",
+        "properties": {
+          "epics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BridgeEpicRow"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BridgeItemRow"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "A plan’s bridge facts: item progress, and admin-only bindings"
+      },
+      "BridgeEpicRow": {
+        "type": "object",
+        "properties": {
+          "epicId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "bound",
+              "unlinked"
+            ]
+          },
+          "binding": {
+            "$ref": "#/components/schemas/BridgeBinding"
+          }
+        },
+        "required": [
+          "epicId",
+          "state"
+        ],
+        "description": "One epic, and whether it is bound to a Microtask project"
+      },
+      "BridgeBinding": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "projectId",
+          "role"
+        ],
+        "description": "The project a rail is bound to, and what that binding is worth today"
+      },
+      "BridgeItemRow": {
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/Progress"
+          },
+          "taskName": {
+            "$ref": "#/components/schemas/EntityName"
+          }
+        },
+        "required": [
+          "itemId",
+          "progress"
+        ],
+        "description": "One item’s counted progress, and its task’s name if owed"
+      },
+      "BoundTaskList": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/EntityId"
+                },
+                "name": {
+                  "$ref": "#/components/schemas/EntityName"
+                }
+              },
+              "required": [
+                "id",
+                "name"
+              ]
+            }
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "description": "The tasks of a bound project, id and name only"
       }
     },
     "parameters": {}
@@ -6669,6 +6807,206 @@
         }
       }
     },
+    "/v1/macroplan/plans/{planId}/epics/{epicId}/binding": {
+      "put": {
+        "tags": [
+          "epics"
+        ],
+        "summary": "Bind one rail to a Microtask project",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "epicId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindEpicPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "epics"
+        ],
+        "summary": "Unbind one rail, leaving its items’ links in place",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "epicId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/macroplan/plans/{planId}/features": {
       "post": {
         "tags": [
@@ -7791,6 +8129,302 @@
         }
       }
     },
+    "/v1/macroplan/plans/{planId}/items/{itemId}/link": {
+      "put": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Link one item to a task in the bound project",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkItemPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Unlink one item from its task",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans/{planId}/items/{itemId}/task": {
+      "post": {
+        "tags": [
+          "items"
+        ],
+        "summary": "Create the linked task in the bound project",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "itemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/macroplan/plans/{planId}/share-links": {
       "post": {
         "tags": [
@@ -8080,6 +8714,189 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans/{planId}/bridge": {
+      "get": {
+        "tags": [
+          "bridge"
+        ],
+        "summary": "What this plan is bound to, and what its linked tasks count",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan’s bridge facts, shaped for whoever asked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanBridgeView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans/{planId}/bridge/epics/{epicId}/tasks": {
+      "get": {
+        "tags": [
+          "bridge"
+        ],
+        "summary": "The tasks of one rail’s bound project",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "epicId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The bound project’s tasks, id and name only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoundTaskList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {

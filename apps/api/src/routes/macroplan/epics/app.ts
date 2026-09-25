@@ -1,8 +1,16 @@
 import { OpenAPIHono } from '@hono/zod-openapi'
 import type { EpicService } from '@repo/macroplan-domain'
 import type { ApiEnv } from '../../../auth/env.js'
-import { createEpic, deleteEpic, placeEpic, updateEpic } from './handlers.js'
-import { createEpicRoute, deleteEpicRoute, placeEpicRoute, updateEpicRoute } from './routes.js'
+import type { Bindings } from '../../../bridge/bindings.js'
+import { bindEpic, createEpic, deleteEpic, placeEpic, unbindEpic, updateEpic } from './handlers.js'
+import {
+  bindEpicRoute,
+  createEpicRoute,
+  deleteEpicRoute,
+  placeEpicRoute,
+  unbindEpicRoute,
+  updateEpicRoute,
+} from './routes.js'
 
 /**
  * The rails of one plan, mounted under `/epics`.
@@ -18,11 +26,13 @@ import { createEpicRoute, deleteEpicRoute, placeEpicRoute, updateEpicRoute } fro
  * `/{epicId}/placement` is registered ahead of `/{epicId}` although neither could match the other's
  * path — one is two segments and the other is one — so the order is legibility rather than routing.
  */
-export function createEpics(epics: EpicService): OpenAPIHono<ApiEnv> {
+export function createEpics(epics: EpicService, bindings: Bindings): OpenAPIHono<ApiEnv> {
   const app = new OpenAPIHono<ApiEnv>()
   app.openapi(createEpicRoute, createEpic(epics))
   app.openapi(placeEpicRoute, placeEpic(epics))
   app.openapi(updateEpicRoute, updateEpic(epics))
   app.openapi(deleteEpicRoute, deleteEpic(epics))
+  app.openapi(bindEpicRoute, bindEpic(epics, bindings))
+  app.openapi(unbindEpicRoute, unbindEpic(epics))
   return app
 }

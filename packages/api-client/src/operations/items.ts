@@ -3,6 +3,7 @@ import {
   type CreateItemPayload,
   type DescriptionPayload,
   type ItemPlacementPayload,
+  type LinkItemPayload,
   type UpdateItemPayload,
 } from '@repo/contracts'
 import { planItemPath, planPath } from '../paths.js'
@@ -46,6 +47,9 @@ export type ItemChange = Decoded<typeof UpdateItemPayload>
  * refused here.
  */
 export type ItemPlacement = Decoded<typeof ItemPlacementPayload>
+
+/** Which task, inside the rail's already-derived bound project, an item points at. */
+export type TaskLink = Decoded<typeof LinkItemPayload>
 
 /** Everything a caller may ask of the items under a plan's features. */
 export interface ItemsApi {
@@ -137,6 +141,28 @@ export interface ItemsApi {
    * remains** rather than `void`, for the reason {@link Plan} records.
    */
   remove(planId: string, itemId: string): Promise<Plan>
+
+  /**
+   * Links one item to a task that already exists in its rail's bound project. A `write` grant.
+   *
+   * **409** when the rail is bound to nothing or its token no longer resolves — one sentence for both,
+   * because either way there is no bound project to find a task in. **422** when the task named is not
+   * one of that project's.
+   */
+  link(planId: string, itemId: string, link: TaskLink): Promise<Plan>
+
+  /** Unlinks one item. Idempotent, and it needs no live binding — clearing a field always works. */
+  unlink(planId: string, itemId: string): Promise<Plan>
+
+  /**
+   * Creates the real task in the bound project, named after the item, and links the item to it.
+   *
+   * The one write this product makes into the other one (spec §7.2). Refused unless the **effective**
+   * role on the rail is `manage`: the weaker of the caller's plan role and what the rail's token holds
+   * today. **409** for an item that is already linked, so a retry cannot create a second task — and
+   * there is no rollback, because the bridge is permitted no delete.
+   */
+  createTask(planId: string, itemId: string): Promise<Plan>
 }
 
 /**
@@ -172,5 +198,14 @@ export function itemsApi(transport: Transport): ItemsApi {
       ),
     remove: (planId, itemId) =>
       transport.json({ method: 'DELETE', path: planItemPath(planId, itemId) }, PlanView),
+    link: (planId, itemId, link) =>
+      transport.json(
+        { method: 'PUT', path: `${planItemPath(planId, itemId)}/link`, body: link },
+        PlanView,
+      ),
+    unlink: (planId, itemId) =>
+      transport.json({ method: 'DELETE', path: `${planItemPath(planId, itemId)}/link` }, PlanView),
+    createTask: (planId, itemId) =>
+      transport.json({ method: 'POST', path: `${planItemPath(planId, itemId)}/task` }, PlanView),
   }
 }

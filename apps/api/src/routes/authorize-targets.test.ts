@@ -33,7 +33,7 @@ import { ACTIONS, type Action } from '@repo/kernel'
  * passes its action through a variable leaves its row here green and unremoved. Gate the new
  * routes on literals, or remove their rows by hand when you do not.
  */
-const PENDING_ROUTES: ReadonlySet<Action> = new Set(['epic:bind', 'item:link'])
+const PENDING_ROUTES: ReadonlySet<Action> = new Set([])
 
 const ROUTES = dirname(fileURLToPath(import.meta.url))
 
@@ -41,7 +41,12 @@ const handlers = (directory: string): readonly string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const full = join(directory, entry.name)
     if (entry.isDirectory()) return handlers(full)
-    return entry.isFile() && entry.name === 'handlers.ts' ? [full] : []
+    // Any *handlers.ts and not only the exact name: phase 4 split the item routes' bridge handlers
+    // into `link-handlers.ts` because `handlers.ts` was at ADR 0027's line cap, and a scan keyed to
+    // the exact filename would have stopped seeing three gated routes without failing — which is the
+    // one thing this file exists to prevent. A subtree that outgrows one handlers file must stay
+    // visible to the sweep rather than fall out of it.
+    return entry.isFile() && entry.name.endsWith('handlers.ts') ? [full] : []
   })
 
 const sources = (): string => handlers(ROUTES).map((file) => readFileSync(file, 'utf8')).join('\n')
