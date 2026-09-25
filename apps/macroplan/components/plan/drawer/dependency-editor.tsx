@@ -42,21 +42,25 @@ export interface DependencyEditorProps {
  * ### The whole list, because the route replaces it
  *
  * `PUT .../dependencies` takes a complete `dependsOn` and there is no add and no remove, so the model
- * of this control is the feature's current list plus or minus one, sent entire. **Two editors on one
- * feature therefore lose a write**: each sends a complete list built from the plan it rendered, the
- * second overwrites the first, and nothing tells either of them — the route takes no `If-Match`
- * (`packages/api-client/src/operations/features.ts`).
+ * of this control is the feature's current list plus or minus one, sent entire. **A list sent that way
+ * overwrites what another one stored**: whoever sends the second complete list wins, nothing tells the
+ * loser, and the route takes no `If-Match` (`packages/api-client/src/operations/features.ts`). The
+ * loss is per **render** and not per person, which is the likelier half and the one that is fixed:
+ * every row of one render was built from the same pre-write list, so one user ticking two boxes before
+ * the re-render landed lost the first edge. `./edge-list.ts` is where a click's list is built now, from
+ * what this browser has sent rather than from what this render found. What is left is what one browser
+ * cannot see: another editor's write between this render and this click.
  *
  * ### This file stays on the server, and that is what makes the rows crossable
  *
- * `./cycle-check.ts` is called here, once per candidate, and each answer is one
- * `EdgeChoice` of primitives: the candidate's id and name, whether the edge is stated, the whole list
- * that click would send as a string, and the refusal that click would meet or `''`. That is what
- * crosses into the browser, row by row, because a client component may be handed primitives, an
+ * `./cycle-check.ts` is called here, twice per candidate, and each answer is one `EdgeChoice` of
+ * primitives: the candidate's id and name, and the refusal a click that added it would meet and the
+ * one a click that removed it would, each `''` for none. That, with the subject's own stored list as a
+ * string, is what crosses into the browser, because a client component may be handed primitives, an
  * unbound function or `null` and a **list of features is none of those**
  * (`../module-boundaries.test.tsx`). Keeping the walk here is also what keeps `findCycles` out of the
- * browser bundle: `./dependency-toggle.tsx` imports its codec from `./field.ts`, which names
- * `@repo/contracts` and nothing else.
+ * browser bundle: `./dependency-toggle.tsx` reaches its codec through `./field.ts`, which names
+ * `@repo/contracts` as its only value import.
  *
  * ### A fieldset, because the rows are one question
  *
@@ -72,23 +76,23 @@ export function DependencyEditor({
   features,
   setDependencies,
 }: DependencyEditorProps) {
-  const choices = edgeChoices(features, featureId)
+  const { rows, storedIds } = edgeChoices(features, featureId)
   return (
     <fieldset className={GROUP}>
       <legend className={LABEL}>Waits on</legend>
-      {choices.length === 0 ? <p className={BUDGET}>{NOTHING_TO_WAIT_ON}</p> : null}
+      {rows.length === 0 ? <p className={BUDGET}>{NOTHING_TO_WAIT_ON}</p> : null}
       <ul className={LIST}>
-        {choices.map((choice) => (
-          <li key={choice.featureId}>
+        {rows.map((row) => (
+          <li key={row.featureId}>
             <DependencyToggle
-              candidateId={choice.featureId}
-              candidateName={choice.name}
+              addRefusal={row.addRefusal}
+              candidateId={row.featureId}
+              candidateName={row.name}
               featureId={featureId}
               planId={planId}
-              refusal={choice.refusal}
-              sendIds={choice.sendIds}
+              removeRefusal={row.removeRefusal}
               setDependencies={setDependencies}
-              waiting={choice.waiting}
+              storedIds={storedIds}
             />
           </li>
         ))}

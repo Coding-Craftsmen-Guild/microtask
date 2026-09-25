@@ -107,25 +107,22 @@ export interface DrawerValues extends SubjectValues {
 }
 
 /**
- * Whether the plan a write answered still has one feature waiting on another.
+ * What one feature of the plan a write answered waits on, as that plan stores it.
  *
- * The dependency control's half of "what is on screen is what the **server** stored": a box is
- * ticked from the plan the write came back with rather than from what was sent, so a list the API
- * deduped, reordered or refused a part of leaves the control showing what is really there. It is a
- * membership question rather than a list, because a control draws one row per candidate and each row
- * asks only about itself.
+ * The dependency control's half of "what is on screen is what the **server** stored": the next click
+ * is built on the list the write came back with rather than on the list that was sent, so a list the
+ * API deduped, reordered or refused a part of leaves the control working from what is really there
+ * (`./edge-list.ts`). It answers the **whole** list and not a membership question, because a click
+ * replaces the whole set and so has to start from all of it — one row's box is one `includes` away.
  *
  * @param plan - Any plan-shaped value: the page's reduced model, or a write's answer.
  * @param featureId - The feature whose list is being read.
- * @param dependsOnId - The candidate to ask about.
- * @returns Whether that edge is in the plan; `false` for a feature the plan no longer holds.
+ * @returns Its stored `dependsOn`, or no edges at all for a feature the plan no longer holds.
  */
-export const waitsOn = (
+export const edgesOf = (
   plan: Omit<Plan, 'shareLinks'>,
   featureId: string,
-  dependsOnId: string,
-): boolean =>
-  plan.features.find((one) => one.id === featureId)?.dependsOn.includes(dependsOnId) ?? false
+): readonly string[] => plan.features.find((one) => one.id === featureId)?.dependsOn ?? []
 
 /**
  * One subject's stored values, read out of a plan by id — the same read on both sides of a write.

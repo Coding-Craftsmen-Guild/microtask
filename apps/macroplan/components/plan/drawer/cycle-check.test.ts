@@ -170,39 +170,43 @@ describe('one choice per other feature in the plan, which is the whole candidate
   const FEATURES = atlasPlan().features
 
   it('offers every other feature of this plan and never the subject itself', () => {
-    expect(edgeChoices(FEATURES, FEATURE_1).map((one) => one.featureId)).toEqual([FEATURE_2])
-    expect(edgeChoices(FEATURES, FEATURE_2).map((one) => one.featureId)).toEqual([FEATURE_1])
+    expect(edgeChoices(FEATURES, FEATURE_1).rows.map((one) => one.featureId)).toEqual([FEATURE_2])
+    expect(edgeChoices(FEATURES, FEATURE_2).rows.map((one) => one.featureId)).toEqual([FEATURE_1])
   })
 
   it('answers nothing at all for a feature the plan does not hold', () => {
-    expect(edgeChoices(FEATURES, 'gone')).toEqual([])
+    expect(edgeChoices(FEATURES, 'gone')).toEqual({ rows: [], storedIds: '' })
   })
 
-  it('says which of them this feature already waits on', () => {
-    expect(edgeChoices(FEATURES, FEATURE_2)[0]).toMatchObject({ name: 'Auth rewrite', waiting: true })
-    expect(edgeChoices(FEATURES, FEATURE_1)[0]).toMatchObject({ name: 'Billing', waiting: false })
+  it('names each candidate, which is the only label its box has', () => {
+    expect(edgeChoices(FEATURES, FEATURE_2).rows[0]?.name).toBe('Auth rewrite')
+    expect(edgeChoices(FEATURES, FEATURE_1).rows[0]?.name).toBe('Billing')
   })
 
-  it('sends the whole list plus one for a candidate this feature does not wait on', () => {
-    const chosen = edgeChoices(chain(), C)
-    expect(splitEdges(chosen.find((one) => one.featureId === A)?.sendIds ?? '')).toEqual([B, A])
-  })
-
-  it('sends the whole list minus one for a candidate it does, which is how a removal travels', () => {
-    const chosen = edgeChoices(chain(), C)
-    expect(splitEdges(chosen.find((one) => one.featureId === B)?.sendIds ?? '')).toEqual([])
+  // The list a click sends is built in the browser from this one string, so it is answered once for
+  // the whole editor rather than per row: the rows are what the list cannot be worked out from.
+  it('carries the subject’s own stored list once, joined, and never a list per row', () => {
+    expect(splitEdges(edgeChoices(chain(), C).storedIds)).toEqual([B])
+    expect(edgeChoices(chain(), A).storedIds).toBe('')
+    expect(splitEdges(edgeChoices(FEATURES, FEATURE_2).storedIds)).toEqual([FEATURE_1])
   })
 
   it('carries the refusal for the candidate that would close a cycle, and none for the rest', () => {
     const chosen = edgeChoices(FEATURES, FEATURE_1)
-    expect(chosen[0]?.refusal).toBe(
+    expect(chosen.rows[0]?.addRefusal).toBe(
       'These features would wait on each other: Auth rewrite, Billing.',
     )
-    expect(edgeChoices(FEATURES, FEATURE_2)[0]?.refusal).toBe('')
+    expect(edgeChoices(FEATURES, FEATURE_2).rows[0]?.addRefusal).toBe('')
   })
 
-  it('carries a refusal on every candidate while the plan already holds a cycle', () => {
+  // A removal closes no cycle and costs no edge, so the only thing that refuses one is a cycle the
+  // plan is already holding somewhere else — which refuses every write to this feature's list.
+  it('refuses nothing for a removal the plan would serve, and both ways where it holds a cycle', () => {
+    expect(edgeChoices(FEATURES, FEATURE_2).rows[0]?.removeRefusal).toBe('')
     const broken = [feature(A, 'Auth', [B]), feature(B, 'Billing', [A]), feature(C, 'Cron')]
-    expect(edgeChoices(broken, C).map((one) => one.refusal === '')).toEqual([false, false])
+    for (const row of edgeChoices(broken, C).rows) {
+      expect(row.addRefusal, row.name).toContain('wait on each other')
+      expect(row.removeRefusal, row.name).toContain('wait on each other')
+    }
   })
 })

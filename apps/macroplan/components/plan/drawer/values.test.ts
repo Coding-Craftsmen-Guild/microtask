@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, PLAN_GONE } from '../testing/plan-fixture'
-import { subjectValues, waitsOn } from './values'
+import { edgesOf, subjectValues } from './values'
 
 const plan = () => planScreenModel(atlasPlan())
 
@@ -82,22 +82,27 @@ describe('the pin, which one of the two kinds has and the other does not', () =>
   })
 })
 
-// The dependency control's half of "what is on screen is what the server stored": one edge of the
-// plan a write answered with, asked about rather than assumed from the list that was sent.
-describe('asking the answered plan whether one feature still waits on another', () => {
-  it('answers true for an edge the plan really holds', () => {
-    expect(waitsOn(plan(), FEATURE_2, FEATURE_1)).toBe(true)
+// A feature-shaped id the fixture does not hold. `PLAN_GONE` would have done the same work and said
+// something else: this is the id of no feature, not the id of a plan asked about as if it were one.
+const FEATURE_GONE = '01MPFFFFFFFFFFFFFFFFFFFFF9'
+
+// The dependency control's half of "what is on screen is what the server stored": the list the plan a
+// write answered with really holds, read back rather than assumed from the list that was sent.
+describe('reading one feature’s stored edges back out of the plan a write answered with', () => {
+  it('answers the list the plan holds, which is what the next click is built on', () => {
+    expect(edgesOf(plan(), FEATURE_2)).toEqual([FEATURE_1])
   })
 
-  it('answers false for the same pair the other way round, an edge having a direction', () => {
-    expect(waitsOn(plan(), FEATURE_1, FEATURE_2)).toBe(false)
+  it('answers no edges for the same pair the other way round, an edge having a direction', () => {
+    expect(edgesOf(plan(), FEATURE_1)).toEqual([])
   })
 
-  it('answers false for a feature the plan no longer holds rather than throwing', () => {
-    expect(waitsOn(plan(), PLAN_GONE, FEATURE_1)).toBe(false)
+  it('answers no edges for a feature the plan no longer holds rather than throwing', () => {
+    expect(edgesOf(plan(), FEATURE_GONE)).toEqual([])
+    expect(edgesOf(plan(), PLAN_GONE)).toEqual([])
   })
 
-  it('answers false for a candidate id the list does not name', () => {
-    expect(waitsOn(plan(), FEATURE_2, PLAN_GONE)).toBe(false)
+  it('answers the same list for the plan an action returns as for the model a page holds', () => {
+    expect(edgesOf(atlasPlan(), FEATURE_2)).toEqual(edgesOf(plan(), FEATURE_2))
   })
 })

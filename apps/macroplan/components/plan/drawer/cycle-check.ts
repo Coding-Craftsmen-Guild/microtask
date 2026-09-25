@@ -51,7 +51,14 @@ export type EdgeEntry =
  * Every member is a **primitive**, which is what makes this crossable: each row is drawn by a client
  * component, and a client component may be handed primitives, an unbound function or `null` and
  * nothing else (`../module-boundaries.test.tsx`). So the list of candidates never crosses — one row's
- * worth of strings and booleans does, once per row.
+ * worth of strings does, once per row.
+ *
+ * **Both** refusals and no list. A row is drawn once and may be clicked twice, so which write a box
+ * means is not fixed at render time, and a row carrying the one list its first click would send could
+ * only ever answer that click — a second click on another box, sent before the re-render, replaced the
+ * edge the first had just stored (`./edge-list.ts`). The list a click sends is built in the browser
+ * from the subject's own stored list instead, which is {@link EdgeChoices}' `storedIds`, and what a row
+ * carries is the two answers that list cannot be worked out from.
  */
 export interface EdgeChoice {
   /** The candidate feature's own id, which is also what makes each row's control id unique. */
@@ -60,14 +67,27 @@ export interface EdgeChoice {
   /** The candidate's name, which is the control's label. */
   readonly name: string
 
-  /** Whether the subject already waits on it, which is whether the box is ticked. */
-  readonly waiting: boolean
+  /** Why adding this candidate would be refused, or `''` when the local check has nothing to say. */
+  readonly addRefusal: string
 
-  /** The **whole** list clicking this row would send, joined (`joinEdges` in `./field.ts`). */
-  readonly sendIds: string
+  /** Why removing it would be refused — a cycle the plan already holds refuses either — or `''`. */
+  readonly removeRefusal: string
+}
 
-  /** Why this row's write would be refused, or `''` when the local check has nothing to say. */
-  readonly refusal: string
+/**
+ * The candidate list of one dependency editor: the subject's stored edges, and a row per candidate.
+ *
+ * `storedIds` is the subject's own `dependsOn` as this render found it, joined — one string, shipped
+ * to each row, which is what every click's list is built from in the browser. It is answered here
+ * rather than read off the features again by the caller, because it is the same read every row's
+ * refusals were worked out against, and two readings of one list are a diff away from disagreeing.
+ */
+export interface EdgeChoices {
+  /** The subject's stored list, joined (`joinEdges` in `./field.ts`); `''` for no edges. */
+  readonly storedIds: string
+
+  /** One row per **other** feature of the plan, in the plan's own order. */
+  readonly rows: readonly EdgeChoice[]
 }
 
 const nameOf = (features: readonly CycleFeature[], id: string): string =>
@@ -78,6 +98,15 @@ const edgeTotal = (features: readonly CycleFeature[]): number =>
 
 const stated = (features: readonly CycleFeature[], featureId: string): readonly string[] =>
   features.find((one) => one.id === featureId)?.dependsOn ?? []
+
+const refusalFor = (
+  features: readonly CycleFeature[],
+  featureId: string,
+  edges: readonly string[],
+): string => {
+  const entry = edgeEntry(features, featureId, edges)
+  return entry.kind === 'refused' ? entry.detail : ''
+}
 
 /** Why a feature may not wait on itself, which the API refuses as a 422 and not as a cycle. */
 export const SELF_EDGE = 'A feature cannot wait on itself.'
@@ -196,36 +225,30 @@ export function edgeEntry(
  * rather than followed — so every candidate there could ever be is already in this argument. The
  * subject itself is left out, a self-edge being refused separately and so not a choice to offer.
  *
- * The whole cost of the design is paid here: for each candidate the list that click would send is
- * built and put through {@link edgeEntry}, so a row carries its own refusal as a **string** and the
- * graph never crosses into the browser. That is `findCycles` once per candidate — linear in
- * features plus edges each time, against a plan capped at 200 features and 400 edges.
+ * The whole cost of the design is paid here: for each candidate **both** lists a click on it could
+ * send are put through {@link edgeEntry}, so a row carries its own two refusals as strings and the
+ * graph never crosses into the browser. That is `findCycles` twice per candidate — linear in features
+ * plus edges each time, against a plan capped at 200 features and 400 edges.
  *
  * @param features - Every feature of the plan, as stored.
  * @param featureId - The feature the drawer is open on.
- * @returns One {@link EdgeChoice} per other feature, in the plan's own order, or none at all when
- * the plan does not hold this feature.
+ * @returns The subject's stored list and one {@link EdgeChoice} per other feature, in the plan's own
+ * order, or no rows at all when the plan does not hold this feature.
  */
-export function edgeChoices(
-  features: readonly CycleFeature[],
-  featureId: string,
-): readonly EdgeChoice[] {
+export function edgeChoices(features: readonly CycleFeature[], featureId: string): EdgeChoices {
   const subject = features.find((one) => one.id === featureId)
-  if (subject === undefined) return []
+  if (subject === undefined) return { rows: [], storedIds: '' }
   const own = subject.dependsOn
   const waits = new Set(own)
-  return features
-    .filter((one) => one.id !== featureId)
-    .map((one) => {
-      const waiting = waits.has(one.id)
-      const edges = [...new Set(waiting ? own.filter((id) => id !== one.id) : [...own, one.id])]
-      const entry = edgeEntry(features, featureId, edges)
-      return {
+  return {
+    rows: features
+      .filter((one) => one.id !== featureId)
+      .map((one) => ({
+        addRefusal: refusalFor(features, featureId, waits.has(one.id) ? own : [...own, one.id]),
         featureId: one.id,
         name: one.name,
-        refusal: entry.kind === 'refused' ? entry.detail : '',
-        sendIds: joinEdges(edges),
-        waiting,
-      }
-    })
+        removeRefusal: refusalFor(features, featureId, own.filter((id) => id !== one.id)),
+      })),
+    storedIds: joinEdges(own),
+  }
 }

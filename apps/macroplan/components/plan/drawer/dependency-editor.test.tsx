@@ -1,6 +1,6 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
 import type { Plan } from '@repo/api-client'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
@@ -122,6 +122,65 @@ describe('the whole list, because the route replaces it', () => {
     const { onWrite, user } = setup(FEATURE_1)
     await user.click(box('Reporting'))
     expect(onWrite).toHaveBeenCalledTimes(1)
+  })
+})
+
+// A write that answers only once it is released, so a second box can be clicked while the first click
+// is still out — which is the window a whole list built on this render's stored list was lost in.
+const held = () => {
+  const answers: (() => void)[] = []
+  const write: Write = (_planId, featureId, dependsOn) =>
+    new Promise((resolve) => {
+      answers.push(() => {
+        resolve(stored(featureId, dependsOn))
+      })
+    })
+  return {
+    release: () => {
+      for (const answer of answers) answer()
+    },
+    write,
+  }
+}
+
+// Two clicks on two boxes of one render, the second made before the first was answered. Every row of a
+// render was built from the same pre-write list, so the second write used to send `own + that one` and
+// replace the edge the first had just stored — one user, one screen, nothing said about it.
+describe('a second box clicked before the first write is answered', () => {
+  const NO_EDGES = graph({ [FEATURE_2]: [] })
+
+  it('builds the second list on the first click’s edge rather than replacing it', async () => {
+    const { release, write } = held()
+    const { onWrite, user } = setup(FEATURE_1, NO_EDGES, write)
+    await user.click(box('Billing'))
+    await user.click(box('Reporting'))
+    expect(onWrite.mock.calls.map((call) => call[2])).toEqual([
+      [FEATURE_2],
+      [FEATURE_2, FEATURE_3],
+    ])
+    await act(async () => {
+      release()
+    })
+  })
+
+  it('leaves both boxes ticked once both writes are answered, neither edge having been dropped', async () => {
+    const { release, write } = held()
+    const { user } = setup(FEATURE_1, NO_EDGES, write)
+    await user.click(box('Billing'))
+    await user.click(box('Reporting'))
+    await act(async () => {
+      release()
+    })
+    expect(box('Billing').checked).toBe(true)
+    expect(box('Reporting').checked).toBe(true)
+  })
+
+  it('takes a second click on the same box back rather than re-sending the edge it just stored', async () => {
+    const { onWrite, user } = setup(FEATURE_1, NO_EDGES)
+    await user.click(box('Billing'))
+    await user.click(box('Billing'))
+    expect(onWrite.mock.calls.map((call) => call[2])).toEqual([[FEATURE_2], []])
+    expect(box('Billing').checked).toBe(false)
   })
 })
 
