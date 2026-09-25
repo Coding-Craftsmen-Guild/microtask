@@ -17,24 +17,6 @@ export interface CycleFeature extends ScheduleFeature {
 }
 
 /**
- * A cycle the graph would hold, as the ids in it and the sentence that names them.
- *
- * `featureIds` is `findCycles`'s own answer for one cycle: the ids of a strongly connected
- * component, **ascending**. It is deliberately not "the order they wait on each other", and that is
- * a property of the answer rather than a shortcut here — a component of three or more features need
- * not be a single cycle at all (`a → b → a` beside `b → c → b` is one component and two cycles), so
- * there is no such order to report; and recovering one where it does exist would mean a second walk
- * over the graph, which `@repo/schedule` owns and this module must not duplicate.
- */
-export interface ProposedCycle {
-  /** The ids of the features that wait on each other, ascending, exactly as `findCycles` gives them. */
-  readonly featureIds: readonly string[]
-
-  /** Those features **by name**, in the API's own wording for its 409 (see {@link cycleSentence}). */
-  readonly sentence: string
-}
-
-/**
  * What a dependency control will send for a set of edges, or the sentence it refuses with.
  *
  * The same two-state shape `EstimateEntry` and `PinEntry` have (`./field.ts`), for the same reason:
@@ -99,15 +81,6 @@ const edgeTotal = (features: readonly CycleFeature[]): number =>
 const stated = (features: readonly CycleFeature[], featureId: string): readonly string[] =>
   features.find((one) => one.id === featureId)?.dependsOn ?? []
 
-const refusalFor = (
-  features: readonly CycleFeature[],
-  featureId: string,
-  edges: readonly string[],
-): string => {
-  const entry = edgeEntry(features, featureId, edges)
-  return entry.kind === 'refused' ? entry.detail : ''
-}
-
 /** Why a feature may not wait on itself, which the API refuses as a 422 and not as a cycle. */
 export const SELF_EDGE = 'A feature cannot wait on itself.'
 
@@ -144,45 +117,31 @@ export const cycleSentence = (names: readonly string[]): string =>
 export const tooManyEdges = (total: number): string =>
   `This plan would hold ${String(total)} dependencies, and ${String(LIMITS.edgesPerPlan)} is the limit across the whole plan. Remove one from another feature first.`
 
-/**
- * The cycle a proposed `dependsOn` would leave in the plan, by name, or `null` for none.
- *
- * **It asks about the graph the write would leave, not about the edge being added**, because that is
- * what the server does: `setDependencies` builds the feature list it is about to save and runs
- * `findCycles` over all of it, so any cycle anywhere refuses the write. A plan whose stored volume
- * already holds one therefore refuses an edge between two features that have nothing to do with it —
- * stricter than "the cycle you just made", and a user not told so reads the editor as broken.
- *
- * `findCycles` is the one walk, and there is deliberately no second one here: it is Tarjan over the
- * `dependsOn` graph, property-tested in `@repo/schedule`, and that package asserts its own freedom
- * from `node:` builtins and from dependencies (`packages/schedule/src/purity.test.ts`) so it may be
- * bundled for a browser. It also drops an edge naming a feature the plan does not hold, which is why
- * a dangling edge cannot produce a refusal naming something nobody can find on screen.
- *
- * Only the **first** cycle is answered, `findCycles` ordering them by first id. One is enough to say
- * why the write is refused, and a list of several would be a sentence about the plan's storage rather
- * than about the click. A **self-edge** reaches this as a cycle of one, which is why
- * {@link edgeEntry} asks that question before this one — the server refuses it as a different error
- * class, and it deserves its own sentence.
- *
- * @param features - Every feature of the plan, as stored.
- * @param featureId - The feature whose list is being replaced.
- * @param dependsOn - The list that would replace it.
- * @returns The cycle it would leave, named, or `null`.
- */
-export function proposedCycle(
+const proposedCycle = (
   features: readonly CycleFeature[],
   featureId: string,
   dependsOn: readonly string[],
-): ProposedCycle | null {
+): string | null => {
   const next = features.map((one) => (one.id === featureId ? { ...one, dependsOn } : one))
   const [first] = findCycles(next)
   if (first === undefined) return null
-  return {
-    featureIds: first.featureIds,
-    sentence: cycleSentence(first.featureIds.map((id) => nameOf(features, id))),
-  }
+  return cycleSentence(first.featureIds.map((id) => nameOf(features, id)))
 }
+
+const refusalIn = (
+  features: readonly CycleFeature[],
+  featureId: string,
+  edges: readonly string[],
+  others: number,
+): string => {
+  if (edges.includes(featureId)) return SELF_EDGE
+  const total = others + edges.length
+  if (total > LIMITS.edgesPerPlan) return tooManyEdges(total)
+  return proposedCycle(features, featureId, edges) ?? ''
+}
+
+const othersEdges = (features: readonly CycleFeature[], featureId: string): number =>
+  edgeTotal(features) - stated(features, featureId).length
 
 /**
  * What a dependency control will send for a proposed set of edges, or why it will send nothing.
@@ -197,6 +156,29 @@ export function proposedCycle(
  * (spec §8 records cross-plan dependencies as rejected), so a check for it would be a branch no
  * control can reach and no test can honestly exercise.
  *
+ * ### The cycle question, which is the third and cannot be asked first
+ *
+ * It is asked about **the graph the write would leave and not about the edge being added**, because
+ * that is what the server does: `setDependencies` builds the feature list it is about to save and
+ * runs `findCycles` over all of it, so any cycle anywhere refuses the write. A plan whose stored
+ * volume already holds one therefore refuses an edge between two features that have nothing to do
+ * with it — stricter than "the cycle you just made", and a user not told so reads the editor as
+ * broken. Only the **first** cycle is named, `findCycles` ordering them by first id: one is enough
+ * to say why the write is refused, and a list of several would be a sentence about the plan's
+ * storage rather than about the click.
+ *
+ * `findCycles` is the one walk, and there is deliberately no second one in this module: it is Tarjan
+ * over the `dependsOn` graph, property-tested in `@repo/schedule`, and that package asserts its own
+ * freedom from `node:` builtins and from dependencies (`packages/schedule/src/purity.test.ts`) so it
+ * may be bundled for a browser. It also drops an edge naming a feature the plan does not hold, which
+ * is why a dangling edge cannot produce a refusal naming something nobody can find on screen.
+ *
+ * **A self-edge reaches that walk as a cycle of one**, and asking it first is what keeps the
+ * reciprocal sentence off a list of one name — `These features would wait on each other: Auth.` The
+ * order is therefore a property of this function rather than a convention a caller must know: the
+ * cycle question is not reachable from outside this module, so there is nowhere left to ask it out
+ * of turn.
+ *
  * @param features - Every feature of the plan, as stored.
  * @param featureId - The feature whose list is being replaced.
  * @param dependsOn - The list to send, before deduping.
@@ -208,12 +190,8 @@ export function edgeEntry(
   dependsOn: readonly string[],
 ): EdgeEntry {
   const edges = [...new Set(dependsOn)]
-  if (edges.includes(featureId)) return { kind: 'refused', detail: SELF_EDGE }
-  const total = edgeTotal(features) - stated(features, featureId).length + edges.length
-  if (total > LIMITS.edgesPerPlan) return { kind: 'refused', detail: tooManyEdges(total) }
-  const cycle = proposedCycle(features, featureId, edges)
-  if (cycle !== null) return { kind: 'refused', detail: cycle.sentence }
-  return { kind: 'edges', dependsOn: edges }
+  const detail = refusalIn(features, featureId, edges, othersEdges(features, featureId))
+  return detail === '' ? { kind: 'edges', dependsOn: edges } : { kind: 'refused', detail }
 }
 
 /**
@@ -226,9 +204,14 @@ export function edgeEntry(
  * subject itself is left out, a self-edge being refused separately and so not a choice to offer.
  *
  * The whole cost of the design is paid here: for each candidate **both** lists a click on it could
- * send are put through {@link edgeEntry}, so a row carries its own two refusals as strings and the
- * graph never crosses into the browser. That is `findCycles` twice per candidate — linear in features
- * plus edges each time, against a plan capped at 200 features and 400 edges.
+ * send are put through the same three refusals {@link edgeEntry} asks, so a row carries its own two
+ * refusals as strings and the graph never crosses into the browser. That is `findCycles` twice per
+ * candidate — linear in features plus edges each time, against a plan capped at 200 features and 400
+ * edges. The plan-wide edge total and this feature's own share of it are read **once** for the whole
+ * list rather than once per candidate: neither changes between rows, the subject's stored list being
+ * the one thing every row is built from. Nothing is deduped per row either, because the stored list is
+ * already a set — the service writes `[...new Set(dependsOn)]` — and a candidate is only ever added
+ * to a list that does not name it.
  *
  * @param features - Every feature of the plan, as stored.
  * @param featureId - The feature the drawer is open on.
@@ -240,14 +223,15 @@ export function edgeChoices(features: readonly CycleFeature[], featureId: string
   if (subject === undefined) return { rows: [], storedIds: '' }
   const own = subject.dependsOn
   const waits = new Set(own)
+  const others = othersEdges(features, featureId)
   return {
     rows: features
       .filter((one) => one.id !== featureId)
       .map((one) => ({
-        addRefusal: refusalFor(features, featureId, waits.has(one.id) ? own : [...own, one.id]),
+        addRefusal: refusalIn(features, featureId, waits.has(one.id) ? own : [...own, one.id], others),
         featureId: one.id,
         name: one.name,
-        removeRefusal: refusalFor(features, featureId, own.filter((id) => id !== one.id)),
+        removeRefusal: refusalIn(features, featureId, own.filter((id) => id !== one.id), others),
       })),
     storedIds: joinEdges(own),
   }

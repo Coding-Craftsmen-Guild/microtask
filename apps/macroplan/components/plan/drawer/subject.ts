@@ -32,10 +32,10 @@ export interface DrawerSubject {
    * The same subject's values: the numbers and names a control edits, and the two a fact reads.
    *
    * Wider than what {@link subjectValues} answers, and the difference is the point of resolving a
-   * subject here rather than in a page: the plan's calendar, its features and which of a feature's
-   * two estimates sized it are each needed by the panel and carried by neither the row nor the
-   * record, so they are added **inside the one lookup** rather than fetched beside it (`./values.ts`
-   * argues each).
+   * subject here rather than in a page: which of a feature's two estimates sized it, and the `plan`
+   * group's calendar and features, are each needed by the panel and carried by neither the row nor
+   * the record, so they are added **inside the one lookup** rather than fetched beside it
+   * (`./values.ts` argues each, and says which half of the shape is the subject's).
    */
   readonly values: DrawerValues
 }
@@ -65,7 +65,7 @@ export interface DrawerSubject {
  * and — for the admin, whose read carries every live seat — a plan is also the thing ADR 0033 forbids
  * putting in a page's props at all.
  *
- * ### Three things the plan knows that neither half carried
+ * ### Three things the plan knows that neither half carried, two of them grouped as the plan's
  *
  * `sizedByItems` is the one question the drawer's read half asks about the pair, and it is asked here
  * because `breakdown()` and `effectiveEstimate()` are **values** from `@repo/schedule` and this is the
@@ -114,8 +114,9 @@ export interface DrawerSubject {
  * @param plan - The reduced plan the page read, whose type cannot carry a seat.
  * @param kind - Which segment is asking: `f/[featureId]` or `i/[itemId]`.
  * @param id - The id out of the URL, untrusted.
- * @returns The row, the values, the calendar, the plan's features and whether the items sized this
- * feature, or `undefined` when no row of that kind answers to that id.
+ * @returns The row, the subject's values, whether the items sized this feature, and the `plan` group
+ * the drawer reads the calendar and the graph out of — or `undefined` when no row of that kind
+ * answers to that id.
  */
 export function drawerSubject(
   plan: PlanScreenModel,
@@ -129,8 +130,7 @@ export function drawerSubject(
     row,
     values: {
       ...values,
-      calendar: calendarOf(plan),
-      features: plan.features,
+      plan: { calendar: calendarOf(plan), features: plan.features },
       sizedByItems: sizedByItems(plan, kind, id),
     },
   }

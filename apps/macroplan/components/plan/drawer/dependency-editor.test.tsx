@@ -118,7 +118,10 @@ describe('the whole list, because the route replaces it', () => {
     expect(onWrite).toHaveBeenCalledWith(PLAN_A, FEATURE_2, [])
   })
 
-  it('sends one request per click and never a second for the same box', async () => {
+  // One click, one request: the box is the whole gesture, there being nothing to blur and no Enter to
+  // press. What a *second* click on the same box sends is the undo, and it is asserted where the rest
+  // of the two-click behaviour is.
+  it('sends one request for one click and never two', async () => {
     const { onWrite, user } = setup(FEATURE_1)
     await user.click(box('Reporting'))
     expect(onWrite).toHaveBeenCalledTimes(1)

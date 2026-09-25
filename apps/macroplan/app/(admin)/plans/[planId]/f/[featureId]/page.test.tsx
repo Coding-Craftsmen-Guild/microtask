@@ -297,8 +297,10 @@ describe('the drawer hands no share token to a component either', () => {
       name: 'Auth rewrite',
       estimateDays: 5,
       pinSprint: null,
-      calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
-      features: atlasPlan().features,
+      plan: {
+        calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
+        features: atlasPlan().features,
+      },
       sizedByItems: true,
     })
     expect(handed['description']).toBeNull()

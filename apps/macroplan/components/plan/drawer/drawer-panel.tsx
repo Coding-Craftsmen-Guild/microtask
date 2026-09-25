@@ -41,8 +41,8 @@ export interface DrawerPanelProps {
    *
    * Every value the three bands below need arrives in this one prop, which is what keeps the panel's
    * own props stable as each of them grows: `sizedByItems` goes to the facts, the name and the
-   * estimate to the `write` fields, the pin, the calendar and the plan's `features` to the `manage`
-   * band, and this file reads exactly one member itself — `values.sizedByItems`, on its way past.
+   * estimate to the `write` fields, the pin and the `plan` group — its calendar and its features — to
+   * the `manage` band, and this file reads exactly one member itself: `values.sizedByItems`.
    */
   readonly values: DrawerValues
 

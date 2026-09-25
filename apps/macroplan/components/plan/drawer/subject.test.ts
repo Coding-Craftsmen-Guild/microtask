@@ -15,8 +15,10 @@ describe('resolving the one subject a drawer is open on', () => {
       name: 'Auth rewrite',
       estimateDays: 5,
       pinSprint: null,
-      calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
-      features: atlasPlan().features,
+      plan: {
+        calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
+        features: atlasPlan().features,
+      },
       sizedByItems: true,
     })
   })
@@ -167,7 +169,7 @@ describe('whether the items sized this feature, and the states in which they did
 describe('the calendar it carries, which is the plan’s three scheduling fields and nothing else', () => {
   it('answers the plan’s own start date, sprint length and zone', () => {
     const at = atlasPlan()
-    expect(drawerSubject(plan(), 'feature', FEATURE_1)?.values.calendar).toEqual({
+    expect(drawerSubject(plan(), 'feature', FEATURE_1)?.values.plan.calendar).toEqual({
       startDate: at.startDate,
       sprintLengthDays: at.sprintLengthDays,
       timezone: at.timezone,
@@ -175,7 +177,7 @@ describe('the calendar it carries, which is the plan’s three scheduling fields
   })
 
   it('carries exactly three fields, so nothing plan-shaped rides along inside it', () => {
-    const calendar = drawerSubject(plan(), 'item', ITEM_1)?.values.calendar
+    const calendar = drawerSubject(plan(), 'item', ITEM_1)?.values.plan.calendar
     expect(Object.keys(calendar ?? {}).sort()).toEqual([
       'sprintLengthDays',
       'startDate',
@@ -184,6 +186,6 @@ describe('the calendar it carries, which is the plan’s three scheduling fields
   })
 
   it('answers it for an item too, a sprint meaning the same dates whichever subject is open', () => {
-    expect(drawerSubject(plan(), 'item', ITEM_1)?.values.calendar.sprintLengthDays).toBe(14)
+    expect(drawerSubject(plan(), 'item', ITEM_1)?.values.plan.calendar.sprintLengthDays).toBe(14)
   })
 })

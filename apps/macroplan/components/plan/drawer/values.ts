@@ -50,21 +50,55 @@ export interface SubjectValues {
 }
 
 /**
- * Everything about one subject that is a **value** rather than a sentence, controls and facts alike.
+ * What a drawer needs about the **plan** rather than about the subject it is open on.
+ *
+ * A group rather than two more members beside the subject's own, because the name over them is what
+ * says which half a reader is looking at: `DrawerValues` is one subject's values plus these, and a flat
+ * shape left `calendar` and `features` claiming to be the subject's alongside its name, its estimate
+ * and its pin. Whatever the next control wants of the plan — a rail order for `placeFeature` — lands
+ * here, and the answer to "is this the subject's?" stays structural instead of being remembered.
+ *
+ * Both are resolved in the same lookup as the row rather than fetched beside it (`./subject.ts`): the
+ * panel is handed one subject and never a plan, so anything it needs about the plan has to arrive
+ * through that one lookup or not at all. A panel that reached for a plan to get at either could word
+ * an estimate itself, and — for the admin, whose read carries every live seat — would be holding the
+ * object ADR 0033 forbids putting in a page's props.
+ */
+export interface PlanValues {
+  /**
+   * The plan's own calendar: what turns a sprint index into the dates it stands for.
+   *
+   * Here because a pin is meaningless without it: `pinSprint` is an index into a grid whose width and
+   * origin belong to the plan, so a control that shows a pin as the dates it means needs `startDate`
+   * and `sprintLengthDays` to convert one. It is the three fields `PlanCalendar` names and never the
+   * plan, so what crosses into the pin's client component is three primitives (`./pin-field.tsx`).
+   */
+  readonly calendar: PlanCalendar
+
+  /**
+   * Every feature of the plan, which is the `dependsOn` graph a cycle is a property of.
+   *
+   * Here for the reason `calendar` is: a dependency cannot be judged from one feature. Whether an
+   * edge closes a cycle is a question about the **whole** graph, the candidates a control may offer
+   * are the plan's other features and nothing else (spec §8 rejects cross-plan edges), and the
+   * refusal has to name them — so a control that had only the subject could neither list a choice nor
+   * say what was wrong with one.
+   *
+   * It is the features and not the plan, so nothing under the drawer can reach an epic, an item, a
+   * schedule or a seat through it, and it is read by the **server** half alone: the graph is turned
+   * into one `EdgeChoice` of primitives per candidate before anything crosses into the browser
+   * (`./cycle-check.ts`, `./dependency-editor.tsx`).
+   */
+  readonly features: readonly CycleFeature[]
+}
+
+/**
+ * Everything the drawer reads about one open subject: its own values, one fact about them, the plan's.
  *
  * {@link SubjectValues} is the part a field edits and re-reads out of the plan a write answered with.
- * The two members added here are neither edited nor re-read: they are what the drawer's **read** half
- * needs and the row does not carry, and they arrive by the same route for the same reason — the panel
- * is handed one subject rather than a plan (`./subject.ts`), so anything it needs about the plan has
- * to be resolved in that one lookup or not at all. A panel that reached for a plan to get at either
- * of them could word an estimate itself, and — for the admin, whose read carries every live seat —
- * would be holding the object ADR 0033 forbids putting in a page's props.
- *
- * `calendar` is the one member here that is not the subject's own, and it is here because a pin is
- * meaningless without it: `pinSprint` is an index into a grid whose width and origin belong to the
- * plan, so a control that shows a pin as the dates it means needs `startDate` and `sprintLengthDays`
- * to convert one. It is the three fields `PlanCalendar` names and never the plan, so what crosses into
- * the pin's client component is three primitives (`./pin-field.tsx`).
+ * The two members added here are neither edited nor re-read — `sizedByItems` is a fact **about this
+ * subject** that the row does not carry, and {@link PlanValues} is deliberately not about the subject
+ * at all, which is why it is a group and says so.
  *
  * `sizedByItems` is `effectiveEstimate`'s own gate, asked of this subject on the server: **at least one
  * estimated item**, which is when the items rather than the authored number place the bar and the
@@ -82,28 +116,11 @@ export interface SubjectValues {
  * import is erased, so neither spelling costs the browser a byte.
  */
 export interface DrawerValues extends SubjectValues {
-  /** The plan's own calendar: what turns a sprint index into the dates it stands for. */
-  readonly calendar: PlanCalendar
-
   /** Whether the items sized this feature, which is when its own estimate moves no bar. */
   readonly sizedByItems: boolean
 
-  /**
-   * Every feature of the plan, which is the `dependsOn` graph a cycle is a property of.
-   *
-   * The second member here that is not the subject's own, and it is here for the reason `calendar`
-   * is: a dependency cannot be judged from one feature. Whether an edge closes a cycle is a
-   * question about the **whole** graph, the candidates a control may offer are the plan's other
-   * features and nothing else (spec §8 rejects cross-plan edges), and the refusal has to name them
-   * — so a control that had only the subject could neither list a choice nor say what was wrong
-   * with one. Resolved in the same lookup as the row rather than fetched beside it (`./subject.ts`).
-   *
-   * It is the features and not the plan, so nothing under the drawer can reach an epic, an item, a
-   * schedule or a seat through it, and it is read by the **server** half alone: the graph is turned
-   * into one `EdgeChoice` of primitives per candidate before anything crosses into the browser
-   * (`./cycle-check.ts`, `./dependency-editor.tsx`).
-   */
-  readonly features: readonly CycleFeature[]
+  /** What the drawer needs of the plan the subject belongs to, and nothing of the subject itself. */
+  readonly plan: PlanValues
 }
 
 /**

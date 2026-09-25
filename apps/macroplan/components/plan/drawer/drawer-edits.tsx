@@ -20,11 +20,10 @@ export interface DrawerEditsProps {
    * The same subject's values, resolved out of the same plan (`./subject.ts`).
    *
    * **Two** of its members are read here: the name and the estimate, each seeding one field. The
-   * other three belong to the two surfaces beside this one — `pinSprint`, `calendar` and `features`
-   * to the `manage` band (`./drawer-manage.tsx`), `sizedByItems` to the read half
-   * (`./drawer-facts.tsx`) — and the whole object arrives all the same, because it is the one prop
-   * the panel hands down and a band that took only what it read would change shape every time a
-   * control arrived.
+   * other three belong to the two surfaces beside this one — `pinSprint` and the `plan` group to the
+   * `manage` band (`./drawer-manage.tsx`), `sizedByItems` to the read half (`./drawer-facts.tsx`) —
+   * and the whole object arrives all the same, because it is the one prop the panel hands down and a
+   * band that took only what it read would change shape every time a control arrived.
    */
   readonly values: DrawerValues
 

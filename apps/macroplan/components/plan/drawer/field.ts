@@ -382,6 +382,12 @@ export const splitEdges = (ids: string): readonly string[] =>
  * what is missing rather than drawing an empty list, because an editor with no rows and no sentence
  * reads as a control that failed to load — and the candidate list is exhaustive by construction, this
  * plan's own features being every edge there could be (spec §8).
+ *
+ * **It claims one of the two conditions `edgeChoices` answers no rows for**, and that is not a gap in
+ * the sentence: the other is a plan that does not hold the subject at all, which cannot be on screen.
+ * `drawerSubject` resolves a drawer through the **row**, so a feature the plan no longer holds is a
+ * `notFound()` and never a panel (`./subject.ts`), and this sentence is only ever read by someone
+ * looking at the one feature their plan has.
  */
 export const NOTHING_TO_WAIT_ON =
   'This is the only feature in the plan, so there is nothing for it to wait on. A dependency always names another feature of this plan.'

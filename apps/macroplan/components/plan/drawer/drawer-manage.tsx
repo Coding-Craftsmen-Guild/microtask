@@ -72,15 +72,15 @@ export function DrawerManage({ planId, row, values, controls, actions }: DrawerM
           pin={actions.pinFeature}
           pinSprint={values.pinSprint}
           planId={planId}
-          sprintLengthDays={values.calendar.sprintLengthDays}
-          startDate={values.calendar.startDate}
-          timezone={values.calendar.timezone}
+          sprintLengthDays={values.plan.calendar.sprintLengthDays}
+          startDate={values.plan.calendar.startDate}
+          timezone={values.plan.calendar.timezone}
         />
       ) : null}
       {row.kind === 'feature' && controls.setDependencies ? (
         <DependencyEditor
           featureId={row.id}
-          features={values.features}
+          features={values.plan.features}
           planId={planId}
           setDependencies={actions.setDependencies}
         />

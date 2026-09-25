@@ -1,12 +1,13 @@
 import { LIMITS } from '@repo/contracts'
+import { findCycles } from '@repo/schedule'
 import { describe, expect, it } from 'vitest'
 import { atlasPlan, FEATURE_1, FEATURE_2 } from '../testing/plan-fixture'
 import { splitEdges } from './field'
+import * as exported from './cycle-check'
 import {
   cycleSentence,
   edgeChoices,
   edgeEntry,
-  proposedCycle,
   SELF_EDGE,
   tooManyEdges,
   type CycleFeature,
@@ -45,33 +46,33 @@ const atCap = (): readonly CycleFeature[] => [
 ]
 
 describe('the cycle a proposed dependency would create, named for a reader', () => {
-  it('answers null for an edge that closes nothing', () => {
-    expect(proposedCycle(chain(), A, [])).toBeNull()
-    expect(proposedCycle(chain(), C, [B])).toBeNull()
+  it('refuses nothing for an edge that closes nothing', () => {
+    expect(detail(chain(), A, [])).toEqual([])
+    expect(detail(chain(), C, [B])).toEqual([B])
   })
 
-  it('answers the features of the cycle the new edge would close, by name', () => {
-    const found = proposedCycle(chain(), A, [C])
-    expect(found?.featureIds).toEqual([A, B, C])
-    expect(found?.sentence).toBe('These features would wait on each other: Auth, Billing, Cron.')
+  it('names the features of the cycle the new edge would close, by name', () => {
+    expect(detail(chain(), A, [C])).toBe(
+      'These features would wait on each other: Auth, Billing, Cron.',
+    )
   })
 
-  it('answers the two features of a two-cycle, which is the smallest one a UI can build', () => {
-    const found = proposedCycle([feature(A, 'Auth'), feature(B, 'Billing', [A])], A, [B])
-    expect(found?.featureIds).toEqual([A, B])
-    expect(found?.sentence).toBe('These features would wait on each other: Auth, Billing.')
+  it('names the two features of a two-cycle, which is the smallest one a UI can build', () => {
+    expect(detail([feature(A, 'Auth'), feature(B, 'Billing', [A])], A, [B])).toBe(
+      'These features would wait on each other: Auth, Billing.',
+    )
   })
 
   it('reads the graph the write would leave, not the one on disk', () => {
     const already = [feature(A, 'Auth', [C]), feature(B, 'Billing', [A]), feature(C, 'Cron', [B])]
-    expect(proposedCycle(already, A, [])).toBeNull()
+    expect(detail(already, A, [])).toEqual([])
   })
 
   // `findCycles` drops an edge naming a feature the plan does not hold, so a dangling edge cannot
   // produce a refusal naming something a reader could never find on screen.
   it('drops an edge that names nothing rather than refusing a write over it', () => {
     const orphan = [feature(A, 'Auth', ['gone']), feature(B, 'Billing')]
-    expect(proposedCycle(orphan, B, [A])).toBeNull()
+    expect(detail(orphan, B, [A])).toEqual([A])
   })
 })
 
@@ -83,9 +84,20 @@ describe('the self-edge the server refuses separately, and which is not a cycle'
     expect(SELF_EDGE).not.toContain('wait on each other')
   })
 
-  it('refuses it before the cycle question, which findCycles would answer first', () => {
-    expect(proposedCycle(chain(), A, [A])?.featureIds).toEqual([A])
+  // Asked of `findCycles` rather than of this module, because it is `findCycles`' behaviour that makes
+  // the order load-bearing: a self-edge is a cycle of one, so the cycle question asked first would
+  // have produced a reciprocal sentence over a list of one name. Nothing here can ask it out of turn —
+  // the cycle check is module-private and `edgeEntry` is the only way in.
+  it('refuses it before the cycle question, which findCycles would answer as a cycle of one', () => {
+    expect(findCycles([{ ...feature(A, 'Auth'), dependsOn: [A] }])[0]?.featureIds).toEqual([A])
     expect(detail(chain(), A, [A])).toBe(SELF_EDGE)
+    expect(Object.keys(exported).sort()).toEqual([
+      'SELF_EDGE',
+      'cycleSentence',
+      'edgeChoices',
+      'edgeEntry',
+      'tooManyEdges',
+    ])
   })
 
   it('refuses a list that names the feature among other ids, not only one that is only it', () => {
@@ -129,9 +141,14 @@ describe('the dedupe and the edge budget, both as the service counts them', () =
     expect(detail(features, A, edges)).toEqual(edges)
   })
 
-  it('refuses the write that would leave one more than the cap', () => {
+  // The total is stated here as a number rather than only compared to `tooManyEdges`'s own output,
+  // which is what the three cases below assert against: a sentence compared to its producer pins the
+  // wording and not the count, and the count is what each of them is named for.
+  it('refuses the write that would leave one more than the cap, and says how many that is', () => {
     const edges = Array.from({ length: LIMITS.edgesPerPlan + 1 }, (_one, at) => `edge-${String(at)}`)
     expect(detail(atCap(), A, edges)).toBe(tooManyEdges(LIMITS.edgesPerPlan + 1))
+    expect(detail(atCap(), A, edges)).toContain('401')
+    expect(LIMITS.edgesPerPlan).toBe(400)
   })
 
   // Subtracting the feature's own current edges first is what lets a plan sitting exactly at the cap

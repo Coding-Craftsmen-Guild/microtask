@@ -1,4 +1,4 @@
-import { MAX_ESTIMATE_DAYS, MAX_ITEM_DESCRIPTION_BYTES } from '@repo/contracts'
+import { EntityId, MAX_ESTIMATE_DAYS, MAX_ITEM_DESCRIPTION_BYTES } from '@repo/contracts'
 import { describe, expect, it } from 'vitest'
 import {
   budgetLine,
@@ -213,9 +213,15 @@ describe('the edge list a client control is handed, which has to be one string',
     expect(splitEdges(` ${A}  ${B} `)).toEqual([A, B])
   })
 
-  // The separator is a space because the id alphabet cannot hold one: `EntityId` is a ULID in
-  // Crockford base32 (`packages/contracts/src/document.ts`), so the two are disjoint by contract.
-  it('separates on a character no id this contract admits can contain', () => {
-    for (const id of [A, B]) expect(id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+  // The separator is a space because the id alphabet cannot hold one, and the question is put to
+  // `EntityId` itself rather than to a copy of its pattern. A test matching two constants declared here
+  // against a regex declared here asserts a fact about its own fixtures: it would go on passing if the
+  // contract ever admitted a space, which is the one change that would break `joinEdges`. What that
+  // codec rests on is that **no** value the contract accepts as an id contains the separator.
+  it('separates on a character the contract admits in no id at all', () => {
+    expect(EntityId.safeParse(A).success).toBe(true)
+    expect(EntityId.safeParse(B).success).toBe(true)
+    expect(EntityId.safeParse(`${A.slice(0, 13)} ${B.slice(14)}`).success).toBe(false)
+    expect(EntityId.safeParse(joinEdges([A, B])).success).toBe(false)
   })
 })

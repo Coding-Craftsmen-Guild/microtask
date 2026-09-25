@@ -1,11 +1,12 @@
 import type { Plan } from '@repo/api-client'
+import type { ScopeValue } from '@repo/contracts'
 import { breakdown, effectiveEstimate } from '@repo/schedule'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
 import { ADMIN_CONTROLS } from '../../../lib/admin-controls'
-import type { PlanContentControls } from '../../../lib/plan-capabilities'
+import { planCapabilities, type PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
@@ -50,8 +51,7 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
   name: 'Auth rewrite',
   estimateDays: 5,
   pinSprint: null,
-  calendar: CALENDAR,
-  features: atlasPlan().features,
+  plan: { calendar: CALENDAR, features: atlasPlan().features },
   sizedByItems: false,
   ...over,
 })
@@ -59,6 +59,9 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
 const VALUES: DrawerValues = valuesOf()
 
 const CLOSE = `/plans/${PLAN_A}`
+
+// The scope a seat's controls are asked about, which carries the id the kernel compares.
+const SEAT: ScopeValue = { kind: 'plan', planId: PLAN_A }
 
 const served: ActionResult<Plan> = { ok: true, value: atlasPlan() }
 
@@ -271,6 +274,10 @@ const itemsOfOne = () => atlasPlan().items.filter((one) => one.featureId === FEA
 
 const pinBox = () => screen.queryByRole<HTMLInputElement>('textbox', { name: 'Pinned to sprint' })
 
+// The two control bands, in the order the panel draws them: the `write` fields, then the `manage`
+// controls. Found by the variant that hides an empty one, which is what each of them *is*.
+const bands = (): readonly Element[] => [...document.querySelectorAll('[class*="empty:hidden"]')]
+
 const breakdownLine = (): string | null =>
   document.querySelector('[data-slot="drawer-breakdown"]')?.textContent ?? null
 
@@ -348,9 +355,28 @@ describe('the manage band, and the one control an item drawer must never draw', 
     open({ controls: nothingDrawn() })
     expect(screen.queryAllByRole('checkbox')).toEqual([])
     expect(pinBox()).toBeNull()
-    const bands = [...document.querySelectorAll('[class*="empty:hidden"]')]
-    expect(bands).toHaveLength(2)
-    for (const band of bands) expect(band.childElementCount).toBe(0)
+    expect(bands().map((band) => band.childElementCount)).toEqual([0, 0])
+  })
+
+  // **The claim the second band was opened for**, which four files' prose asserted and no test asked:
+  // `feature:pin` and `feature:depend` are `manage`-only where `feature:rename`, `feature:estimate` and
+  // `item:describe` are `write` (`MANAGE` and `WRITE` in `packages/kernel/src/access/policy.ts`), so the
+  // split between the two files *is* the role line. `lib/plan-capabilities.test.ts` pins the policy side
+  // row by row, so a policy change goes red there; what nothing caught until now is a control mounted in
+  // the **wrong band**, which is the mistake three more groups make easy. The controls come from
+  // `planCapabilities` rather than from an object written here, so the seat asked about is the one the
+  // server would answer for.
+  it('shows a write seat the edits band and an empty manage band, and a manage seat both', () => {
+    open({ controls: planCapabilities('write', SEAT).content })
+    expect(screen.getByRole('textbox', { name: 'Feature name' })).toBeTruthy()
+    expect(pinBox()).toBeNull()
+    expect(screen.queryAllByRole('checkbox')).toEqual([])
+    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, false])
+    cleanup()
+    open({ controls: planCapabilities('manage', SEAT).content })
+    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, true])
+    expect(pinBox()).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: 'Billing' })).toBeTruthy()
   })
 })
 
