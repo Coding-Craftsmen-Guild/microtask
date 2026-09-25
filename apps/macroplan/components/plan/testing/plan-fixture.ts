@@ -35,6 +35,20 @@ export const FEATURE_1 = '01MPFFFFFFFFFFFFFFFFFFFFF1'
 /** `Billing`, the second, which waits on {@link FEATURE_1}. */
 export const FEATURE_2 = '01MPFFFFFFFFFFFFFFFFFFFFF2'
 
+/** `Checkout`, which exists only in {@link tangledPlan}, where it is placed out of rail order. */
+export const FEATURE_3 = '01MPFFFFFFFFFFFFFFFFFFFFF3'
+
+/** `Reporting`, which exists only in {@link tangledPlan}, where {@link FEATURE_3} waits on it. */
+export const FEATURE_4 = '01MPFFFFFFFFFFFFFFFFFFFFF4'
+
+/**
+ * A feature id {@link tangledPlan}'s schedule names and its manifest does not hold.
+ *
+ * The one thing a plan and the schedule derived from it can disagree about, which is a state every
+ * surface that renders a conflict has to render rather than throw on.
+ */
+export const FEATURE_GONE = '01MPFFFFFFFFFFFFFFFFFFFFF9'
+
 /** `Sessions`, the first item under {@link FEATURE_1}. */
 export const ITEM_1 = '01MPHHHHHHHHHHHHHHHHHHHHH1'
 
@@ -213,6 +227,67 @@ export const unplacedPlan = (reason: 'no-estimate' | 'in-cycle'): StoredPlan => 
     },
   })
 }
+
+const tangledFeatures = () => {
+  const shared = { epicId: EPIC_1, pinSprint: null, createdAt: CREATED, updatedAt: STAMP }
+  return [
+    { ...shared, id: FEATURE_1, name: 'Auth rewrite', position: 0, estimateDays: 5, dependsOn: [FEATURE_2] },
+    { ...shared, id: FEATURE_2, name: 'Billing', position: 1, estimateDays: 3, dependsOn: [FEATURE_1] },
+    { ...shared, id: FEATURE_3, name: 'Checkout', position: 2, estimateDays: 5, dependsOn: [FEATURE_4] },
+    { ...shared, id: FEATURE_4, name: 'Reporting', position: 3, estimateDays: 4, dependsOn: [] },
+  ]
+}
+
+const tangledItems = () =>
+  [
+    { id: ITEM_1, featureId: FEATURE_3, name: 'Sessions', position: 0, estimateDays: 3 },
+    { id: ITEM_2, featureId: FEATURE_3, name: 'Password reset', position: 1, estimateDays: 2 },
+    { id: ITEM_3, featureId: FEATURE_2, name: 'Invoices', position: 0, estimateDays: 3 },
+  ].map((one) => ({ ...one, linkedTaskId: null, createdAt: CREATED, updatedAt: STAMP }))
+
+/**
+ * A plan that contradicts itself in all three ways the forward pass can report at once.
+ *
+ * One fixture rather than one per test file, for the reason {@link unplacedPlan} gives: the conflict
+ * list asserts its three sections against this plan, and the class sweep renders the same plan to
+ * paint all three section tints. Neither file can drift from the other about what a tangled plan is.
+ *
+ * It is **coherent**, and that costs it two features {@link atlasPlan} does not have. A cycle's
+ * members get no span, so neither of them can be the *placed* feature an `ignoredEdges` entry is
+ * about — `@repo/schedule` is explicit that an edge into a cycle member "is ignored and is **not**
+ * reported in `ignoredEdges`" — and the three sections therefore need four features between them:
+ * `Auth rewrite` and `Billing` wait on each other, and `Checkout` is placed before `Reporting` on the
+ * one rail while stating a dependency on it, which is the edge rail order set aside.
+ *
+ * `Invoices` is the one item here, and it hangs under `Billing` on purpose: the cycle drags it off the
+ * axis too, so `unscheduled` names an **item** as well as two features — which is the only way a
+ * renderer's choice between a feature drawer and an item drawer is a choice at all. {@link ITEM_1} and
+ * {@link ITEM_2} move under `Checkout`, where they are placed and sum to its estimate.
+ *
+ * {@link FEATURE_GONE} is in `unscheduled` and in no other array, so every row that reads a name from
+ * the manifest is rendered beside one that cannot.
+ */
+export const tangledPlan = (): StoredPlan =>
+  atlasPlan({
+    features: tangledFeatures(),
+    items: tangledItems(),
+    schedule: {
+      spans: [
+        { id: FEATURE_3, startDay: 0, endDay: 5 },
+        { id: ITEM_1, startDay: 0, endDay: 3 },
+        { id: ITEM_2, startDay: 3, endDay: 5 },
+        { id: FEATURE_4, startDay: 5, endDay: 9 },
+      ],
+      cycles: [{ featureIds: [FEATURE_1, FEATURE_2] }],
+      unscheduled: [
+        { id: FEATURE_1, reason: 'in-cycle' },
+        { id: FEATURE_2, reason: 'in-cycle' },
+        { id: ITEM_3, reason: 'in-cycle' },
+        { id: FEATURE_GONE, reason: 'no-estimate' },
+      ],
+      ignoredEdges: [{ featureId: FEATURE_3, dependsOnId: FEATURE_4 }],
+    },
+  })
 
 /**
  * `Beacon migration`: a plan with no rails, no work and no seats.

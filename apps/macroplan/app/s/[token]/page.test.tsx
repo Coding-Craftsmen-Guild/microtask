@@ -17,6 +17,7 @@ import {
   PLAN_A,
   REVOKED_SEAT_TOKEN,
   SEAT_TOKEN,
+  tangledPlan,
   WRITE_SEAT_TOKEN,
 } from '../../../components/plan/testing/plan-fixture'
 import { planCapabilities } from '../../../lib/plan-capabilities'
@@ -211,6 +212,19 @@ describe('a plan seat lands on the one plan its token opens', () => {
     expect(screen.getByRole('table')).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Table' })).toBeTruthy()
   })
+
+  // The plan here contradicts itself in all three ways, so "no conflict list" is a decision this page
+  // made rather than a plan with nothing to say. Every link such a list draws is an admin drawer path,
+  // and this surface presents no cookie — a seat holder following one would be sent to a login they
+  // have no password for (ADR 0032). The day `/s/<token>/f/<featureId>` exists, this case is the one
+  // that has to change.
+  it('draws no conflict list, every link one would hold belonging to the admin surface', async () => {
+    seated(SEAT_TOKEN)
+    api.plans = [tangledPlan()]
+    await show()
+    expect(document.querySelector('[data-slot="conflict-list"]')).toBeNull()
+    expect(screen.queryAllByRole('link')).toEqual([])
+  })
 })
 
 describe('the token in this URL is the only authority the page has', () => {
@@ -316,15 +330,17 @@ describe('which controls the seat’s own role draws', () => {
   // The role and the scope are what `planCapabilities` is asked with, and neither goes down: a
   // permission restated below this point is one nothing authorises, and a component added later
   // could ask a second question of it. What the screen gets is the plan, the instant, the controls and
-  // an explicitly empty drawer — four props and no fifth. `drawer` is in the set because the slot is
-  // required and this surface has no drawer route yet, so `null` is what this page states about it.
+  // two explicitly empty slots — five props and no sixth. Both slots are in the set because both are
+  // required on the screen and this surface fills neither: it has no drawer route, and a conflict list
+  // links only to those routes, so `null` twice is what this page states about itself.
   it('hands the screen the controls and never the role, the scope or the share view itself', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await LinkPlanPage(props(WRITE_SEAT_TOKEN))
     expect(isValidElement(element)).toBe(true)
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    expect(Object.keys(handed).sort()).toEqual(['at', 'controls', 'drawer', 'plan'])
+    expect(Object.keys(handed).sort()).toEqual(['at', 'conflicts', 'controls', 'drawer', 'plan'])
     expect(handed['drawer']).toBeNull()
+    expect(handed['conflicts']).toBeNull()
     const groups = Object.values(handed['controls'] as Record<string, Record<string, unknown>>)
     expect(groups.flatMap((group) => Object.values(group)).every((one) => typeof one === 'boolean')).toBe(true)
   })

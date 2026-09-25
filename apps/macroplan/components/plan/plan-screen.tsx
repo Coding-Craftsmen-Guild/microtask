@@ -30,10 +30,42 @@ export interface PlanScreenProps {
    * **Nothing this screen renders from these answers draws a control yet.** The canvas and the table
    * below still draw none, and the drawer that now does is filled from the route rather than from here:
    * a drawer page asks for its own `ADMIN_CONTROLS.content` because a layout cannot hand its children a
-   * prop, so the slot's controls do not arrive through this one. The conflict list and the share manager
-   * are the tasks after this, and they mount beside this screen as well as under it.
+   * prop, so the slot's controls do not arrive through this one. The conflict list that now fills
+   * {@link PlanScreenProps.conflicts} draws no control either — every link it draws is a navigation —
+   * and it is handed no `PlanControls` at all: what decides whether it is drawn is which surface is
+   * rendering rather than what the caller may do. The share manager is the task after this.
    */
   readonly controls: PlanControls
+
+  /**
+   * The plan's own contradictions, or `null` on a surface that cannot link to the controls that fix
+   * them.
+   *
+   * A **slot** and not a `<ConflictList>` mounted in here, and the reason is not layout: every link a
+   * conflict row draws is an **admin** drawer path (`lib/drawer-routes.ts`), and this screen is
+   * rendered by `/s/<token>` as well as by `/plans/[planId]`. A seat holder following one would be
+   * sent to `/login?next=…` for a password they do not have (ADR 0032), so *which surface is
+   * rendering* is what decides whether the list may be drawn — and that is not a question a component
+   * under here can answer. A slot makes the answer the page's, as {@link PlanScreenProps.drawer}
+   * does, and for the same reason it is **required** rather than optional: on the day the seat
+   * surface gains the drawer routes `lib/drawer-routes.ts` is holding two builders back for, the one
+   * `conflicts={null}` on that page is a line somebody has to revisit rather than a screen that goes
+   * on rendering without a list it now has links for.
+   *
+   * It is **not** the drawer slot and could not be: a drawer is the one subject that is open and is
+   * filled from the route, where this is about the whole plan and stays put while the route moves. It
+   * sits with the plan's name and settings line, **above** the drawer, because it is a fact about the
+   * plan in the same way those two are, and because a list of links to the drawer reads oddly below
+   * the drawer one of them has just opened. Both are above the view switch, and that constraint is
+   * the drawer's own: the table below is always mounted and 2,200 rows tall at this product's cap, so
+   * anything after it is thousands of rows from the plan's name — which is also why this list cannot
+   * be a sibling *after* this whole component, and so why the page does not simply render it beside
+   * this one.
+   *
+   * `null` renders nothing at all, and the list itself answers `null` for a plan that contradicts
+   * itself in none of the three ways, so an admin plan with nothing wrong adds no markup here either.
+   */
+  readonly conflicts: ReactNode
 
   /**
    * Whatever is open beside the plan: one feature, one item, or the sentence saying nothing is.
@@ -133,10 +165,11 @@ export interface PlanScreenProps {
  *
  * ### Where this file divides next
  *
- * Under a quarter of the 80 lines an `.tsx` may hold is left, and two more tasks mount things here — a
- * conflict list and a share manager. The paragraphs above have already ruled out everything inside
- * `VIEW_SWITCH.views`: the radios, their labels and both panels are peers of one another by necessity,
- * and a component drawn around any of them breaks the selector the switch is built on.
+ * Sixty of the 80 lines an `.tsx` may hold are used, the conflict list having cost two of them — a
+ * slot and a prop — and one more task mounts something here, the share manager. The paragraphs above
+ * have already ruled out everything inside `VIEW_SWITCH.views`: the radios, their labels and both
+ * panels are peers of one another by necessity, and a component drawn around any of them breaks the
+ * selector the switch is built on.
  *
  * What is left, and so **the next split, is the heading block** — the `h1` and the settings line under
  * it, the one `<div className="grid gap-1">` in here. It is a self-contained pair of elements with no
@@ -144,7 +177,7 @@ export interface PlanScreenProps {
  * the drawer slot, so lifting it out moves no sibling past another. `./plan-heading.tsx` taking one
  * `PlanScreenModel`, and this file keeps the grid, the slot and the switch.
  */
-export function PlanScreen({ plan, at, drawer }: PlanScreenProps) {
+export function PlanScreen({ plan, at, conflicts, drawer }: PlanScreenProps) {
   return (
     <div className="grid gap-4 pt-6">
       <div className="grid gap-1">
@@ -153,6 +186,7 @@ export function PlanScreen({ plan, at, drawer }: PlanScreenProps) {
           {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
         </p>
       </div>
+      {conflicts}
       {drawer}
       <div className={VIEW_SWITCH.views}>
         <p className="sr-only" id={VIEW_SWITCH.hintId}>

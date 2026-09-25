@@ -19,11 +19,13 @@ const drawerPath = (root: string, segment: string, id: string): string =>
  * and none of them may build it by concatenation. That is the same rule `lib/routes.ts` states for
  * `planPath`: "a caller building a path by hand is how a `..` segment reaches a router".
  *
- * **Nothing in the app calls either of these yet.** None of those three surfaces draws a link today:
- * the task that turns a table row into one is the first caller, and it is also what forced the two
- * pages these paths address to exist before any link to them did. So the pages are reachable by typing
- * an address and by nothing else for the moment, and `drawer-routes.test.ts` is the only code that
- * spends a built path — which is a fact about this phase rather than about these two functions.
+ * **The conflict list is the first caller, and for the moment the only one.** The table row was
+ * expected to be — nothing has turned one into a link yet — and a bar on the canvas still is not one
+ * either, so these paths were built before anything linked to them and the two pages they address
+ * existed before any link did. What calls them now is `components/plan/conflicts/conflict-list.tsx`,
+ * where every subject a conflict names is a link to the control that would fix it; it is the reason
+ * that list is worth more than a badge. Both builders are spent there, because `unscheduled` names
+ * items as well as features.
  *
  * `encodeURIComponent` is therefore unconditional on the id, for that file's own reason: a feature
  * id is a ULID and normally needs no encoding, which is exactly why the one value that would need

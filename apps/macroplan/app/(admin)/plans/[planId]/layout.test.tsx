@@ -16,13 +16,17 @@ import { handedBy, tokensHandedBy } from '../../../../components/plan/testing/ha
 import {
   ADMIN_TOKEN,
   atlasPlan,
+  FEATURE_1,
+  ITEM_3,
   MANAGE_SEAT_TOKEN,
   PLAN_A,
   PLAN_B,
   PLAN_GONE,
   SEAT_TOKEN,
+  tangledPlan,
   WRITE_SEAT_TOKEN,
 } from '../../../../components/plan/testing/plan-fixture'
+import { featurePath, itemPath } from '../../../../lib/drawer-routes'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
 
@@ -50,6 +54,12 @@ vi.mock('next/headers', () => ({
       set: () => undefined,
     }),
   headers: () => Promise.resolve(new Headers()),
+}))
+// The conflict list this layout fills its slot with closes every row with links, and Next's own `Link`
+// wants a router this render has none of. The shared double forwards `className` and `href` and is what
+// every other file in this app mocks with, so three copies of one anchor cannot drift.
+vi.mock('next/link', async () => ({
+  default: (await import('../../../../components/plan/testing/next-link')).LinkDouble,
 }))
 vi.mock('next/navigation', () => ({
   redirect: (location: string) => {
@@ -151,6 +161,32 @@ describe('the plan layout', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })).toBeTruthy()
   })
 
+  // The list is filled **here** and not inside `PlanScreen`, because every link in it addresses this
+  // surface's own drawer routes and `/s/<token>` renders the same screen. So this is the file that has
+  // to prove the slot is filled, and that the two builders in `lib/drawer-routes.ts` are what filled
+  // it — a feature and an item, which are two different pages.
+  it('draws the plan’s own contradictions, each linked to the drawer that would fix it', async () => {
+    holdingAdmin(api)
+    api.plans = [tangledPlan()]
+    await show()
+    const list = screen.getByRole('region', { name: 'How this plan contradicts itself' })
+    expect(list.querySelectorAll('[data-slot="conflict-row"]').length).toBeGreaterThan(2)
+    expect(screen.getAllByRole('link', { name: 'Auth rewrite' })[0]?.getAttribute('href')).toBe(
+      featurePath(PLAN_A, FEATURE_1),
+    )
+    expect(screen.getAllByRole('link', { name: 'Invoices' })[0]?.getAttribute('href')).toBe(
+      itemPath(PLAN_A, ITEM_3),
+    )
+  })
+
+  it('draws no such list for a plan that contradicts itself in none of the three ways', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    await show()
+    expect(document.querySelector('[data-slot="conflict-list"]')).toBeNull()
+    expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
+  })
+
   it('says how the plan is timed, which is what its whole axis is derived from', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
@@ -227,13 +263,29 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
     expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
   })
 
-  it('hands the screen that slot and the three props it had, and nothing else', async () => {
+  // Five props now, the fifth being the conflict list this layout builds rather than passes through:
+  // it is a slot on the screen because the seat surface renders the same screen and may not carry
+  // links into this one's drawer routes, so filling it is this file's own decision and belongs in this
+  // file's assertions. The drawer stays identity-compared, being `children` and not built here.
+  it('hands the screen that slot, the conflict list and the three props it had, and nothing else', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const element = await PlanLayout(propsOf(PLAN_A))
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    expect(Object.keys(handed).sort()).toEqual(['at', 'controls', 'drawer', 'plan'])
+    expect(Object.keys(handed).sort()).toEqual(['at', 'conflicts', 'controls', 'drawer', 'plan'])
     expect(handed['drawer']).toBe(DRAWER)
+    expect(isValidElement<{ plan: unknown }>(handed['conflicts'])).toBe(true)
+  })
+
+  it('builds that list from the very plan it hands the screen, never from a second read', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    const element = await PlanLayout(propsOf(PLAN_A))
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    const conflicts = handed['conflicts']
+    const list = isValidElement<{ plan: unknown }>(conflicts) ? conflicts.props.plan : null
+    expect(list).toBe(handed['plan'])
+    expect(trace(api)).toEqual([`${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`])
   })
 
   it('draws no slot at all when it could not read the plan, so one refusal is said once', async () => {

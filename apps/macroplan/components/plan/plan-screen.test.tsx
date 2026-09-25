@@ -17,14 +17,32 @@ const SEAT: ScopeValue = { kind: 'plan', planId: PLAN_A }
 // depend on a second component's markup.
 const MARKER: ReactNode = <p data-testid="drawer-marker">whatever is open</p>
 
+// The conflict slot's marker, and a marker for the same reason: what is asserted below is where the
+// slot puts what fills it, and a real `ConflictList` would tie that to a second component's markup —
+// and to whether the fixture happens to contradict itself, which is `conflict-list.test.tsx`'s subject
+// and not this file's.
+const CONFLICTS: ReactNode = <p data-testid="conflicts-marker">what is wrong with the plan</p>
+
 // The fixture is a `StoredPlan`, where `shareLinks` is required, and `PlanScreen.plan` is the type a
 // token cannot be represented in — so the fixture is reduced by the component's own reducer rather
 // than cast past it. That the unwrapped call no longer compiles is the narrowing working.
 //
 // `drawer` defaults to `null` here because that is what a surface with no drawer route passes: the
 // prop is required, so every case below states which of the two it is rendering.
-const show = (controls: PlanControls = ADMIN_CONTROLS, drawer: ReactNode = null) =>
-  render(<PlanScreen at={AT} controls={controls} drawer={drawer} plan={planScreenModel(atlasPlan())} />)
+const show = (
+  controls: PlanControls = ADMIN_CONTROLS,
+  drawer: ReactNode = null,
+  conflicts: ReactNode = null,
+) =>
+  render(
+    <PlanScreen
+      at={AT}
+      conflicts={conflicts}
+      controls={controls}
+      drawer={drawer}
+      plan={planScreenModel(atlasPlan())}
+    />,
+  )
 
 const gridChildren = (container: HTMLElement): readonly Element[] => {
   const grid = container.firstElementChild
@@ -153,6 +171,50 @@ describe('the slot whatever is open beside the plan fills', () => {
   it('leaves it outside the flex parent the radios and the panels share, being no peer of them', () => {
     show(ADMIN_CONTROLS, MARKER)
     expect(screen.getByTestId('drawer-marker').parentElement).not.toBe(firstRadio().parentElement)
+  })
+})
+
+// The second slot, and the three documented facts about it: it is empty on a surface that cannot link
+// to a drawer, it is above the drawer rather than below it, and it is no peer of the radios. The order
+// of the two slots is what regresses silently when the share manager is drawn into this same file.
+describe('the slot the plan’s own contradictions fill', () => {
+  it('adds nothing where a surface has none to draw, rather than an empty container', () => {
+    const empty = gridChildren(show().container)
+    const filled = gridChildren(show(ADMIN_CONTROLS, null, CONFLICTS).container)
+    expect(empty).toHaveLength(2)
+    expect(filled).toHaveLength(empty.length + 1)
+    expect(screen.getAllByTestId('conflicts-marker')).toHaveLength(1)
+  })
+
+  it('puts it above the view switch, so a conflict never sits below 2,200 rows of table', () => {
+    show(ADMIN_CONTROLS, null, CONFLICTS)
+    const marker = screen.getByTestId('conflicts-marker')
+    expect(marker.compareDocumentPosition(firstRadio()) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
+      marker.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it('puts it above the drawer, the plan’s own faults preceding whichever subject is open', () => {
+    show(ADMIN_CONTROLS, MARKER, CONFLICTS)
+    const marker = screen.getByTestId('conflicts-marker')
+    const drawer = screen.getByTestId('drawer-marker')
+    expect(marker.compareDocumentPosition(drawer) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
+      marker.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it('keeps it out of the flex parent the radios and the panels share, being no peer of them', () => {
+    show(ADMIN_CONTROLS, MARKER, CONFLICTS)
+    expect(screen.getByTestId('conflicts-marker').parentElement).not.toBe(
+      firstRadio().parentElement,
+    )
+  })
+
+  it('draws four children with both slots filled: the heading, the two slots and the switch', () => {
+    const children = gridChildren(show(ADMIN_CONTROLS, MARKER, CONFLICTS).container)
+    expect(children).toHaveLength(4)
+    expect(children[1]).toBe(screen.getByTestId('conflicts-marker'))
+    expect(children[2]).toBe(screen.getByTestId('drawer-marker'))
   })
 })
 

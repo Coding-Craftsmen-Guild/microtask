@@ -54,6 +54,14 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  * `new Date()`, which is what `PlanScreen.at` takes — and threaded down as the instant the today line
  * is drawn at, as the admin page does.
  *
+ * `conflicts={null}` is the same sentence about the other slot, and it is the same missing pages that
+ * make it true. A conflict row's whole point is a link to the control that fixes it, and every builder
+ * in `lib/drawer-routes.ts` addresses `/plans/<planId>/…` — so drawing the list here would hand a seat
+ * holder links to a surface that answers a cookie they cannot have and would redirect them to a login
+ * with no password behind it (ADR 0032). The two `null`s therefore arrive and leave together: whoever
+ * adds `/s/<token>/f/<featureId>` gains both a drawer to open and a list that can link to it, and both
+ * lines here are compile errors that day rather than a screen quietly missing two things.
+ *
  * `drawer={null}` is this page **saying** it has no drawer, rather than leaving the prop off. The slot
  * is required on `PlanScreen` for that reason: `/s/<token>/f/<featureId>` and `/s/<token>/i/<itemId>`
  * are a later task — their builders are deliberately absent from `lib/drawer-routes.ts` until the
@@ -91,6 +99,7 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
   return (
     <PlanScreen
       at={new Date()}
+      conflicts={null}
       controls={planCapabilities(role, scope)}
       drawer={null}
       plan={plan.value}

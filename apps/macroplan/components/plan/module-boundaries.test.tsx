@@ -12,7 +12,15 @@ import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
 import type { TableRow } from './table/rows'
 import { PlanTable } from './table/plan-table'
-import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
+import { ConflictList } from './conflicts/conflict-list'
+import {
+  atlasPlan,
+  FEATURE_1,
+  ITEM_1,
+  PLAN_A,
+  tangledPlan,
+  unplacedPlan,
+} from './testing/plan-fixture'
 import { nothingDrawn, stubActions } from './testing/plan-writes'
 import { DependencyToggle } from './drawer/dependency-toggle'
 import { DescriptionField } from './drawer/description-field'
@@ -92,6 +100,13 @@ const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
 // and once on its own, because a panel routed into that slot is painted by this sweep only if
 // something here renders it. `next/link` is doubled for them — `DrawerPanel` closes with a `Link`,
 // and the double forwards `className`, which is the attribute this file reads.
+// The last two trees are the conflict list: once in the `conflicts` slot of the screen, which is where
+// the admin layout puts it, and once on its own. It is drawn from the **tangled** plan on purpose —
+// nothing else in this file contradicts itself in more than one way, and a section with no rows draws
+// no tint, so any other fixture would leave two of the three `SECTION_CLASS` literals unpainted and so
+// unswept. Its rows close with `next/link`, which is already doubled above.
+const TANGLED = planScreenModel(tangledPlan())
+
 // One row, written out rather than looked up, so the drawer tree below paints a panel whatever the
 // derived order does with the fixture.
 const DRAWER_ROW: TableRow = {
@@ -210,6 +225,7 @@ const clientProps = (node: unknown): readonly HandedToClient[] => {
 const TREES = [
   <PlanScreen
     at={AT}
+    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
     key="a"
@@ -217,6 +233,7 @@ const TREES = [
   />,
   <PlanScreen
     at={AT}
+    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
     key="b"
@@ -224,6 +241,7 @@ const TREES = [
   />,
   <PlanScreen
     at={AT}
+    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
     key="c"
@@ -231,6 +249,7 @@ const TREES = [
   />,
   <PlanScreen
     at={AT}
+    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
     key="d"
@@ -245,6 +264,7 @@ const TREES = [
   <PlanTable key="f" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
   <PlanScreen
     at={AT}
+    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={panel({ key: 'g1' })}
     key="g"
@@ -257,6 +277,15 @@ const TREES = [
     values: ITEM.values,
   }),
   panel({ controls: NOTHING_DRAWN, key: 'i' }),
+  <PlanScreen
+    at={AT}
+    conflicts={<ConflictList plan={TANGLED} />}
+    controls={ADMIN_CONTROLS}
+    drawer={null}
+    key="j"
+    plan={TANGLED}
+  />,
+  <ConflictList key="k" plan={TANGLED} />,
 ]
 
 describe('the class-literal reader this sweep is built on', () => {

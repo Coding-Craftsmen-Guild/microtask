@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import { ConflictList } from '../../../../components/plan/conflicts/conflict-list'
 import { PlanScreen } from '../../../../components/plan/plan-screen'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { readPlan } from './read-plan'
@@ -69,6 +70,18 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  * same type `PlanScreen` takes and the same one `/s/<token>` reduces to, so the guarantee is one
  * compiler check on both surfaces rather than a mechanism per page.
  *
+ * ### The conflict list is filled here, and that is what makes it the admin's
+ *
+ * `PlanScreen.conflicts` is a slot for the same reason its `drawer` is one, and the reason is not
+ * layout: every link a conflict row draws is an **admin** drawer path, and `/s/<token>` renders the
+ * same screen — so a list mounted inside that component would put links behind a login on a surface
+ * whose holder has no password (ADR 0032). This layout is the one place that knows it is the admin
+ * surface, so this is where the list is built. It is filled from the **same** `loaded.value` the screen
+ * is handed, so the rows cannot be derived from a second read of the plan, and it is built here rather
+ * than in `page.tsx` so that it stays on screen while a drawer route moves in and out of the slot
+ * beside it — a layout not re-rendering when navigation moves between its children is the whole reason
+ * this file exists, and a conflict list is about the plan rather than about what is selected.
+ *
  * What it hands down about authority is {@link ADMIN_CONTROLS} and not a principal: the admin is not
  * a role in the capability model, so there is no role to pass and nothing for the screen to derive
  * one from (`lib/admin-controls.ts`). The seat page asks `planCapabilities` for its own answers and
@@ -98,6 +111,12 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
     )
   }
   return (
-    <PlanScreen at={new Date()} controls={ADMIN_CONTROLS} drawer={children} plan={loaded.value} />
+    <PlanScreen
+      at={new Date()}
+      conflicts={<ConflictList plan={loaded.value} />}
+      controls={ADMIN_CONTROLS}
+      drawer={children}
+      plan={loaded.value}
+    />
   )
 }
