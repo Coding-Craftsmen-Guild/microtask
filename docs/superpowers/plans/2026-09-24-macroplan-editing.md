@@ -1072,6 +1072,12 @@ so a calendar arrives as three of them.
   is the one rule Step 3c of Task 11 bought and it is the one a shortcut here would spend.
 - `pin-field.tsx` went **into** `drawer-edits.tsx` — the "cannot" this line used to assert was an artefact of the
   stale 80/80 figure above. A control group's *file* is its own; its *mount* is a child of an existing container.
+**Two rules about this budgeting, both learned the hard way.** Moving TSDoc out of a file buys **nothing**:
+`max-lines` runs with `skipComments: true`, so prose is already free and a paragraph relocated to make room is pure
+churn. And the band split is by the tier of writes **about the subject** — `feature:create` and `item:create` are
+`write` actions but a create is about a *parent*, so the create group sits outside both bands deliberately rather
+than in the `write` one. Verified in `packages/kernel/src/access/policy.ts`.
+
 - `drawer-edits.tsx`'s remaining 18 lines buy roughly one and a half more mounts at eleven lines each, and **three**
   groups are queued for it: the dependency editor (Task 13), delete (Task 15) and the place pair (Task 16). **Create
   is the fourth group and does not belong there at all** — `createItem` needs a parent feature and `createFeature` a
@@ -1276,7 +1282,11 @@ tested.
 
       The message must name what goes with it, following the four existing ones in this repository verbatim in
       shape — `'All of its folders, tasks, tabs, content and share links are deleted. This cannot be undone.'`
-      Deleting an epic re-rails or removes every feature on it and deleting a feature takes its items; the domain's
+      Deleting an epic **deletes** every feature on it — it does not re-rail them, as an earlier draft of this step
+      said. `withoutEpic` is `withoutFeatures` over the whole rail plus `densifiedRails` to renumber what is left
+      (`packages/macroplan-domain/src/services/cascade.ts`), and nothing is moved anywhere. That mattered enough to
+      correct: a dialog promising features would be re-railed would understate the loss it is asking to confirm.
+      Deleting a feature takes its items; the domain's
       `withoutEpic` and `withoutFeatures` do the cascade and nothing is written aside for recovery. **Say "this
       cannot be undone", because it cannot** — Task 16's undo covers a move and not a delete, and a message that
       implied otherwise would be the worst kind of wrong.
