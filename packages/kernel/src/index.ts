@@ -14,6 +14,7 @@ export {
 export type { Principal } from './access/principal.js'
 export { TARGET_KINDS, type Target } from './access/target.js'
 export { ADMIN_ONLY_ACTIONS, can } from './access/policy.js'
+export { effectiveBridgeRole } from './access/bridge-role.js'
 export type { TokenIndex, TokenOwner } from './access/token-index.js'
 export { ShareIndex } from './access/share-index.js'
 
