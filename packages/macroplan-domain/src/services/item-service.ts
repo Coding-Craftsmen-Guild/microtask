@@ -102,6 +102,51 @@ export class ItemService {
   }
 
   /**
+   * Links an item to a Microtask task id, replacing whatever link it already held.
+   *
+   * **Checks neither that the item's epic is bound nor that the task exists.** Both are questions
+   * about Microtask, and this package cannot reach Microtask — only `apps/api` can (design §7.2),
+   * the same reasoning {@link EpicService.bind} gives for not verifying a token. A cross-product
+   * rule enforced from inside a package that cannot see the other product would be a check in name
+   * only: it could refuse a shape that looks wrong and let through a task id that does not exist,
+   * or a real one in a project the plan was never bound to, so it would buy false confidence rather
+   * than safety. The route is what refuses an unbound rail; this method succeeds on one, because a
+   * `write`-role edit reaching this far has already cleared every check this package is positioned
+   * to make.
+   *
+   * Linking an already-linked item **replaces** the stored id rather than refusing, for the same
+   * reason a second {@link EpicService.bind} replaces: re-pointing an item at a different task is
+   * one write of the field, not an edit this method has grounds to question.
+   */
+  async link(at: PlanRef, itemId: string, taskId: string): Promise<PlanManifest> {
+    return this.#ctx.lock.run(async () => {
+      const current = await this.#read(at)
+      pickItem(current, itemId)
+      const stamp = this.#ctx.clock.now()
+      const items = current.items.map((each) =>
+        each.id === itemId ? { ...each, linkedTaskId: taskId, updatedAt: stamp } : each,
+      )
+      return this.#save(at.product, { ...current, items })
+    })
+  }
+
+  /**
+   * Unlinks an item, setting its task link to `null`. Idempotent: unlinking an item that is
+   * already unlinked changes nothing but the stamp, rather than raising.
+   */
+  async unlink(at: PlanRef, itemId: string): Promise<PlanManifest> {
+    return this.#ctx.lock.run(async () => {
+      const current = await this.#read(at)
+      pickItem(current, itemId)
+      const stamp = this.#ctx.clock.now()
+      const items = current.items.map((each) =>
+        each.id === itemId ? { ...each, linkedTaskId: null, updatedAt: stamp } : each,
+      )
+      return this.#save(at.product, { ...current, items })
+    })
+  }
+
+  /**
    * Moves one item inside its feature or to another, renumbering both groups densely.
    *
    * Stamps the plan and nothing inside it. A position is the plan's arrangement of its contents

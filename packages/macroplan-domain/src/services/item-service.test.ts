@@ -283,6 +283,102 @@ describe('ItemService.update tells an absent key from null', () => {
   })
 })
 
+describe('ItemService.link', () => {
+  it('stores the task id and stamps updatedAt', async () => {
+    const { service, store } = build()
+    await seed(store, { items: threeItems })
+    const next = await service.link(at, ONE, marked('TK', 1))
+    expect(pick(next, ONE).linkedTaskId).toBe(marked('TK', 1))
+    expect(pick(next, ONE).updatedAt).toBe(NOW)
+    expect(next.updatedAt).toBe(NOW)
+  })
+
+  it('replaces an already-linked item rather than refusing a second link', async () => {
+    const { service, store } = build()
+    const linked = [item(ONE, HERE, { linkedTaskId: marked('TK', 1) })]
+    await seed(store, { items: linked })
+    const next = await service.link(at, ONE, marked('TK', 2))
+    expect(pick(next, ONE).linkedTaskId).toBe(marked('TK', 2))
+  })
+
+  it('leaves every sibling byte-identical', async () => {
+    const { service, store } = build()
+    await seed(store, { items: threeItems })
+    const next = await service.link(at, ONE, marked('TK', 1))
+    expect(pick(next, TWO)).toEqual(threeItems[1])
+    expect(pick(next, THREE)).toEqual(threeItems[2])
+  })
+
+  it('succeeds on an item whose epic has no binding, since checking one needs Microtask and only apps/api can reach it', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: rails, items: threeItems })
+    const next = await service.link(at, ONE, marked('TK', 1))
+    expect(pick(next, ONE).linkedTaskId).toBe(marked('TK', 1))
+  })
+
+  it('does not check that the task exists, for the same reason it does not check the binding', async () => {
+    const { service, store } = build()
+    await seed(store, { items: threeItems })
+    const next = await service.link(at, ONE, 'not-a-real-task-id-at-all')
+    expect(pick(next, ONE).linkedTaskId).toBe('not-a-real-task-id-at-all')
+  })
+
+  it('rejects an unknown item', async () => {
+    const { service, store } = build()
+    await seed(store, { items: threeItems })
+    await expect(service.link(at, ABSENT, marked('TK', 1))).rejects.toThrow(NotFound)
+  })
+
+  it('takes the lock exactly once', async () => {
+    const { lock, runs } = countingLock(new QueueLock())
+    const { service, store } = build(lock)
+    await seed(store, { items: threeItems })
+    await service.link(at, ONE, marked('TK', 1))
+    expect(runs()).toBe(1)
+  })
+})
+
+describe('ItemService.unlink', () => {
+  it('sets the link to null', async () => {
+    const { service, store } = build()
+    const linked = [item(ONE, HERE, { linkedTaskId: marked('TK', 1) })]
+    await seed(store, { items: linked })
+    const next = await service.unlink(at, ONE)
+    expect(pick(next, ONE).linkedTaskId).toBeNull()
+  })
+
+  it('is idempotent on an already-unlinked item, not an error', async () => {
+    const { service, store } = build()
+    await seed(store, { items: threeItems })
+    const next = await service.unlink(at, ONE)
+    expect(pick(next, ONE).linkedTaskId).toBeNull()
+  })
+
+  it('leaves every sibling byte-identical', async () => {
+    const { service, store } = build()
+    const linked = [item(ONE, HERE, { linkedTaskId: marked('TK', 1) }), threeItems[1] as PlanItem, threeItems[2] as PlanItem]
+    await seed(store, { items: linked })
+    const next = await service.unlink(at, ONE)
+    expect(pick(next, TWO)).toEqual(threeItems[1])
+    expect(pick(next, THREE)).toEqual(threeItems[2])
+  })
+
+  it('rejects an unknown item', async () => {
+    const { service, store } = build()
+    await seed(store, { items: threeItems })
+    await expect(service.unlink(at, ABSENT)).rejects.toThrow(NotFound)
+  })
+
+  it('takes the lock exactly once', async () => {
+    const { lock, runs } = countingLock(new QueueLock())
+    const { service, store } = build(lock)
+    const linked = [item(ONE, HERE, { linkedTaskId: marked('TK', 1) })]
+    await seed(store, { items: linked })
+    await service.unlink(at, ONE)
+    expect(runs()).toBe(1)
+  })
+})
+
 describe('ItemService.place', () => {
   it('moves the named item and leaves its siblings in the order they were in', async () => {
     const { service, store } = build()

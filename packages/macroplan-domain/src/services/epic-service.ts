@@ -1,4 +1,5 @@
 import { NotFound, type Product } from '@repo/kernel'
+import type { EpicBinding } from '../entities/binding.js'
 import type { PlanEpic } from '../entities/epic.js'
 import type { PlanManifest } from '../entities/plan.js'
 import { assertWithin, cleanName } from '../limits.js'
@@ -109,6 +110,61 @@ export class EpicService {
       const current = await this.#read(at)
       pickEpic(current, epicId)
       const epics = placedRail(current.epics, epicId, railOrder)
+      return this.#save(at.product, { ...current, epics })
+    })
+  }
+
+  /**
+   * Binds a rail to one Microtask project, replacing whatever binding it already held.
+   *
+   * Stores `binding` verbatim, sealed token included, and verifies none of it: verifying a token
+   * means resolving it against Microtask, and this package cannot reach Microtask — only
+   * `apps/api` can (design §7.2). A method here that pretended to check would be lying about what
+   * it checked, which is worse than not checking at all: a caller reading "bind succeeded" would
+   * take it as proof of a live, correctly-scoped token, and it would be proof of nothing. The
+   * route is where a dead or revoked token is actually discovered, at the moment a bound epic is
+   * read, exactly as spec §7.2's "a revoked or dead token renders the epic unlinked" describes.
+   *
+   * Binding an already-bound rail **replaces** the stored binding rather than refusing a second
+   * call or merging one field at a time: re-rolling a rail from `view` to `manage` and re-pasting
+   * a rotated token for the same project are the same operation from where this method stands —
+   * one write of the whole {@link EpicBinding} — and treating them differently would need this
+   * method to inspect which fields changed and decide what that means, which is exactly the
+   * verification the paragraph above says it must not do.
+   */
+  async bind(at: PlanRef, epicId: string, binding: EpicBinding): Promise<PlanManifest> {
+    return this.#ctx.lock.run(async () => {
+      const current = await this.#read(at)
+      pickEpic(current, epicId)
+      const stamp = this.#ctx.clock.now()
+      const epics = current.epics.map((each) =>
+        each.id === epicId ? { ...each, binding, updatedAt: stamp } : each,
+      )
+      return this.#save(at.product, { ...current, epics })
+    })
+  }
+
+  /**
+   * Unbinds a rail, setting its binding to `null`. Idempotent: unbinding a rail that is already
+   * unbound changes nothing but the stamp, rather than raising.
+   *
+   * **Leaves every item's `linkedTaskId` exactly as it was, everywhere in the plan.** This is the
+   * one behaviour here most likely to be mistaken later for an oversight and "fixed" — do not.
+   * A binding is permitted no delete (spec §7.2's write path is "exactly one operation — create a
+   * task in the bound project", nothing else), and nulling links on unbind would be destruction
+   * nobody asked for. It is also what makes re-binding useful rather than merely harmless: an
+   * admin who unbinds and rebinds the same rail to the same project — say, after rotating a
+   * revoked token — finds every item still pointing at the task it pointed at before, instead of
+   * relinking each one by hand because unbinding quietly cleared them.
+   */
+  async unbind(at: PlanRef, epicId: string): Promise<PlanManifest> {
+    return this.#ctx.lock.run(async () => {
+      const current = await this.#read(at)
+      pickEpic(current, epicId)
+      const stamp = this.#ctx.clock.now()
+      const epics = current.epics.map((each) =>
+        each.id === epicId ? { ...each, binding: null, updatedAt: stamp } : each,
+      )
       return this.#save(at.product, { ...current, epics })
     })
   }

@@ -1,9 +1,11 @@
 import { expect, it } from 'vitest'
+import { seal } from '@repo/kernel'
 import type { PlanStoreHarness } from './plan-store-harness.js'
-import { item, itemDocument, marked, planManifest } from './fixtures.js'
+import { epic, item, itemDocument, marked, planManifest } from './fixtures.js'
 
 const PLAN = marked('PN', 1)
 const OTHER = marked('PN', 2)
+const EPIC = marked('EP', 1)
 const FEATURE = marked('FT', 1)
 const ITEM = marked('TM', 1)
 const TRUNCATED = '{ "epics": [ truncated'
@@ -32,6 +34,19 @@ export function describePlanReads(harness: PlanStoreHarness): void {
     const saved = planManifest(PLAN, { name: 'Discovery' })
     await store.saveManifest('macroplan', saved)
     expect(await store.readManifest('macroplan', PLAN)).toEqual(saved)
+  })
+
+  it('round-trips a manifest carrying a sealed epic binding, the blob unchanged', async () => {
+    await fresh()
+    const sealedToken = seal('a-thirty-two-character-secret!!', marked('TK', 1))
+    const bound = epic(EPIC, {
+      binding: { projectId: marked('PJ', 1), role: 'manage', sealedToken },
+    })
+    const saved = planManifest(PLAN, { epics: [bound] })
+    await store.saveManifest('macroplan', saved)
+    const read = await store.readManifest('macroplan', PLAN)
+    expect(read).toEqual(saved)
+    expect(read?.epics[0]?.binding?.sealedToken).toBe(sealedToken)
   })
 
   it('round-trips an item file and its manifest entry together', async () => {

@@ -11,6 +11,7 @@ import {
   epic,
   feature,
   fixedClock,
+  item,
   marked,
   planManifest,
   sequentialIds,
@@ -335,6 +336,108 @@ describe('EpicService.place', () => {
     const { service, store } = build(lock)
     await seed(store, { epics: threeRails() })
     await service.place(at, FIRST, 2)
+    expect(runs()).toBe(1)
+  })
+})
+
+describe('EpicService.bind', () => {
+  it('stores the binding verbatim, sealed token included', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    const next = await service.bind(at, FIRST, BINDING)
+    expect(pick(next, FIRST).binding).toEqual(BINDING)
+  })
+
+  it('does not verify the token, since verifying it would mean resolving it against Microtask', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    const bogus = { ...BINDING, sealedToken: 'not-a-real-sealed-blob-at-all' }
+    const next = await service.bind(at, FIRST, bogus)
+    expect(pick(next, FIRST).binding).toEqual(bogus)
+  })
+
+  it('replaces an already-bound rail rather than refusing a second bind', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: [epic(FIRST, { binding: BINDING })] })
+    const rebound = {
+      projectId: marked('PJ', 2),
+      role: 'manage' as const,
+      sealedToken: 'sealed.other.bytes',
+    }
+    const next = await service.bind(at, FIRST, rebound)
+    expect(pick(next, FIRST).binding).toEqual(rebound)
+  })
+
+  it('stamps the epic and the plan as changed', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    const next = await service.bind(at, FIRST, BINDING)
+    expect(pick(next, FIRST).updatedAt).toBe(NOW)
+    expect(next.updatedAt).toBe(NOW)
+  })
+
+  it('leaves every sibling byte-identical', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    const next = await service.bind(at, FIRST, BINDING)
+    expect(pick(next, SECOND)).toEqual(epic(SECOND, { name: 'Checkout', railOrder: 1 }))
+    expect(pick(next, THIRD)).toEqual(epic(THIRD, { name: 'Billing', railOrder: 2 }))
+  })
+
+  it('rejects an unknown epic', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    await expect(service.bind(at, ABSENT, BINDING)).rejects.toThrow(NotFound)
+  })
+
+  it('takes the lock exactly once', async () => {
+    const { lock, runs } = countingLock(new QueueLock())
+    const { service, store } = build(lock)
+    await seed(store, { epics: threeRails() })
+    await service.bind(at, FIRST, BINDING)
+    expect(runs()).toBe(1)
+  })
+})
+
+describe('EpicService.unbind', () => {
+  it('sets the binding to null', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: [epic(FIRST, { binding: BINDING })] })
+    const next = await service.unbind(at, FIRST)
+    expect(pick(next, FIRST).binding).toBeNull()
+  })
+
+  it('is idempotent on an already-unbound rail, not an error', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    const next = await service.unbind(at, FIRST)
+    expect(pick(next, FIRST).binding).toBeNull()
+  })
+
+  it('leaves every item under the rail linked exactly as it was, since a binding is permitted no delete', async () => {
+    const { service, store } = build()
+    const onRail = feature(marked('FT', 1), FIRST)
+    const items = [item(marked('TM', 1), onRail.id, { linkedTaskId: marked('TK', 1) })]
+    await seed(store, {
+      epics: [epic(FIRST, { binding: BINDING })],
+      features: [onRail],
+      items,
+    })
+    const next = await service.unbind(at, FIRST)
+    expect(next.items).toEqual(items)
+  })
+
+  it('rejects an unknown epic', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    await expect(service.unbind(at, ABSENT)).rejects.toThrow(NotFound)
+  })
+
+  it('takes the lock exactly once', async () => {
+    const { lock, runs } = countingLock(new QueueLock())
+    const { service, store } = build(lock)
+    await seed(store, { epics: [epic(FIRST, { binding: BINDING })] })
+    await service.unbind(at, FIRST)
     expect(runs()).toBe(1)
   })
 })
