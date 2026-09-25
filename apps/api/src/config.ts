@@ -21,7 +21,17 @@ export interface ApiConfig {
   /** Signing key for the admin tokens the API mints (ADR 0012). */
   readonly sessionSecret: string
 
-  /** Seals an epic's Microtask binding token at rest, with `@repo/kernel`'s sealing primitive (design §7.2, ADR 0052). */
+  /**
+   * Seals an epic's Microtask binding token at rest, with `@repo/kernel`'s sealing primitive
+   * (design §7.2, ADR 0052).
+   *
+   * Held to the same 32-character floor as {@link ApiConfig.sessionSecret} and for the same reason,
+   * which is the one `adminPassword` above is exempt from: `seal` derives its AES key as
+   * `sha256(secret)`, so a short secret is not a short key — it is a full-length key with the
+   * entropy of the short string, and nothing downstream can tell the difference. `adminPassword` has
+   * no floor because refusing one would lock out a deployment that already had a shorter password;
+   * no deployment has a bridge secret yet, so there is nothing to grandfather.
+   */
   readonly bridgeSecret: string
 
   /** How long a minted admin token stays valid. */
@@ -41,7 +51,7 @@ interface IntegerBounds {
 }
 
 const DECIMAL = /^[0-9]+$/
-const MIN_SESSION_SECRET = 32
+const MIN_SECRET_LENGTH = 32
 const PORT_BOUNDS: IntegerBounds = { fallback: 4321, min: 1, max: 65535 }
 const TTL_BOUNDS: IntegerBounds = { fallback: 3600, min: 1, max: 86400 }
 
@@ -64,10 +74,10 @@ function readInteger(env: Env, key: string, bounds: IntegerBounds): number {
   return value
 }
 
-function readSessionSecret(env: Env): string {
-  const secret = required(env, 'SESSION_SECRET')
-  if (secret.length < MIN_SESSION_SECRET) {
-    throw new Invalid(`SESSION_SECRET must be at least ${MIN_SESSION_SECRET} characters`)
+function readLongSecret(env: Env, key: string): string {
+  const secret = required(env, key)
+  if (secret.length < MIN_SECRET_LENGTH) {
+    throw new Invalid(`${key} must be at least ${MIN_SECRET_LENGTH} characters`)
   }
   return secret
 }
@@ -112,8 +122,8 @@ export function readConfig(env: Env): ApiConfig {
     port: readInteger(env, 'PORT', PORT_BOUNDS),
     dataDir: required(env, 'DATA_DIR'),
     adminPassword: required(env, 'ADMIN_PASSWORD'),
-    sessionSecret: readSessionSecret(env),
-    bridgeSecret: required(env, 'BRIDGE_SECRET'),
+    sessionSecret: readLongSecret(env, 'SESSION_SECRET'),
+    bridgeSecret: readLongSecret(env, 'BRIDGE_SECRET'),
     adminTokenTtlSeconds: readInteger(env, 'ADMIN_TOKEN_TTL_SECONDS', TTL_BOUNDS),
     serviceKeys: readServiceKeys(env),
   }

@@ -38,7 +38,11 @@ const keyFor = (secret: string): Buffer => createHash('sha256').update(secret, '
  *
  * The key is `sha256(secret)` rather than the secret's own bytes, so a secret of any length
  * collapses to exactly the 32 bytes AES-256 takes, with no truncation of a long one and no padding
- * of a short one.
+ * of a short one. That is a convenience and **not** a strengthening: a four-character secret yields
+ * a full-length key carrying four characters of entropy, and nothing here can tell the difference.
+ * So the length floor belongs to whoever reads the secret from the environment and not to this
+ * module — `apps/api/src/config.ts` holds `BRIDGE_SECRET` to the same 32 characters it holds
+ * `SESSION_SECRET` to, for exactly this reason.
  *
  * A fresh random IV per call, prefixed to the blob. Reusing one under GCM is catastrophic — two
  * messages under the same key and IV leak their XOR and forge the authenticator — so it is

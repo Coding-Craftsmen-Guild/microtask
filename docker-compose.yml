@@ -39,7 +39,7 @@ services:
       DATA_DIR: /data
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set, at least 32 characters}
-      BRIDGE_SECRET: ${BRIDGE_SECRET:?BRIDGE_SECRET must be set}
+      BRIDGE_SECRET: ${BRIDGE_SECRET:?BRIDGE_SECRET must be set, at least 32 characters}
       SERVICE_KEYS: microtask=${MICROTASK_API_KEY:?MICROTASK_API_KEY must be set},macroplan=${MACROPLAN_API_KEY:?MACROPLAN_API_KEY must be set}
     volumes:
       - api-data:/data

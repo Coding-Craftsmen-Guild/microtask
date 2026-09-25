@@ -104,12 +104,29 @@ describe('readConfig', () => {
       expect(() => readConfig(without('BRIDGE_SECRET'))).toThrow(/BRIDGE_SECRET is required/)
     })
 
-    it('accepts it at whatever length it is given, with no minimum enforced here', () => {
-      expect(readConfig(withKey('BRIDGE_SECRET', 'short')).bridgeSecret).toBe('short')
+    // The floor is SESSION_SECRET's, applied to this key for the reason ApiConfig's own TSDoc
+    // gives: `seal` derives its AES key as sha256(secret), so a short secret produces a
+    // full-length key carrying a short string's entropy, and no caller downstream can tell.
+    // ADMIN_PASSWORD is the one secret without a floor, and its exemption is about not locking
+    // out a deployment that already had a shorter password — no deployment has this key yet.
+    it('refuses a secret below the 32-character floor, which is where a weak AES key comes from', () => {
+      expect(() => readConfig(withKey('BRIDGE_SECRET', 'short'))).toThrow(
+        /BRIDGE_SECRET must be at least 32 characters/,
+      )
+      expect(() => readConfig(withKey('BRIDGE_SECRET', 'z'.repeat(31)))).toThrow(/BRIDGE_SECRET/)
+      expect(readConfig(withKey('BRIDGE_SECRET', 'z'.repeat(32))).bridgeSecret).toBe('z'.repeat(32))
     })
 
-    it('does not trim it, because a trailing space is part of a secret and not noise', () => {
-      expect(readConfig(withKey('BRIDGE_SECRET', ' spaced ')).bridgeSecret).toBe(' spaced ')
+    it('keeps the rejected secret out of the message, as SESSION_SECRET does', () => {
+      const bad = 'y'.repeat(31)
+      expect(() => readConfig(withKey('BRIDGE_SECRET', bad))).toThrow(
+        expect.objectContaining({ message: expect.not.stringContaining(bad) as unknown as string }),
+      )
+    })
+
+    it('does not trim it, because a surrounding space is part of a secret and not noise', () => {
+      const spaced = ` ${'s'.repeat(32)} `
+      expect(readConfig(withKey('BRIDGE_SECRET', spaced)).bridgeSecret).toBe(spaced)
     })
   })
 
