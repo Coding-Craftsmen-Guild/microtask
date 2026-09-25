@@ -146,7 +146,18 @@ export class EpicService {
 
   /**
    * Unbinds a rail, setting its binding to `null`. Idempotent: unbinding a rail that is already
-   * unbound changes nothing but the stamp, rather than raising.
+   * unbound raises nothing and **writes nothing** — it answers the manifest exactly as it found it.
+   *
+   * Returning early rather than saving an identical manifest, because {@link EpicService.#save}
+   * stamps the plan's own `updatedAt` on every write and a plan list is ordered by it (`PlanList`
+   * is "every plan a caller may be told about, most recently updated first"). So a second `DELETE`
+   * that stamped would move the plan to the top of that list to report that nothing happened, and
+   * a client retrying a delete it was unsure landed would reorder somebody's screen. The route this
+   * sits behind refuses an epic `PATCH` with an empty body for the same reason — "a request asking
+   * for nothing is a 422 rather than a write that stamps `updatedAt` and changes nothing" — and an
+   * idempotent delete is the one shape that cannot express that refusal, since answering twice is
+   * the whole point of it. The unknown-epic check still runs first, so a `DELETE` naming a rail
+   * that does not exist raises rather than quietly succeeding.
    *
    * **Leaves every item's `linkedTaskId` exactly as it was, everywhere in the plan.** This is the
    * one behaviour here most likely to be mistaken later for an oversight and "fixed" — do not.
@@ -160,7 +171,7 @@ export class EpicService {
   async unbind(at: PlanRef, epicId: string): Promise<PlanManifest> {
     return this.#ctx.lock.run(async () => {
       const current = await this.#read(at)
-      pickEpic(current, epicId)
+      if (pickEpic(current, epicId).binding === null) return current
       const stamp = this.#ctx.clock.now()
       const epics = current.epics.map((each) =>
         each.id === epicId ? { ...each, binding: null, updatedAt: stamp } : each,

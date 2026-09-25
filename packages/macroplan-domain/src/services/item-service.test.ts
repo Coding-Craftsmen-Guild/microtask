@@ -354,6 +354,17 @@ describe('ItemService.unlink', () => {
     expect(pick(next, ONE).linkedTaskId).toBeNull()
   })
 
+  // Not merely "does not raise": it must not WRITE, for the reason EpicService.unbind's twin of
+  // this test gives — every save stamps the plan, and a plan list is ordered by that stamp.
+  it('writes nothing at all on an already-unlinked item, leaving the plan stamp where it was', async () => {
+    const { service, store } = build()
+    await seed(store, { items: threeItems })
+    const before = await service.unlink(at, ONE)
+    const after = await service.unlink(at, ONE)
+    expect(after).toEqual(before)
+    expect(after.updatedAt).toBe(before.updatedAt)
+  })
+
   it('leaves every sibling byte-identical', async () => {
     const { service, store } = build()
     const linked = [item(ONE, HERE, { linkedTaskId: marked('TK', 1) }), threeItems[1] as PlanItem, threeItems[2] as PlanItem]

@@ -414,6 +414,24 @@ describe('EpicService.unbind', () => {
     expect(pick(next, FIRST).binding).toBeNull()
   })
 
+  // Not merely "does not raise": it must not WRITE. Every save stamps the plan's own updatedAt,
+  // and PlanList is ordered by that stamp, so a retried DELETE that stamped would move the plan to
+  // the top of somebody's list to report that nothing happened.
+  it('writes nothing at all on an already-unbound rail, leaving the plan stamp where it was', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    const before = await service.unbind(at, FIRST)
+    const after = await service.unbind(at, FIRST)
+    expect(after).toEqual(before)
+    expect(after.updatedAt).toBe(before.updatedAt)
+  })
+
+  it('still raises for an unknown rail, so an early answer is never a quiet success', async () => {
+    const { service, store } = build()
+    await seed(store, { epics: threeRails() })
+    await expect(service.unbind(at, marked('EP', 9))).rejects.toThrow(NotFound)
+  })
+
   it('leaves every item under the rail linked exactly as it was, since a binding is permitted no delete', async () => {
     const { service, store } = build()
     const onRail = feature(marked('FT', 1), FIRST)

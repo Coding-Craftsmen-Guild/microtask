@@ -131,13 +131,18 @@ export class ItemService {
   }
 
   /**
-   * Unlinks an item, setting its task link to `null`. Idempotent: unlinking an item that is
-   * already unlinked changes nothing but the stamp, rather than raising.
+   * Unlinks an item, setting its task link to `null`. Idempotent: unlinking an item that is already
+   * unlinked raises nothing and **writes nothing** — it answers the manifest exactly as it found it.
+   *
+   * Early rather than saving an identical manifest, for the reason `EpicService.unbind` gives at
+   * length: every write stamps the plan's own `updatedAt`, a plan list is ordered by that stamp, and
+   * a retried delete should not move somebody's plan to the top of the list to report that nothing
+   * happened. The unknown-item check still runs first.
    */
   async unlink(at: PlanRef, itemId: string): Promise<PlanManifest> {
     return this.#ctx.lock.run(async () => {
       const current = await this.#read(at)
-      pickItem(current, itemId)
+      if (pickItem(current, itemId).linkedTaskId === null) return current
       const stamp = this.#ctx.clock.now()
       const items = current.items.map((each) =>
         each.id === itemId ? { ...each, linkedTaskId: null, updatedAt: stamp } : each,
