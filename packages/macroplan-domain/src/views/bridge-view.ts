@@ -79,9 +79,23 @@ export function visibleBinding(
   planId: string,
   principal: Principal,
 ): EpicBindingView | null | undefined {
-  if (!can(principal, 'epic:bind', { kind: 'epic', planId })) return undefined
+  if (!tellsBindings(planId, principal)) return undefined
   if (epic.binding === null) return null
   return { projectId: epic.binding.projectId, role: epic.binding.role }
+}
+
+/**
+ * Whether this principal may be told about this plan's bindings at all — the question alone.
+ *
+ * Split out of {@link visibleBinding} so a caller shaping a block that is *about* bindings without
+ * reshaping one can ask it: `apps/api`'s bridge view decides whether to carry an epic block for a
+ * plan that may hold no epics at all, so it has no rail to ask through. Keeping the `can()` call here
+ * rather than there is also what lets that app honour its own rule that the policy is asked in exactly
+ * one place — `surface.test.ts` enforces it — while still asking the policy rather than testing for an
+ * admin: shaping is a filter, and ADR 0009 requires a filter to ask.
+ */
+export function tellsBindings(planId: string, principal: Principal): boolean {
+  return can(principal, 'epic:bind', { kind: 'epic', planId })
 }
 
 /**

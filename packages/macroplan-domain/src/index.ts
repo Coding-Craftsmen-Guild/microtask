@@ -41,7 +41,13 @@ export {
   type NewSeat,
   type SeatChanges,
 } from './services/share-link-service.js'
-export type { EpicBindingView, PlanEpicView } from './views/bridge-view.js'
+export {
+  planRoleOf,
+  tellsBindings,
+  visibleBinding,
+  type EpicBindingView,
+  type PlanEpicView,
+} from './views/bridge-view.js'
 export {
   itemView,
   planListItem,
