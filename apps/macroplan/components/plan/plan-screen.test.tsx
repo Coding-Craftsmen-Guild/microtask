@@ -25,29 +25,42 @@ const MARKER: ReactNode = <p data-testid="drawer-marker">whatever is open</p>
 // and not this file's.
 const CONFLICTS: ReactNode = <p data-testid="conflicts-marker">what is wrong with the plan</p>
 
+// The share slot's marker, and a marker for the same reason the other two have one: what this file
+// asserts is where the screen puts whatever fills the slot, where a real `<ShareManager>` would tie that
+// to a client component's markup and to four booleans this screen never reads.
+const SHARE: ReactNode = <p data-testid="share-marker">who else may open this plan</p>
+
 // The fixture is a `StoredPlan`, where `shareLinks` is required, and `PlanScreen.plan` is the type a
 // token cannot be represented in — so the fixture is reduced by the component's own reducer rather
 // than cast past it. That the unwrapped call no longer compiles is the narrowing working.
 //
-// `drawer` defaults to `null` here because that is what a surface with no drawer route passes: the
-// prop is required, so every case below states which of the two it is rendering.
+// Every slot defaults to `null` here because that is what a surface without the thing passes: all three
+// are required props, so each case below states which surface it is rendering. `actions` defaults to
+// `null` too, which is what `/s/<token>` passes and what every case about layout wants — the writes decide
+// whether the canvas's drag listens and nothing else about this screen.
 //
-// `actions` defaults to `null`, which is what `/s/<token>` passes and what every case about layout wants:
-// the writes decide whether the canvas's drag listens, and nothing else about this screen.
-const show = (
-  controls: PlanControls = ADMIN_CONTROLS,
-  drawer: ReactNode = null,
-  conflicts: ReactNode = null,
-  actions: PlanEditActions | null = null,
-) =>
+// One options object rather than positional arguments, which the third slot forced: a fifth parameter
+// would fail `max-params`, which is 4 and is not relaxed for test files
+// (`packages/eslint-config/index.js`). Naming each also ends the `null, null, actions` spelling three of
+// these cases had.
+interface Shown {
+  readonly controls?: PlanControls
+  readonly drawer?: ReactNode
+  readonly conflicts?: ReactNode
+  readonly actions?: PlanEditActions | null
+  readonly share?: ReactNode
+}
+
+const show = (over: Shown = {}) =>
   render(
     <PlanScreen
-      actions={actions}
+      actions={over.actions ?? null}
       at={AT}
-      conflicts={conflicts}
-      controls={controls}
-      drawer={drawer}
+      conflicts={over.conflicts ?? null}
+      controls={over.controls ?? ADMIN_CONTROLS}
+      drawer={over.drawer ?? null}
       plan={planScreenModel(atlasPlan())}
+      share={over.share ?? null}
     />,
   )
 
@@ -159,19 +172,19 @@ describe('the switch between them', () => {
   })
 })
 
-// Two documented decisions, unguarded until now — and both are edited again by the tasks that draw a
-// conflict list and a share manager into this same file, where markup order regresses silently.
+// Two documented decisions, unguarded until the conflict list and the share manager were drawn into this
+// same file — markup order being what regresses silently when a third slot arrives.
 describe('the slot whatever is open beside the plan fills', () => {
   it('adds nothing to the screen where there is no drawer, rather than an empty container', () => {
     const empty = gridChildren(show().container)
-    const filled = gridChildren(show(ADMIN_CONTROLS, MARKER).container)
+    const filled = gridChildren(show({ drawer: MARKER }).container)
     expect(empty).toHaveLength(2)
     expect(filled).toHaveLength(empty.length + 1)
     expect(screen.getAllByTestId('drawer-marker')).toHaveLength(1)
   })
 
   it('puts it above the view switch, so a drawer never opens below 2,200 rows of table', () => {
-    show(ADMIN_CONTROLS, MARKER)
+    show({ drawer: MARKER })
     const marker = screen.getByTestId('drawer-marker')
     expect(marker.compareDocumentPosition(firstRadio()) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
       marker.DOCUMENT_POSITION_FOLLOWING,
@@ -179,25 +192,26 @@ describe('the slot whatever is open beside the plan fills', () => {
   })
 
   it('leaves it outside the flex parent the radios and the panels share, being no peer of them', () => {
-    show(ADMIN_CONTROLS, MARKER)
+    show({ drawer: MARKER })
     expect(screen.getByTestId('drawer-marker').parentElement).not.toBe(firstRadio().parentElement)
   })
 })
 
 // The second slot, and the three documented facts about it: it is empty on a surface that cannot link
-// to a drawer, it is above the drawer rather than below it, and it is no peer of the radios. The order
-// of the two slots is what regresses silently when the share manager is drawn into this same file.
+// to a drawer, it is above the drawer rather than below it, and it is no peer of the radios. The share
+// manager below is the third slot, and it is deliberately **not** a row of this grid — which is why the
+// counts here are unchanged by it.
 describe('the slot the plan’s own contradictions fill', () => {
   it('adds nothing where a surface has none to draw, rather than an empty container', () => {
     const empty = gridChildren(show().container)
-    const filled = gridChildren(show(ADMIN_CONTROLS, null, CONFLICTS).container)
+    const filled = gridChildren(show({ conflicts: CONFLICTS }).container)
     expect(empty).toHaveLength(2)
     expect(filled).toHaveLength(empty.length + 1)
     expect(screen.getAllByTestId('conflicts-marker')).toHaveLength(1)
   })
 
   it('puts it above the view switch, so a conflict never sits below 2,200 rows of table', () => {
-    show(ADMIN_CONTROLS, null, CONFLICTS)
+    show({ conflicts: CONFLICTS })
     const marker = screen.getByTestId('conflicts-marker')
     expect(marker.compareDocumentPosition(firstRadio()) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
       marker.DOCUMENT_POSITION_FOLLOWING,
@@ -205,7 +219,7 @@ describe('the slot the plan’s own contradictions fill', () => {
   })
 
   it('puts it above the drawer, the plan’s own faults preceding whichever subject is open', () => {
-    show(ADMIN_CONTROLS, MARKER, CONFLICTS)
+    show({ conflicts: CONFLICTS, drawer: MARKER })
     const marker = screen.getByTestId('conflicts-marker')
     const drawer = screen.getByTestId('drawer-marker')
     expect(marker.compareDocumentPosition(drawer) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
@@ -214,23 +228,65 @@ describe('the slot the plan’s own contradictions fill', () => {
   })
 
   it('keeps it out of the flex parent the radios and the panels share, being no peer of them', () => {
-    show(ADMIN_CONTROLS, MARKER, CONFLICTS)
+    show({ conflicts: CONFLICTS, drawer: MARKER })
     expect(screen.getByTestId('conflicts-marker').parentElement).not.toBe(
       firstRadio().parentElement,
     )
   })
 
   it('draws four children with both slots filled: the heading, the two slots and the switch', () => {
-    const children = gridChildren(show(ADMIN_CONTROLS, MARKER, CONFLICTS).container)
+    const children = gridChildren(show({ conflicts: CONFLICTS, drawer: MARKER }).container)
     expect(children).toHaveLength(4)
     expect(children[1]).toBe(screen.getByTestId('conflicts-marker'))
     expect(children[2]).toBe(screen.getByTestId('drawer-marker'))
   })
 })
 
+// The third slot, and the one that is **not** a row of the grid: sharing is a fact about the plan in the
+// way its name and its settings line are, so the manager sits in the heading row beside them. What these
+// cases pin is that placement, since a slot moved into the grid would leave every assertion above passing.
+describe('the slot the plan’s own seats fill', () => {
+  it('adds nothing where a surface administers no seats, rather than an empty container', () => {
+    const { container } = show()
+    expect(screen.queryByTestId('share-marker')).toBeNull()
+    expect(gridChildren(container)).toHaveLength(2)
+  })
+
+  it('puts it in the heading row beside the plan’s name, so it is no row of the grid', () => {
+    const { container } = show({ share: SHARE })
+    const marker = screen.getByTestId('share-marker')
+    const heading = screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })
+    expect(marker.parentElement).toBe(heading.parentElement?.parentElement)
+    expect(gridChildren(container)).toHaveLength(2)
+  })
+
+  it('leaves the grid four children with every slot filled, the manager being part of the heading', () => {
+    const children = gridChildren(
+      show({ conflicts: CONFLICTS, drawer: MARKER, share: SHARE }).container,
+    )
+    expect(children).toHaveLength(4)
+    expect(children[0]?.contains(screen.getByTestId('share-marker'))).toBe(true)
+  })
+
+  it('puts it above both slots and the switch, the heading row coming first', () => {
+    show({ conflicts: CONFLICTS, drawer: MARKER, share: SHARE })
+    const marker = screen.getByTestId('share-marker')
+    for (const later of [screen.getByTestId('conflicts-marker'), screen.getByTestId('drawer-marker'), firstRadio()]) {
+      expect(marker.compareDocumentPosition(later) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
+        marker.DOCUMENT_POSITION_FOLLOWING,
+      )
+    }
+  })
+
+  it('keeps it out of the flex parent the radios and the panels share, being no peer of them', () => {
+    show({ share: SHARE })
+    expect(screen.getByTestId('share-marker').parentElement).not.toBe(firstRadio().parentElement)
+  })
+})
+
 describe('the controls the screen is handed', () => {
   it('draws the whole plan for the weakest seat there is, no control being load-bearing', () => {
-    show(planCapabilities('view', SEAT))
+    show({ controls: planCapabilities('view', SEAT) })
     expect(screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
     expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
@@ -246,21 +302,21 @@ describe('the controls the screen is handed', () => {
   // that hands over nothing draws the same screen whatever its seat may do.
   it('renders alike for the admin and for a view seat while it is handed no write at all', () => {
     const { container: admin } = show()
-    const { container: seat } = show(planCapabilities('view', SEAT))
+    const { container: seat } = show({ controls: planCapabilities('view', SEAT) })
     expect(seat.innerHTML).toBe(admin.innerHTML)
     expect(dragging(admin)).toBe('false')
   })
 
   it('listens for a drag once it holds the writes, and not for a seat that may not place', () => {
     const actions = stubActions()
-    expect(dragging(show(ADMIN_CONTROLS, null, null, actions).container)).toBe('true')
-    const seat = show(planCapabilities('view', SEAT), null, null, actions)
+    expect(dragging(show({ actions }).container)).toBe('true')
+    const seat = show({ actions, controls: planCapabilities('view', SEAT) })
     expect(dragging(seat.container)).toBe('false')
   })
 
   it('refuses the drag to a write seat and offers it to a manage seat, which is where feature:place sits', () => {
     const actions = stubActions()
-    expect(dragging(show(planCapabilities('write', SEAT), null, null, actions).container)).toBe('false')
-    expect(dragging(show(planCapabilities('manage', SEAT), null, null, actions).container)).toBe('true')
+    expect(dragging(show({ actions, controls: planCapabilities('write', SEAT) }).container)).toBe('false')
+    expect(dragging(show({ actions, controls: planCapabilities('manage', SEAT) }).container)).toBe('true')
   })
 })

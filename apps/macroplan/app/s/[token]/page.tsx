@@ -68,6 +68,19 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  * pages exist — and on the day they arrive this one line is a compile error rather than a seat screen
  * that goes on rendering without the panel it now has routes for.
  *
+ * `share={null}` is the fourth, and it is the one that costs this surface something a seat may actually
+ * do. `planCapabilities` answers a plan-scoped `manage` seat **`true` on all four `share:*` questions** —
+ * `share:read`, `share:update` and `share:revoke` through `mayReach` with `'plan'`, and `share:create` off
+ * the record — so such a holder may legitimately administer this plan's other seats (ADR 0038, ADR 0053),
+ * and the manager it would open is built and tested. What is missing is the credential: every one of its
+ * four actions would have to carry **this** seat's token, which is the whole of its authority (ADR 0040),
+ * and a token cannot cross into a client component as a prop while binding it into an action hides it from
+ * the sweep below — `page.test.tsx` asserts this surface hands over no function at all for exactly that
+ * reason, and `module-boundaries.test.tsx` refuses any `bound `-prefixed function on the other side. So
+ * this `null` and `actions={null}` are the same unfinished sweep rather than two decisions, and they lift
+ * together: the task that teaches either walker to read a bound function's arguments is the task that
+ * mounts a seat's own writes and its own manager.
+ *
  * `actions={null}` is a third such sentence, and its reason is narrower than a tier. A seat holding
  * `manage` may place a feature, so the canvas's drag is a control this surface will eventually draw — but a
  * seat's writes are bound to its token (`components/plan/seat-actions.ts`), and this page's own leak sweep
@@ -113,6 +126,7 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
       controls={planCapabilities(role, scope)}
       drawer={null}
       plan={plan.value}
+      share={null}
     />
   )
 }

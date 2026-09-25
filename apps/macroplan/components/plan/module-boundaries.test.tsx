@@ -31,6 +31,8 @@ import { NameField } from './drawer/name-field'
 import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
 import { DragRoot } from './canvas/drag-root'
+import { ShareManager } from './share/share-manager'
+import { seatDoubles } from './share/testing/seat-doubles'
 import { drawerSubject } from './drawer/subject'
 
 vi.mock('next/link', async () => ({
@@ -151,6 +153,31 @@ const STUB_ACTIONS = stubActions()
 
 const NOTHING_DRAWN = nothingDrawn()
 
+// The share manager, mounted the way `[planId]/layout.tsx` mounts it — nine flat props, four of them
+// functions and five primitives — because this file is the check that makes that shape necessary: a
+// `PlanSeatControls` or a `PlanSeatActions` handed over whole is refused by `handedOk`, and so is any seat
+// or token that tried to ride in beside them. It is in a `share` slot in one tree and on its own in
+// another, for the reason the drawer panel is both: a client component mounted only on a surface nothing
+// here renders would be painted and inspected by nothing.
+//
+// The doubles are `seatDoubles()` rather than the real Server Actions, as `STUB_ACTIONS` above is and for
+// the same reason: `actions/plan-share-links.ts` reaches `next/headers`, and this sweep has no request.
+const SEAT_STUBS = seatDoubles()
+
+const MANAGER = (
+  <ShareManager
+    editSeat={SEAT_STUBS.update}
+    listSeats={SEAT_STUBS.list}
+    mayCreate={ADMIN_CONTROLS.seats.create}
+    mayRead={ADMIN_CONTROLS.seats.read}
+    mayRevoke={ADMIN_CONTROLS.seats.revoke}
+    mayUpdate={ADMIN_CONTROLS.seats.update}
+    mintSeat={SEAT_STUBS.create}
+    planId={PLAN_A}
+    revokeSeat={SEAT_STUBS.revoke}
+  />
+)
+
 interface Panel {
   readonly key: string
   readonly row?: TableRow
@@ -200,6 +227,7 @@ const FEATURE = subjectOf('feature', FEATURE_1)
 // delegation root that wraps the server-rendered SVG. Naming the directory in the value is what keeps the
 // allowlist derived from this map rather than from a prefix that only fits one of them.
 const CLIENT_BY_FILE = new Map<unknown, string>([
+  [ShareManager, 'share/share-manager.tsx'],
   [CreateControls, 'drawer/create-controls.tsx'],
   [DeleteControl, 'drawer/delete-control.tsx'],
   [DependencyToggle, 'drawer/dependency-toggle.tsx'],
@@ -277,6 +305,7 @@ const TREES = [
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
+    share={null}
     key="a"
     plan={planScreenModel(atlasPlan())}
   />,
@@ -286,6 +315,7 @@ const TREES = [
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
+    share={null}
     key="b"
     plan={planScreenModel(unplacedPlan('no-estimate'))}
   />,
@@ -295,6 +325,7 @@ const TREES = [
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
+    share={null}
     key="c"
     plan={planScreenModel(unplacedPlan('in-cycle'))}
   />,
@@ -304,6 +335,7 @@ const TREES = [
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
+    share={null}
     key="d"
     plan={planScreenModel(unclaimed())}
   />,
@@ -321,6 +353,7 @@ const TREES = [
     conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={panel({ key: 'g1' })}
+    share={null}
     key="g"
     plan={planScreenModel(atlasPlan())}
   />,
@@ -337,10 +370,12 @@ const TREES = [
     conflicts={<ConflictList plan={TANGLED} />}
     controls={ADMIN_CONTROLS}
     drawer={null}
+    share={MANAGER}
     key="j"
     plan={TANGLED}
   />,
   <ConflictList key="k" plan={TANGLED} />,
+  MANAGER,
 ]
 
 describe('the class-literal reader this sweep is built on', () => {

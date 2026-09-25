@@ -37,7 +37,13 @@ export interface PlanScreenProps {
    * its children a prop, so the slot's controls do not arrive through this one. The conflict list that fills
    * {@link PlanScreenProps.conflicts} draws no control either — every link it draws is a navigation —
    * and it is handed no `PlanControls` at all: what decides whether it is drawn is which surface is
-   * rendering rather than what the caller may do. The share manager is the task after this.
+   * rendering rather than what the caller may do.
+   *
+   * **`seats` is spent nowhere under here**, and that is the decision {@link PlanScreenProps.share}
+   * argues: the share manager is a *slot*, so the four seat answers are spread into the flat booleans of
+   * `components/plan/share/share-manager.tsx` by the page that also hands it the matching actions. This
+   * component neither reads them nor could: a surface's controls and its credential have to agree, and
+   * only the page holds both.
    */
   readonly controls: PlanControls
 
@@ -116,6 +122,40 @@ export interface PlanScreenProps {
    * markup nobody reads, and the admin surface's empty state is a page that says something instead.
    */
   readonly drawer: ReactNode
+
+  /**
+   * Who else may open this plan: the share manager, or `null` on a surface that administers no seats.
+   *
+   * A **slot** for the reason {@link PlanScreenProps.conflicts} is one, arrived at from the other
+   * direction. The conflict list cannot be mounted here because *which surface is rendering* decides
+   * whether its links are reachable; the manager cannot be mounted here because which surface is
+   * rendering decides **whose credential its four actions carry**. An admin's are Server Actions reading
+   * `mp_admin` (`actions/plan-share-links.ts`); a `manage` seat's would have to carry that seat's token,
+   * which is the whole of its authority (ADR 0040) — and a component under here cannot choose between
+   * them without being handed a role, a token or a principal, none of which may cross into a client
+   * (ADR 0033, ADR 0038). So the page that read the credential builds the element, exactly as it decides
+   * the controls, and this screen places it.
+   *
+   * The controls are therefore spent by that page too: `share-manager.tsx` takes the four `share:*`
+   * booleans as four flat props because `module-boundaries.test.tsx` admits nothing but primitives and
+   * unbound functions across a client boundary, which is the same rule that stops a seat list from ever
+   * arriving as a prop. The seats it shows are fetched by the action **after** it is open.
+   *
+   * It sits in the **heading row** rather than in the grid below it: sharing is a fact about the plan in
+   * the way its name and its settings line are, and the button belongs beside them rather than above a
+   * drawer or below 2,200 rows of table. So a filled slot adds no row to the grid — `plan-screen.test.tsx`
+   * asserts that, which is what keeps the two slots below it the only things the grid grows by.
+   *
+   * **Required, and `null` on `/s/<token>`** — which is the same sentence `actions={null}` says there and
+   * for the same unfinished reason rather than a tier: a plan-scoped `manage` seat may legitimately
+   * administer its plan's seats (ADR 0038, and `planCapabilities` answers all four `true` for it), but its
+   * actions must be bound to its token, and `app/s/[token]/page.test.tsx` asserts that surface hands over
+   * **no function at all** because its leak sweep cannot read a bound function's arguments — the same gap
+   * `module-boundaries.test.tsx` closes by refusing any `bound `-prefixed function. Mounting a seat's
+   * manager is therefore the task that widens that sweep, and `share={null}` is what makes that a line
+   * somebody edits rather than a surface quietly missing a control its holder may use.
+   */
+  readonly share: ReactNode
 }
 
 /**
@@ -187,27 +227,32 @@ export interface PlanScreenProps {
  *
  * ### Where this file divides next
  *
- * Sixty of the 80 lines an `.tsx` may hold are used, the conflict list having cost two of them — a
- * slot and a prop — and one more task mounts something here, the share manager. The paragraphs above
- * have already ruled out everything inside `VIEW_SWITCH.views`: the radios, their labels and both
- * panels are peers of one another by necessity, and a component drawn around any of them breaks the
- * selector the switch is built on.
+ * Sixty-seven of the 80 lines an `.tsx` may hold are used — **measure rather than trust that number**,
+ * the count before the share manager having been stale by three. That manager cost four of them: a slot,
+ * a prop, and the flex row the heading block and the slot now share. The paragraphs above have already
+ * ruled out everything inside `VIEW_SWITCH.views`: the radios, their labels and both panels are peers of
+ * one another by necessity, and a component drawn around any of them breaks the selector the switch is
+ * built on.
  *
- * What is left, and so **the next split, is the heading block** — the `h1` and the settings line under
- * it, the one `<div className="grid gap-1">` in here. It is a self-contained pair of elements with no
- * peer relationship to anything, it reads three fields of the plan and nothing else, and it sits above
- * the drawer slot, so lifting it out moves no sibling past another. `./plan-heading.tsx` taking one
- * `PlanScreenModel`, and this file keeps the grid, the slot and the switch.
+ * What is left, and so **the next split, is the heading row** — the `h1`, the settings line under it and
+ * the share slot beside them, the one `<div className="flex flex-wrap items-start justify-between gap-3">`
+ * in here. It is still a self-contained group with no peer relationship to anything: it reads three fields
+ * of the plan, places one slot, and sits above both the others, so lifting it out moves no sibling past
+ * another. `./plan-heading.tsx` taking one `PlanScreenModel` and one `ReactNode`, and this file keeps the
+ * grid, the two slots and the switch. Thirteen lines is room for one more prop, not for a fourth slot.
  */
-export function PlanScreen({ plan, at, actions, controls, conflicts, drawer }: PlanScreenProps) {
+export function PlanScreen({ plan, at, actions, controls, conflicts, drawer, share }: PlanScreenProps) {
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
     <div className="grid gap-4 pt-6">
-      <div className="grid gap-1">
-        <h1 className="text-xl font-semibold">{plan.name}</h1>
-        <p className="text-[13px] text-muted-foreground">
-          {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <h1 className="text-xl font-semibold">{plan.name}</h1>
+          <p className="text-[13px] text-muted-foreground">
+            {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
+          </p>
+        </div>
+        {share}
       </div>
       {conflicts}
       {drawer}

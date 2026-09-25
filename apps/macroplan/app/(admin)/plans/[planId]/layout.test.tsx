@@ -12,6 +12,12 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../components/plan/testing/fake-plan-api'
+import {
+  createPlanSeat,
+  readPlanSeats,
+  revokePlanSeat,
+  updatePlanSeat,
+} from '../../../../actions/plan-share-links'
 import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
 import { handedBy, tokensHandedBy } from '../../../../components/plan/testing/handed'
 import {
@@ -30,6 +36,13 @@ import {
 import { featurePath, itemPath } from '../../../../lib/drawer-routes'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
+
+// The four seat actions by the names reflection can see, taken from the functions themselves so a rename
+// cannot leave this list standing. They are what the share manager is handed, and the sweep below requires
+// every function this layout hands over to be one of these or one of the eighteen writes.
+const SEAT_ACTIONS = [readPlanSeats, createPlanSeat, updatePlanSeat, revokePlanSeat].map(
+  (action) => action.name,
+)
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 
@@ -264,11 +277,12 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layoutâ€
     expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
   })
 
-  // Five props now, the fifth being the conflict list this layout builds rather than passes through:
-  // it is a slot on the screen because the seat surface renders the same screen and may not carry
-  // links into this one's drawer routes, so filling it is this file's own decision and belongs in this
-  // file's assertions. The drawer stays identity-compared, being `children` and not built here.
-  it('hands the screen that slot, the conflict list, the writes and the three props it had', async () => {
+  // Seven props now: the conflict list and the share manager are both built here rather than passed
+  // through, and for the same kind of reason â€” the seat surface renders the same screen, may not carry
+  // links into this one's drawer routes, and may not present this one's cookie. So filling either is this
+  // file's own decision and belongs in this file's assertions. The drawer stays identity-compared, being
+  // `children` and not built here.
+  it('hands the screen both slots it builds, the writes and the three props it had', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const element = await PlanLayout(propsOf(PLAN_A))
@@ -280,10 +294,29 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layoutâ€
       'controls',
       'drawer',
       'plan',
+      'share',
     ])
     expect(handed['drawer']).toBe(DRAWER)
     expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)
     expect(isValidElement<{ plan: unknown }>(handed['conflicts'])).toBe(true)
+  })
+
+  // The manager is handed the plan's id and the four seat answers as flat primitives, and its four actions
+  // as module functions â€” never a seat, a count or a token, which is what the sweep further down asserts by
+  // shape. The id is the API's own rather than the URL's, so it is the plan this screen is drawing.
+  it('builds the share manager on the plan the API confirmed, with the four seat answers spread', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    const element = await PlanLayout(propsOf(PLAN_A))
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    const share = handed['share']
+    const props = isValidElement<Record<string, unknown>>(share) ? share.props : {}
+    expect(props['planId']).toBe(PLAN_A)
+    expect(props['mayRead']).toBe(true)
+    expect(props['mayCreate']).toBe(true)
+    expect(props['mayUpdate']).toBe(true)
+    expect(props['mayRevoke']).toBe(true)
+    expect(Object.values(props).filter((one) => typeof one === 'function')).toHaveLength(4)
   })
 
   it('builds that list from the very plan it hands the screen, never from a second read', async () => {
@@ -366,7 +399,7 @@ describe('the plan layout hands no share token to a component, however senior th
   // there was no write on this surface to hand over.
   it('hands over the eighteen writes and nothing bound, so no token hides in an actionâ€™s arguments', async () => {
     const handed = handedBy(await shown())
-    expect([...handed.functions].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
+    expect([...handed.functions].sort()).toEqual([...Object.keys(ADMIN_PLAN_ACTIONS), ...SEAT_ACTIONS].sort())
     expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
     expect(handed.functions.filter((name) => name === '')).toEqual([])
   })

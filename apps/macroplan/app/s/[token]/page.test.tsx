@@ -330,9 +330,10 @@ describe('which controls the seat’s own role draws', () => {
   // The role and the scope are what `planCapabilities` is asked with, and neither goes down: a
   // permission restated below this point is one nothing authorises, and a component added later
   // could ask a second question of it. What the screen gets is the plan, the instant, the controls and
-  // two explicitly empty slots — five props and no sixth. Both slots are in the set because both are
-  // required on the screen and this surface fills neither: it has no drawer route, and a conflict list
-  // links only to those routes, so `null` twice is what this page states about itself.
+  // three explicitly empty slots — six props and no seventh. All three slots are in the set because all
+  // three are required on the screen and this surface fills none of them: it has no drawer route, a
+  // conflict list links only to those routes, and a share manager would need this seat's token bound into
+  // its actions — so `null` three times is what this page states about itself.
   it('hands the screen the controls and never the role, the scope or the share view itself', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await LinkPlanPage(props(WRITE_SEAT_TOKEN))
@@ -345,9 +346,20 @@ describe('which controls the seat’s own role draws', () => {
       'controls',
       'drawer',
       'plan',
+      'share',
     ])
     expect(handed['drawer']).toBeNull()
     expect(handed['conflicts']).toBeNull()
+    // `share` is `null` although a plan-scoped `manage` seat holds all four `share:*` answers: its
+    // manager's actions would have to carry this seat's token, which cannot cross as a prop and is
+    // invisible to this file's walker once bound into one. It lifts with `actions` below, not before.
+    expect(handed['share']).toBeNull()
+    expect((handed['controls'] as { seats: Record<string, boolean> }).seats).toEqual({
+      read: false,
+      create: false,
+      update: false,
+      revoke: false,
+    })
     // `actions` is `null` here on purpose, and the zero-functions case below is why it must be: a seat's
     // writes are bound to its token, and this file's walker cannot read a bound function's arguments. The
     // screen's own prop says so as a sentence rather than by omission, so the day that gap is closed is a

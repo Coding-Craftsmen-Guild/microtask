@@ -1,10 +1,19 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
+import {
+  createPlanSeat,
+  readPlanSeats,
+  revokePlanSeat,
+  updatePlanSeat,
+} from '../../../../actions/plan-share-links'
 import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
 import { ConflictList } from '../../../../components/plan/conflicts/conflict-list'
 import { PlanScreen } from '../../../../components/plan/plan-screen'
+import { ShareManager } from '../../../../components/plan/share/share-manager'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { readPlan } from './read-plan'
+
+const SEATS = ADMIN_CONTROLS.seats
 
 /** Props for {@link PlanLayout}. */
 export interface PlanLayoutProps {
@@ -83,6 +92,28 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  * beside it — a layout not re-rendering when navigation moves between its children is the whole reason
  * this file exists, and a conflict list is about the plan rather than about what is selected.
  *
+ * ### The share manager is filled here too, and for the sharper version of the same reason
+ *
+ * `PlanScreen.share` is a slot because the manager's four actions carry a **credential**, and which one is
+ * decided by the surface: these four read `mp_admin` on every call (`actions/plan-share-links.ts`), where a
+ * `manage` seat's would have to carry that seat's own token. A component under the screen cannot choose
+ * between them without being handed a role, a token or a principal, and none of those may cross into a
+ * client (ADR 0033, ADR 0038). This file is the one place that knows it is the admin surface, so this is
+ * where the element is built — beside the controls, which are the same decision made twice otherwise.
+ *
+ * The four `share:*` answers are spread into four flat booleans, and the four actions into four function
+ * props, because `components/plan/module-boundaries.test.tsx` admits nothing but primitives and unbound
+ * functions across a client boundary. Each is a **module** function imported by name, so reflection can see
+ * all there is to see of one and this file's own sweep asserts exactly that: the eighteen writes plus these
+ * four, none beginning with `bound ` — which is what `Function.prototype.bind` would name a closure
+ * carrying a credential (ADR 0040).
+ *
+ * **No seat and no token is handed down**, and that is the whole shape of it: the manager asks
+ * `readPlanSeats` for them after its dialog is open, so nothing token-bearing is in this render's Flight
+ * payload. `read-plan.ts` has already dropped the `shareLinks` block the API answers an admin with, and
+ * `planId` here is `loaded.value.id` — the id the API itself confirmed, which is the plan this screen is
+ * drawing rather than whatever the URL said.
+ *
  * What it hands down about authority is {@link ADMIN_CONTROLS} and not a principal: the admin is not
  * a role in the capability model, so there is no role to pass and nothing for the screen to derive
  * one from (`lib/admin-controls.ts`). The seat page asks `planCapabilities` for its own answers and
@@ -90,8 +121,9 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  *
  * It also hands down `ADMIN_PLAN_ACTIONS`, and this is the first **page** in this app to hand a component a
  * Server Action. Every member is a module function imported by name, so reflection can see all there is to
- * see of one, and `layout.test.tsx` asserts exactly that: the eighteen names and nothing beginning with
- * `bound `, which is what `Function.prototype.bind` would name a closure carrying a credential (ADR 0040).
+ * see of one, and `layout.test.tsx` asserts exactly that: those eighteen names plus the four seat actions
+ * below, and nothing beginning with `bound `, which is what `Function.prototype.bind` would name a closure
+ * carrying a credential (ADR 0040).
  * The screen spends one of them — `placeFeature`, which the canvas's drag sends — and the drawer pages get
  * their own copy of the object rather than this one, a layout being unable to hand its children a prop.
  * `/s/<token>` hands `null` instead, and its own page says why.
@@ -127,6 +159,19 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       controls={ADMIN_CONTROLS}
       drawer={children}
       plan={loaded.value}
+      share={
+        <ShareManager
+          editSeat={updatePlanSeat}
+          listSeats={readPlanSeats}
+          mayCreate={SEATS.create}
+          mayRead={SEATS.read}
+          mayRevoke={SEATS.revoke}
+          mayUpdate={SEATS.update}
+          mintSeat={createPlanSeat}
+          planId={loaded.value.id}
+          revokeSeat={revokePlanSeat}
+        />
+      }
     />
   )
 }
