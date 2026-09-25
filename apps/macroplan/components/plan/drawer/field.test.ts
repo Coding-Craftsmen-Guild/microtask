@@ -4,10 +4,12 @@ import {
   budgetLine,
   descriptionBytes,
   estimateEntry,
+  joinEdges,
   normalisedDescription,
   overBudget,
   pinCeiling,
   pinEntry,
+  splitEdges,
   tooFarOut,
   OVER_BUDGET,
   TOO_MANY_DAYS,
@@ -186,5 +188,34 @@ describe('the ceiling this field owns because the contract does not have one', (
   it('names the ceiling and the estimate cap it comes from, so the refusal is checkable', () => {
     expect(tooFarOut(ATLAS_SPRINT)).toContain('72')
     expect(tooFarOut(ATLAS_SPRINT)).toContain(String(MAX_ESTIMATE_DAYS))
+  })
+})
+
+describe('the edge list a client control is handed, which has to be one string', () => {
+  const A = '01MPFFFFFFFFFFFFFFFFFFFFFA'
+  const B = '01MPFFFFFFFFFFFFFFFFFFFFFB'
+
+  it('round-trips a list of ids', () => {
+    expect(splitEdges(joinEdges([A, B]))).toEqual([A, B])
+  })
+
+  it('round-trips the empty list, which a `.split()` alone answers as one empty id', () => {
+    expect(joinEdges([])).toBe('')
+    expect(splitEdges('')).toEqual([])
+    expect(''.split(' ')).toEqual([''])
+  })
+
+  it('keeps the order it was given, an edge list being a list and not a set on the wire', () => {
+    expect(splitEdges(joinEdges([B, A]))).toEqual([B, A])
+  })
+
+  it('drops an empty segment, so no separator can become an id naming nothing', () => {
+    expect(splitEdges(` ${A}  ${B} `)).toEqual([A, B])
+  })
+
+  // The separator is a space because the id alphabet cannot hold one: `EntityId` is a ULID in
+  // Crockford base32 (`packages/contracts/src/document.ts`), so the two are disjoint by contract.
+  it('separates on a character no id this contract admits can contain', () => {
+    for (const id of [A, B]) expect(id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
   })
 })

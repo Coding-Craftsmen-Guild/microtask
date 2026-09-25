@@ -4,6 +4,7 @@ import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { DrawerEdits } from './drawer-edits'
 import { DrawerFacts } from './drawer-facts'
+import { DrawerManage } from './drawer-manage'
 import { LABEL } from './field'
 import type { DrawerValues } from './values'
 
@@ -38,10 +39,10 @@ export interface DrawerPanelProps {
   /**
    * The same subject's values, from the same lookup of the same plan (`./subject.ts`).
    *
-   * Every value the two halves below need arrives in this one prop, which is what keeps the panel's
-   * own props stable as each half grows: `sizedByItems` goes to the facts, the name, estimate, pin and
-   * calendar go to the fields, and this file reads exactly one member itself — `values.sizedByItems`,
-   * on its way past.
+   * Every value the three bands below need arrives in this one prop, which is what keeps the panel's
+   * own props stable as each of them grows: `sizedByItems` goes to the facts, the name and the
+   * estimate to the `write` fields, the pin, the calendar and the plan's `features` to the `manage`
+   * band, and this file reads exactly one member itself — `values.sizedByItems`, on its way past.
    */
   readonly values: DrawerValues
 
@@ -64,9 +65,18 @@ export interface DrawerPanelProps {
  * ### The frame, and the two things drawn inside it
  *
  * What is left here is the landmark, the heading, the kind eyebrow and the close link. The facts `<dl>`
- * is `./drawer-facts.tsx` and the fields are `./drawer-edits.tsx`, both extracted when the fields
- * arrived and in that order: the facts word nothing and decide nothing, so they left without taking an
- * argument with them, and the fields are where every remaining control group will land.
+ * is `./drawer-facts.tsx` and the controls are two bands beside it: `./drawer-edits.tsx` holds the
+ * `write`-tier fields and `./drawer-manage.tsx` the `manage`-tier ones. The facts went first, when the
+ * fields arrived, because they word nothing and decide nothing and so left without taking an argument
+ * with them.
+ *
+ * The two control bands are **siblings** here rather than one nested in the other, and that is the
+ * capability line drawn as file layout: every control in the second band is granted to `manage` alone
+ * and every field in the first to `write`, so a seat holding `write` and not `manage` is shown exactly
+ * one of them (`packages/kernel/src/access/policy.ts`, and `./drawer-manage.tsx` argues it). Each
+ * draws its own `EDITS` band with its own `empty:hidden`, so a tier a surface may write nothing in is
+ * a tier it is shown no bordered box for — and a read-only seat is shown neither. They take the same
+ * five props, which is what keeps this file's own props stable as either grows.
  *
  * The read half is two elements rather than one: the facts `<dl>` and, under it,
  * `./breakdown-line.tsx`'s one sentence about which of a feature's two estimates the timeline used.
@@ -98,8 +108,9 @@ export interface DrawerPanelProps {
  * ### This file, if it grows, and where it splits
  *
  * It is the frame now, so the next control group is a file beside `./drawer-edits.tsx` rather than a
- * block in here — the pin, the dependency editor, delete, and the two place actions, each on its own
- * boolean, which is the list that file keeps, and each mounted as a child of that one.
+ * block in here. The pin and the dependency editor have arrived and are `./drawer-manage.tsx`'s; delete
+ * and the two place actions are `manage`-tier as well and land in that same band, so this file gains no
+ * third mount for them.
  *
  * **Create is the exception this file mounts itself.** `createFeature` needs a rail and `createItem` a
  * parent feature, so neither is a write about the subject `./drawer-edits.tsx` is handed — a group
@@ -139,6 +150,13 @@ export function DrawerPanel({
         actions={actions}
         controls={controls}
         description={description}
+        planId={planId}
+        row={row}
+        values={values}
+      />
+      <DrawerManage
+        actions={actions}
+        controls={controls}
         planId={planId}
         row={row}
         values={values}

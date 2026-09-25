@@ -16,6 +16,7 @@ describe('resolving the one subject a drawer is open on', () => {
       estimateDays: 5,
       pinSprint: null,
       calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
+      features: atlasPlan().features,
       sizedByItems: true,
     })
   })

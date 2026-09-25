@@ -14,6 +14,7 @@ import type { TableRow } from './table/rows'
 import { PlanTable } from './table/plan-table'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
 import { nothingDrawn, stubActions } from './testing/plan-writes'
+import { DependencyToggle } from './drawer/dependency-toggle'
 import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
 import { NameField } from './drawer/name-field'
@@ -160,6 +161,7 @@ const FEATURE = subjectOf('feature', FEATURE_1)
 // new client file fails the allowlist until it is a key here, and being a key here is what stops the
 // walk at it.
 const CLIENT_BY_FILE = new Map<unknown, string>([
+  [DependencyToggle, 'dependency-toggle.tsx'],
   [DescriptionField, 'description-field.tsx'],
   [EstimateField, 'estimate-field.tsx'],
   [NameField, 'name-field.tsx'],

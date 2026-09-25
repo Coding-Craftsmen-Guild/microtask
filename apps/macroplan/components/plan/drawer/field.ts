@@ -336,3 +336,52 @@ export function pinEntry(typed: string, sprintLengthDays: number): PinEntry {
   }
   return { kind: 'pin', sprint: labelled - 1 }
 }
+
+const EDGE_SEPARATOR = ' '
+
+/**
+ * One feature's `dependsOn` list, as the single string a client component may be handed.
+ *
+ * **A list cannot cross into the browser here.** `module-boundaries.test.tsx` requires every prop
+ * reaching a client component to be a primitive, an unbound function or `null` — an array is none of
+ * those — and that is the rule rather than an oversight: what a client component is handed is
+ * serialised into the Flight payload and lands in the HTML, so the shapes that may cross are
+ * enumerated rather than trusted (ADR 0033, ADR 0040). A dependency control has to send a **whole**
+ * list, `PUT .../dependencies` having no add and no remove, so the list travels as one string and the
+ * control splits it back the instant before it calls the action.
+ *
+ * A space is the separator because no id can contain one: `EntityId` is
+ * `/^[0-9A-HJKMNP-TV-Z]{26}$/` — a ULID in Crockford base32 — so the alphabet and the separator are
+ * disjoint by the contract rather than by convention (`packages/contracts/src/document.ts`).
+ *
+ * These two live here rather than beside the cycle check that builds the string for the reason
+ * {@link LABEL} gives: `./cycle-check.ts` imports `findCycles` as a **value**, and a client control
+ * importing the codec from there would pull the graph walk into the browser bundle to reach a
+ * `join`. This module names `@repo/contracts` and nothing else, which is why every client field in
+ * this drawer already imports it.
+ */
+export const joinEdges = (ids: readonly string[]): string => ids.join(EDGE_SEPARATOR)
+
+/**
+ * The list back out of {@link joinEdges}, which is what a control sends.
+ *
+ * The empty list is the case that matters, and it is why this is a named function rather than a
+ * `.split()` at the call: `''.split(' ')` answers `['']`, so a control clearing a feature's last
+ * dependency would have sent one edge naming nothing rather than none — a 422 for a write that was
+ * meant to remove everything. Empty segments are dropped instead, which also makes the round trip
+ * total for any list this app can build.
+ */
+export const splitEdges = (ids: string): readonly string[] =>
+  ids.split(EDGE_SEPARATOR).filter((one) => one !== '')
+
+/**
+ * What a dependency editor says where the plan holds no other feature to wait on.
+ *
+ * Here for the reason {@link PIN_HINT} is here: a hint is a bare string, and this module is where a
+ * drawer control's strings live so that the `.tsx` holding the control is only the control. It says
+ * what is missing rather than drawing an empty list, because an editor with no rows and no sentence
+ * reads as a control that failed to load — and the candidate list is exhaustive by construction, this
+ * plan's own features being every edge there could be (spec §8).
+ */
+export const NOTHING_TO_WAIT_ON =
+  'This is the only feature in the plan, so there is nothing for it to wait on. A dependency always names another feature of this plan.'

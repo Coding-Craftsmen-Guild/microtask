@@ -51,6 +51,7 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
   estimateDays: 5,
   pinSprint: null,
   calendar: CALENDAR,
+  features: atlasPlan().features,
   sizedByItems: false,
   ...over,
 })
@@ -146,15 +147,21 @@ describe('the panel one selection is drawn in', () => {
     expect(screen.getByRole('link', { name: 'Close' }).getAttribute('href')).toBe(CLOSE)
   })
 
-  // The row carries the dependency and the panel is documented not to draw it. Every other row in
+  // The row carries the dependency and the read half is documented not to draw it. Every other row in
   // this file has an empty `blockedBy`, so nothing there could tell "deliberately not drawn" from
   // "there was nothing to draw" — and a later edit could start wording an edge here in a second
-  // vocabulary with no case going red. Both of `PlanTableRow`'s halves of the sentence are checked:
-  // the name it would print, and the suffix `EDGE_SUFFIX` would print after it.
-  it('draws no dependency even when the row states one, that wording being the table’s alone', () => {
+  // vocabulary with no case going red. What the `<dl>` must not word is both of `PlanTableRow`'s
+  // halves: the name it would print, and the suffix `EDGE_SUFFIX` would print after it.
+  //
+  // The **editor** does name the plan's other features, and must: a candidate list is what one looks
+  // like (`drawer-manage.tsx`). So the claim is narrowed to the half it was always about — the facts
+  // `<dl>` words no edge, and the four things a stated edge can turn out to be stay the table's
+  // sentences — rather than to "this panel never prints another feature's name", which a dependency
+  // control makes false on purpose.
+  it('words no dependency in the facts list, that vocabulary being the table’s alone', () => {
     open({ row: { ...FEATURE_ROW, blockedBy: [{ id: FEATURE_2, name: 'Billing', state: 'set-aside' }] } })
     expect(labels()).toEqual(['Epic', 'Estimate', 'Sprint'])
-    expect(screen.queryByText(/Billing/)).toBeNull()
+    expect(document.querySelector('dl')?.textContent).not.toContain('Billing')
     expect(screen.queryByText(/set aside to keep rail order/)).toBeNull()
     expect(document.body.textContent).not.toContain(FEATURE_2)
   })
@@ -306,6 +313,44 @@ describe('the pin, which is the manage-tier control among the write-tier fields'
   it('says the sprint’s own dates under the box rather than leaving a bare index on screen', () => {
     open({ values: valuesOf({ pinSprint: 0 }) })
     expect(document.body.textContent).toContain('Sprint 1 runs 2026-09-28 to 2026-10-15')
+  })
+})
+
+// The second band the panel draws: every control in it is granted to `manage` alone, and the two it
+// holds today are a **feature's** alone (`drawer-manage.tsx`).
+describe('the manage band, and the one control an item drawer must never draw', () => {
+  // Spec §3.1: a feature is a contiguous block, and "contiguity is what makes an edge between two
+  // features mean something at the year rung, and it is why edges exist at the feature level and
+  // nowhere else". `PlanItem` carries no `dependsOn` at all, so there is no item form of this to draw.
+  it('draws no dependency control at all on an item, edges existing at the feature level only', () => {
+    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    expect(screen.queryAllByRole('checkbox')).toEqual([])
+    expect(screen.queryByText('Waits on')).toBeNull()
+  })
+
+  it('draws one box per other feature of the plan for a feature, named by what it waits on', () => {
+    open()
+    expect(screen.getByText('Waits on')).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: 'Billing' })).toBeTruthy()
+    expect(screen.queryByRole('checkbox', { name: 'Auth rewrite' })).toBeNull()
+  })
+
+  it('draws none where setDependencies is false while still drawing the pin beside it', () => {
+    open({ controls: drawing({ setDependencies: false }) })
+    expect(screen.queryAllByRole('checkbox')).toEqual([])
+    expect(pinBox()).toBeTruthy()
+  })
+
+  // `empty:hidden` is a Tailwind variant and not a count, so what makes a band disappear is the
+  // element being **childless** — which is the thing worth asserting, a stylesheet not being loaded
+  // here. Both bands are checked, because a read-only seat must be shown neither box.
+  it('leaves both bands childless for a surface that may write nothing, so neither is shown', () => {
+    open({ controls: nothingDrawn() })
+    expect(screen.queryAllByRole('checkbox')).toEqual([])
+    expect(pinBox()).toBeNull()
+    const bands = [...document.querySelectorAll('[class*="empty:hidden"]')]
+    expect(bands).toHaveLength(2)
+    for (const band of bands) expect(band.childElementCount).toBe(0)
   })
 })
 

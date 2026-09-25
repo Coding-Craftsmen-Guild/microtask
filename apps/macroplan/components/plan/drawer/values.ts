@@ -1,6 +1,7 @@
 import type { Plan } from '@repo/api-client'
 import type { PlanCalendar } from '@repo/schedule'
 import type { TableRow } from '../table/rows'
+import type { CycleFeature } from './cycle-check'
 
 /**
  * Which of the two things a drawer can be open on, which decides where a value is read back from.
@@ -86,7 +87,45 @@ export interface DrawerValues extends SubjectValues {
 
   /** Whether the items sized this feature, which is when its own estimate moves no bar. */
   readonly sizedByItems: boolean
+
+  /**
+   * Every feature of the plan, which is the `dependsOn` graph a cycle is a property of.
+   *
+   * The second member here that is not the subject's own, and it is here for the reason `calendar`
+   * is: a dependency cannot be judged from one feature. Whether an edge closes a cycle is a
+   * question about the **whole** graph, the candidates a control may offer are the plan's other
+   * features and nothing else (spec §8 rejects cross-plan edges), and the refusal has to name them
+   * — so a control that had only the subject could neither list a choice nor say what was wrong
+   * with one. Resolved in the same lookup as the row rather than fetched beside it (`./subject.ts`).
+   *
+   * It is the features and not the plan, so nothing under the drawer can reach an epic, an item, a
+   * schedule or a seat through it, and it is read by the **server** half alone: the graph is turned
+   * into one `EdgeChoice` of primitives per candidate before anything crosses into the browser
+   * (`./cycle-check.ts`, `./dependency-editor.tsx`).
+   */
+  readonly features: readonly CycleFeature[]
 }
+
+/**
+ * Whether the plan a write answered still has one feature waiting on another.
+ *
+ * The dependency control's half of "what is on screen is what the **server** stored": a box is
+ * ticked from the plan the write came back with rather than from what was sent, so a list the API
+ * deduped, reordered or refused a part of leaves the control showing what is really there. It is a
+ * membership question rather than a list, because a control draws one row per candidate and each row
+ * asks only about itself.
+ *
+ * @param plan - Any plan-shaped value: the page's reduced model, or a write's answer.
+ * @param featureId - The feature whose list is being read.
+ * @param dependsOnId - The candidate to ask about.
+ * @returns Whether that edge is in the plan; `false` for a feature the plan no longer holds.
+ */
+export const waitsOn = (
+  plan: Omit<Plan, 'shareLinks'>,
+  featureId: string,
+  dependsOnId: string,
+): boolean =>
+  plan.features.find((one) => one.id === featureId)?.dependsOn.includes(dependsOnId) ?? false
 
 /**
  * One subject's stored values, read out of a plan by id — the same read on both sides of a write.

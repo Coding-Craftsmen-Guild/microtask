@@ -124,10 +124,15 @@ const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 // reflection (ADR 0040), and this page binds nothing.
 
 describe('the drawer one feature is open in', () => {
-  it('names the feature the URL names, and no other feature of the plan', async () => {
+  // The panel is open on **one** subject, and the other feature of the plan is on screen for exactly
+  // one reason: it is a dependency candidate. So the claim is that the heading is this feature's and
+  // that nothing else is drawn as a subject — not that no other name appears, which the candidate list
+  // makes false on purpose (`components/plan/drawer/dependency-editor.tsx`).
+  it('names the feature the URL names as its subject, and every other one only as a candidate', async () => {
     await show()
     expect(screen.getByRole('heading', { level: 2, name: 'Auth rewrite' })).toBeTruthy()
-    expect(screen.queryByText('Billing')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Billing' })).toBeNull()
+    expect(screen.getByRole('checkbox', { name: 'Billing' })).toBeTruthy()
   })
 
   it('says the same words the table row says about it, rather than wording them again', async () => {
@@ -293,6 +298,7 @@ describe('the drawer hands no share token to a component either', () => {
       estimateDays: 5,
       pinSprint: null,
       calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
+      features: atlasPlan().features,
       sizedByItems: true,
     })
     expect(handed['description']).toBeNull()

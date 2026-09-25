@@ -67,9 +67,16 @@ export interface DrawerFactsProps {
  *
  * **Dependencies are not drawn here**, and deliberately. The four things a stated dependency can turn
  * out to be each have a sentence, and those sentences live in `PlanTableRow`'s own `EDGE_SUFFIX`;
- * copying them here would be the second wording the paragraph above rules out, and moving them is the
- * business of the task that draws a dependency **editor**. `row.blockedBy` is on the prop and nothing
- * reads it, which is a fact a reader can check.
+ * copying them here would be the second wording the paragraph above rules out. `row.blockedBy` is on
+ * the prop and nothing reads it, which is a fact a reader can check.
+ *
+ * The dependency **editor** now exists (`./dependency-editor.tsx`) and `EDGE_SUFFIX` did not move to
+ * it, which is a decision rather than an omission: those four sentences word what the **forward pass**
+ * made of an edge — honoured, set aside to keep rail order, naming nothing, or pointing at something
+ * unplaced — and the editor reads no schedule at all. It asks which edges are *stated* and whether a
+ * proposed one would close a cycle, so the two are about different questions, and the outcome wording
+ * stays with the surface that draws the pass. Were it ever shared, its home would be `../table/rows.ts`
+ * beside `EdgeState`, which is the module that decides the states.
  *
  * ### The one sentence under the list that is not the row's
  *

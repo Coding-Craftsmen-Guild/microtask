@@ -32,9 +32,10 @@ export interface DrawerSubject {
    * The same subject's values: the numbers and names a control edits, and the two a fact reads.
    *
    * Wider than what {@link subjectValues} answers, and the difference is the point of resolving a
-   * subject here rather than in a page: the plan's calendar and which of a feature's two estimates
-   * sized it are both needed by the panel and carried by neither the row nor the record, so they are
-   * added **inside the one lookup** rather than fetched beside it (`./values.ts` argues each).
+   * subject here rather than in a page: the plan's calendar, its features and which of a feature's
+   * two estimates sized it are each needed by the panel and carried by neither the row nor the
+   * record, so they are added **inside the one lookup** rather than fetched beside it (`./values.ts`
+   * argues each).
    */
   readonly values: DrawerValues
 }
@@ -64,7 +65,7 @@ export interface DrawerSubject {
  * and — for the admin, whose read carries every live seat — a plan is also the thing ADR 0033 forbids
  * putting in a page's props at all.
  *
- * ### Two things the plan knows that neither half carried
+ * ### Three things the plan knows that neither half carried
  *
  * `sizedByItems` is the one question the drawer's read half asks about the pair, and it is asked here
  * because `breakdown()` and `effectiveEstimate()` are **values** from `@repo/schedule` and this is the
@@ -83,6 +84,14 @@ export interface DrawerSubject {
  * a real state and never an error. `sizedByItems` asks only for a feature, an item having no items of
  * its own, and filters `plan.items` by `featureId` for the one feature rather than building the whole
  * `itemsByFeature` map a second time.
+ *
+ * The **features** are the third, and they are passed straight through rather than derived: a cycle is
+ * a property of the whole `dependsOn` graph and not of one feature, the candidates a dependency
+ * control may offer are the plan's other features and nothing else (spec §8), and the refusal has to
+ * name them — so the graph reaches the drawer or no dependency control can be drawn at all. Nothing is
+ * decided about it here: `./cycle-check.ts` runs `findCycles` over it once per candidate, and
+ * `./dependency-editor.tsx` is what turns each answer into the primitives a client control may hold.
+ * It is the features and not the plan, so no epic, item, schedule or seat is reachable through it.
  *
  * The calendar is the plan's three scheduling fields and never the plan. `rangeOfSprint` needs them to
  * say what sprint a pin means in dates, and that conversion happens in the browser as the number is
@@ -105,8 +114,8 @@ export interface DrawerSubject {
  * @param plan - The reduced plan the page read, whose type cannot carry a seat.
  * @param kind - Which segment is asking: `f/[featureId]` or `i/[itemId]`.
  * @param id - The id out of the URL, untrusted.
- * @returns The row, the values, the calendar and whether the items sized this feature, or `undefined`
- * when no row of that kind answers to that id.
+ * @returns The row, the values, the calendar, the plan's features and whether the items sized this
+ * feature, or `undefined` when no row of that kind answers to that id.
  */
 export function drawerSubject(
   plan: PlanScreenModel,
@@ -121,6 +130,7 @@ export function drawerSubject(
     values: {
       ...values,
       calendar: calendarOf(plan),
+      features: plan.features,
       sizedByItems: sizedByItems(plan, kind, id),
     },
   }
