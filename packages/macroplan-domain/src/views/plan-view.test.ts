@@ -450,9 +450,26 @@ describe('planView shapes the bridge on the weaker of the two roles (design §7.
     expect(linkOf(bound('manage'), seat('view'))).toBeNull()
   })
 
-  it('keeps the link under an unbound rail for every caller, since no binding exists to attenuate', () => {
-    for (const role of ROLES) expect(linkOf(unbound(), seat(role))).toBe(TASK)
+  // An unbound rail attenuates by the plan role alone — but the write floor still applies, and it
+  // has to. Unbinding leaves every linkedTaskId in place on purpose, so a rule that handed the
+  // stored id to everybody once no binding existed would mean unbinding *widened* what a view seat
+  // was told: refused the id while the rail was bound, given it the moment an admin unbound the
+  // rail. Reaching a task id is item:link's business, which §7.1 grants to write and above.
+  it('refuses the link under an unbound rail to a view seat, so unbinding never widens what it sees', () => {
+    expect(linkOf(unbound(), seat('view'))).toBeNull()
+  })
+
+  it('keeps it under an unbound rail for write and above, linking being what they may do about one', () => {
+    expect(linkOf(unbound(), seat('write'))).toBe(TASK)
+    expect(linkOf(unbound(), seat('manage'))).toBe(TASK)
     expect(linkOf(unbound(), ADMIN)).toBe(TASK)
+  })
+
+  it('never widens on unbinding: no role is told more about an unbound rail than a bound one', () => {
+    for (const role of ROLES) {
+      const whileBound = linkOf(bound('manage'), seat(role))
+      if (whileBound === null) expect(linkOf(unbound(), seat(role))).toBeNull()
+    }
   })
 
   it('refuses the link to the admin too under a view-role binding, the binding being the ceiling', () => {

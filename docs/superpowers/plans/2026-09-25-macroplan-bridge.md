@@ -70,6 +70,8 @@ Phase 1 reserved the bridge's storage and its two actions and left tripwires for
 
 `packages/macroplan-domain/src/views/plan-view.ts`'s `planView()` copies `epics: manifest.epics` verbatim. The moment a `binding` is written, **every plan response carries `sealedToken` to every caller cleared to read the plan**, and `apps/macroplan`'s `planScreenModel` copies `epics` through into the Flight payload and so into the HTML. `view-leaks.test.ts` does not catch it because its fixture epics have no binding. Task 4 lands before Task 5 for this reason.
 
+**Amended after Task 4, which found this understated.** It was not only that the view copied the field through — **the wire contract *required* the credential.** `PlanView.epics` in `packages/contracts/src/plan-views.ts` was `PlanManifest.shape.epics`, whose element is `PlanEpic`, whose `binding` is `EpicBinding.nullable()` with `sealedToken` **required**. So a route answering the stored shape typechecked, the published OpenAPI document declared the token as a required property of every plan response, and a handler that had tried to withhold it would have failed to compile. Closing the leak therefore meant adding `PlanEpicView` to the contract, and what noticed was `apps/api`'s **typecheck** — fourteen `RouteHandler` assignability errors across the `plans/`, `epics/`, `features/` and `items/` handlers — not any test. `EpicBinding` and `PlanEpic` now drop out of the document's components, no route referencing them, which is correct: they are storage schemas and were never wire schemas.
+
 ---
 
 ## 2. Decisions this phase takes
@@ -225,7 +227,10 @@ BoundTaskList     = { tasks: readonly { id: EntityId, name: EntityName }[] }
 
 **Files:**
 - Modify: `packages/macroplan-domain/src/views/plan-view.ts`, `packages/macroplan-domain/src/views/view-leaks.test.ts`
+- **Modify: `packages/contracts/src/plan-views.ts`** — added after the fact: the leak was in the contract as well as in the view (see §1), so `PlanView.epics` needs a token-free element schema. Replacing an element type replaces the array, so carry the `LIMITS.epicsPerPlan` cap across with it.
 - Possibly modify: `packages/macroplan-domain/src/testing/fixtures.ts` (so a fixture epic can carry a binding and a fixture item a link)
+
+**Note for every later task that builds an authorization target for an epic:** the kernel's `Target` epic variant is `{ kind: 'epic', planId }` and carries **no `epicId`** — `packages/kernel/src/access/target.ts` says why (a plan share is plan-wide, so no rule turns on which epic is being asked about). An `epicId` there is an excess-property compile error. Tasks 9 and 12 gate on `epic:bind` and must use the two-field target.
 
 **What changes:** `planView` currently copies `epics: manifest.epics` and `items: manifest.items` straight through. After this task:
 - every epic in the response carries `binding` as `{ projectId, role }` **or not at all** — `sealedToken` is never emitted to anyone;

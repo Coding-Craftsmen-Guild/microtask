@@ -148,11 +148,18 @@ export function declaredBindingRole(
  * its name" straight off the shape. Do not "fix" this to match 0013; doing so reintroduces the leak
  * the shape was chosen to close.
  *
- * An item under an unbound rail keeps whatever id it holds, for every caller. Nothing is bound, so it
- * cannot be a live link, and §7.2 makes an unbound epic's state "unlinked" for everybody — there is
- * no role question to ask, and asking one anyway would blank a field on the strength of a binding
- * that does not exist. An item whose rail cannot be found is refused instead, for the reason
- * {@link declaredBindingRole} gives.
+ * **`write` is the floor whether or not a rail is bound, and a binding can only lower it further.**
+ * The tempting rule — an unbound rail has no binding to attenuate by, so hand the stored id to
+ * everybody — makes unbinding *widen* what a reader is told, which is backwards. Unbinding leaves
+ * every `linkedTaskId` in place on purpose (a binding is permitted no delete, and clearing them would
+ * be destruction nobody asked for), so under that rule a `view` seat refused an id while the rail was
+ * bound would receive it the moment an admin unbound the rail. The floor closes that: reaching a task
+ * id is `item:link`'s business, which spec §7.1 grants to `write` and above and to no `view` holder in
+ * any state of the rail. So an unbound rail attenuates by the caller's plan role alone — a `write`
+ * seat still sees a stale id, which is right, since linking is the thing it may do about one.
+ *
+ * An item whose rail cannot be found is refused outright, for the reason {@link declaredBindingRole}
+ * gives: a corrupt chain proves nothing about what is bound, so it fails closed.
  *
  * "Below `write`" is read off `ROLES`' own positions rather than written as `=== 'view'`. The two
  * agree today because a binding admits only `view` and `manage`, and they would stop agreeing the
@@ -161,8 +168,7 @@ export function declaredBindingRole(
  */
 export function visibleTaskLink(manifest: PlanManifest, item: PlanItem, planRole: Role): string | null {
   const declared = declaredBindingRole(manifest, item)
-  if (declared === null) return item.linkedTaskId
   if (declared === undefined) return null
-  const effective = effectiveBridgeRole(planRole, declared)
+  const effective = declared === null ? planRole : effectiveBridgeRole(planRole, declared)
   return ROLES.indexOf(effective) < ROLES.indexOf('write') ? null : item.linkedTaskId
 }
