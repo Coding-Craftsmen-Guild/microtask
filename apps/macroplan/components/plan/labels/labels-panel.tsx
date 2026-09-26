@@ -37,6 +37,12 @@ export interface LabelsPanelProps {
    * `createLabel`, which is why that answer does not arrive here.
    */
   readonly mayRemove: boolean
+
+  /** Whether a group name is editable — `renameLabel`, spread to a boolean for the same reason. */
+  readonly mayRename: boolean
+
+  /** Whether a group hue is editable — `recolourLabel`, drawn as its own control. */
+  readonly mayRecolour: boolean
 }
 
 /** What the disclosure is called, and what it says for a plan with no groups yet. */
@@ -65,6 +71,7 @@ export const LABELS_WORDS = {
  */
 export function LabelsPanel(props: LabelsPanelProps) {
   const { planId, rows, create, rename, recolour, remove, mayRemove } = props
+  const { mayRename, mayRecolour } = props
   return (
     <div className="grid w-full gap-1.5" data-slot="labels-panel">
       <details>
@@ -78,7 +85,9 @@ export function LabelsPanel(props: LabelsPanelProps) {
               <LabelForm
                 colour={row.colour}
                 labelId={row.id}
+                mayRecolour={mayRecolour}
                 mayRemove={mayRemove}
+                mayRename={mayRename}
                 name={row.name}
                 planId={planId}
                 recolour={recolour}

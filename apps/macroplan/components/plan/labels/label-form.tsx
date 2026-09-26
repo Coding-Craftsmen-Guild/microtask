@@ -38,6 +38,12 @@ export interface LabelFormProps {
 
   /** Whether to offer removing it at all — `PlanContentControls.removeLabel`. */
   readonly mayRemove: boolean
+
+  /** Whether the name is editable — `renameLabel`. Without it the name is shown as text. */
+  readonly mayRename: boolean
+
+  /** Whether the hue is editable — `recolourLabel`. */
+  readonly mayRecolour: boolean
 }
 
 const ROW = 'flex flex-wrap items-center gap-2'
@@ -63,6 +69,7 @@ export const LABEL_HINTS = { empty: 'A group needs a name.', cleared: '' } as co
  */
 export function LabelForm(props: LabelFormProps) {
   const { planId, labelId, name, colour, rename, recolour, remove, mayRemove } = props
+  const { mayRename, mayRecolour } = props
   const [typed, setTyped] = useState(name)
   const [problem, setProblem] = useState('')
 
@@ -84,6 +91,8 @@ export function LabelForm(props: LabelFormProps) {
     <div className="grid gap-1">
       <div className={ROW}>
         <LabelFields
+        mayRecolour={mayRecolour}
+        mayRename={mayRename}
           colour={colour}
           onColour={(value) => void send(recolour, value)}
           onCommit={() => void commit()}

@@ -44,23 +44,37 @@ export interface PlanSeatControls {
  * it asserts that all of them stay wired whatever these booleans answer. So a further control
  * with no action behind it, and a further action with no control able to call it, each fail there.
  *
- * **Five of the twenty-eight have no call site, and they are the five *rail* controls.** `createEpic`,
- * `renameEpic`, `recolourEpic`, `reorderEpic` and `removeEpic` are read by nothing: spec §9's phase-3
- * row is "drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo, the share
- * manager", and a rail is not among the things it names — the canvas draws rails from the plan and
- * nothing edits one. They are here anyway because this interface is `PlanEditActions`' own list name
- * for name, the actions are shipped and wired on both surfaces, and dropping the booleans would leave
- * five writes with no control able to call them the day a rail editor arrives. The audit that found
- * this is the one direction of the pair below that is not a type error either way, so the survivors are
- * named here rather than counted.
+ * **Every one of the twenty-eight is now read**, and the five that were not are worth the record because
+ * of what their absence turned out to cost. `createEpic`, `renameEpic`, `recolourEpic`, `reorderEpic` and
+ * `removeEpic` were read by nothing for two phases, recorded here as deliberate: spec §9's phase-3 row is
+ * "drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo, the share manager",
+ * and a rail is not among the things it names. The row does not name one. What nobody drew from that is
+ * that **a feature names the rail it sits on**, so a plan with no rails could hold nothing at all, and the
+ * drawer that creates a feature only opens on a feature that already exists — which made a new plan a
+ * permanent dead end and every other write in this list unreachable. It was found by making a plan, not by
+ * reading anything. `components/plan/rails/` is the panel that spends all five.
  *
- * **The five bridge controls added in phase 4 are all read**, and getting there took a correction worth
- * recording: they were wired as actions first and their booleans went unconsulted, which made them
- * decoration of exactly the kind the paragraph above is about. Two are spent by a **page** deciding
+ * So the lesson is not "wire the controls": it is that **an unread control is evidence about the product,
+ * not only about this file**. Five writes with no way to call them meant five things a user could not do,
+ * and the honest reading of "no call site" is a question about the surface rather than a note about a
+ * boolean. `renameEpic` and `recolourEpic` were the last two to land, and they were unread for a subtler
+ * reason worth the same attention: the panel was drawn on `createEpic` alone, on the assumption that a
+ * reader who may add a rail may rename one. `epic:create` and `epic:rename` are different actions, so that
+ * is false, and the same mistake had been made in the groups panel — both now draw the name as **text**
+ * for a reader refused the rename.
+ *
+ * **The five bridge controls added in phase 4 are all read**, and getting there took the same correction:
+ * they were wired as actions first and their booleans went unconsulted, which is the decoration the
+ * paragraph above is about. Two are spent by a **page** deciding
  * whether to mount a surface at all — `bindEpic` for the bindings panel, `linkItem` for the drawer's link
  * field — and the other three cross into those surfaces as flat booleans, the shape `ShareManager`
- * established. A grep for each of the twenty-eight is the only way to tell the two groups apart, because
- * neither the compiler nor either sweep below can: a control nobody reads typechecks.
+ * established.
+ *
+ * **A grep for each of the twenty-eight is the only way to check this, because neither the compiler nor
+ * either sweep below can: a control nobody reads typechecks.** That is the one claim in this block that
+ * has to be re-measured rather than trusted — it has been false twice — and the measurement is a search
+ * for `content.<name>` and `controls.<name>` across `components/` and `app/`, ignoring the three wiring
+ * modules that name every control by definition.
  *
  * There is deliberately **no control about the plan itself**, and the reason is now two reasons.
  * `plan:rename`, `plan:retime` and `plan:delete` are real actions of the API with no Server Action on

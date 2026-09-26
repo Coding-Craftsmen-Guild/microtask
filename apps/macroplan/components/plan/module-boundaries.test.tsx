@@ -38,6 +38,12 @@ import { LinkField } from './drawer/link-field'
 import { TaskPicker } from './drawer/task-picker'
 import { BindingsPanel } from './bridge/bindings-panel'
 import { LabelFields } from './labels/label-fields'
+import { NewRailForm } from './rails/new-rail-form'
+import { RailFeature } from './rails/rail-feature'
+import { RailFields } from './rails/rail-fields'
+import { RailForm } from './rails/rail-form'
+import { railRows } from './rails/rail-rows'
+import { RailsPanel } from './rails/rails-panel'
 import { LabelForm } from './labels/label-form'
 import { labelRows } from './labels/label-rows'
 import { LabelsPanel } from './labels/labels-panel'
@@ -259,6 +265,10 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [LabelForm, 'labels/label-form.tsx'],
   [LabelFields, 'labels/label-fields.tsx'],
   [NewLabelForm, 'labels/new-label-form.tsx'],
+  [RailForm, 'rails/rail-form.tsx'],
+  [RailFields, 'rails/rail-fields.tsx'],
+  [RailFeature, 'rails/rail-feature.tsx'],
+  [NewRailForm, 'rails/new-rail-form.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -326,6 +336,7 @@ const TREES = [
     at={AT}
     bridge={null}
     groups={null}
+    rails={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -339,6 +350,7 @@ const TREES = [
     at={AT}
     bridge={null}
     groups={null}
+    rails={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -352,6 +364,7 @@ const TREES = [
     at={AT}
     bridge={null}
     groups={null}
+    rails={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -365,6 +378,7 @@ const TREES = [
     at={AT}
     bridge={null}
     groups={null}
+    rails={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -389,6 +403,8 @@ const TREES = [
   <BindFields key="f3" onRole={() => undefined} onToken={() => undefined} role="view" token="" />,
   // LabelFields sits inside LabelForm for the same reason and needs its own tree for the same one.
   <LabelFields
+    mayRecolour
+    mayRename
     colour="#7c3aed"
     key="f7"
     onColour={() => undefined}
@@ -413,6 +429,8 @@ const TREES = [
   />,
   <TaskPicker chosen="" key="f5" nothing="none" onChoose={() => undefined} options="" />,
   <LabelsPanel
+    mayRecolour
+    mayRename
     create={STUB_ACTIONS.createLabel}
     key="f6"
     mayRemove
@@ -435,6 +453,7 @@ const TREES = [
     at={AT}
     bridge={null}
     groups={null}
+    rails={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -455,6 +474,7 @@ const TREES = [
     at={AT}
     bridge={null}
     groups={null}
+    rails={null}
     progress={[]}
     conflicts={<ConflictList plan={TANGLED} />}
     controls={ADMIN_CONTROLS}
@@ -462,6 +482,49 @@ const TREES = [
     share={MANAGER}
     key="j"
     plan={TANGLED}
+  />,
+  // The four rail files are the way into a plan, so the sweep has to reach all of them: RailFields sits
+  // inside RailForm and RailFeature beside it, and the walk stops at a client boundary rather than going
+  // through one, so each of the two needs a tree of its own exactly as BindFields and LabelFields do.
+  <RailsPanel
+    mayRecolour
+    mayRename
+    create={STUB_ACTIONS.createEpic}
+    createFeature={STUB_ACTIONS.createFeature}
+    key="r1"
+    mayAddFeature
+    mayRemove
+    mayReorder
+    planId={atlasPlan().id}
+    recolour={STUB_ACTIONS.recolourEpic}
+    remove={STUB_ACTIONS.removeEpic}
+    rename={STUB_ACTIONS.renameEpic}
+    reorder={STUB_ACTIONS.reorderEpic}
+    rows={railRows(planScreenModel(atlasPlan()))}
+  />,
+  <RailFields
+    mayRecolour
+    mayRename
+    colour="#3355ff"
+    features={2}
+    key="r2"
+    mayRemove
+    mayReorder
+    name="Platform"
+    onColour={() => undefined}
+    onCommit={() => undefined}
+    onName={() => undefined}
+    onOrder={() => undefined}
+    onRemove={() => undefined}
+    railOrder={0}
+    typed="Platform"
+  />,
+  <RailFeature
+    createFeature={STUB_ACTIONS.createFeature}
+    epicId="EP1"
+    key="r3"
+    planId={atlasPlan().id}
+    railName="Platform"
   />,
   <ConflictList key="k" plan={TANGLED} />,
   MANAGER,

@@ -198,6 +198,23 @@ export interface PlanScreenProps {
   readonly groups: ReactNode
 
   /**
+ * The forms that name this plan's rails, recolour them, reorder them, delete them and put a feature
+   * on one — or `null` on a surface that edits no rail.
+   *
+   * **The slot a plan is entered through.** A feature names the rail it sits on, and every other write
+   * in this product is addressed at a feature or an item under one, so before this existed a plan held
+   * nothing and could never come to: the drawer that creates a feature can only be opened on a subject
+   * that already exists. `components/plan/rails/rails-panel.tsx` carries that argument in full.
+   *
+   * A **slot** for the reason the three beside it are: what fills it is five actions plus a sixth that
+   * creates a feature, and whose credential each carries is the page's decision rather than this
+   * component's. It joins them in the heading row, which now holds four — the most a heading can carry
+   * before the page needs a different shape, and the point at which the grid below is what gives way
+   * next rather than another manager.
+   */
+  readonly rails: ReactNode
+
+  /**
    * What each linked item's task counts, as the bridge answered it — `[]` when nothing is linked.
    *
    * **Data and not a slot**, unlike the four above, and the difference is who renders it: a manager is a
@@ -305,10 +322,11 @@ export interface PlanScreenProps {
  */
 export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, bridge, controls, conflicts, drawer, groups, progress, share } = props
+  const { rails } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
     <div className="grid gap-4 pt-6" data-slot="plan-root">
-      <PlanHeading managers={<>{share}{bridge}{groups}</>} plan={plan} />
+      <PlanHeading managers={<>{share}{bridge}{rails}{groups}</>} plan={plan} />
       {conflicts}
       {drawer}
       <div className={VIEW_SWITCH.views}>

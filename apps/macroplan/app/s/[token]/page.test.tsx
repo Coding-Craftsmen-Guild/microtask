@@ -349,6 +349,7 @@ describe('which controls the seat’s own role draws', () => {
       'groups',
       'plan',
       'progress',
+      'rails',
       'share',
     ])
     expect(handed['drawer']).toBeNull()
@@ -360,6 +361,11 @@ describe('which controls the seat’s own role draws', () => {
     // `groups` is `null` for the same unfinished reason and not by policy: a plan-scoped `manage` seat holds
     // all five group actions, so this surface should draw them — what stops it is the same token binding.
     expect(handed['groups']).toBeNull()
+    // `rails` is `null` for the same reason again, and it is the one of the three that costs a seat the
+    // most: a `manage` seat holds every rail action and cannot reach one, so a seat cannot add a rail or
+    // put a feature on it — the admin surface is the only way into a plan. That is the token binding and
+    // not a grant, so it lifts with `actions` exactly as the other two do.
+    expect(handed['rails']).toBeNull()
     expect((handed['controls'] as { seats: Record<string, boolean> }).seats).toEqual({
       read: false,
       create: false,

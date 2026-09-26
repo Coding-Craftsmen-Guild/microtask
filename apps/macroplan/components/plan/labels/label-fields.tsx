@@ -4,6 +4,8 @@ const INPUT = 'h-8 w-[18ch] rounded-md border border-input bg-transparent px-2 t
 
 const SWATCH = 'size-8 cursor-pointer rounded-md border border-input bg-transparent'
 
+const DOT = 'inline-block size-3 rounded-full'
+
 /** Props for {@link LabelFields}. */
 export interface LabelFieldsProps {
   /** The group's stored name, which is what the two labels here name it by. */
@@ -23,6 +25,19 @@ export interface LabelFieldsProps {
 
   /** Called with a colour the moment one is picked. */
   readonly onColour: (value: string) => void
+
+  /**
+   * Whether the name is editable — `renameLabel`. A reader without it is shown the name as **text**.
+   *
+   * The panel is opened on `label:create`, which is a **different** action from `label:rename`, so a
+   * reader who may make a group and not rename one is a real principal. Until this answer existed the
+   * field was live for anybody who could see the panel and the two controls were read by nothing — which
+   * is the decoration `lib/plan-capabilities.ts` warns about, found by auditing the rails panel beside it.
+   */
+  readonly mayRename: boolean
+
+  /** Whether the hue is editable — `recolourLabel`, the same authority drawn as its own control. */
+  readonly mayRecolour: boolean
 }
 
 /**
@@ -38,24 +53,32 @@ export interface LabelFieldsProps {
  * the pair mid-edit names the group the reader opened rather than a half-typed one.
  */
 export function LabelFields(props: LabelFieldsProps) {
-  const { stored, typed, colour, onTyped, onCommit, onColour } = props
+  const { stored, typed, colour, onTyped, onCommit, onColour, mayRename, mayRecolour } = props
   return (
     <>
-      <input
-        aria-label={`Name of ${stored}`}
-        className={INPUT}
-        onBlur={onCommit}
-        onChange={(event) => onTyped(event.target.value)}
-        type="text"
-        value={typed}
-      />
-      <input
-        aria-label={`Colour of ${stored}`}
-        className={SWATCH}
-        onChange={(event) => onColour(event.target.value)}
-        type="color"
-        value={colour}
-      />
+      {mayRename ? (
+        <input
+          aria-label={`Name of ${stored}`}
+          className={INPUT}
+          onBlur={onCommit}
+          onChange={(event) => onTyped(event.target.value)}
+          type="text"
+          value={typed}
+        />
+      ) : (
+        <span className="text-[13px] font-medium">{stored}</span>
+      )}
+      {mayRecolour ? (
+        <input
+          aria-label={`Colour of ${stored}`}
+          className={SWATCH}
+          onChange={(event) => onColour(event.target.value)}
+          type="color"
+          value={colour}
+        />
+      ) : (
+        <span className={DOT} style={{ backgroundColor: colour }} />
+      )}
     </>
   )
 }

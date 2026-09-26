@@ -58,6 +58,7 @@ const show = (over: Shown = {}) =>
       at={AT}
       bridge={null}
       groups={null}
+      rails={null}
       progress={[]}
       conflicts={over.conflicts ?? null}
       controls={over.controls ?? ADMIN_CONTROLS}

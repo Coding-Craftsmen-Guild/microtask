@@ -312,6 +312,7 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layoutâ€
       'groups',
       'plan',
       'progress',
+      'rails',
       'share',
     ])
     expect(handed['drawer']).toBe(DRAWER)
