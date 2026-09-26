@@ -1,6 +1,6 @@
 import type { RouteHandler } from '@hono/zod-openapi'
 import type { ItemService, PlanService } from '@repo/macroplan-domain'
-import { itemView, planView } from '@repo/macroplan-domain'
+import { itemViewFor, planView } from '@repo/macroplan-domain'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
 import { PRODUCT } from '../product.js'
@@ -30,14 +30,23 @@ export const createItem =
  * Gated on `plan:read` and not on an `item:` action, because reading an item is reading part of the
  * plan: there is no narrower scope a seat could hold (ADR 0053), and a second read action would be a
  * distinction no principal could be on either side of.
+ *
+ * **So every reader of the plan reaches this route, which is why the principal is spent rather than
+ * discarded.** `itemViewFor` applies design §7.3's one shaping — an item's `linkedTaskId` is withheld from
+ * a reader below an effective `write` on the rail above it — and until phase 4 wrote that field there was
+ * nothing to withhold, so this handler dropped the principal and answered the item as stored. That went on
+ * being true after the writer arrived: a plan `view` seat was refused the link in the timeline and handed
+ * it here, which is one fact answered two ways by one API. The phase-4 gate was never breached — a task's
+ * **name** is only ever read through the bridge, which attenuates on its own — but the weaker fact that a
+ * link exists was, and `views/plan-view.ts` in `@repo/macroplan-domain` holds the argument in full.
  */
 export const readItem =
   (items: ItemService): RouteHandler<typeof readItemRoute, ApiEnv> =>
   async (c) => {
     const { planId, itemId } = c.req.valid('param')
-    authorize(c, 'plan:read', { kind: 'plan', planId })
+    const principal = authorize(c, 'plan:read', { kind: 'plan', planId })
     const found = await items.readOne({ product: PRODUCT, planId, itemId })
-    return c.json(itemView(found.item, found.description), 200)
+    return c.json(itemViewFor(found.plan, found.item, found.description, principal), 200)
   }
 
 /**

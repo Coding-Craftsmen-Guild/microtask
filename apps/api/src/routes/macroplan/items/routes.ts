@@ -43,6 +43,13 @@ export const createItemRoute = createRoute({
  * An item created and never described answers `''` rather than 404 or `null`: absence of a file is
  * the ordinary case, and so is a file that will not decode — the item, its name and its estimate all
  * live in the manifest and read back fine either way.
+ *
+ * **One field is shaped per caller and it is `linkedTaskId`**, which is why the response is not simply the
+ * stored item. Design §7.3 withholds a link from a reader below an effective `write` on the rail above the
+ * item, and this route is gated on `plan:read` alone — so every reader of the plan reaches it, and
+ * answering the stored field told a `view` seat here exactly what the plan response refuses it. The
+ * handler spends its principal on `itemViewFor` for that reason, and `item-read-leaks.test.ts` pins both
+ * directions against the plan response.
  */
 export const readItemRoute = createRoute({
   method: 'get',
@@ -53,7 +60,7 @@ export const readItemRoute = createRoute({
   request: { params: itemParams },
   responses: {
     200: {
-      description: 'The item as stored, with the description its file holds',
+      description: 'The item, with the description its file holds and its link shaped for this caller',
       content: { 'application/json': { schema: ItemView } },
     },
     ...problemResponses(),

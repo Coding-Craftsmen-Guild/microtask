@@ -8371,7 +8371,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The item as stored, with the description its file holds",
+            "description": "The item, with the description its file holds and its link shaped for this caller",
             "content": {
               "application/json": {
                 "schema": {

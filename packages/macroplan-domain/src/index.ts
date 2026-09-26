@@ -35,6 +35,7 @@ export { LabelService, type LabelChanges, type NewLabel } from './services/label
 export {
   ItemService,
   type ItemChanges,
+  type ItemFound,
   type ItemPlacement,
   type NewItem,
 } from './services/item-service.js'
@@ -52,6 +53,7 @@ export {
 } from './views/bridge-view.js'
 export {
   itemView,
+  itemViewFor,
   planListItem,
   planView,
   type ItemView,

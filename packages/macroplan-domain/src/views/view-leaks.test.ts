@@ -3,7 +3,7 @@ import type { Principal, Role } from '@repo/kernel'
 import type { EpicBinding } from '../entities/binding.js'
 import type { PlanManifest, PlanShareLink } from '../entities/plan.js'
 import { epic, feature, item, marked, planManifest, STAMP } from '../testing/index.js'
-import { itemView, planListItem, planView } from './plan-view.js'
+import { itemView, itemViewFor, planListItem, planView } from './plan-view.js'
 
 const PLAN = marked('PN', 1)
 const ELSEWHERE = marked('PN', 2)
@@ -228,6 +228,47 @@ describe('the serialised list row holds no share token for anybody at all (ADR 0
   })
 })
 
+describe('the item view a route answers withholds the link from a reader owed none (§7.3)', () => {
+  // The same sweep `planView` gets, run against the other route that answers an item. It is the
+  // disagreement that made `itemViewFor` exist: this route is gated on `plan:read` alone, so every
+  // reader of the plan reaches it, and it answered `linkedTaskId` unshaped while `planView` withheld
+  // the same field from the same reader. The binding is at `manage`, so what decides each answer is the
+  // caller's own plan role and not a blanket refusal — a `view` binding would hide the link from
+  // everybody and this could not tell a working rule from a broken one.
+  for (const caller of CALLERS) {
+    it(`${caller.linkedTask ? "carries" : "withholds"} the linked task id for ${caller.label}`, () => {
+      const plan = seed()
+      const only = plan.items[0]
+      if (only === undefined) throw new Error("the fixture holds one item")
+      const view = itemViewFor(plan, only, 'A note', caller.principal)
+      expect(view.linkedTaskId).toBe(caller.linkedTask ? LINKED_TASK : null)
+      expect(JSON.stringify(view).includes(LINKED_TASK)).toBe(caller.linkedTask)
+    })
+  }
+
+  it(
+    'agrees with planView for every caller, which is the whole point of it',
+    () => {
+      const plan = seed()
+      const only = plan.items[0]
+      if (only === undefined) throw new Error("the fixture holds one item")
+      for (const caller of CALLERS) {
+        const inTimeline = planView(plan, caller.principal).items[0]?.linkedTaskId ?? null
+        expect(itemViewFor(plan, only, '', caller.principal).linkedTaskId).toBe(inTimeline)
+      }
+    },
+  )
+
+  it(
+    'still carries the description, so the shaping did not replace the answer',
+    () => {
+      const plan = seed()
+      const only = plan.items[0]
+      if (only === undefined) throw new Error("the fixture holds one item")
+      expect(itemViewFor(plan, only, 'A note', { kind: 'admin' }).description).toBe('A note')
+    },
+  )
+})
 describe('the serialised item view holds no share token, its own plan included', () => {
   it('carries no token at all, whoever is reading', () => {
     const only = item(ITEM, FEATURE, { name: ITEM_NAME })

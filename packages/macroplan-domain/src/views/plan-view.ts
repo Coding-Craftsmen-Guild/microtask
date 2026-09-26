@@ -230,21 +230,49 @@ export function planListItem(manifest: PlanManifest, principal: Principal): Plan
 }
 
 /**
- * One item with the description its own file holds.
+ * One item with the description its own file holds, for a caller whose role is not known here.
  *
- * **It carries `linkedTaskId` unshaped, and that disagrees with {@link planView} — knowingly, and it
- * is the route's to settle rather than this function's.** `GET /plans/{planId}/items/{itemId}` answers
- * with this shape gated on `plan:read` alone, so once a writer for `linkedTaskId` exists a plan `view`
- * holder will be told through this route the one thing design §7.3 refuses them through the other:
- * that a link exists. Nothing leaks today, because no route writes the field yet.
+ * **It carries `linkedTaskId` exactly as stored**, so it is the wrong function for a response. Design
+ * §7.3 withholds a link from a reader below an effective `write`, and this cannot apply that rule: it is
+ * handed neither of the two facts the rule needs — who is asking, and the declared role of the binding on
+ * the rail above this item’s feature, which lives in the manifest. {@link itemViewFor} is the one a route
+ * uses, and it takes both.
  *
- * It cannot be settled here. §7.3's rule needs two facts this function is handed neither of — who is
- * asking, and the declared role of the binding on the rail *above* the item's feature, which lives in
- * the manifest. Giving it a principal alone would not be enough, and giving it the manifest as well
- * would make an item view a plan read. So the decision belongs where both are already in hand: the
- * handler, which holds the principal and can reach the manifest, and which should either shape the
- * field with {@link visibleTaskLink} or refuse the route below effective `write`.
+ * This one stays because a caller that has no principal is a real caller: the package's own tests build an
+ * item view to check that a description is attached, and a shaping they had to satisfy first would be a
+ * test of {@link visibleTaskLink} written twice. Nothing in `apps/api` may use it, which is a property of
+ * `apps/api`'s own leak sweep rather than of this signature.
  */
 export function itemView(item: PlanItem, description: string): ItemView {
   return { ...item, description }
+}
+
+/**
+ * One item as a **particular caller** may be told about it: {@link itemView} with §7.3's one field applied.
+ *
+ * ### The disagreement this closes
+ *
+ * `GET /plans/{planId}/items/{itemId}` is gated on `plan:read` alone — reading an item is reading part of
+ * the plan, and there is no narrower scope a seat could hold (ADR 0053). So every reader of the plan
+ * reached that route, and until this existed it answered `linkedTaskId` unshaped while {@link planView}
+ * withheld the same field from the same reader. A plan `view` seat was therefore refused the link in the
+ * timeline and handed it in the drawer, which is one fact answered two ways by one API.
+ *
+ * It leaked an **id and never a name**, so spec §9’s gate — "a `view` holder provably never receives a
+ * linked task’s name" — held throughout: a name is only ever read through the bridge, which does its own
+ * attenuation. What leaked is the weaker fact that a link exists at all, which §7.3 withholds just the
+ * same, and `view-leaks.test.ts` now pins both halves.
+ *
+ * The manifest is taken rather than looked up, because the route already has one open: `ItemService.readOne`
+ * reads it to find the item, so answering it costs nothing and asking for it here is what makes the rule
+ * checkable in this package instead of restated in the handler.
+ */
+export function itemViewFor(
+  manifest: PlanManifest,
+  item: PlanItem,
+  description: string,
+  principal: Principal,
+): ItemView {
+  const linkedTaskId = visibleTaskLink(manifest, item, planRoleOf(principal))
+  return { ...item, description, linkedTaskId }
 }

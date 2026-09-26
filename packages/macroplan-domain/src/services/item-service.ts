@@ -8,7 +8,20 @@ import type { ItemRef, PlanRef } from './refs.js'
 import { assertFeature, densifiedItems, featureItems, pickItem } from './structure-mapper.js'
 
 /**
- * What a new item is created from. A new item is linked to no Microtask task.
+ * One item as a read found it: the item, its description, and the plan it was found in.
+ *
+ * The plan is a member for {@link ItemService.readOne}'s own reason, recorded on that method: an item
+ * response has one field a reader's role decides, and deciding it needs the manifest. A caller that
+ * wants only the item ignores it, which costs nothing — it was already read.
+ */
+export interface ItemFound {
+  readonly item: PlanItem
+  readonly description: string
+  readonly plan: PlanManifest
+}
+
+/**
+ * What a new item is created from. It starts linked to nothing.
  *
  * `estimateDays` spells `| undefined` beside its `null`, for the reason
  * `@repo/microtask-domain`'s `ScopeRequest` and this package's own `NewPlan` already record: under
@@ -200,12 +213,19 @@ export class ItemService {
    * sees for either is an empty description, and nothing throws.
    *
    * Takes no lock: it is a read, and a caller holding the lock may use it.
+   *
+   * **It answers the manifest as well as the item**, which is the one thing about this signature worth
+   * knowing. Design §7.3 withholds an item's `linkedTaskId` from a reader below an effective `write`, and
+   * deciding that needs the binding on the rail above the item's feature — which is in the manifest and
+   * nowhere else. This method already reads it to find the item, so a route that shapes the field costs no
+   * second read, where a route made to fetch the plan itself would turn an item read into a plan read.
+   * `itemViewFor` in `views/plan-view.ts` is what spends it.
    */
-  async readOne(at: ItemRef): Promise<{ item: PlanItem; description: string }> {
+  async readOne(at: ItemRef): Promise<ItemFound> {
     const current = await this.#read(at)
     const item = pickItem(current, at.itemId)
     const file = await this.#ctx.store.readItem(at.product, at.planId, at.itemId)
-    return { item, description: file?.description ?? '' }
+    return { item, description: file?.description ?? '', plan: current }
   }
 
   /**
