@@ -62,9 +62,13 @@ export interface PlanSeatControls {
  * established. A grep for each of the twenty-eight is the only way to tell the two groups apart, because
  * neither the compiler nor either sweep below can: a control nobody reads typechecks.
  *
- * There is deliberately **no control about the plan itself**. `plan:rename`, `plan:retime` and
- * `plan:delete` are real actions of the API with no Server Action on either surface behind them, so
- * a boolean for plan settings would answer a question no control can act on.
+ * There is deliberately **no control about the plan itself**, and the reason is now two reasons.
+ * `plan:rename`, `plan:retime` and `plan:delete` are real actions of the API with no Server Action on
+ * either surface behind them, so a boolean for plan settings would answer a question no control can act
+ * on. `workspace:create-plan` **does** have one — `actions/plans.ts`, which the plans index mounts a form
+ * on — and still earns no boolean here: it is admin-only in the kernel, so no seat of any role can ever
+ * hold it, and the one surface that offers it is the admin index, which asks no controls at all. A
+ * control is for a question a surface can be on either side of, and that one has a single answer.
  *
  * Two of them name the same action: `renameEpic` and `recolourEpic` are both gated on
  * `epic:rename`, because `PATCH …/epics/{epicId}` authorises once for a name, a colour or both

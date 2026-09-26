@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { seal } from '@repo/app-session/crypto'
 import { COLUMN } from '@repo/ui/shell/page'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { CREATE_PLAN_WORDS } from '../../components/plans/create-plan'
 import { payloadOf } from '../../lib/principal'
 import { ACTION_REFUSALS } from '../../lib/refusal'
 import { SERVICE_UNAVAILABLE } from '../../lib/problem'
@@ -132,6 +133,29 @@ describe('the admin landing page', () => {
     )
     expect(screen.queryByText(SEAT_TOKEN)).toBeNull()
     expect(screen.queryByText('Auth rewrite')).toBeNull()
+  })
+
+  it('offers the create form for a workspace that holds no plans, which is the only way out of empty', async () => {
+    holdingAdmin(api)
+    await show()
+    expect(screen.getByText('No plans yet — there is nothing to open.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: CREATE_PLAN_WORDS.submit })).toBeTruthy()
+  })
+
+  it('keeps the create form usable when the list itself was refused, the two being separate reads', async () => {
+    holdingAdmin(api)
+    api.answers.set(listKey(), () => problemAnswer(403, 'Not permitted: workspace:list-plans'))
+    await show()
+    expect(screen.getByRole('alert').textContent).toBe(ACTION_REFUSALS.admin.forbidden)
+    expect(screen.getByRole('button', { name: CREATE_PLAN_WORDS.submit })).toBeTruthy()
+  })
+
+  it('dates the form from the same instant the rows are aged against, in UTC as a new plan is', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    await show()
+    const start = screen.getByLabelText<HTMLInputElement>(CREATE_PLAN_WORDS.start)
+    expect(start.value).toBe(new Date().toISOString().slice(0, 10))
   })
 
   it('says there are no plans yet, for a workspace that holds none', async () => {

@@ -31,6 +31,15 @@ export const isLinkSurface = (pathname: string): boolean =>
   pathname === LINK_ROOT || pathname.startsWith(`${LINK_ROOT}/`)
 
 /**
+ * The plans index, which is this app's own root.
+ *
+ * Exported rather than written at its one call site so it is the same string in the page's address
+ * and in the `?next=` an expired session carries back to it — `apps/microtask` keeps its own
+ * `PROJECTS_INDEX_PATH` for the same reason. It is a constant and not a builder because the index
+ * takes no parameter: there is one plans list and it is where signing in already lands.
+ */
+export const PLANS_INDEX_PATH = '/'
+/**
  * Where one plan is read on the admin surface.
  *
  * `encodeURIComponent` is unconditional for the reason `packages/api-client/src/paths.ts` gives
