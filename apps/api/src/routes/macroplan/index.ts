@@ -3,6 +3,7 @@ import {
   EpicService,
   FeatureService,
   ItemService,
+  LabelService,
   PlanService,
   PlanShareLinkService,
   type PlanContext,
@@ -61,6 +62,7 @@ export const bridgeFor = (deps: ApiDeps, resolver: PrincipalResolver): Pick<Plan
 const servicesFor = (ctx: PlanContext, bridge: Pick<PlanServices, 'bridge' | 'bindings'>): PlanServices => ({
   plans: new PlanService(ctx),
   epics: new EpicService(ctx),
+  labels: new LabelService(ctx),
   features: new FeatureService(ctx),
   items: new ItemService(ctx),
   seats: new PlanShareLinkService(ctx),

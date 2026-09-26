@@ -33,6 +33,7 @@ describe('resolving the one subject a drawer is open on', () => {
       plan: {
         calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
         features: atlasPlan().features,
+        labels: atlasPlan().labels,
       },
       sizedByItems: true,
     })

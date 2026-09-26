@@ -55,6 +55,7 @@ export function planScreenModel(plan: Plan): PlanScreenModel {
     sprintLengthDays: plan.sprintLengthDays,
     timezone: plan.timezone,
     epics: plan.epics,
+    labels: plan.labels,
     features: plan.features,
     items: plan.items,
     schedule: plan.schedule,

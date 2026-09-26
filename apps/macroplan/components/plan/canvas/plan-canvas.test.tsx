@@ -80,6 +80,7 @@ const cappedFeatures = () =>
     position: index,
     estimateDays: ITEMS_PER_FEATURE,
     pinSprint: null,
+    labelId: null,
     dependsOn: [],
     ...stamps,
   }))
@@ -131,6 +132,7 @@ describe('the geometry the components are kept thin by', () => {
   const frame: RailFrame = {
     marks: new Map(),
     treatments: new Map(),
+    groups: new Map(),
     draws: DRAWS.feature,
     labelX: 0,
     axisX: dayToX(0, CANVAS_SCALE),

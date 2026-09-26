@@ -53,6 +53,20 @@ export interface PlanTableRowProps {
  * A feature row's item cell is **empty** rather than a dash. The row is about a feature; a dash is a
  * glyph a reader has to interpret, and `data-kind` already says what the row is for a test.
  *
+ * ### The group cell, and the attribute beside it
+ *
+ * The cell names the group in **words**, and `data-label-id` on the row carries the same fact as an id.
+ * Two spellings of one thing because they are read by different things and only one of them is paint:
+ * the chips beside the plan’s name dim every row not in the chosen group by a generated rule matching
+ * that attribute (`../labels/group-css.ts`), and a reader who cannot see dimming has the words. An item
+ * row carries its **feature's** group, for the reason the epic and feature cells are repeated on every
+ * row: a spanned or blank cell is announced once and then silently inherited, so a reader landing
+ * mid-table could not ask which phase a line belongs to.
+ *
+ * The attribute is `undefined` and not `null` for a feature in no group, so the attribute is **absent**
+ * rather than empty — `[data-label-id]` is what the generated rule selects on, so a row with an empty
+ * one would be dimmed by every group instead of by none.
+ *
  * ### `blockedBy`
  *
  * Every dependency the feature states is listed, and each one says in **words** what became of it —
@@ -66,6 +80,7 @@ export function PlanTableRow({ row, progress }: PlanTableRowProps) {
   return (
     <tr
       data-kind={row.kind}
+      data-label-id={row.labelId ?? undefined}
       data-slot="plan-table-row"
       data-testid={`row-${row.id}`}
       data-treatment={row.treatment}
@@ -85,6 +100,9 @@ export function PlanTableRow({ row, progress }: PlanTableRowProps) {
           {row.item}
         </th>
       )}
+      <td className={CELL} data-slot="group">
+        {row.group}
+      </td>
       <td className={CELL}>{row.estimate}</td>
       <td className={CELL}>{row.sprint}</td>
       <td className={CELL} data-slot="progress">

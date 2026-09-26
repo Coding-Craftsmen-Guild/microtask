@@ -8,7 +8,7 @@ const PLAN: ScopeValue = { kind: 'plan', planId: '01HZZZZZZZZZZZZZZZZZZZZZZZ' }
 const PROJECT: ScopeValue = { kind: 'project', projectId: '01HZZZZZZZZZZZZZZZZZZZZZZZ' }
 
 // Both groups flattened to one list of `group.control` pairs, so a sweep below reads every boolean
-// the type holds at either level rather than the twenty-three and then, separately, the four.
+// the type holds at either level rather than the twenty-eight and then, separately, the four.
 const leaves = (controls: PlanControls): readonly (readonly [string, boolean])[] => [
   ...Object.entries(controls.content).map(([name, answer]): [string, boolean] => [
     `content.${name}`,
@@ -28,11 +28,11 @@ const refused = (controls: PlanControls): readonly string[] =>
 describe('the admin draws every control there is', () => {
   it('answers true for every one of them, at both levels, with none left false', () => {
     expect(refused(ADMIN_CONTROLS)).toEqual([])
-    expect(leaves(ADMIN_CONTROLS)).toHaveLength(27)
+    expect(leaves(ADMIN_CONTROLS)).toHaveLength(32)
   })
 
-  it('draws all twenty-three content controls and all four seat controls', () => {
-    expect(Object.values(ADMIN_CONTROLS.content)).toHaveLength(23)
+  it('draws all twenty-eight content controls and all four seat controls', () => {
+    expect(Object.values(ADMIN_CONTROLS.content)).toHaveLength(28)
     expect(Object.values(ADMIN_CONTROLS.seats)).toHaveLength(4)
   })
 

@@ -99,6 +99,7 @@ describe('the macroplan surface reaches no microtask operation', () => {
       'epics',
       'features',
       'items',
+      'labels',
       'plans',
       'shareLinks',
     ])

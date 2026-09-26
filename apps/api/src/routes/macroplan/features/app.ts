@@ -6,6 +6,7 @@ import {
   deleteFeature,
   placeFeature,
   setDependencies,
+  setFeatureLabel,
   updateFeature,
 } from './handlers.js'
 import {
@@ -13,6 +14,7 @@ import {
   deleteFeatureRoute,
   placeFeatureRoute,
   setDependenciesRoute,
+  setFeatureLabelRoute,
   updateFeatureRoute,
 } from './routes.js'
 
@@ -31,6 +33,7 @@ export function createFeatures(features: FeatureService): OpenAPIHono<ApiEnv> {
   app.openapi(createFeatureRoute, createFeature(features))
   app.openapi(placeFeatureRoute, placeFeature(features))
   app.openapi(setDependenciesRoute, setDependencies(features))
+  app.openapi(setFeatureLabelRoute, setFeatureLabel(features))
   app.openapi(updateFeatureRoute, updateFeature(features))
   app.openapi(deleteFeatureRoute, deleteFeature(features))
   return app

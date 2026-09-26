@@ -81,6 +81,7 @@ const TARGET_BY_KIND: Readonly<Record<KernelKind, (scope: Scope) => Target>> = {
   tab: (scope) => ({ kind: 'tab', projectId: projectIdOf(scope), taskId: taskOf(scope) }),
   plan: (scope) => ({ kind: 'plan', planId: planIdOf(scope) }),
   epic: (scope) => ({ kind: 'epic', planId: planIdOf(scope) }),
+  label: (scope) => ({ kind: 'label', planId: planIdOf(scope) }),
   feature: (scope) => ({ kind: 'feature', planId: planIdOf(scope) }),
   item: (scope) => ({ kind: 'item', planId: planIdOf(scope) }),
 }

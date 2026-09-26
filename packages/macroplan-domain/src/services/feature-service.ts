@@ -1,13 +1,19 @@
-import { Conflict, Invalid, NotFound, type Product } from '@repo/kernel'
-import { findCycles } from '@repo/schedule'
+import { NotFound, type Product } from '@repo/kernel'
 import type { PlanFeature } from '../entities/feature.js'
 import type { PlanManifest } from '../entities/plan.js'
 import { assertWithin, cleanName } from '../limits.js'
 import { withoutFeatures } from './cascade.js'
+import { assertAcyclic, assertEdgesExist, edgeTotal } from './feature-edges.js'
 import type { PlanContext } from './context.js'
 import { placeAmong } from './positions.js'
 import type { PlanRef } from './refs.js'
-import { assertEpic, assertFeature, densifiedFeatures, pickFeature, railFeatures } from './structure-mapper.js'
+import {
+  assertEpic,
+  assertLabel,
+  densifiedFeatures,
+  pickFeature,
+  railFeatures,
+} from './structure-mapper.js'
 
 /**
  * What a new feature is created from. It starts with no dependencies at all.
@@ -35,6 +41,12 @@ export interface NewFeature {
  * it" with no spelling of its own. `dependsOn` is absent here: replacing an edge list is checked
  * against the plan-wide edge budget and refused when it closes a cycle, which is a different
  * operation and is {@link FeatureService.setDependencies}.
+ *
+ * `labelId` is absent for a reason of its own rather than that one. Putting a feature in a group is a
+ * different authority (`feature:label`), and the id it names has to be checked against this plan — so
+ * folding it in would have made one key of this interface the only one able to fail for a reason having
+ * nothing to do with the feature, halfway through a rename. {@link FeatureService.setLabel} is that
+ * write, and `null` there is how a feature leaves a group.
  *
  * Every member spells `| undefined` for the reason {@link NewFeature}'s two do: a validated `PATCH`
  * body infers `name?: string | undefined`, and {@link FeatureService.update} tests each key against
@@ -64,27 +76,6 @@ const applied = (
   updatedAt,
 })
 
-const edgeTotal = (features: readonly PlanFeature[]): number =>
-  features.reduce((running, each) => running + each.dependsOn.length, 0)
-
-function assertEdgesExist(
-  manifest: PlanManifest,
-  featureId: string,
-  dependsOn: readonly string[],
-): void {
-  for (const id of dependsOn) {
-    if (id === featureId) throw new Invalid('A feature cannot depend on itself')
-    assertFeature(manifest, id)
-  }
-}
-
-function assertAcyclic(features: readonly PlanFeature[]): void {
-  const cycles = findCycles(features)
-  if (cycles.length === 0) return
-  const named = cycles.map((cycle) => cycle.featureIds.join(', ')).join('; ')
-  throw new Conflict(`These features would wait on each other: ${named}`)
-}
-
 /** Adds, edits, moves, re-points and removes the features of one plan. */
 export class FeatureService {
   readonly #ctx: PlanContext
@@ -109,6 +100,7 @@ export class FeatureService {
         position: railFeatures(current, feature.epicId).length,
         estimateDays: feature.estimateDays ?? null,
         pinSprint: feature.pinSprint ?? null,
+        labelId: null,
         dependsOn: [],
         createdAt: stamp,
         updatedAt: stamp,
@@ -122,6 +114,34 @@ export class FeatureService {
     return this.#ctx.lock.run(async () => {
       const current = await this.#read(at)
       const next = applied(pickFeature(current, featureId), changes, this.#ctx.clock.now())
+      const features = current.features.map((each) => (each.id === featureId ? next : each))
+      return this.#save(at.product, { ...current, features })
+    })
+  }
+
+  /**
+   * Puts one feature in a group, or takes it out of one with `null`. Moves nothing.
+   *
+   * Its own method and not a key on {@link FeatureService.update}, because it is its own authority
+   * (`feature:label`) and because the id has to be checked against this plan — `assertLabel` refuses a
+   * label of another plan, which is the cross-plan reference ADR 0050 exists to stop. `update`'s three
+   * fields need no such check, so folding this in would have made one of its keys the only one that
+   * could fail for a reason having nothing to do with the feature.
+   *
+   * It is **idempotent and still writes**, unlike `EpicService.unbind` beside it. Re-grouping a feature
+   * into the group it is already in restamps it and the plan, and that is deliberate: the guard there
+   * exists because an unbind is a `DELETE` a client retries, where this is a `PUT` of a value a person
+   * picked, so the same value arriving twice is two decisions rather than one retry.
+   *
+   * No span moves. `@repo/schedule` reads `PlanStructure`, which names no group, so the plan this
+   * answers schedules exactly as the plan it was handed.
+   */
+  async setLabel(at: PlanRef, featureId: string, labelId: string | null): Promise<PlanManifest> {
+    return this.#ctx.lock.run(async () => {
+      const current = await this.#read(at)
+      const found = pickFeature(current, featureId)
+      if (labelId !== null) assertLabel(current, labelId)
+      const next: PlanFeature = { ...found, labelId, updatedAt: this.#ctx.clock.now() }
       const features = current.features.map((each) => (each.id === featureId ? next : each))
       return this.#save(at.product, { ...current, features })
     })

@@ -19,7 +19,7 @@ import { PlanTable } from './plan-table'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
-const COLUMNS = ['Epic', 'Feature', 'Item', 'Estimate', 'Sprint', 'Progress', 'Blocked by']
+const COLUMNS = ['Epic', 'Feature', 'Item', 'Group', 'Estimate', 'Sprint', 'Progress', 'Blocked by']
 
 const NAME = 'Table of Atlas rollout'
 
@@ -58,6 +58,7 @@ const planAtCap = (): Plan => {
     position: index,
     estimateDays: ITEMS_PER_FEATURE,
     pinSprint: null,
+    labelId: null,
     dependsOn: [],
     ...stamps,
   }))
@@ -184,10 +185,14 @@ describe('the table as a screen reader meets it', () => {
 
   it('repeats the epic and the feature on every row, rather than spanning a cell down the table', () => {
     render(<PlanTable plan={planScreenModel(atlasPlan())} />)
-    // Seven cells now, and the progress one is empty on both: nothing in this fixture is linked, and
+    // Eight cells now. The group is named on the **item** row as well as the feature's, which is the
+    // same repetition the epic and the feature cells make and for the same reason: a spanned or blank
+    // cell is announced once and then silently inherited, so a reader landing mid-table could not ask
+    // which phase a line belongs to. Progress is empty on both — nothing in this fixture is linked, and
     // a feature never carries a counted number of its own whatever its items are linked to.
-    expect(cells(ITEM_2)).toEqual(['Platform', 'Auth rewrite', 'Password reset', '2d', 'S1', '', ''])
-    expect(cells(FEATURE_1)).toEqual(['Platform', 'Auth rewrite', '', '5d', 'S1', '', ''])
+    const row = ['Platform', 'Auth rewrite']
+    expect(cells(ITEM_2)).toEqual([...row, 'Password reset', 'Phase 1', '2d', 'S1', '', ''])
+    expect(cells(FEATURE_1)).toEqual([...row, '', 'Phase 1', '5d', 'S1', '', ''])
     expect(all('[rowspan], [colspan]')).toHaveLength(0)
   })
 })

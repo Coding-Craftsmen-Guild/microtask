@@ -4,13 +4,14 @@ import {
   FEATURE_1,
   FEATURE_2,
   ITEM_1,
+  LABEL_1,
   MANAGE_SEAT_TOKEN,
   PLAN_A,
   WRITE_SEAT_TOKEN,
 } from './testing/plan-fixture'
 
 // Every export of `actions/seat-writes.ts`, each replaced by a recorder that says which of the
-// twenty-three was reached and with what. Names rather than `vi.fn()`s per export, because what this
+// twenty-eight was reached and with what. Names rather than `vi.fn()`s per export, because what this
 // file has to prove is *which* action a member is wired to, and a recorder that carries its own
 // name proves it in one assertion.
 const SEAT_BRIDGE = [
@@ -19,6 +20,11 @@ const SEAT_BRIDGE = [
   'seatLinkItem',
   'seatUnlinkItem',
   'seatCreateTask',
+  'seatCreateLabel',
+  'seatRenameLabel',
+  'seatRecolourLabel',
+  'seatRemoveLabel',
+  'seatLabelFeature',
 ]
 
 const SEAT_WRITES = [
@@ -90,6 +96,31 @@ interface Wiring {
 // member is the stronger check anyway — it catches the swap the compiler is blind to *and* proves
 // the token was bound in as the first argument, which a name comparison says nothing about.
 const WIRING: readonly Wiring[] = [
+  {
+    key: 'createLabel',
+    run: () => actions.createLabel(PLAN_A, { name: 'Phase 3' }),
+    sends: ['seatCreateLabel', TOKEN, PLAN_A, { name: 'Phase 3' }],
+  },
+  {
+    key: 'renameLabel',
+    run: () => actions.renameLabel(PLAN_A, LABEL_1, NAME),
+    sends: ['seatRenameLabel', TOKEN, PLAN_A, LABEL_1, NAME],
+  },
+  {
+    key: 'recolourLabel',
+    run: () => actions.recolourLabel(PLAN_A, LABEL_1, COLOUR),
+    sends: ['seatRecolourLabel', TOKEN, PLAN_A, LABEL_1, COLOUR],
+  },
+  {
+    key: 'removeLabel',
+    run: () => actions.removeLabel(PLAN_A, LABEL_1),
+    sends: ['seatRemoveLabel', TOKEN, PLAN_A, LABEL_1],
+  },
+  {
+    key: 'labelFeature',
+    run: () => actions.labelFeature(PLAN_A, FEATURE_1, LABEL_1),
+    sends: ['seatLabelFeature', TOKEN, PLAN_A, FEATURE_1, LABEL_1],
+  },
   {
     key: 'createEpic',
     run: () => actions.createEpic(PLAN_A, { name: 'Billing' }),
@@ -221,9 +252,9 @@ describe("the seat surface's wiring, checked by calling every member", () => {
   // way, sorted, because what this sweep has to catch is a member missing from one side or the
   // other — not a reordering of `seatPlanActions`'s object literal, which `WIRING` above happens to
   // mirror for readability but which no test needs to hold.
-  it('wires all twenty-three, so the sweep above is neither empty nor short of one', () => {
-    expect(WIRING).toHaveLength(23)
-    expect(Object.keys(actions)).toHaveLength(23)
+  it('wires all twenty-eight, so the sweep above is neither empty nor short of one', () => {
+    expect(WIRING).toHaveLength(28)
+    expect(Object.keys(actions)).toHaveLength(28)
     expect(sorted(WIRING.map((one) => one.key))).toEqual(sorted(Object.keys(actions)))
   })
 

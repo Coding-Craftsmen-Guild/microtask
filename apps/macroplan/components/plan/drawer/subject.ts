@@ -201,7 +201,7 @@ export function drawerSubject(
     values: {
       ...values,
       place,
-      plan: { calendar: calendarOf(plan), features: plan.features },
+      plan: { calendar: calendarOf(plan), features: plan.features, labels: plan.labels },
       sizedByItems: sizedByItems(plan, kind, id),
     },
   }

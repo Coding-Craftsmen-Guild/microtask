@@ -53,6 +53,7 @@ describe('the caps a form enforces before a request is worth sending (ADR 0036)'
       projectsPerProduct: 500,
       plansPerProduct: 200,
       epicsPerPlan: 40,
+      labelsPerPlan: 20,
       featuresPerPlan: 200,
       itemsPerPlan: 2_000,
       edgesPerPlan: 400,

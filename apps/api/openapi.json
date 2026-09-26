@@ -1605,6 +1605,13 @@
             },
             "maxItems": 40
           },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanLabel"
+            },
+            "maxItems": 20
+          },
           "features": {
             "type": "array",
             "items": {
@@ -1643,6 +1650,7 @@
           "sprintLengthDays",
           "timezone",
           "epics",
+          "labels",
           "features",
           "items",
           "createdAt",
@@ -1719,6 +1727,34 @@
         ],
         "description": "An epic’s binding, without the token that grants it"
       },
+      "PlanLabel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "colour": {
+            "$ref": "#/components/schemas/RailColour"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "colour",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A group of features cutting across rails: a name and a colour"
+      },
       "PlanFeature": {
         "type": "object",
         "properties": {
@@ -1739,6 +1775,19 @@
           },
           "pinSprint": {
             "$ref": "#/components/schemas/SprintIndex"
+          },
+          "labelId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
           },
           "dependsOn": {
             "type": "array",
@@ -1761,11 +1810,12 @@
           "position",
           "estimateDays",
           "pinSprint",
+          "labelId",
           "dependsOn",
           "createdAt",
           "updatedAt"
         ],
-        "description": "A feature on one rail, its estimate, its pin, and its dependencies"
+        "description": "A feature on one rail, its estimate, its pin, its group, and its dependencies"
       },
       "EstimateDays": {
         "type": [
@@ -2139,6 +2189,33 @@
         ],
         "description": "A share-link token and the bridge role it is bound at"
       },
+      "CreateLabelPayload": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "colour": {
+            "$ref": "#/components/schemas/RailColour"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "description": "A label to create: its name, and optionally its colour"
+      },
+      "UpdateLabelPayload": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/EntityName"
+          },
+          "colour": {
+            "$ref": "#/components/schemas/RailColour"
+          }
+        },
+        "description": "A new name, a new colour, or both"
+      },
       "CreateFeaturePayload": {
         "type": "object",
         "properties": {
@@ -2192,6 +2269,28 @@
           "dependsOn"
         ],
         "description": "Every feature this one depends on"
+      },
+      "FeatureLabelPayload": {
+        "type": "object",
+        "properties": {
+          "labelId": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EntityId"
+              },
+              {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "labelId"
+        ],
+        "description": "Which group a feature is in, or null for none"
       },
       "UpdateFeaturePayload": {
         "type": "object",
@@ -7007,6 +7106,303 @@
         }
       }
     },
+    "/v1/macroplan/plans/{planId}/labels": {
+      "post": {
+        "tags": [
+          "labels"
+        ],
+        "summary": "Add a label to a plan",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLabelPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans/{planId}/labels/{labelId}": {
+      "patch": {
+        "tags": [
+          "labels"
+        ],
+        "summary": "Rename or recolour one label",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "labelId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLabelPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "labels"
+        ],
+        "summary": "Remove one label, keeping every feature that was in it",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "labelId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/macroplan/plans/{planId}/features": {
       "post": {
         "tags": [
@@ -7295,6 +7691,112 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans/{planId}/features/{featureId}/label": {
+      "put": {
+        "tags": [
+          "features"
+        ],
+        "summary": "Put one feature in a group, or take it out of one",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "featureId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureLabelPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {

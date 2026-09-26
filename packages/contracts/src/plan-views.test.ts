@@ -21,6 +21,7 @@ const plan = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   sprintLengthDays: 10,
   timezone: 'UTC',
   epics: [],
+  labels: [],
   features: [],
   items: [],
   shareLinks: [],

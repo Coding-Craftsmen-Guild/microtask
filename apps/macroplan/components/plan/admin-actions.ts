@@ -23,6 +23,13 @@ import {
   removeItem,
   renameItem,
 } from '../../actions/items'
+import {
+  createLabel,
+  labelFeature,
+  recolourLabel,
+  removeLabel,
+  renameLabel,
+} from '../../actions/labels'
 import type { PlanEditActions } from './edit-actions'
 
 /**
@@ -43,6 +50,11 @@ export const ADMIN_PLAN_ACTIONS: PlanEditActions = {
   recolourEpic,
   reorderEpic,
   removeEpic,
+  createLabel,
+  renameLabel,
+  recolourLabel,
+  removeLabel,
+  labelFeature,
   createFeature,
   renameFeature,
   estimateFeature,

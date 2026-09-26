@@ -7,8 +7,8 @@ import { EstimateDays, Position, SprintIndex } from './plan.js'
  * The body of the route that creates a feature on a rail.
  *
  * This file's side of the payload seam is everything that sits on a rail — features and items, and
- * so the estimates, pins, dependencies and descriptions only they carry; a plan's own settings and
- * its rails are `plan-payloads.ts`, and a seat on a plan is `plan-share-payloads.ts`.
+ * so the estimates, pins, dependencies, group membership and descriptions only they carry; a plan's
+ * own settings, its rails and the labels themselves are `plan-payloads.ts`, and a seat on a plan is `plan-share-payloads.ts`.
  *
  * `estimateDays` and `pinSprint` are each nullable and optional: a feature is usually created
  * with neither, so both may be left off the body, and `null` is there for a caller that wants to
@@ -67,6 +67,22 @@ export const FeaturePlacementPayload = z
 export const DependenciesPayload = z
   .object({ dependsOn: z.array(EntityId).max(LIMITS.edgesPerPlan).readonly() })
   .meta({ id: 'DependenciesPayload', description: 'Every feature this one depends on' })
+
+/**
+ * The body of the route that puts one feature in a group, or takes it out of one.
+ *
+ * `labelId` is **nullable and required**, which is what separates this from every `PATCH` body in this
+ * file: those make each field optional so an absent key leaves it alone, where this route replaces the
+ * one field it is about. So `null` is the spelling of "in no group", and a body with no `labelId` at all
+ * is a 422 rather than a write that clears the group by accident.
+ *
+ * Its own route and not a key on {@link UpdateFeaturePayload} because it is its own authority —
+ * `feature:label` — and because the id it names is checked against the plan's own labels, which a body
+ * that also carried a name would have done halfway through a rename.
+ */
+export const FeatureLabelPayload = z
+  .object({ labelId: EntityId.nullable() })
+  .meta({ id: 'FeatureLabelPayload', description: 'Which group a feature is in, or null for none' })
 
 /** The body of the route that creates an item under a feature. */
 export const CreateItemPayload = z

@@ -8,6 +8,7 @@ import type {
   NewEpic,
   NewFeature,
   NewItem,
+  NewLabel,
   Plan,
 } from '@repo/api-client'
 import type { ActionResult } from '../../actions/result'
@@ -73,6 +74,32 @@ export interface PlanEditActions {
 
   /** Removes one rail, its features and their items. */
   removeEpic: (planId: string, epicId: string) => Answer
+
+  /**
+   * Adds a label to the plan: a group features on any rail are put into. `manage`-only.
+   *
+   * The five group members below are the first writes on this interface about something that is neither
+   * a rail, a feature nor an item. A label belongs to the **plan**, which is what lets one group hold
+   * work from several rails — and that is the whole of what a group is for.
+   */
+  createLabel: (planId: string, label: NewLabel) => Answer
+
+  /** Renames one label. */
+  renameLabel: (planId: string, labelId: string, name: string) => Answer
+
+  /** Recolours one label, which the API authorises as a rename. */
+  recolourLabel: (planId: string, labelId: string, colour: string) => Answer
+
+  /** Removes one label, clearing it off every feature in it and deleting none of them. */
+  removeLabel: (planId: string, labelId: string) => Answer
+
+  /**
+   * Puts one feature in a group, or takes it out of one with `null`.
+   *
+   * Named for the **feature** because that is what it writes: a group is a field of the feature, so this
+   * is the only member here that changes what a group contains. `null` is the one way out of a group.
+   */
+  labelFeature: (planId: string, featureId: string, labelId: string | null) => Answer
 
   /** Adds a feature at the end of the rail its draft names. */
   createFeature: (planId: string, feature: NewFeature) => Answer

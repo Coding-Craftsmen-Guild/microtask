@@ -44,7 +44,7 @@ export interface PlanSeatControls {
  * it asserts that all of them stay wired whatever these booleans answer. So a further control
  * with no action behind it, and a further action with no control able to call it, each fail there.
  *
- * **Five of the twenty-three have no call site, and they are the five *rail* controls.** `createEpic`,
+ * **Five of the twenty-eight have no call site, and they are the five *rail* controls.** `createEpic`,
  * `renameEpic`, `recolourEpic`, `reorderEpic` and `removeEpic` are read by nothing: spec §9's phase-3
  * row is "drawer, create/rename/delete, estimates, pins, reorder, edges, conflict list, undo, the share
  * manager", and a rail is not among the things it names — the canvas draws rails from the plan and
@@ -59,7 +59,7 @@ export interface PlanSeatControls {
  * decoration of exactly the kind the paragraph above is about. Two are spent by a **page** deciding
  * whether to mount a surface at all — `bindEpic` for the bindings panel, `linkItem` for the drawer's link
  * field — and the other three cross into those surfaces as flat booleans, the shape `ShareManager`
- * established. A grep for each of the twenty-three is the only way to tell the two groups apart, because
+ * established. A grep for each of the twenty-eight is the only way to tell the two groups apart, because
  * neither the compiler nor either sweep below can: a control nobody reads typechecks.
  *
  * There is deliberately **no control about the plan itself**. `plan:rename`, `plan:retime` and
@@ -107,6 +107,30 @@ export interface PlanContentControls {
 
   /** Deleting a rail, its features and their items. */
   readonly removeEpic: boolean
+
+  /**
+   * Adding a label: a group features on any rail are put into. `manage`-only, like all five below.
+   *
+   * The group controls are the first here about something that is neither a rail, a feature nor an item.
+   * A label belongs to the **plan**, which is what lets one group hold work from several rails at once.
+   * All five sit at `manage` for the reason `pinFeature` does rather than for a tier: deciding which
+   * release a feature belongs to is shaping the plan, not doing the work in it, so a `write` seat that
+   * could regroup its rails would be rewriting a roadmap by relabelling it. Note the asymmetry that
+   * follows — a `write` seat may **rename** a feature and may not put it in a group.
+   */
+  readonly createLabel: boolean
+
+  /** Renaming a label. */
+  readonly renameLabel: boolean
+
+  /** Recolouring a label, which the API authorises as a rename. */
+  readonly recolourLabel: boolean
+
+  /** Deleting a label, which deletes no feature that was in it. */
+  readonly removeLabel: boolean
+
+  /** Putting one feature in a group, or taking it out of one. */
+  readonly labelFeature: boolean
 
   /** Adding a feature to a rail. */
   readonly createFeature: boolean
@@ -228,7 +252,7 @@ export interface PlanContentControls {
  * hidden.
  */
 export interface PlanControls {
-  /** The twenty-three structural writes of the plan's content. */
+  /** The twenty-eight structural writes of the plan's content. */
   readonly content: PlanContentControls
 
   /** The four questions a share manager asks, which are about seats and not about content. */
@@ -265,7 +289,12 @@ export interface PlanControls {
  * (`packages/contracts/src/capabilities.ts`). So for these rows the record's answer and
  * `mayReach(role, scope, action, ACTION_DECISIONS[action].target)` are the same call, and a
  * `mayReach` here would name the target twice while suggesting the record is wrong about it. What
- * separates the two halves of this function is therefore a property of the record, checked row by
+ * The five **group** rows are read off the record too, and the same three facts hold of them:
+ * `label:create`, `label:rename` and `label:delete` are gated on a `label` target and `feature:label` on
+ * a `feature` one; `label` is in `PLAN_FAMILY`, so a plan scope reaches it; and each of those handlers
+ * makes exactly one `authorize()` call, there being one field to gate.
+ *
+ * What separates the two halves of this function is therefore a property of the record, checked row by
  * row in `plan-capabilities.test.ts` and not assumed from the fact that they are seat rows.
  *
  * There is no admin case **in this function**, because an admin is not a role in this model and holds
@@ -295,7 +324,7 @@ export function planCapabilities(role: RoleValue, scope: ScopeValue): PlanContro
  *
  * `may` is asked rather than a `Capabilities` record read, and that is what lets the admin surface
  * through here at all: an admin is not a role and holds no scope, so it has no record — it answers
- * `true` to every question, and `() => true` is that sentence written once instead of twenty-three times
+ * `true` to every question, and `() => true` is that sentence written once instead of twenty-eight times
  * (`lib/admin-controls.ts`). The parameter is a `CapabilityAction`, so a misspelt action is a compile
  * error on whichever side asks it, exactly as indexing a record was.
  *
@@ -312,7 +341,7 @@ export function planCapabilities(role: RoleValue, scope: ScopeValue): PlanContro
  * four are `mayReach(role, scope, …, 'plan')` rather than record reads — the `share:*` rows name a
  * `project` target, so the record answers `false` for a plan seat the server would serve — and an
  * admin's four are simply `true`. Neither is a function of an action alone, so the caller decides
- * them and this decides the twenty-three.
+ * them and this decides the twenty-eight.
  *
  * @param may - Whether this surface's principal clears one action. `() => true` for the admin.
  * @param seats - The four seat answers, which no action lookup can decide (see above).
@@ -329,6 +358,11 @@ export function planControls(
       recolourEpic: may('epic:rename'),
       reorderEpic: may('epic:reorder'),
       removeEpic: may('epic:delete'),
+      createLabel: may('label:create'),
+      renameLabel: may('label:rename'),
+      recolourLabel: may('label:rename'),
+      removeLabel: may('label:delete'),
+      labelFeature: may('feature:label'),
       createFeature: may('feature:create'),
       renameFeature: may('feature:rename'),
       estimateFeature: may('feature:estimate'),

@@ -57,6 +57,7 @@ const show = (over: Shown = {}) =>
       actions={over.actions ?? null}
       at={AT}
       bridge={null}
+      groups={null}
       progress={[]}
       conflicts={over.conflicts ?? null}
       controls={over.controls ?? ADMIN_CONTROLS}
@@ -75,8 +76,18 @@ const gridChildren = (container: HTMLElement): readonly Element[] => {
   return [...grid.children]
 }
 
+// Every radio of the **view switch**, named by its own group rather than found by role.
+//
+// `getAllByRole('radio')` was what these asked, and the group chips broke it: they are radios too — a
+// native radio group is how a group is selected with no JavaScript (`labels/group-chips.tsx`) — and they
+// are drawn in the heading, so they come first in document order. A sweep over every radio on the screen
+// was therefore asserting facts about the switch against a chip. Naming `plan-view` is also the more
+// precise test: what these cases are about is that the two renderings are one group the browser owns.
+const viewRadios = (): readonly HTMLInputElement[] => [
+  ...document.querySelectorAll<HTMLInputElement>('input[name="plan-view"]'),
+]
 const firstRadio = (): HTMLElement => {
-  const found = screen.getAllByRole('radio')[0]
+  const found = viewRadios()[0]
   if (found === undefined) throw new Error('the view switch drew no radio')
   return found
 }
@@ -120,14 +131,14 @@ describe('the switch between them', () => {
     show()
     expect(radio('Timeline').getAttribute('name')).toBe('plan-view')
     expect(radio('Table').getAttribute('name')).toBe(radio('Timeline').getAttribute('name'))
-    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    expect(viewRadios()).toHaveLength(2)
   })
 
   it('describes the choice on both radios, rather than claiming a group the markup is not', () => {
     show()
     const hint = document.getElementById('plan-view-hint')
     expect(hint?.textContent).toContain('which rendering of this plan is on screen')
-    for (const one of screen.getAllByRole('radio')) {
+    for (const one of viewRadios()) {
       expect(one.getAttribute('aria-describedby')).toBe('plan-view-hint')
     }
     expect(document.querySelectorAll('fieldset, [role="radiogroup"]')).toHaveLength(0)
@@ -167,7 +178,7 @@ describe('the switch between them', () => {
   it('carries the switch on inputs the browser owns, so nothing here needs a state hook', () => {
     show()
     expect(radio('Timeline').getAttribute('type')).toBe('radio')
-    expect(screen.getAllByRole('radio').map((one) => one.getAttribute('id'))).toEqual([
+    expect(viewRadios().map((one) => one.getAttribute('id'))).toEqual([
       'plan-view-timeline',
       'plan-view-table',
     ])

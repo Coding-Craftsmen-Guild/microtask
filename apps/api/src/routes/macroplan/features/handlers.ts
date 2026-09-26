@@ -9,6 +9,7 @@ import type {
   deleteFeatureRoute,
   placeFeatureRoute,
   setDependenciesRoute,
+  setFeatureLabelRoute,
   updateFeatureRoute,
 } from './routes.js'
 
@@ -116,6 +117,24 @@ export const setDependencies =
     const principal = authorize(c, 'feature:depend', { kind: 'feature', planId })
     const at = { product: PRODUCT, planId }
     const updated = await features.setDependencies(at, featureId, dependsOn)
+    return c.json(planView(updated, principal), 200)
+  }
+
+/**
+ * Puts one feature in a group, or takes it out of one, and answers the whole plan.
+ *
+ * One gate and one field, so nothing here has to decide which of several actions a body implies —
+ * unlike `updateFeature` above, which asks for each action its present keys name. A label of another
+ * plan is refused by the domain as an `Invalid`, which the error handler answers as 422: the check
+ * needs the plan open, so it belongs there rather than in a second read here.
+ */
+export const setFeatureLabel =
+  (features: FeatureService): RouteHandler<typeof setFeatureLabelRoute, ApiEnv> =>
+  async (c) => {
+    const { planId, featureId } = c.req.valid('param')
+    const { labelId } = c.req.valid('json')
+    const principal = authorize(c, 'feature:label', { kind: 'feature', planId })
+    const updated = await features.setLabel({ product: PRODUCT, planId }, featureId, labelId)
     return c.json(planView(updated, principal), 200)
   }
 

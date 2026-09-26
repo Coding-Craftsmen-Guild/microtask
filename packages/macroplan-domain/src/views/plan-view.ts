@@ -176,6 +176,13 @@ export function visibleLinks(
  * down, not one level deep. `features` is passed through whole because `PlanFeature` holds no
  * credential and no bridge field; the day it holds either, it belongs in a shaping of its own.
  *
+ * `labels` is passed through whole for the same reason, and it is worth saying why out loud because a
+ * label carries a **colour**: a group's name and hue are facts about the plan rather than about the
+ * reader, exactly as a rail’s are, and every caller that reaches this function holds `plan:read` on
+ * the plan. A feature's `labelId` is the plan's own too — unlike `linkedTaskId` below it, which names a
+ * resource in the **other** product and is for that reason the one field of an item a reader’s role
+ * touches.
+ *
  * `items` are mapped rather than passed through, and the spread there overrides exactly the one field
  * design §7.3 decides ({@link visibleTaskLink}). A rewrite by name would read the same today and cost
  * eight lines; what argues for the spread is that `linkedTaskId` is the only field on `PlanItem` that
@@ -190,6 +197,7 @@ export function planView(manifest: PlanManifest, principal: Principal): PlanView
     sprintLengthDays: manifest.sprintLengthDays,
     timezone: manifest.timezone,
     epics: manifest.epics.map((each) => epicView(each, visibleBinding(each, manifest.id, principal))),
+    labels: manifest.labels,
     features: manifest.features,
     items: manifest.items.map((each) => ({
       ...each,

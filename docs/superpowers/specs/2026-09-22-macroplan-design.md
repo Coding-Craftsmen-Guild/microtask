@@ -46,10 +46,19 @@ something to the right.
 
 ```
 Plan        id · name · startDate · sprintLengthDays (default 10 working days) · timezone
+ ├ Label    id · name · colour                      (a group cutting across rails)
  └ Epic     id · name · colour · railOrder · binding?
-    └ Feature  id · name · estimateDays? · pinSprint? · dependsOn: FeatureId[]
+    └ Feature  id · name · estimateDays? · pinSprint? · labelId? · dependsOn: FeatureId[]
        └ Item  id · name · estimateDays? · linkedTaskId? · description
 ```
+
+A **label** is a plan-level sibling of the rails rather than a fourth level, and a feature points at
+one with `labelId`. It is the one grouping that deliberately cuts **across** rails: a release needs
+the API rail, the web rail and the infrastructure rail, so the question "what is in phase 1" has no
+answer along the one axis the tree has. Selecting a group lights every feature in it and dims the rest,
+on the canvas and in the table at once, and writes nothing — [ADR 0064](../../adr/0064-a-group-is-a-plan-level-label-a-feature-points-at.md)
+holds the whole decision, including why it is one label per feature and not a set, and why the colour
+is a swatch and never a bar fill.
 
 Three levels, named **Epic / Feature / Item**. The third is not called Task: Microtask owns that
 word, the types would compile fine under [ADR 0014](../../adr/0014-namespace-products-now.md)'s
@@ -470,6 +479,7 @@ links already issued. §7.3's behaviour is phase 4; the actions and scopes it de
 | 0060 | A cycle is named before the write, and the API stays the authority | **Written** in phase 3. §6's "a write that would create a cycle is refused, with the cycle named", against a generic 409 sentence that was false for this cause. The check is a message and never a gate, and it cannot report the cycle "in the order they wait on each other" — `findCycles` answers a strongly connected component, and a component of three or more need not be one cycle. |
 | 0061 | The bridge is a second read, never part of the plan's | **Written** in phase 4. `planView` stays pure and synchronous, a plan may hold forty bindings, and Microtask's availability must not become the timeline's — §7.2 requires a dead binding to render as a stated state "never an error page and never an empty canvas", and the same holds of the product being unreachable. Records that `read-bridge.ts` was first written through `adminRead`, which turns a 404 into `notFound()`, and so did exactly what this ADR forbids. |
 | 0062 | Attenuation is one minimum, applied twice, and a refused link reads as unlinked | **Written** in phase 4. §7.3's function takes two roles and the product has three facts — declared, live, and the reader's own — so it is applied twice, which is sound because the minimum is associative and idempotent. Records why `linkedTaskId` is `null` rather than absent for a refused reader, a deliberate departure from ADR 0013 whose own argument inverts here; and why the stored binding role is two-valued while the attenuated one is three. |
+| 0064 | A group is a plan-level label a feature points at, and selecting one is CSS | **Written** after phase 4, and it is the one row here §9 did not plan: groups are not in the four phases. §3 gains a plan-level `Label` and §5 gains an eighth column. Records that a URL-backed selection is unavailable because a Next layout receives no `searchParams` and ADR 0057 put the canvas in the layout; that `:has()` is needed where the view switch uses `peer-checked`, the chips and the bars being two subtrees apart; and that the chips had to be moved out of the admin-only slot they were first mounted in, which made the feature admin-only by accident. |
 | 0063 | The bounded write cannot roll back, so it may leak a task and never delete one | **Written** in phase 4. §7.2 permits the bridge no delete, so the create-then-link pair has no undo: the task is created first and an orphan is the accepted failure, being strictly better than a dangling link that a retry would duplicate. Records that the two writes must be sequenced because `Lock` is not reentrant — a nested `run` deadlocks rather than failing — and that `BridgeService`'s two-method surface is what makes "exactly one operation" assertable. |
 
 ## 12. What this spec does not decide

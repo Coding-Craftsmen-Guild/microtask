@@ -2,6 +2,7 @@ import { Invalid, NotFound } from '@repo/kernel'
 import type { PlanEpic } from '../entities/epic.js'
 import type { PlanFeature } from '../entities/feature.js'
 import type { PlanItem } from '../entities/item.js'
+import type { PlanLabel } from '../entities/label.js'
 import type { PlanManifest } from '../entities/plan.js'
 import { densified, placeAmong } from './positions.js'
 
@@ -37,6 +38,13 @@ export function pickFeature(manifest: PlanManifest, featureId: string): PlanFeat
   return found
 }
 
+/** The label that id names, or NotFound. */
+export function pickLabel(manifest: PlanManifest, labelId: string): PlanLabel {
+  const found = manifest.labels.find((each) => each.id === labelId)
+  if (found === undefined) throw new NotFound('Label not found')
+  return found
+}
+
 /** The item that id names, or NotFound. */
 export function pickItem(manifest: PlanManifest, itemId: string): PlanItem {
   const found = manifest.items.find((each) => each.id === itemId)
@@ -48,6 +56,20 @@ export function pickItem(manifest: PlanManifest, itemId: string): PlanItem {
 export function assertEpic(manifest: PlanManifest, epicId: string): void {
   if (!manifest.epics.some((each) => each.id === epicId)) {
     throw new Invalid(`No epic ${epicId} in this plan`)
+  }
+}
+
+/**
+ * Refuses a group that is not in this plan, which includes one belonging to another plan.
+ *
+ * An `Invalid` and not a `NotFound`, which is {@link pickLabel}'s answer for the same absent id, and the
+ * two are used in different places for the reason this module opens with: a label a caller asked to
+ * rename being gone is a stale page, and a label a caller asked to put a feature *into* being gone is a
+ * bad field — and only the second can name a label of another plan, which is what ADR 0050 refuses.
+ */
+export function assertLabel(manifest: PlanManifest, labelId: string): void {
+  if (!manifest.labels.some((each) => each.id === labelId)) {
+    throw new Invalid(`No label ${labelId} in this plan`)
   }
 }
 

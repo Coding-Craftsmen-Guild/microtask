@@ -26,6 +26,21 @@ export const PLAN_B = '01MPBBBBBBBBBBBBBBBBBBBBB2'
 /** A plan id no fixture holds, for the read that must answer 404. */
 export const PLAN_GONE = '01MPGGGGGGGGGGGGGGGGGGGGG9'
 
+/** `Phase 1`, the group Atlas puts its first feature in. */
+export const LABEL_1 = '01MPGPGPGPGPGPGPGPGPGPGPG1'
+
+/**
+ * `Phase 2`, a group no feature of any fixture is in.
+ *
+ * Empty on purpose, because that is the case a surface is most likely to get wrong: a group with no
+ * members is still a group, so it has to be drawn — and choosing its chip dims the **whole** plan, which
+ * is the honest answer to "show me phase 2" when nothing is in phase 2 yet and reads as a bug without the
+ * count beside it.
+ */
+export const LABEL_2 = '01MPGPGPGPGPGPGPGPGPGPGPG2'
+
+/** A label id no plan holds, for the regroup that must be refused. */
+export const LABEL_GONE = '01MPGPGPGPGPGPGPGPGPGPGPG9'
 /** Atlas's one rail, `Platform`. */
 export const EPIC_1 = '01MPEEEEEEEEEEEEEEEEEEEEE1'
 
@@ -114,6 +129,11 @@ const epics = () => [
   },
 ]
 
+const labels = () => [
+  { id: LABEL_1, name: 'Phase 1', colour: '#7c3aed', createdAt: CREATED, updatedAt: STAMP },
+  { id: LABEL_2, name: 'Phase 2', colour: '#0088cc', createdAt: CREATED, updatedAt: STAMP },
+]
+
 const features = () => [
   {
     id: FEATURE_1,
@@ -122,6 +142,7 @@ const features = () => [
     position: 0,
     estimateDays: 5,
     pinSprint: null,
+    labelId: LABEL_1,
     dependsOn: [],
     createdAt: CREATED,
     updatedAt: STAMP,
@@ -133,6 +154,7 @@ const features = () => [
     position: 1,
     estimateDays: 3,
     pinSprint: null,
+    labelId: null,
     dependsOn: [FEATURE_1],
     createdAt: CREATED,
     updatedAt: STAMP,
@@ -201,6 +223,7 @@ export const atlasPlan = (overrides: Partial<StoredPlan> = {}): StoredPlan => ({
   sprintLengthDays: 14,
   timezone: 'Europe/Belgrade',
   epics: epics(),
+  labels: labels(),
   features: features(),
   items: items(),
   shareLinks: seats(),
@@ -244,7 +267,7 @@ export const unplacedPlan = (reason: 'no-estimate' | 'in-cycle'): StoredPlan => 
 }
 
 const tangledFeatures = () => {
-  const shared = { epicId: EPIC_1, pinSprint: null, createdAt: CREATED, updatedAt: STAMP }
+  const shared = { epicId: EPIC_1, pinSprint: null, labelId: null, createdAt: CREATED, updatedAt: STAMP }
   return [
     { ...shared, id: FEATURE_1, name: 'Auth rewrite', position: 0, estimateDays: 5, dependsOn: [FEATURE_2] },
     { ...shared, id: FEATURE_2, name: 'Billing', position: 1, estimateDays: 3, dependsOn: [FEATURE_1] },
@@ -318,7 +341,7 @@ const railedFeatures = () =>
     { id: FEATURE_6, epicId: EPIC_2, name: 'Invoicing', position: 1, estimateDays: 3 },
     { id: FEATURE_4, epicId: EPIC_3, name: 'Reporting', position: 0, estimateDays: 2 },
     { id: FEATURE_5, epicId: EPIC_UNCLAIMED, name: 'Onboarding', position: 0, estimateDays: 3 },
-  ].map((one) => ({ ...one, pinSprint: null, dependsOn: [], createdAt: CREATED, updatedAt: STAMP }))
+  ].map((one) => ({ ...one, pinSprint: null, labelId: null, dependsOn: [], createdAt: CREATED, updatedAt: STAMP }))
 
 /**
  * Four rails, one of them unclaimed, one of them storing a feature that gets no bar.
@@ -380,6 +403,7 @@ export const beaconPlan = (overrides: Partial<StoredPlan> = {}): StoredPlan => (
   sprintLengthDays: 7,
   timezone: 'UTC',
   epics: [],
+  labels: [],
   features: [],
   items: [],
   shareLinks: [],

@@ -32,6 +32,7 @@ const TAB: Target = { kind: 'tab', projectId: P, taskId: T }
 
 const PLAN: Target = { kind: 'plan', planId: PL }
 const EPIC: Target = { kind: 'epic', planId: PL }
+const LABEL: Target = { kind: 'label', planId: PL }
 const FEATURE: Target = { kind: 'feature', planId: PL }
 const ITEM: Target = { kind: 'item', planId: PL }
 
@@ -41,6 +42,7 @@ const TARGET_BY_PREFIX: readonly (readonly [string, Target])[] = [
   ['workspace:', WORKSPACE],
   ['plan:', PLAN],
   ['epic:', EPIC],
+  ['label:', LABEL],
   ['feature:', FEATURE],
   ['item:', ITEM],
   ['folder:', PROJECT],
@@ -74,12 +76,12 @@ const byPrefix = (...prefixes: readonly string[]): readonly Action[] =>
   ACTIONS.filter((action) => prefixes.some((prefix) => action.startsWith(prefix)))
 
 /**
- * The same 23 actions as `action.ts`'s private constant of this name, and deliberately not that
+ * The same 27 actions as `action.ts`'s private constant of this name, and deliberately not that
  * constant: it is filtered out of the exported `ACTIONS` by prefix, so it would still group
  * `plan:archive` with the plan family on the day someone typed that into the workspace list in
  * `action.ts` — which is the drift an import of the kernel's own grouping could never see.
  */
-const PLAN_FAMILY_ACTIONS = byPrefix('plan:', 'epic:', 'feature:', 'item:')
+const PLAN_FAMILY_ACTIONS = byPrefix('plan:', 'epic:', 'label:', 'feature:', 'item:')
 const MICROTASK_FAMILY_ACTIONS = byPrefix('project:', 'folder:', 'task:', 'tab:')
 
 const PLAN_VIEW_ADDITIONS: readonly Action[] = ['plan:read']
@@ -103,10 +105,14 @@ const PLAN_MANAGE_ADDITIONS: readonly Action[] = [
   'epic:rename',
   'epic:delete',
   'epic:reorder',
+  'label:create',
+  'label:rename',
+  'label:delete',
   'feature:delete',
   'feature:place',
   'feature:pin',
   'feature:depend',
+  'feature:label',
   'item:delete',
   'item:place',
 ]
@@ -362,8 +368,8 @@ describe('can — a plan-scoped write link cannot become a manage link', () => {
     }
   })
 
-  it('refuses it each of the thirteen manage additions, named one by one', () => {
-    expect(PLAN_MANAGE_ADDITIONS).toHaveLength(13)
+  it('refuses it each of the seventeen manage additions, named one by one', () => {
+    expect(PLAN_MANAGE_ADDITIONS).toHaveLength(17)
     for (const action of PLAN_MANAGE_ADDITIONS) {
       expect(can(planLink('write'), action, planTargetFor(action)), action).toBe(false)
     }
@@ -481,9 +487,9 @@ describe('can — the two workspace plan actions are the admin alone', () => {
     }
   })
 
-  it('clears an admin for every action this task adds, all twenty-five of them', () => {
+  it('clears an admin for every action this product adds, all twenty-nine of them', () => {
     const added = [...PLAN_FAMILY_ACTIONS, ...WORKSPACE_PLAN_ACTIONS]
-    expect(added).toHaveLength(25)
+    expect(added).toHaveLength(29)
     for (const action of added) {
       expect(can(admin, action, targetFor(action)), action).toBe(true)
     }

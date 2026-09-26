@@ -45,6 +45,7 @@ const FIRST_SESSION = MINTED.entityId()
 const FIRST_EPIC = MINTED.entityId()
 const FIRST_FEATURE = MINTED.entityId()
 const FIRST_ITEM = MINTED.entityId()
+const FIRST_LABEL = MINTED.entityId()
 
 const OPEN_SESSION: Step = {
   method: 'POST',
@@ -99,14 +100,33 @@ const ADD_AN_ITEM: Step = {
   body: JSON.stringify({ featureId: FIRST_FEATURE, name: 'Add to basket', estimateDays: 1 }),
 }
 
+
+/**
+ * The group routes need a label, and it is minted **fifth** so the four above keep their ids.
+ *
+ * A group needs no rail and no feature of its own — it belongs to the plan — so this step could have
+ * followed the draft directly. It follows the item instead, because then one chain serves both the
+ * label routes and `PUT /features/{featureId}/label`, which needs a feature to group and a group to
+ * put it in; two chains would have made the label the second id in one of them and the fifth in the
+ * other, which is the kind of arithmetic this block exists to keep in one place.
+ */
+const ADD_A_LABEL: Step = {
+  method: 'POST',
+  path: `${FIRST_PLAN_PATH}/labels`,
+  headers: adminJson(),
+  body: JSON.stringify({ name: 'Phase 1' }),
+}
+
 const ON_A_PLAN = [DRAFT_A_PLAN] as const
 const ON_A_RAIL = [DRAFT_A_PLAN, ADD_AN_EPIC] as const
 const ON_A_FEATURE = [DRAFT_A_PLAN, ADD_AN_EPIC, ADD_A_FEATURE] as const
 const ON_AN_ITEM = [DRAFT_A_PLAN, ADD_AN_EPIC, ADD_A_FEATURE, ADD_AN_ITEM] as const
+const ON_A_LABEL = [...ON_AN_ITEM, ADD_A_LABEL] as const
 
 const EPIC_PATH = `${FIRST_PLAN_PATH}/epics/${FIRST_EPIC}`
 const FEATURE_PATH = `${FIRST_PLAN_PATH}/features/${FIRST_FEATURE}`
 const ITEM_PATH = `${FIRST_PLAN_PATH}/items/${FIRST_ITEM}`
+const LABEL_PATH = `${FIRST_PLAN_PATH}/labels/${FIRST_LABEL}`
 
 /**
  * The token a seat minted straight after the plan draft receives.
@@ -279,6 +299,25 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
     setup: ON_A_RAIL,
   },
   [`DELETE ${PLAN}/epics/{epicId}`]: { path: EPIC_PATH, headers: admin(), setup: ON_A_RAIL },
+  [`POST ${PLAN}/labels`]: {
+    path: `${FIRST_PLAN_PATH}/labels`,
+    headers: adminJson(),
+    body: json({ name: 'Phase 2' }),
+    setup: ON_A_PLAN,
+  },
+  [`PATCH ${PLAN}/labels/{labelId}`]: {
+    path: LABEL_PATH,
+    headers: adminJson(),
+    body: json({ name: 'Renamed', colour: '#0088cc' }),
+    setup: ON_A_LABEL,
+  },
+  [`DELETE ${PLAN}/labels/{labelId}`]: { path: LABEL_PATH, headers: admin(), setup: ON_A_LABEL },
+  [`PUT ${PLAN}/features/{featureId}/label`]: {
+    path: `${FEATURE_PATH}/label`,
+    headers: adminJson(),
+    body: json({ labelId: FIRST_LABEL }),
+    setup: ON_A_LABEL,
+  },
   [`POST ${PLAN}/features`]: {
     path: `${FIRST_PLAN_PATH}/features`,
     headers: adminJson(),

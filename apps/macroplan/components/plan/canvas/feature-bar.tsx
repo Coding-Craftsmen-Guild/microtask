@@ -17,6 +17,16 @@ export interface FeatureBarMarkProps {
 
   /** The y of its rail's own band. */
   readonly top: number
+
+  /**
+   * The group this feature is in, or `null` for one in none.
+   *
+   * It paints nothing. It lands as `data-label-id`, and the one CSS rule `labels/group-css.ts` generates per group
+   * is what reads it back — so choosing a group dims every bar not in it, across every rail, with no
+   * JavaScript. `null` writes **no attribute at all** rather than an empty one, so `[data-label-id]`
+   * selects exactly the bars that are in some group and an ungrouped bar is dimmed by the `:not()` alone.
+   */
+  readonly labelId: string | null
 }
 
 /**
@@ -70,12 +80,13 @@ export interface FeatureBarMarkProps {
  * `LIMITS.featuresPerPlan` rects is the cheaper half of that trade, and `item-mark.tsx`'s budget is
  * about **elements** rather than attributes, so nothing there is touched.
  */
-export function FeatureBarMark({ bar, colour, treatment, top }: FeatureBarMarkProps) {
+export function FeatureBarMark({ bar, colour, treatment, top, labelId }: FeatureBarMarkProps) {
   return (
     <rect
       className={TREATMENT_CLASS[treatment]}
       data-end-day={bar.endDay}
       data-feature-id={bar.id}
+      data-label-id={labelId ?? undefined}
       data-slot="feature-bar"
       data-start-day={bar.startDay}
       data-treatment={treatment}

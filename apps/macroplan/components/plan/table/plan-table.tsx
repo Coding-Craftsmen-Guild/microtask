@@ -7,7 +7,7 @@ const TABLE = 'w-full border-collapse text-left text-[13px]'
 
 const HEAD = 'px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase'
 
-const COLUMNS = ['Epic', 'Feature', 'Item', 'Estimate', 'Sprint', 'Progress', 'Blocked by']
+const COLUMNS = ['Epic', 'Feature', 'Item', 'Group', 'Estimate', 'Sprint', 'Progress', 'Blocked by']
 
 /** Props for {@link PlanTable}. */
 export interface PlanTableProps {
@@ -46,22 +46,20 @@ export interface PlanTableProps {
  * It names every feature and every item the plan's derived order reaches, which is a superset of what
  * the canvas draws; `tableRows` argues what that includes and what it cannot.
  *
- * ### Six columns, and the seventh
+ * ### Eight columns
  *
- * §5 names seven: "epic, feature, item, estimate, sprint, progress, blocked-by". Six are here.
- * **`progress` is absent rather than empty**, and that is a decision and not an omission: §7.2 fixes
- * what a progress number may be — "an item's percentage is the linked task's `{ done, total }`. An
- * unlinked item has a manual status only — not a manual percentage — so a number on screen is always
- * a counted number" — and nothing is linked in phase 2. `linkedTaskId` is reserved on every item and
- * is `null`, and §9 puts "derived progress" in phase 4 with the Microtask bridge. The three choices
- * were a column of 2,000 identical dashes, an invented number, or the honest one: leave it out and
- * **say so in the table itself**, which the `<caption>` below does — where an admin auditing the plan
- * reads it, and where it travels with the table rather than in a release note. It is not claimed as
- * the announcement a screen reader is guaranteed: a caption paired with an `aria-label` loses the name
- * computation, and some readers then skip it. The record for a reader of the code is this note. Phase
- * 4 adds the column and deletes the caption.
+ * §5 names seven: "epic, feature, item, estimate, sprint, progress, blocked-by". All seven are here —
+ * `progress` arrived with the phase-4 bridge, which is what deleted the `<caption>` that used to explain
+ * its absence — and `Group` is the eighth, which §5 does not name because groups are not in it.
  *
- * `blocked-by` **is** here, because `dependsOn` is on the wire — but never as a bare list of names:
+ * The group column is the table's half of "select a group and they are all selected". The chips beside
+ * the plan’s name dim the bars of every feature not in the chosen group, and they dim these rows by the
+ * same generated rule, because a row carries `data-label-id` exactly as a bar does
+ * (`labels/group-css.ts`). Dimming is paint, so the **words** are what a reader who cannot see it has:
+ * naming the group in a cell of its own is what makes a grouped plan auditable by a screen reader, and it
+ * is why this is a column rather than a colour on the row.
+ *
+ * `blocked-by` is here because `dependsOn` is on the wire — but never as a bare list of names:
  * `rows.ts` argues the four things a stated dependency can turn out to be.
  *
  * ### The accessible name

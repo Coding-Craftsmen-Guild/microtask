@@ -50,6 +50,7 @@ export type {
 } from './operations/features.js'
 export type { FoldersApi } from './operations/folders.js'
 export type { ItemChange, ItemPlacement, ItemsApi, NewItem, TaskLink } from './operations/items.js'
+export type { LabelChange, LabelsApi, NewLabel } from './operations/labels.js'
 export type {
   NewPlanSeat,
   PlanSeatChange,

@@ -44,6 +44,8 @@ const FEATURE_ROW: TableRow = {
   epic: 'Platform',
   feature: 'Auth rewrite',
   item: null,
+  group: null,
+  labelId: null,
   estimate: '5d',
   sprint: 'S1',
   treatment: 'solid',
@@ -71,7 +73,7 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
   estimateDays: 5,
   pinSprint: null,
   place: { featureId: FEATURE_1, railId: EPIC_1, siblingIds: [FEATURE_1, FEATURE_2], targets: [] },
-  plan: { calendar: CALENDAR, features: atlasPlan().features },
+  plan: { calendar: CALENDAR, features: atlasPlan().features, labels: atlasPlan().labels },
   sizedByItems: false,
   ...over,
 })

@@ -82,6 +82,36 @@ export const RailColour = z
   .meta({ id: 'RailColour', description: 'A lowercase #rrggbb colour' })
 
 /**
+ * A group of features cutting across rails: a name, a colour, and nothing else.
+ *
+ * A **plan-level** record rather than a field on a feature, because a group is a thing several
+ * features point at from several different rails — that is the whole of what it is for. A colour
+ * written on each feature instead would let two features claiming to be in one phase disagree about
+ * what colour that phase is, and renaming the phase would be a write to every feature in it.
+ *
+ * `colour` is `RailColour` — the **same** schema a rail's hue is, not a second one, because the two are
+ * the same kind of value and a parallel spelling rule is one more place a canonical lowercase `#rrggbb`
+ * could drift. What differs is what the colour may *mean*, and that is spec §5's split rather than a
+ * schema's: a rail owns hue on the canvas, so a group's colour is never a bar's fill — it is a swatch
+ * beside a name, which is a channel neither hue nor treatment had claimed. An alias export was the first
+ * attempt and `index.test.ts` refused it outright: two exported schemas sharing one component id is a
+ * reused OpenAPI component, which is a worse problem than the naming it was meant to solve.
+ *
+ * There is no `position`. Labels are ordered by the id they were created with — a ULID opens with its
+ * creation millisecond, so creation order is already a total order — and nothing reorders them, so a
+ * stored position would be a field with no writer that every reader would have to sort by anyway.
+ */
+export const PlanLabel = z
+  .object({
+    id: EntityId,
+    name: EntityName,
+    colour: RailColour,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .meta({ id: 'PlanLabel', description: 'A group of features cutting across rails: a name and a colour' })
+
+/**
  * What an epic is bound to in Microtask. Reserved by phase 1; written by phase 4.
  *
  * The field exists now, nullable, so a phase-1 manifest and a phase-4 manifest are the same shape:
@@ -116,6 +146,12 @@ export const PlanEpic = z
  * `estimateDays` is nullable rather than defaulted to zero, because zero is a real answer — a
  * milestone that takes no time — and `null` is the only spelling of "not estimated yet" that does
  * not collide with it; the forward pass reads that distinction directly (`ScheduleFeature`).
+ *
+ * `labelId` names a {@link PlanLabel} of the **same plan** or is `null`, and it is one id rather than
+ * a list: a feature is in one group at a time, which is what makes a group answer the question it was
+ * asked for — which phase is this in. A set per feature would make "phase 1" a filter rather than a
+ * grouping, and nothing in the product has wanted the second. The schedule reads none of it: a group
+ * is a way of seeing a plan and never a constraint on it, so no bar moves because of a label.
  */
 export const PlanFeature = z
   .object({
@@ -125,11 +161,12 @@ export const PlanFeature = z
     position: Position,
     estimateDays: EstimateDays.nullable(),
     pinSprint: SprintIndex.nullable(),
+    labelId: EntityId.nullable(),
     dependsOn: z.array(EntityId).max(LIMITS.edgesPerPlan).readonly(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
-  .meta({ id: 'PlanFeature', description: 'A feature on one rail, its estimate, its pin, and its dependencies' })
+  .meta({ id: 'PlanFeature', description: 'A feature on one rail, its estimate, its pin, its group, and its dependencies' })
 
 /** A unit of work under a feature, contributing to that feature's breakdown. */
 export const PlanItem = z
@@ -166,13 +203,14 @@ export const PlanManifest = z
     sprintLengthDays: z.number().int().min(1).max(MAX_SPRINT_LENGTH_DAYS),
     timezone: Timezone,
     epics: z.array(PlanEpic).max(LIMITS.epicsPerPlan),
+    labels: z.array(PlanLabel).max(LIMITS.labelsPerPlan),
     features: z.array(PlanFeature).max(LIMITS.featuresPerPlan),
     items: z.array(PlanItem).max(LIMITS.itemsPerPlan),
     shareLinks: z.array(PlanShareLink).max(LIMITS.shareLinksPerPlan),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
-  .meta({ id: 'PlanManifest', description: 'A plan manifest: epics, features, items and share links' })
+  .meta({ id: 'PlanManifest', description: 'A plan manifest: epics, labels, features, items and share links' })
 
 /**
  * The contents of one item file: its description and nothing else.

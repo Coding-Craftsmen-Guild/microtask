@@ -1,6 +1,6 @@
 'use server'
 
-import type { NewBinding } from '@repo/api-client'
+import type { NewBinding, NewLabel } from '@repo/api-client'
 import { seatWrite } from './plan-write'
 import type { ActionResult } from './result'
 import type { Plan } from '@repo/api-client'
@@ -70,4 +70,54 @@ export async function seatUnlinkItem(token: string, planId: string, itemId: stri
  */
 export async function seatCreateTask(token: string, planId: string, itemId: string): Answer {
   return seatWrite(token, (api) => api.items.createTask(planId, itemId))
+}
+
+/**
+ * The five group writes, sent under a seat's own token. Every one of them is `manage`-only.
+ *
+ * In **this** file rather than `seat-writes.ts` for the reason the bridge writes above are: that file
+ * sits at ADR 0027's 150-line cap, and there was nowhere else to put them. They are unlike the bridge
+ * five in every other way — none of them reaches Microtask, and a `manage` seat succeeds at all five —
+ * so this file is now "the writes that would not fit", which is a worse name than it had. If a sixth
+ * group write ever arrives, the split to make is `seat-labels.ts` rather than a third tenant here.
+ */
+
+/** Adds a label to the plan. `label:create`, which is `manage`-only. */
+export async function seatCreateLabel(token: string, planId: string, label: NewLabel): Answer {
+  return seatWrite(token, (api) => api.labels.create(planId, label))
+}
+
+/** Renames one label. `label:rename`, `manage`-only. */
+export async function seatRenameLabel(
+  token: string,
+  planId: string,
+  labelId: string,
+  name: string,
+): Answer {
+  return seatWrite(token, (api) => api.labels.update(planId, labelId, { name }))
+}
+
+/** Recolours one label. The same `label:rename` authority as {@link seatRenameLabel}. */
+export async function seatRecolourLabel(
+  token: string,
+  planId: string,
+  labelId: string,
+  colour: string,
+): Answer {
+  return seatWrite(token, (api) => api.labels.update(planId, labelId, { colour }))
+}
+
+/** Removes one label, clearing it off every feature in it and deleting none of them. `label:delete`. */
+export async function seatRemoveLabel(token: string, planId: string, labelId: string): Answer {
+  return seatWrite(token, (api) => api.labels.remove(planId, labelId))
+}
+
+/** Puts one feature in a group, or takes it out with `null`. `feature:label`, `manage`-only. */
+export async function seatLabelFeature(
+  token: string,
+  planId: string,
+  featureId: string,
+  labelId: string | null,
+): Answer {
+  return seatWrite(token, (api) => api.features.setLabel(planId, featureId, labelId))
 }

@@ -51,7 +51,7 @@ const EVERY_SEAT_ANSWER: PlanSeatControls = {
  * it a property of the argument, so a further control added to {@link PlanControls} is a compile
  * error in `planControls` — which is where it should be — while a member written as something other
  * than `may(...)` would leave the admin answering `false` with nothing failing. `admin-controls.test.ts`
- * is what closes that: it sweeps every boolean at both levels and requires all twenty-two to be
+ * is what closes that: it sweeps every boolean at both levels and requires all twenty-eight to be
  * `true`, and it compares this record's keys against `planCapabilities`' group for group.
  *
  * Like every control, each of these answers a rendering question and never a gate. The admin's

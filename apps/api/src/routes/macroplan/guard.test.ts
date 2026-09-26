@@ -596,7 +596,8 @@ describe('a write seat cannot move work or rewire it, which is spec §10 action 
 })
 
 /**
- * The last of §7.1's `manage` half that no seat had ever been refused by name: five more actions.
+ * The last of §7.1's `manage` half that no seat had ever been refused by name — five actions at first,
+ * and nine now that a plan has groups.
  *
  * Three of them are §10's promise read literally. `epic:delete` and `item:delete` are the word
  * "delete" — a rail with its features and their items, and one item with its description file — and
@@ -612,9 +613,16 @@ describe('a write seat cannot move work or rewire it, which is spec §10 action 
  * same route** that no seat had ever met. It is asserted here against a body carrying a name and
  * nothing else, so the action asked for can only be `plan:rename`.
  *
+ * The four added are the group writes: `label:create`, `label:rename` and `label:delete` on `/labels`,
+ * and `feature:label` on `PUT /features/{featureId}/label`. They are `manage`-only for the reason
+ * `feature:pin` and `feature:depend` are: deciding which release a feature belongs to is shaping the
+ * plan, not doing the work in it, and a `write` seat that could regroup somebody else's rails would be
+ * rewriting a roadmap by relabelling it. Grouping a feature is `manage` although **renaming** one is
+ * `write`, which is the same asymmetry the pin already had.
+ *
  * Both halves for every row, because a refusal alone would prove only that the route is unreachable
  * for some other reason: each `write` 403 is paired with a `manage` clearance sending the **same
- * body** to the **same path**. The `detail` is asserted for all five at once — that clause is what
+ * body** to the **same path**. The `detail` is asserted for every row at once — that clause is what
  * makes "asserted by name" literally true, and it is how a reader tells a handler gate's refusal
  * from the mount guard's, which words every one of its own refusals `plan:read`.
  */
@@ -660,6 +668,38 @@ describe('a write seat cannot add, rename or remove structure, which is spec §1
       sent: null,
       cleared: 200,
     },
+    {
+      what: 'POST /labels',
+      action: 'label:create',
+      method: 'POST',
+      path: `${ONE}/labels`,
+      sent: { name: 'Phase 3' },
+      cleared: 200,
+    },
+    {
+      what: 'PATCH /labels/{labelId}',
+      action: 'label:rename',
+      method: 'PATCH',
+      path: `${ONE}/labels/${PLAN_IDS.l1}`,
+      sent: { name: 'Launch' },
+      cleared: 200,
+    },
+    {
+      what: 'DELETE /labels/{labelId}',
+      action: 'label:delete',
+      method: 'DELETE',
+      path: `${ONE}/labels/${PLAN_IDS.l2}`,
+      sent: null,
+      cleared: 200,
+    },
+    {
+      what: 'PUT /features/{featureId}/label',
+      action: 'feature:label',
+      method: 'PUT',
+      path: `${ONE}/features/${PLAN_IDS.f1}/label`,
+      sent: { labelId: PLAN_IDS.l1 },
+      cleared: 200,
+    },
   ] as const
 
   type Edit = (typeof EDITS)[number]
@@ -687,10 +727,22 @@ describe('a write seat cannot add, rename or remove structure, which is spec §1
     return out
   }
 
-  /** The plan's own name beside its whole structure, which is what these five would have changed. */
+  /**
+   * The plan's own name and its groups beside its whole structure, which is what these would change.
+   *
+   * `structureOf` alone would not have caught the four label rows: it reads rails, features and items,
+   * and a group lives in `labels` with its only trace on a feature being a field that walk does not
+   * print. So the group names and each feature's membership are added here, which is what makes the
+   * "writes nothing" case below say something about a refused `DELETE /labels/{labelId}`.
+   */
   const shapeOf = async (deps: Deps): Promise<readonly string[]> => {
     const plan = await deps.plans.readManifest('macroplan', PLAN_IDS.plan)
-    return [`named ${plan?.name ?? 'gone'}`, ...(await structureOf(deps))]
+    return [
+      `named ${plan?.name ?? 'gone'}`,
+      ...(plan?.labels ?? []).map((one) => `group ${one.id} is ${one.name}`),
+      ...(plan?.features ?? []).map((one) => `${one.id} in ${one.labelId ?? 'no group'}`),
+      ...(await structureOf(deps)),
+    ]
   }
 
   for (const edit of EDITS) {
@@ -703,7 +755,7 @@ describe('a write seat cannot add, rename or remove structure, which is spec §1
     })
   }
 
-  it('names the action refused in all five details, which is what "asserted by name" is', async () => {
+  it('names the action refused in every detail, which is what "asserted by name" is', async () => {
     const details: unknown[] = []
     for (const edit of EDITS) {
       details.push((await body(await editAs(edit, PLAN_TOKENS.write)))['detail'])
@@ -711,12 +763,12 @@ describe('a write seat cannot add, rename or remove structure, which is spec §1
     expect(details).toEqual(EDITS.map((edit) => `Not permitted: ${edit.action}`))
   })
 
-  it('refuses the view seat on all five, a reader adding, renaming and removing nothing', async () => {
-    expect(await sweep(PLAN_TOKENS.view)).toEqual([403, 403, 403, 403, 403])
+  it('refuses the view seat on every one, a reader adding, renaming and removing nothing', async () => {
+    expect(await sweep(PLAN_TOKENS.view)).toEqual(EDITS.map(() => 403))
   })
 
-  it('refuses the colliding plan manage seat on all five, one plan being no other', async () => {
-    expect(await sweep(PLAN_TOKENS.collidingManage)).toEqual([403, 403, 403, 403, 403])
+  it('refuses the colliding plan manage seat on every one, one plan being no other', async () => {
+    expect(await sweep(PLAN_TOKENS.collidingManage)).toEqual(EDITS.map(() => 403))
   })
 
   /**
@@ -724,7 +776,7 @@ describe('a write seat cannot add, rename or remove structure, which is spec §1
    * nothing. `epic:delete` would have taken two features and five items with it, so a 403 that wrote
    * anyway is the one failure here worth more than a wrong status code.
    */
-  it('writes nothing on any of the five: the plan name, its rails, features and items stand', async () => {
+  it('writes nothing on any of them: the plan name, its rails, labels, features and items stand', async () => {
     const untouched = await shapeOf((await buildMacroplanFixture()).deps)
     const refusals: unknown[] = []
     for (const edit of EDITS) {
@@ -900,6 +952,7 @@ const PLAN_SEAT_TARGETS: Readonly<Record<CapabilityTarget, Target>> = {
   tab: { kind: 'tab', projectId: IDS.p1, taskId: IDS.t1 },
   plan: { kind: 'plan', planId: PLAN_IDS.plan },
   epic: { kind: 'epic', planId: PLAN_IDS.plan },
+  label: { kind: 'label', planId: PLAN_IDS.plan },
   feature: { kind: 'feature', planId: PLAN_IDS.plan },
   item: { kind: 'item', planId: PLAN_IDS.plan },
   'own-scope': { kind: 'plan', planId: PLAN_IDS.plan },
@@ -1013,12 +1066,12 @@ const gaps = (): readonly Action[] => {
  */
 describe('every manage-only plan action is refused a write seat by name somewhere above', () => {
   it('derives the manage-only plan actions from the kernel, and the set is not empty', () => {
-    expect(MANAGE_ONLY_PLAN_ACTIONS.length).toBe(17)
+    expect(MANAGE_ONLY_PLAN_ACTIONS.length).toBe(21)
   })
 
   it('collects the refusals asserted above by name, one pattern finding each wording', () => {
     const asserted = assertedByName()
-    expect(asserted.size).toBe(19)
+    expect(asserted.size).toBe(23)
     expect(asserted.has('feature:pin')).toBe(true)
     expect(asserted.has('epic:reorder')).toBe(true)
   })

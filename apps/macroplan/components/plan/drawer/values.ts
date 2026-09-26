@@ -90,8 +90,34 @@ export interface PlanValues {
    * (`./cycle-check.ts`, `./dependency-editor.tsx`).
    */
   readonly features: readonly CycleFeature[]
+
+  /**
+   * Every group of the plan, which is what the drawer’s group picker chooses from.
+   *
+   * Here for the reason `features` is: the choice is not a fact about the subject. A feature carries the
+   * id of the group it is in and nothing about the others, so a control offering the alternatives has to
+   * be told the plan’s own list or it can only ever clear the field. It is the groups and not the plan,
+   * so nothing under the drawer reaches a rail, an item, a schedule or a seat through it, and it is
+   * joined into one string before it crosses into the browser (`./group-options.ts`).
+   */
+  readonly labels: readonly LabelChoice[]
 }
 
+/**
+ * One group a feature could be put in: its id, and the name a reader picks it by.
+ *
+ * The same two fields {@link PlaceTarget} carries and deliberately not the same type: a placement's
+ * target is a **parent** — a rail for a feature, a feature for an item — where a group is neither a
+ * parent nor anywhere the subject sits. The shapes coinciding is what an id and a name look like, and
+ * one name for both would invite a control to take either.
+ */
+export interface LabelChoice {
+  /** The group. */
+  readonly id: string
+
+  /** What it is called. */
+  readonly name: string
+}
 /** One other parent this subject could be moved under, named the way a control labels it. */
 export interface PlaceTarget {
   /** The epic's id for a feature, the feature's id for an item — what a placement's parent field takes. */

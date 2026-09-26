@@ -2,6 +2,7 @@ import { createRoute } from '@hono/zod-openapi'
 import {
   CreateFeaturePayload,
   DependenciesPayload,
+  FeatureLabelPayload,
   FeaturePlacementPayload,
   UpdateFeaturePayload,
 } from '@repo/contracts'
@@ -101,6 +102,33 @@ export const setDependenciesRoute = createRoute({
   responses: { 200: PLAN_RESPONSE, ...problemResponses([409]) },
 })
 
+/**
+ * Put one feature in a group, or take it out of one. `PUT`, because the body is the whole field.
+ *
+ * Its own path segment rather than a key on the feature `PATCH`, because it is its own authority —
+ * `feature:label` — and because the id in the body is checked against the plan: a label belonging to
+ * another plan is **422**, which is the same refusal `POST /features` gives an `epicId` from another
+ * plan, and for the same reason (ADR 0050). A `PATCH` carrying a name as well would have made that
+ * refusal land halfway through a rename.
+ *
+ * `labelId` is nullable and **required**: `null` is how a feature leaves a group, so a body with no
+ * `labelId` at all is a 422 rather than a write that clears the group by accident.
+ *
+ * Answers the whole plan, like every write in this subtree, and the spans in it are the spans it was
+ * called with: `@repo/schedule` reads no group, so grouping a feature moves no bar.
+ */
+export const setFeatureLabelRoute = createRoute({
+  method: 'put',
+  path: '/{featureId}/label',
+  tags: ['features'],
+  summary: 'Put one feature in a group, or take it out of one',
+  security: GUARDED_SECURITY,
+  request: {
+    params: featureParams,
+    body: { required: true, content: { 'application/json': { schema: FeatureLabelPayload } } },
+  },
+  responses: { 200: PLAN_RESPONSE, ...problemResponses() },
+})
 /**
  * Remove one feature, the items under it and every edge that named it, in one write.
  *

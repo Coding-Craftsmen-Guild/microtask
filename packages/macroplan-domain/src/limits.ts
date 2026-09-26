@@ -11,6 +11,7 @@ export {
 const LABEL: Readonly<Record<PlanCountKey, string>> = {
   plansPerProduct: 'plans',
   epicsPerPlan: 'epics in this plan',
+  labelsPerPlan: 'labels in this plan',
   featuresPerPlan: 'features in this plan',
   itemsPerPlan: 'items in this plan',
   edgesPerPlan: 'dependency edges in this plan',

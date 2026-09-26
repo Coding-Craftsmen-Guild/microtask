@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { problemAnswer } from '../components/plan/testing/fake-plan-api'
 import {
   ADMIN_TOKEN,
+  LABEL_1,
   EPIC_1,
   FEATURE_1,
   FEATURE_2,
@@ -72,7 +73,7 @@ const options = (): ClientOptions => ({
 })
 
 // Both halves of `lib/api` over the one recorder, because this file runs the admin action and the
-// seat action for each of the twenty-three writes and compares what went out.
+// seat action for each of the twenty-eight writes and compares what went out.
 vi.mock('../lib/api', () => ({
   apiForSession: () => Promise.resolve(createMacroplanAdminClient(options(), ADMIN_TOKEN)),
   apiForLink: (token: string) => createMacroplanLinkClient(options(), token),
@@ -109,9 +110,20 @@ const { createEpic, recolourEpic, removeEpic, renameEpic, reorderEpic } = await 
 
 const { bindEpic, createTask, linkItem, unbindEpic, unlinkItem } = await import('./bridge')
 
-const { seatBindEpic, seatCreateTask, seatLinkItem, seatUnbindEpic, seatUnlinkItem } = await import(
-  './seat-bridge',
-)
+const { createLabel, labelFeature, recolourLabel, removeLabel, renameLabel } = await import('./labels')
+
+const {
+  seatBindEpic,
+  seatCreateLabel,
+  seatCreateTask,
+  seatLabelFeature,
+  seatLinkItem,
+  seatRecolourLabel,
+  seatRemoveLabel,
+  seatRenameLabel,
+  seatUnbindEpic,
+  seatUnlinkItem,
+} = await import('./seat-bridge')
 const { createFeature, estimateFeature, pinFeature, placeFeature, removeFeature, renameFeature, setDependencies } =
   await import('./features')
 const { createItem, describeItem, estimateItem, placeItem, removeItem, renameItem } =
@@ -128,7 +140,7 @@ interface Mirror {
   readonly seat: (token: string) => Promise<unknown>
 }
 
-// The twenty-three, each as the admin sends it and as a seat sends it from the same arguments. A row
+// The twenty-eight, each as the admin sends it and as a seat sends it from the same arguments. A row
 // that named two different writes would fail the comparison rather than pass it quietly.
 // The pasted token and the task id the five bridge rows send. The token is a literal rather than a
 // fixture constant because that is what it is on this path — a string an admin typed, not an identifier
@@ -253,6 +265,31 @@ const MIRRORS: readonly Mirror[] = [
     admin: () => createTask(PLAN_A, ITEM_1),
     seat: (token) => seatCreateTask(token, PLAN_A, ITEM_1),
   },
+  {
+    name: 'createLabel',
+    admin: () => createLabel(PLAN_A, { name: 'Phase 3' }),
+    seat: (token) => seatCreateLabel(token, PLAN_A, { name: 'Phase 3' }),
+  },
+  {
+    name: 'renameLabel',
+    admin: () => renameLabel(PLAN_A, LABEL_1, NAME),
+    seat: (token) => seatRenameLabel(token, PLAN_A, LABEL_1, NAME),
+  },
+  {
+    name: 'recolourLabel',
+    admin: () => recolourLabel(PLAN_A, LABEL_1, COLOUR),
+    seat: (token) => seatRecolourLabel(token, PLAN_A, LABEL_1, COLOUR),
+  },
+  {
+    name: 'removeLabel',
+    admin: () => removeLabel(PLAN_A, LABEL_1),
+    seat: (token) => seatRemoveLabel(token, PLAN_A, LABEL_1),
+  },
+  {
+    name: 'labelFeature',
+    admin: () => labelFeature(PLAN_A, FEATURE_1, LABEL_1),
+    seat: (token) => seatLabelFeature(token, PLAN_A, FEATURE_1, LABEL_1),
+  },
 ]
 
 const wireOf = (requests: readonly Sent[]): readonly Wire[] =>
@@ -271,7 +308,7 @@ beforeEach(() => {
   refresh.mockReset()
 })
 
-describe('the same twenty-three writes, sent from a seat', () => {
+describe('the same twenty-eight writes, sent from a seat', () => {
   it.each(MIRRORS)(
     'sends $name to the very route, method and body the admin action sends it to',
     async (mirror) => {
@@ -294,8 +331,8 @@ describe('the same twenty-three writes, sent from a seat', () => {
   // The table above already proves, per action, that whatever token an action is called with becomes
   // the bearer. What it cannot show is that the value is a genuine parameter rather than a constant
   // that happens to equal SEAT everywhere it is asserted — so this checks two representative actions,
-  // one from each end of the twenty-three, against a second token instead of repeating the same plumbing
-  // twenty-three times over.
+  // one from each end of the twenty-eight, against a second token instead of repeating the same plumbing
+  // twenty-eight times over.
   it.each(MIRRORS.filter((_, i) => i === 0 || i === MIRRORS.length - 1))(
     'presents whichever token it was handed for $name, never a fixed one',
     async (mirror) => {
@@ -304,12 +341,14 @@ describe('the same twenty-three writes, sent from a seat', () => {
     },
   )
 
-  it('mirrors all twenty-three, so the sweeps above are neither empty nor short of one', async () => {
-    // Eighteen plus five, and both numbers asserted: the split is where a write could go missing
-    // without either module noticing on its own.
-    expect(MIRRORS).toHaveLength(23)
+  it('mirrors all twenty-eight, so the sweeps above are neither empty nor short of one', async () => {
+    // Eighteen plus ten, and both numbers asserted: the split is where a write could go missing
+    // without either module noticing on its own. `seat-bridge.ts` holds ten because the five group
+    // writes landed there too when `seat-writes.ts` was already at the line cap — which makes its name
+    // wrong, and the file says so.
+    expect(MIRRORS).toHaveLength(28)
     expect(Object.keys(await import('./seat-writes'))).toHaveLength(18)
-    expect(Object.keys(await import('./seat-bridge'))).toHaveLength(5)
+    expect(Object.keys(await import('./seat-bridge'))).toHaveLength(10)
   })
 
   // Both modules together, because phase 4 split the five bridge writes out of `seat-writes.ts` when it

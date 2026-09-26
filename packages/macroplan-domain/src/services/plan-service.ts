@@ -108,6 +108,7 @@ export class PlanService {
         sprintLengthDays: settings.sprintLengthDays ?? DEFAULT_SPRINT_LENGTH_DAYS,
         timezone,
         epics: [],
+        labels: [],
         features: [],
         items: [],
         shareLinks: [],

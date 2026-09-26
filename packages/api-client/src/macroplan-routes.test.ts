@@ -44,6 +44,45 @@ describe('every macroplan operation addresses the path the API actually serves',
     )
   })
 
+  it('adds a label under the plan that owns it, labels being plan-level and not on a rail', async () => {
+    const call = await sent(() => macroplan.labels.create('p 1', { name: 'Phase 1' }))
+    expect([call.init.method, call.url]).toEqual([
+      'POST',
+      'https://api.example.test/v1/macroplan/plans/p%201/labels',
+    ])
+  })
+
+  it('renames a label with PATCH on the label itself, sending only what it was given', async () => {
+    const call = await sent(() => macroplan.labels.update('p1', 'g 2', { name: 'Launch' }))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PATCH',
+      'https://api.example.test/v1/macroplan/plans/p1/labels/g%202',
+      '{"name":"Launch"}',
+    ])
+  })
+
+  it('deletes a label with DELETE and no body, the features in it being none of its business', async () => {
+    const call = await sent(() => macroplan.labels.remove('p1', 'g2'))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'DELETE',
+      'https://api.example.test/v1/macroplan/plans/p1/labels/g2',
+      undefined,
+    ])
+  })
+
+  it('groups a feature with PUT on the feature, a group being a field of the feature', async () => {
+    const call = await sent(() => macroplan.features.setLabel('p1', 'f 1', 'g2'))
+    expect([call.init.method, call.url, call.init.body]).toEqual([
+      'PUT',
+      'https://api.example.test/v1/macroplan/plans/p1/features/f%201/label',
+      '{"labelId":"g2"}',
+    ])
+  })
+
+  it('sends labelId null to take a feature out of a group, which is the only way out', async () => {
+    const call = await sent(() => macroplan.features.setLabel('p1', 'f1', null))
+    expect(call.init.body).toBe('{"labelId":null}')
+  })
   it('asks the plan bootstrap route, which is its own product and not a shared one', async () => {
     expect((await sent(() => macroplan.currentShare())).url).toBe(
       'https://api.example.test/v1/macroplan/shares/current',

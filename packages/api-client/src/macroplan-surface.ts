@@ -2,6 +2,7 @@ import { PlanShareView } from '@repo/contracts'
 import { epicsApi, type EpicsApi } from './operations/epics.js'
 import { featuresApi, type FeaturesApi } from './operations/features.js'
 import { itemsApi, type ItemsApi } from './operations/items.js'
+import { labelsApi, type LabelsApi } from './operations/labels.js'
 import { planShareLinksApi, type PlanShareLinksApi } from './operations/plan-share-links.js'
 import { plansApi, type PlansApi } from './operations/plans.js'
 import { MACROPLAN_CURRENT_SHARE_PATH } from './paths.js'
@@ -45,6 +46,15 @@ export interface MacroplanApi {
   readonly features: FeaturesApi
 
   /**
+   * Labels: the groups a plan's features are put into, across rails.
+   *
+   * Every member is `manage`-only, and the write that puts a feature **in** a group is not here — it is a
+   * field of the feature, so it is `features.setLabel`. Read {@link LabelsApi} before assuming a delete
+   * here behaves like `epics.remove`: it deletes no feature.
+   */
+  readonly labels: LabelsApi
+
+  /**
    * Items: what sits inside a feature, added, edited, moved, described and removed.
    *
    * `describe` replaces a whole description and the API truncates one over its byte cap rather than
@@ -80,6 +90,7 @@ export function createMacroplanSurface(transport: Transport): MacroplanApi {
     epics: epicsApi(transport),
     features: featuresApi(transport),
     items: itemsApi(transport),
+    labels: labelsApi(transport),
     shareLinks: planShareLinksApi(transport),
     currentShare: () =>
       transport.json({ method: 'GET', path: MACROPLAN_CURRENT_SHARE_PATH }, PlanShareView),

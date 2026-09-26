@@ -27,6 +27,7 @@ export type CapabilityTarget =
   | 'tab'
   | 'plan'
   | 'epic'
+  | 'label'
   | 'feature'
   | 'item'
   | 'own-scope'
@@ -113,6 +114,9 @@ const ROWS = {
   'epic:delete': { minimum: 'manage', target: 'epic' },
   'epic:reorder': { minimum: 'manage', target: 'epic' },
   'epic:bind': { minimum: 'admin', target: 'epic' },
+  'label:create': { minimum: 'manage', target: 'label' },
+  'label:rename': { minimum: 'manage', target: 'label' },
+  'label:delete': { minimum: 'manage', target: 'label' },
   'feature:create': { minimum: 'write', target: 'feature' },
   'feature:rename': { minimum: 'write', target: 'feature' },
   'feature:estimate': { minimum: 'write', target: 'feature' },
@@ -120,6 +124,7 @@ const ROWS = {
   'feature:place': { minimum: 'manage', target: 'feature' },
   'feature:pin': { minimum: 'manage', target: 'feature' },
   'feature:depend': { minimum: 'manage', target: 'feature' },
+  'feature:label': { minimum: 'manage', target: 'feature' },
   'item:create': { minimum: 'write', target: 'item' },
   'item:rename': { minimum: 'write', target: 'item' },
   'item:estimate': { minimum: 'write', target: 'item' },
@@ -177,7 +182,7 @@ const RANK: Readonly<Record<CapabilityMinimum, number>> = { view: 0, write: 1, m
 const PROJECT_ACTIONS_A_TASK_SCOPE_REACHES: readonly CapabilityAction[] = ['project:read']
 
 const PROJECT_FAMILY: readonly CapabilityTarget[] = ['project', 'folder', 'task', 'tab']
-const PLAN_FAMILY: readonly CapabilityTarget[] = ['plan', 'epic', 'feature', 'item']
+const PLAN_FAMILY: readonly CapabilityTarget[] = ['plan', 'epic', 'label', 'feature', 'item']
 
 const FAMILY_BY_SCOPE_KIND: Readonly<Record<ScopeValue['kind'], readonly CapabilityTarget[]>> = {
   project: PROJECT_FAMILY,

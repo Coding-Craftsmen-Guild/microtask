@@ -1,6 +1,7 @@
 import type { PlanEpic } from '../entities/epic.js'
 import type { PlanFeature } from '../entities/feature.js'
 import type { ItemDocument, PlanItem } from '../entities/item.js'
+import type { PlanLabel } from '../entities/label.js'
 import type { PlanManifest } from '../entities/plan.js'
 
 /** The one timestamp every fixture carries, so no comparison depends on the clock. */
@@ -59,6 +60,7 @@ export function feature(
     position: 0,
     estimateDays: 3,
     pinSprint: null,
+    labelId: null,
     dependsOn: [],
     createdAt: STAMP,
     updatedAt: STAMP,
@@ -66,6 +68,23 @@ export function feature(
   }
 }
 
+/**
+ * Builds a label named "Phase 1" in a fixed violet, before overrides.
+ *
+ * The name is a phase because that is the case the feature was built for — spec §5's rails own hue, so a
+ * group is what says "this work, wherever it sits, is one release" — and a fixed colour rather than a
+ * rotating one so two labels in a test differ only where the test said they do.
+ */
+export function label(id: string, overrides: Partial<PlanLabel> = {}): PlanLabel {
+  return {
+    id,
+    name: 'Phase 1',
+    colour: '#7c3aed',
+    createdAt: STAMP,
+    updatedAt: STAMP,
+    ...overrides,
+  }
+}
 /** Builds an item under the feature named, linked to no Microtask task, before overrides. */
 export function item(id: string, featureId: string, overrides: Partial<PlanItem> = {}): PlanItem {
   return {
@@ -93,7 +112,7 @@ export function itemDocument(id: string, overrides: Partial<ItemDocument> = {}):
 }
 
 /**
- * Builds a plan named Launch holding no epics, features, items or share links, before overrides.
+ * Builds a plan named Launch holding no epics, labels, features, items or share links.
  *
  * The sprint length and timezone are the values `@repo/contracts` uses in its own plan fixtures,
  * so a manifest built here parses against `PlanManifest` should a caller ever want to check that —
@@ -107,6 +126,7 @@ export function planManifest(id: string, overrides: Partial<PlanManifest> = {}):
     sprintLengthDays: 10,
     timezone: 'UTC',
     epics: [],
+    labels: [],
     features: [],
     items: [],
     shareLinks: [],

@@ -346,6 +346,7 @@ describe('which controls the seat’s own role draws', () => {
       'conflicts',
       'controls',
       'drawer',
+      'groups',
       'plan',
       'progress',
       'share',
@@ -356,6 +357,9 @@ describe('which controls the seat’s own role draws', () => {
     // manager's actions would have to carry this seat's token, which cannot cross as a prop and is
     // invisible to this file's walker once bound into one. It lifts with `actions` below, not before.
     expect(handed['share']).toBeNull()
+    // `groups` is `null` for the same unfinished reason and not by policy: a plan-scoped `manage` seat holds
+    // all five group actions, so this surface should draw them — what stops it is the same token binding.
+    expect(handed['groups']).toBeNull()
     expect((handed['controls'] as { seats: Record<string, boolean> }).seats).toEqual({
       read: false,
       create: false,
@@ -376,22 +380,22 @@ describe('which controls the seat’s own role draws', () => {
       isValidElement<{ controls: { content: Record<string, boolean> } }>(element)
         ? Object.entries(element.props.controls.content)
         : []
-    // A view seat draws none of the twenty-three, as before. A manage seat now draws twenty-one: the two
+    // A view seat draws none of the twenty-eight, as before. A manage seat now draws twenty-six: the two
     // binding controls are admin-only (`epic:bind`), which design §7.3 requires — an epic's binding is the
     // ceiling on what a link holder reaches in Microtask, so a holder that could re-role one could raise
     // its own ceiling. They are the first controls in this product that no seat of any role draws.
     const ADMIN_ONLY = ['bindEpic', 'unbindEpic']
     seated(SEAT_TOKEN)
     const view = drawn(await LinkPlanPage(props(SEAT_TOKEN)))
-    expect(view).toHaveLength(23)
+    expect(view).toHaveLength(28)
     for (const [control, answer] of view) expect(answer, control).toBe(false)
     seated(MANAGE_SEAT_TOKEN)
     const manage = drawn(await LinkPlanPage(props(MANAGE_SEAT_TOKEN)))
-    expect(manage).toHaveLength(23)
+    expect(manage).toHaveLength(28)
     for (const [control, answer] of manage) {
       expect(answer, control).toBe(!ADMIN_ONLY.includes(control))
     }
-    expect(manage.filter(([, answer]) => answer)).toHaveLength(21)
+    expect(manage.filter(([, answer]) => answer)).toHaveLength(26)
   })
 })
 

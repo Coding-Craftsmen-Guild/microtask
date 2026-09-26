@@ -75,6 +75,7 @@ export function Rail({ rail, name, unplaced, frame, top }: RailProps) {
               bar={bar}
               colour={rail.colour}
               key={bar.id}
+              labelId={frame.groups.get(bar.id) ?? null}
               top={top}
               treatment={frame.treatments.get(bar.id) ?? 'solid'}
             />
@@ -86,6 +87,7 @@ export function Rail({ rail, name, unplaced, frame, top }: RailProps) {
               <ItemMarkShape
                 colour={rail.colour}
                 key={mark.id}
+                labelId={frame.groups.get(bar.id) ?? null}
                 mark={mark}
                 top={top}
                 treatment={frame.treatments.get(mark.id) ?? 'solid'}

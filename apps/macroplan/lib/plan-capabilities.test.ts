@@ -14,7 +14,7 @@ import { planCapabilities, planControls, type PlanContentControls } from './plan
 import { ACTION_REFUSALS, plainRefusal } from './refusal'
 
 // The two modules whose exports this file compares the controls against are reached through the
-// same mocks `components/plan/admin-actions.test.ts` uses, so importing twenty-three `'use server'`
+// same mocks `components/plan/admin-actions.test.ts` uses, so importing twenty-eight `'use server'`
 // actions here cannot touch a cookie or re-render anything. `lib/api` is deliberately **not**
 // mocked: the last describe drives a real client over a stubbed `fetch`, which is the only way the
 // refusal sentence it asserts is the one the app would really show.
@@ -48,6 +48,11 @@ const WRITES: Readonly<Record<keyof PlanContentControls, CapabilityAction>> = {
   recolourEpic: 'epic:rename',
   reorderEpic: 'epic:reorder',
   removeEpic: 'epic:delete',
+  createLabel: 'label:create',
+  renameLabel: 'label:rename',
+  recolourLabel: 'label:rename',
+  removeLabel: 'label:delete',
+  labelFeature: 'feature:label',
   createFeature: 'feature:create',
   renameFeature: 'feature:rename',
   estimateFeature: 'feature:estimate',
@@ -99,7 +104,7 @@ describe('the record this helper exists because of', () => {
     expect(capabilities('manage', PLAN)['share:create']).toBe(true)
   })
 
-  it('gates none of the twenty-three writes on a second target, which is why the record answers them', () => {
+  it('gates none of the twenty-eight writes on a second target, which is why the record answers them', () => {
     for (const control of CONTROLS) {
       expect(ACTION_DECISIONS[WRITES[control]].alsoGatedOn, control).toBeUndefined()
     }
@@ -107,7 +112,7 @@ describe('the record this helper exists because of', () => {
 
   it('names a plan-family target on every one of them, which is what a plan scope reaches', () => {
     const targets = new Set(CONTROLS.map((control) => ACTION_DECISIONS[WRITES[control]].target))
-    expect([...targets].sort()).toEqual(['epic', 'feature', 'item'])
+    expect([...targets].sort()).toEqual(['epic', 'feature', 'item', 'label'])
   })
 })
 
@@ -161,13 +166,13 @@ describe('planCapabilities answers each seat action the way the server decides i
   })
 })
 
-describe('the twenty-three content controls are the twenty-three writes, and neither more nor fewer', () => {
+describe('the twenty-eight content controls are the twenty-eight writes, and neither more nor fewer', () => {
   it('holds one boolean per member of PlanEditActions, which the admin wiring enumerates', () => {
     expect(Object.keys(planCapabilities('manage', PLAN).content).sort()).toEqual(
       Object.keys(ADMIN_PLAN_ACTIONS).sort(),
     )
     expect([...CONTROLS].sort()).toEqual(Object.keys(ADMIN_PLAN_ACTIONS).sort())
-    expect(CONTROLS).toHaveLength(23)
+    expect(CONTROLS).toHaveLength(28)
   })
 
   it('draws no control for the plan itself, there being no such action on either surface', () => {
@@ -186,13 +191,13 @@ describe('the twenty-three content controls are the twenty-three writes, and nei
 })
 
 describe('each content control is the record’s own answer for the action behind it', () => {
-  it.each(ROLES)('answers every one of the twenty-three as the record answers a %s seat', (role) => {
+  it.each(ROLES)('answers every one of the twenty-eight as the record answers a %s seat', (role) => {
     const asked = planCapabilities(role, PLAN).content
     const record = capabilities(role, PLAN)
     for (const control of CONTROLS) {
       expect(asked[control], control).toBe(record[WRITES[control]])
       // Asked the way the three `share:*` rows above have to be asked — against `'plan'` rather than
-      // against the action's own declared target. For these twenty-three the two agree, which is the
+      // against the action's own declared target. For these twenty-eight the two agree, which is the
       // whole reason they may be read off the record; the share rows are the case where they do not.
       // Asking with `ACTION_DECISIONS[...].target` instead would assert nothing, `capabilities()`
       // being defined as exactly that call.
@@ -200,7 +205,7 @@ describe('each content control is the record’s own answer for the action behin
     }
   })
 
-  it('draws nothing at all for a view seat, every one of the twenty-three being a write', () => {
+  it('draws nothing at all for a view seat, every one of the twenty-eight being a write', () => {
     expect(drawn('view')).toEqual([])
   })
 
@@ -237,12 +242,14 @@ describe('each content control is the record’s own answer for the action behin
     expect(planControls(() => true, SEATS).content.unbindEpic).toBe(true)
   })
 
-  // Twenty-one and not twenty-three: the two binding controls are admin-only, which is the first time
-  // in this product that a plan manage seat is refused a control an admin draws.
-  it('draws a manage seat twenty-one of the twenty-three, and never the two admin-only ones', () => {
+  // Twenty-six and not twenty-eight: the two binding controls are admin-only, which is the first time
+  // in this product that a plan manage seat is refused a control an admin draws. The five group controls
+  // are **not** among the exclusions — `manage` holds all of them, and it is a `write` seat they are
+  // withheld from.
+  it('draws a manage seat twenty-six of the twenty-eight, and never the two admin-only ones', () => {
     const expected = [...CONTROLS].filter((one) => one !== 'bindEpic' && one !== 'unbindEpic').sort()
     expect(drawn('manage')).toEqual(expected)
-    expect(expected).toHaveLength(21)
+    expect(expected).toHaveLength(26)
   })
 
   it('answers a recolour exactly as it answers a rename, that PATCH being one gate', () => {
@@ -304,7 +311,7 @@ describe('a control is a rendering answer and never a gate', () => {
     expect(answer).not.toMatchObject({ detail: 'Not permitted: epic:create' })
   })
 
-  it('wires all twenty-three whatever the controls answer, which is what makes that the case', () => {
+  it('wires all twenty-eight whatever the controls answer, which is what makes that the case', () => {
     expect(Object.keys(seatPlanActions(WRITE_SEAT_TOKEN)).sort()).toEqual(
       Object.keys(planCapabilities('view', PLAN).content).sort(),
     )

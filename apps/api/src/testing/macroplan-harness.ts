@@ -4,6 +4,7 @@ import type {
   PlanEpic,
   PlanFeature,
   PlanItem,
+  PlanLabel,
   PlanManifest,
   PlanShareLink,
 } from '@repo/macroplan-domain'
@@ -13,6 +14,7 @@ import {
   feature,
   item,
   itemDocument,
+  label,
   marked,
   planManifest,
 } from '@repo/macroplan-domain/testing'
@@ -30,6 +32,16 @@ import { IDS, buildDeps } from './harness.js'
  *
  * There is no id here for the plan whose id collides with a project's: that one **is** `IDS.p1`,
  * and giving it a second name would hide the collision the guard suite is built to probe.
+ *
+ * `l1` and `l2` name the two groups the fixture plan holds, and **no feature is in either of them**.
+ * Empty on purpose: a group's whole subject is which features point at it, so a fixture that pre-grouped
+ * two would make every assertion about grouping read as an assertion about the fixture — and it would
+ * change the `PlanFeature` values a dozen suites compare whole. Each label suite groups what it needs
+ * and says so in its own body.
+ *
+ * Their mark is `GP` and not `LB`, which is not a preference: Crockford base32 excludes `I`, `L`, `O`
+ * and `U`, so an id marked `LB` is not a ULID and `EntityId` refuses it — as four route suites
+ * discovered at once.
  */
 export const PLAN_IDS = {
   plan: marked('PN', 1),
@@ -42,6 +54,8 @@ export const PLAN_IDS = {
   f4: marked('FT', 4),
   f5: marked('FT', 5),
   f6: marked('FT', 6),
+  l1: marked('GP', 1),
+  l2: marked('GP', 2),
   i1: marked('TM', 1),
   i2: marked('TM', 2),
   i3: marked('TM', 3),
@@ -117,6 +131,10 @@ const fixtureFeatures = (): readonly PlanFeature[] => [
   feature(PLAN_IDS.f6, PLAN_IDS.e3, { name: 'Ranking', position: 1, estimateDays: 5 }),
 ]
 
+const fixtureLabels = (): readonly PlanLabel[] => [
+  label(PLAN_IDS.l1, { name: 'Phase 1' }),
+  label(PLAN_IDS.l2, { name: 'Phase 2', colour: '#0088cc' }),
+]
 const fixtureItems = (): readonly PlanItem[] => [
   item(PLAN_IDS.i1, PLAN_IDS.f1, { name: 'Add to basket', position: 0, estimateDays: 1 }),
   item(PLAN_IDS.i2, PLAN_IDS.f1, { name: 'Basket totals', position: 1, estimateDays: 3 }),
@@ -136,6 +154,7 @@ const fixturePlan = (): PlanManifest =>
     sprintLengthDays: 10,
     timezone: PLAN_TIMEZONE,
     epics: fixtureEpics(),
+    labels: fixtureLabels(),
     features: fixtureFeatures(),
     items: fixtureItems(),
     shareLinks: [

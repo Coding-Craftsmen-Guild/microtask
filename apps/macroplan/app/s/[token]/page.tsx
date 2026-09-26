@@ -125,6 +125,7 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
       actions={null}
       at={new Date()}
       bridge={null}
+      groups={null}
       conflicts={null}
       controls={planCapabilities(role, scope)}
       drawer={null}

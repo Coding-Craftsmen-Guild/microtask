@@ -4,14 +4,15 @@ import type {
   EpicService,
   FeatureService,
   ItemService,
+  LabelService,
   PlanService,
   PlanShareLinkService,
 } from '@repo/macroplan-domain'
 
 /**
- * The five services this product's routes are mounted over.
+ * The six services this product's routes are mounted over.
  *
- * A record rather than five parameters, because `createPlanScoped` would otherwise take more
+ * A record rather than six parameters, because `createPlanScoped` would otherwise take more
  * arguments than ADR 0027's cap allows and every subtree added later would push it further. Naming
  * them also means a subtree app is handed only the service it needs: the epics app never sees
  * `FeatureService`, so it cannot start editing features from an epic route. `seats` is the sharpest
@@ -28,6 +29,16 @@ import type {
 export interface PlanServices {
   readonly plans: PlanService
   readonly epics: EpicService
+
+  /**
+   * Labels: the groups a plan's features are put into, across rails.
+   *
+   * Its own service rather than methods on `epics`, because a label is not a rail: the two share nothing
+   * but the manifest, and every method of this one touches `features` where no method of that one does.
+   * Only the labels app receives it, so no structural route can delete a group.
+   */
+  readonly labels: LabelService
+
   readonly features: FeatureService
   readonly items: ItemService
   readonly seats: PlanShareLinkService

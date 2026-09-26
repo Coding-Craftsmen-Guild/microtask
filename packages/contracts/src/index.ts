@@ -46,6 +46,7 @@ export {
   PlanEpic,
   PlanFeature,
   PlanItem,
+  PlanLabel,
   PlanManifest,
   Position,
   RailColour,
@@ -73,9 +74,11 @@ export {
 export { ItemView, PlanEpicView, PlanList, PlanListItem, PlanShareView, PlanView } from './plan-views.js'
 export {
   CreateEpicPayload,
+  CreateLabelPayload,
   CreatePlanPayload,
   EpicPlacementPayload,
   UpdateEpicPayload,
+  UpdateLabelPayload,
   UpdatePlanPayload,
 } from './plan-payloads.js'
 export { CreatePlanShareLinkPayload } from './plan-share-payloads.js'
@@ -84,6 +87,7 @@ export {
   CreateItemPayload,
   DependenciesPayload,
   DescriptionPayload,
+  FeatureLabelPayload,
   FeaturePlacementPayload,
   ItemPlacementPayload,
   UpdateFeaturePayload,

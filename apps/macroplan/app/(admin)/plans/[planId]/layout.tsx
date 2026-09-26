@@ -14,6 +14,7 @@ import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { bindEpic, unbindEpic } from '../../../../actions/bridge'
 import { BindingsPanel } from '../../../../components/plan/bridge/bindings-panel'
 import { bindingRows } from '../../../../components/plan/bridge/binding-rows'
+import { groupsSlot } from './groups-slot'
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
 
@@ -174,6 +175,7 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
         ) : null
       }
       drawer={children}
+      groups={groupsSlot(loaded.value)}
       plan={loaded.value}
       progress={bridge?.items ?? []}
       share={

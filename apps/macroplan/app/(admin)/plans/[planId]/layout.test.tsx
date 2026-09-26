@@ -309,6 +309,7 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layoutâ€
       'conflicts',
       'controls',
       'drawer',
+      'groups',
       'plan',
       'progress',
       'share',
@@ -316,6 +317,10 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layoutâ€
     expect(handed['drawer']).toBe(DRAWER)
     expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)
     expect(isValidElement<{ plan: unknown }>(handed['conflicts'])).toBe(true)
+    // The groups panel is built by `groups-slot.tsx` rather than inline, because this file's own layout was
+    // five lines from ADR 0027's cap. It is an element and not `null` here because `ADMIN_CONTROLS` draws
+    // every control, which is what that slot branches on.
+    expect(isValidElement(handed['groups'])).toBe(true)
   })
 
   // The manager is handed the plan's id and the four seat answers as flat primitives, and its four actions

@@ -153,6 +153,21 @@ export interface RailFrame {
   /** Every **non-solid** treatment, by the id it belongs to. A missing id is `'solid'`. */
   readonly treatments: ReadonlyMap<string, Treatment>
 
+  /**
+   * Which group each feature is in, by feature id. A feature in no group is simply absent.
+   *
+   * A map of the ids that **have** one, for the reason `treatments` above holds only the non-solid
+   * marks: most features are in no group, and an entry saying so for every one of 200 would state what
+   * the absence already states.
+   *
+   * Nothing on this canvas paints from it. It reaches the SVG as `data-label-id` on each bar and on each
+   * item mark under it, and what reads that back is the one CSS rule `labels/group-css.ts` generates per group —
+   * so selecting a group dims every bar that is not in it, on every rail at once, with no JavaScript and
+   * no second render. An item takes its **feature** ss group, since an item has none of its own: design
+   * §7 gives a group to the work a release is planned in, and an item is part of a feature rather than a
+   * thing a release contains directly.
+   */
+  readonly groups: ReadonlyMap<string, string>
   /** What this canvas's rung draws. */
   readonly draws: RungDrawing
 
@@ -162,6 +177,18 @@ export interface RailFrame {
   /** The x of day `range.fromDay`: the axis's left edge, and the gutter's right. */
   readonly axisX: number
 }
+
+/**
+ * Which group each feature is in, by feature id, holding only the features that are in one.
+ *
+ * Built from the plan rather than threaded in as a prop, because a feature's `labelId` is already on the
+ * plan every surface here is handed — and a second source for it would be a second thing to keep in step
+ * with a regroup.
+ */
+export const groupsOf = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
+  new Map(
+    plan.features.flatMap((each) => (each.labelId === null ? [] : [[each.id, each.labelId] as const])),
+  )
 
 /** The y of one rail's own band, from its index in the order `railLayout` returned. */
 export const railTop = (index: number): number => LAYOUT.chromeHeight + index * LAYOUT.railHeight
@@ -391,6 +418,7 @@ export function canvasLayout(
     frame: {
       marks: marksByFeature(itemsToMarks(plan, plan.schedule, scale)),
       treatments,
+      groups: groupsOf(plan),
       draws: DRAWS[rungFor(range)],
       labelX: gutterX(scale, range) + LAYOUT.labelInset,
       axisX: dayToX(range.fromDay, scale),

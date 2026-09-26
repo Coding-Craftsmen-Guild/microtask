@@ -48,10 +48,14 @@ const MANAGE = [
   'epic:rename',
   'epic:delete',
   'epic:reorder',
+  'label:create',
+  'label:rename',
+  'label:delete',
   'feature:delete',
   'feature:place',
   'feature:pin',
   'feature:depend',
+  'feature:label',
   'item:delete',
   'item:place',
 ] as const
@@ -88,7 +92,7 @@ const TASK_SCOPE_PROJECT_ACTIONS: readonly Action[] = ['project:read']
 export const PROJECT_TARGETS: readonly Target['kind'][] = ['project', 'folder', 'task', 'tab']
 
 /** The target kinds a plan scope may reach. */
-export const PLAN_TARGETS: readonly Target['kind'][] = ['plan', 'epic', 'feature', 'item']
+export const PLAN_TARGETS: readonly Target['kind'][] = ['plan', 'epic', 'label', 'feature', 'item']
 
 const SCOPE_TARGETS: Readonly<Record<Scope['kind'], readonly Target['kind'][]>> = {
   project: PROJECT_TARGETS,

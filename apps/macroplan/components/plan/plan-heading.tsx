@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { GroupChips } from './labels/group-chips'
+import { labelRows } from './labels/label-rows'
 import type { PlanScreenModel } from './plan-screen-model'
 
 /** Props for {@link PlanHeading}. */
@@ -34,6 +36,21 @@ export interface PlanHeadingProps {
  * gridline is spaced by, and the `timezone` today is read in — so a bar that looks wrong is checkable
  * against them without opening a drawer.
  *
+ * ### The group chips are mounted here rather than handed in
+ *
+ * They are the one thing in this heading that is **derived** rather than slotted, and that is the point:
+ * selecting a group writes nothing, so it needs no credential and cannot be a page’s decision. They were
+ * briefly inside the admin-only groups panel, which made the whole feature admin-only by accident — a seat
+ * holder was shown a `Group` column naming phases in the table with no way to select one. So they are
+ * built from `plan.labels` here, exactly as the table and the canvas are built from the same plan, and a
+ * plan with no groups draws nothing at all (`labels/group-chips.tsx`).
+ *
+ * They sit **inside this component** and so form no row of the screen’s grid, which is the same placement
+ * the managers have and for a related reason: the grid below is the drawer, the conflicts and the view
+ * switch, and `plan-screen.test.tsx` counts its children to pin that. A wrapper is needed for it — the
+ * name and the managers are a `justify-between` flex row and the chips are a line under all of it — so
+ * this component now returns a two-row grid whose first row is that flex row.
+ *
  * Neither the name nor the settings line carries a `data-testid`: the name is the page's `h1` and the
  * settings line is one unambiguous sentence, so a role query and a text query reach both — and those
  * catch a regression a test hook cannot, an `h1` demoted to a `div` keeping its hook and losing its
@@ -41,14 +58,17 @@ export interface PlanHeadingProps {
  */
 export function PlanHeading({ plan, managers }: PlanHeadingProps) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="grid gap-1">
-        <h1 className="text-xl font-semibold">{plan.name}</h1>
-        <p className="text-[13px] text-muted-foreground">
-          {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
-        </p>
+    <div className="grid gap-2" data-slot="plan-heading">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="grid gap-1">
+          <h1 className="text-xl font-semibold">{plan.name}</h1>
+          <p className="text-[13px] text-muted-foreground">
+            {`starts ${plan.startDate} · ${String(plan.sprintLengthDays)}-day sprints · ${plan.timezone}`}
+          </p>
+        </div>
+        {managers}
       </div>
-      {managers}
+      <GroupChips rows={labelRows(plan)} />
     </div>
   )
 }

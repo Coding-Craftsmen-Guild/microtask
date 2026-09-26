@@ -180,6 +180,24 @@ export interface PlanScreenProps {
   readonly bridge: ReactNode
 
   /**
+   * The forms that name this plan's groups, recolour them and delete them — or `null`.
+   *
+   * **The chips that select a group are not in this slot**, and the split is the correction worth reading
+   * before filling it. Selecting a group writes nothing, so it needs no credential and cannot be a page’s
+   * decision; it is mounted from `plan.labels` by `PlanHeading`, the way the table and the canvas are
+   * mounted from the same plan. Putting both halves in one slot made the whole feature admin-only by
+   * accident, because this slot is `null` on `/s/<token>` — a seat holder was shown a `Group` column naming
+   * phases in the table with no way to select one.
+   *
+   * So what is left here is administration, and it is a **slot** for the reason the other four are: what
+   * fills it is a decision only the page that read the credential can make. `null` on `/s/<token>` for the
+   * same unfinished reason `actions={null}` is null there, and not by policy: a plan-scoped `manage` seat
+   * holds all four group writes, so that surface *should* draw them — what stops it is that its writes must
+   * be bound to its token, and `page.test.tsx` asserts it hands over no function at all.
+   */
+  readonly groups: ReactNode
+
+  /**
    * What each linked item's task counts, as the bridge answered it — `[]` when nothing is linked.
    *
    * **Data and not a slot**, unlike the four above, and the difference is who renders it: a manager is a
@@ -286,11 +304,11 @@ export interface PlanScreenProps {
  * the page needs a different shape.
  */
 export function PlanScreen(props: PlanScreenProps) {
-  const { plan, at, actions, bridge, controls, conflicts, drawer, progress, share } = props
+  const { plan, at, actions, bridge, controls, conflicts, drawer, groups, progress, share } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
-    <div className="grid gap-4 pt-6">
-      <PlanHeading managers={<>{share}{bridge}</>} plan={plan} />
+    <div className="grid gap-4 pt-6" data-slot="plan-root">
+      <PlanHeading managers={<>{share}{bridge}{groups}</>} plan={plan} />
       {conflicts}
       {drawer}
       <div className={VIEW_SWITCH.views}>

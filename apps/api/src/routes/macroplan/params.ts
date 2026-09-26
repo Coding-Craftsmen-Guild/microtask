@@ -16,6 +16,9 @@ export const planParams = z.object({ planId: EntityId })
 /** A route under `/plans/{planId}/epics/{epicId}`. */
 export const epicParams = planParams.extend({ epicId: EntityId })
 
+/** A route under `/plans/{planId}/labels/{labelId}`. */
+export const labelParams = planParams.extend({ labelId: EntityId })
+
 /** A route under `/plans/{planId}/features/{featureId}`. */
 export const featureParams = planParams.extend({ featureId: EntityId })
 

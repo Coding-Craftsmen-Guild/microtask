@@ -4,6 +4,7 @@ import { createBridge } from './bridge/app.js'
 import { createEpics } from './epics/app.js'
 import { createFeatures } from './features/app.js'
 import { createItems } from './items/app.js'
+import { createLabels } from './labels/app.js'
 import { createPlanShareLinks } from './share-links/app.js'
 import { deletePlan, readPlan, updatePlan } from './plans/handlers.js'
 import { deletePlanRoute, readPlanRoute, updatePlanRoute } from './plans/routes.js'
@@ -19,7 +20,7 @@ import type { PlanServices } from './services.js'
  * It is returned fully populated. A route added to a child after its parent has served is not an
  * error and not a warning — it is silently unreachable, and absent from the document besides — so
  * every route this subtree will ever have is registered before `createMacroplan` mounts it. That
- * applies to the four children below as well: each is complete when it arrives.
+ * applies to the children below as well: each is complete when it arrives.
  *
  * It is handed the services rather than `ApiDeps`, because the `PlanContext` a Macroplan service is
  * built from is assembled once at the mount above: that is the one place the two domains' differing
@@ -39,6 +40,7 @@ export function createPlanScoped(services: PlanServices): OpenAPIHono<ApiEnv> {
   app.openapi(updatePlanRoute, updatePlan(services.plans))
   app.openapi(deletePlanRoute, deletePlan(services.plans))
   app.route('/epics', createEpics(services.epics, services.bindings))
+  app.route('/labels', createLabels(services.labels))
   app.route('/features', createFeatures(services.features))
   app.route('/items', createItems(services.items, services.plans, services.bridge))
   app.route('/share-links', createPlanShareLinks(services.seats))

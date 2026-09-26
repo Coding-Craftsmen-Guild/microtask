@@ -2,9 +2,8 @@ import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { DeleteControl } from './delete-control'
-import { DependencyEditor } from './dependency-editor'
 import { EDITS } from './field'
-import { PinField } from './pin-field'
+import { FeatureManage } from './feature-manage'
 import { PlaceControls } from './place-controls'
 import { removalFor } from './subject-writes'
 import type { DrawerValues } from './values'
@@ -23,7 +22,7 @@ export interface DrawerManageProps {
   /** Which of these controls this surface draws. Never a gate (`lib/plan-capabilities.ts`). */
   readonly controls: PlanContentControls
 
-  /** Every write of plan content, of which this hands three to the browser. */
+  /** Every write of plan content, which this spends through the two groups it mounts. */
   readonly actions: PlanEditActions
 
   /**
@@ -37,14 +36,15 @@ export interface DrawerManageProps {
 }
 
 /**
- * The controls a `manage` seat has and a `write` seat does not: the pin, and what a feature waits on.
+ * The controls a `manage` seat has and a `write` seat does not: the pin, the group, and what a feature
+ * waits on.
  *
  * ### One container per capability tier, which is the cut the pin already made visible
  *
  * `./drawer-edits.tsx` holds the three `write`-tier fields — `feature:rename`, `feature:estimate`,
  * `item:describe` — and every control in **this** band is granted to `manage` alone: `feature:pin`,
- * `feature:depend`, `feature:delete` and `item:delete` today, with `feature:place` and `item:place` to
- * follow (`MANAGE` and `WRITE` in `packages/kernel/src/access/policy.ts`). So a seat holding `write`
+ * `feature:label`, `feature:depend`, `feature:delete`, `item:delete`, `feature:place` and `item:place`
+ * (`MANAGE` and `WRITE` in `packages/kernel/src/access/policy.ts`). So a seat holding `write`
  * and not `manage` is shown exactly one of the two bands, and that is a fact of the file layout rather
  * than a condition anyone has to keep in step.
  *
@@ -69,24 +69,22 @@ export interface DrawerManageProps {
  * bordered box for that tier, and a read-only seat sees neither. That is a variant rather than a
  * count, so the condition cannot fall out of step with the controls inside it.
  *
- * ### Two of these controls are a feature's alone, and the third is not
+ * ### Three groups, and none of them tests the row kind here
  *
- * `row.kind === 'feature'` guards the pin and the dependency editor, and the contract is what makes that
- * the right question rather than a convenience: `PlanFeature` carries `pinSprint` and `dependsOn` where
- * `PlanItem` carries neither (`packages/contracts/src/plan.ts`), and spec §3.1 argues that edges exist
- * at the feature level and nowhere else because a feature is the contiguous block an edge can mean
- * something between. So the item drawer has **no** dependency control at all, and none to come.
+ * What this file mounts is three groups and no individual control, which is the shape the fifty-line cap
+ * forced and the right one anyway. `./feature-manage.tsx` holds the three controls a **feature** has and
+ * an item cannot — the pin, the group and the dependency editor, because `PlanFeature` carries
+ * `pinSprint`, `labelId` and `dependsOn` and `PlanItem` carries none of the three. `./place-controls.tsx`
+ * holds the two placements, where the kind chooses the *write* rather than whether to draw at all. The
+ * delete is the same shape as a placement and is the one control still mounted directly, on
+ * `removalFor`'s answer (`./subject-writes.ts`), because `removeFeature` and `removeItem` take ids the
+ * compiler cannot tell apart and a delete sent to the wrong route is the one mistake in this band that
+ * cannot be taken back.
  *
- * The delete is the other case, and it is why this file asks the kind per control rather than once at the
- * top: `feature:delete` and `item:delete` are both real, so the control is drawn for both kinds and the
- * **kind chooses the write**. That choice is `removalFor`'s and never a caller's (`./subject-writes.ts`),
- * because `removeFeature` and `removeItem` take ids of types the compiler cannot tell apart and a delete
- * sent to the wrong route is the one mistake in this band that cannot be taken back. `item:place` is the
- * same shape of control, which is the second reason this file must not split by row kind. Both have now
- * arrived, in one group that asks the kind for both halves of the answer — `./place-controls.tsx`, which is
- * mounted here unconditionally and draws nothing where the kind, the controls or the parent say so. That
- * group is the **third** in this band, and it makes the file's own argument concrete: every control here is
- * `manage`-tier, and a seat holding `write` and not `manage` is shown this whole band or none of it.
+ * So no `row.kind` test lives in this file any more, and that is the point of the arrangement rather than
+ * a side effect: a group that asks the kind itself cannot fall out of step with a parent that also asks
+ * it, and each group draws nothing rather than being conditionally mounted — which is what keeps this
+ * container's own `empty:hidden` honest for a seat that may write none of it.
  */
 export function DrawerManage({
   planId,
@@ -99,25 +97,13 @@ export function DrawerManage({
   const removal = removalFor(row.kind, controls, actions)
   return (
     <div className={EDITS}>
-      {row.kind === 'feature' && controls.pinFeature ? (
-        <PinField
-          featureId={row.id}
-          pin={actions.pinFeature}
-          pinSprint={values.pinSprint}
-          planId={planId}
-          sprintLengthDays={values.plan.calendar.sprintLengthDays}
-          startDate={values.plan.calendar.startDate}
-          timezone={values.plan.calendar.timezone}
-        />
-      ) : null}
-      {row.kind === 'feature' && controls.setDependencies ? (
-        <DependencyEditor
-          featureId={row.id}
-          features={values.plan.features}
-          planId={planId}
-          setDependencies={actions.setDependencies}
-        />
-      ) : null}
+      <FeatureManage
+        actions={actions}
+        controls={controls}
+        planId={planId}
+        row={row}
+        values={values}
+      />
       <PlaceControls
         actions={actions}
         controls={controls}

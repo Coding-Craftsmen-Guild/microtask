@@ -35,6 +35,7 @@ export const LIMITS = {
   projectsPerProduct: 500,
   plansPerProduct: 200,
   epicsPerPlan: 40,
+  labelsPerPlan: 20,
   featuresPerPlan: 200,
   itemsPerPlan: 2_000,
   edgesPerPlan: 400,
@@ -57,6 +58,7 @@ export type CountLimitKey = Exclude<LimitKey, 'nameLength'>
 export type PlanCountKey =
   | 'plansPerProduct'
   | 'epicsPerPlan'
+  | 'labelsPerPlan'
   | 'featuresPerPlan'
   | 'itemsPerPlan'
   | 'edgesPerPlan'

@@ -28,6 +28,7 @@ import { DependencyToggle } from './drawer/dependency-toggle'
 import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
 import { NameField } from './drawer/name-field'
+import { GroupField } from './drawer/group-field'
 import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
 import { DragRoot } from './canvas/drag-root'
@@ -36,6 +37,11 @@ import { BindForm } from './bridge/bind-form'
 import { LinkField } from './drawer/link-field'
 import { TaskPicker } from './drawer/task-picker'
 import { BindingsPanel } from './bridge/bindings-panel'
+import { LabelFields } from './labels/label-fields'
+import { LabelForm } from './labels/label-form'
+import { labelRows } from './labels/label-rows'
+import { LabelsPanel } from './labels/labels-panel'
+import { NewLabelForm } from './labels/new-label-form'
 import { ShareManager } from './share/share-manager'
 import { seatDoubles } from './share/testing/seat-doubles'
 import { drawerSubject } from './drawer/subject'
@@ -141,6 +147,8 @@ const DRAWER_ROW: TableRow = {
   epic: 'Platform',
   feature: 'Auth rewrite',
   item: null,
+  group: null,
+  labelId: null,
   estimate: '5d',
   sprint: 'S1',
   treatment: 'solid',
@@ -241,12 +249,16 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [EstimateField, 'drawer/estimate-field.tsx'],
   [NameField, 'drawer/name-field.tsx'],
   [PinField, 'drawer/pin-field.tsx'],
+  [GroupField, 'drawer/group-field.tsx'],
   [PlaceControl, 'drawer/place-control.tsx'],
   [DragRoot, 'canvas/drag-root.tsx'],
   [BindForm, 'bridge/bind-form.tsx'],
   [BindFields, 'bridge/bind-fields.tsx'],
   [LinkField, 'drawer/link-field.tsx'],
   [TaskPicker, 'drawer/task-picker.tsx'],
+  [LabelForm, 'labels/label-form.tsx'],
+  [LabelFields, 'labels/label-fields.tsx'],
+  [NewLabelForm, 'labels/new-label-form.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -313,6 +325,7 @@ const TREES = [
     actions={STUB_ACTIONS}
     at={AT}
     bridge={null}
+    groups={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -325,6 +338,7 @@ const TREES = [
     actions={STUB_ACTIONS}
     at={AT}
     bridge={null}
+    groups={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -337,6 +351,7 @@ const TREES = [
     actions={STUB_ACTIONS}
     at={AT}
     bridge={null}
+    groups={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -349,6 +364,7 @@ const TREES = [
     actions={STUB_ACTIONS}
     at={AT}
     bridge={null}
+    groups={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -371,6 +387,16 @@ const TREES = [
   // BindFields is rendered inside BindForm, and the walk stops at a client boundary rather than going
   // through it — so it needs a tree of its own here or the allowlist would admit a file nothing checks.
   <BindFields key="f3" onRole={() => undefined} onToken={() => undefined} role="view" token="" />,
+  // LabelFields sits inside LabelForm for the same reason and needs its own tree for the same one.
+  <LabelFields
+    colour="#7c3aed"
+    key="f7"
+    onColour={() => undefined}
+    onCommit={() => undefined}
+    onTyped={() => undefined}
+    stored="Phase 1"
+    typed="Phase 1"
+  />,
   <LinkField
     bound
     createTask={STUB_ACTIONS.createTask}
@@ -386,6 +412,16 @@ const TREES = [
     unlink={STUB_ACTIONS.unlinkItem}
   />,
   <TaskPicker chosen="" key="f5" nothing="none" onChoose={() => undefined} options="" />,
+  <LabelsPanel
+    create={STUB_ACTIONS.createLabel}
+    key="f6"
+    mayRemove
+    planId={atlasPlan().id}
+    recolour={STUB_ACTIONS.recolourLabel}
+    remove={STUB_ACTIONS.removeLabel}
+    rename={STUB_ACTIONS.renameLabel}
+    rows={labelRows(planScreenModel(atlasPlan()))}
+  />,
   <BindingsPanel
     bind={STUB_ACTIONS.bindEpic}
     mayUnbind
@@ -398,6 +434,7 @@ const TREES = [
     actions={STUB_ACTIONS}
     at={AT}
     bridge={null}
+    groups={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -417,6 +454,7 @@ const TREES = [
     actions={STUB_ACTIONS}
     at={AT}
     bridge={null}
+    groups={null}
     progress={[]}
     conflicts={<ConflictList plan={TANGLED} />}
     controls={ADMIN_CONTROLS}

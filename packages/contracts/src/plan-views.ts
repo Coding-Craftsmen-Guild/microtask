@@ -44,6 +44,7 @@ export const PlanEpicView = PlanEpic.extend({
  */
 export const PlanView = PlanManifest.extend({
   epics: z.array(PlanEpicView).max(LIMITS.epicsPerPlan).readonly(),
+  labels: PlanManifest.shape.labels.readonly(),
   features: PlanManifest.shape.features.readonly(),
   items: PlanManifest.shape.items.readonly(),
   shareLinks: PlanManifest.shape.shareLinks.readonly().optional(),

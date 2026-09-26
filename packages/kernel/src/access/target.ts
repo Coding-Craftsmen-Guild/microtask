@@ -7,6 +7,7 @@ export const TARGET_KINDS = [
   'tab',
   'plan',
   'epic',
+  'label',
   'feature',
   'item',
 ] as const
@@ -21,6 +22,7 @@ interface TargetShapeByKind {
   tab: { readonly kind: 'tab'; readonly projectId: string; readonly taskId: string }
   plan: { readonly kind: 'plan'; readonly planId: string }
   epic: { readonly kind: 'epic'; readonly planId: string }
+  label: { readonly kind: 'label'; readonly planId: string }
   feature: { readonly kind: 'feature'; readonly planId: string }
   item: { readonly kind: 'item'; readonly planId: string }
 }
@@ -32,8 +34,8 @@ interface TargetShapeByKind {
  * added to `TARGET_KINDS` without a matching entry in `TargetShapeByKind` fails to compile instead
  * of quietly typing as `never` in one place and a full union in the other.
  *
- * The four Macroplan kinds carry `planId` alone. A share link's scope is plan-wide, so no rule
- * turns on an epic, feature or item id, and a field no rule reads is a field that will one day
- * be compared wrongly.
+ * The five Macroplan kinds carry `planId` alone. A share link's scope is plan-wide, so no rule
+ * turns on an epic, label, feature or item id, and a field no rule reads is a field that will one
+ * day be compared wrongly.
  */
 export type Target = TargetShapeByKind[TargetKind]

@@ -15,6 +15,7 @@ const SAMPLES: Readonly<Record<string, string>> = {
   sessionId: IDS.missing,
   planId: PLAN_IDS.plan,
   epicId: PLAN_IDS.e1,
+  labelId: PLAN_IDS.l1,
   featureId: PLAN_IDS.f1,
   itemId: PLAN_IDS.i1,
 }
@@ -99,6 +100,7 @@ describe('guard (2): the credential matrix, per route group', () => {
       'folders',
       'import',
       'items',
+      'labels',
       'meta',
       'plans',
       'projects',

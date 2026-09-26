@@ -329,6 +329,7 @@ describe('the drawer hands no share token to a component either', () => {
       plan: {
         calendar: { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' },
         features: atlasPlan().features,
+        labels: atlasPlan().labels,
       },
       sizedByItems: true,
     })

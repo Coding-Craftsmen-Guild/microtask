@@ -129,6 +129,20 @@ export interface FeaturesApi {
   ): Promise<Plan>
 
   /**
+   * Puts one feature in a group, or takes it out of one with `null`. `manage`-only.
+   *
+   * A group is how one release is followed across rails that are otherwise unrelated, which is what no
+   * other field of a feature can say: `epicId` is which lane the work sits in, and a label is which
+   * release it belongs to.
+   *
+   * `labelId` is **required** and nullable: `null` is how a feature leaves a group, so there is no way
+   * to call this and change nothing. A label belonging to another plan is a **422** rather than a 404,
+   * the same refusal {@link FeaturesApi.create} gives an `epicId` from another plan (ADR 0050).
+   *
+   * It moves no bar. The schedule reads no group, so the plan this answers has the spans it had.
+   */
+  setLabel(planId: string, featureId: string, labelId: string | null): Promise<Plan>
+  /**
    * Removes one feature, the items under it and every edge that named it, in one write.
    *
    * The edge strip runs across every rail, because an edge pointing at a feature that no longer
@@ -157,6 +171,11 @@ export function featuresApi(transport: Transport): FeaturesApi {
     setDependencies: (planId, featureId, dependsOn) =>
       transport.json(
         { method: 'PUT', path: `${featurePath(planId, featureId)}/dependencies`, body: { dependsOn } },
+        PlanView,
+      ),
+    setLabel: (planId, featureId, labelId) =>
+      transport.json(
+        { method: 'PUT', path: `${featurePath(planId, featureId)}/label`, body: { labelId } },
         PlanView,
       ),
     remove: (planId, featureId) =>

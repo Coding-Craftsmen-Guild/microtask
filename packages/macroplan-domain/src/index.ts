@@ -7,6 +7,7 @@ export type { EpicBinding } from './entities/binding.js'
 export type { PlanEpic } from './entities/epic.js'
 export type { PlanFeature } from './entities/feature.js'
 export type { ItemDocument, PlanItem } from './entities/item.js'
+export type { PlanLabel } from './entities/label.js'
 export type { PlanManifest, PlanShareLink } from './entities/plan.js'
 export {
   assertWithin,
@@ -30,6 +31,7 @@ export {
   type FeaturePlacement,
   type NewFeature,
 } from './services/feature-service.js'
+export { LabelService, type LabelChanges, type NewLabel } from './services/label-service.js'
 export {
   ItemService,
   type ItemChanges,

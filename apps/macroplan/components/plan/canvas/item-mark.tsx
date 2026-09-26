@@ -15,6 +15,15 @@ export interface ItemMarkShapeProps {
 
   /** The y of its rail's own band. */
   readonly top: number
+
+  /**
+   * The group its **feature** is in, or `null`. An item has no group of its own.
+   *
+   * Carried so that choosing a group dims a feature's items with its bar rather than leaving a row of
+   * bright strips under a dimmed bar. It costs one attribute and no element, which is what `ItemMarkShape`
+   * has to cost at the 2,000-item cap.
+   */
+  readonly labelId: string | null
 }
 
 /**
@@ -44,11 +53,12 @@ export interface ItemMarkShapeProps {
  * component cannot be handed a state it does not draw, and because phase 4 widens the union with
  * states a *placed* item will have.
  */
-export function ItemMarkShape({ mark, colour, treatment, top }: ItemMarkShapeProps) {
+export function ItemMarkShape({ mark, colour, treatment, top, labelId }: ItemMarkShapeProps) {
   return (
     <rect
       className={TREATMENT_CLASS[treatment]}
       data-item-id={mark.id}
+      data-label-id={labelId ?? undefined}
       data-slot="item-mark"
       data-treatment={treatment}
       height={LAYOUT.markHeight}

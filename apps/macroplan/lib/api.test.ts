@@ -87,6 +87,7 @@ describe('apiForSession', () => {
       'epics',
       'features',
       'items',
+      'labels',
       'plans',
       'shareLinks',
     ])
