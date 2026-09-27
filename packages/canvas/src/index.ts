@@ -33,3 +33,13 @@ export { dayToX, scaleFor, widthOfDays, xToDay } from './scale.js'
 export type { CanvasScheduleWithStatus, Treatment } from './treatment.js'
 
 export { countsAsDone, countsAsStarted, treatmentOf, treatmentsOf } from './treatment.js'
+
+export type { ArcMetrics, ArcQuery, DependencyArc } from './arcs.js'
+
+export { arcLayout } from './arcs.js'
+
+export { diamondPoints, isMilestone } from './milestones.js'
+
+export type { ZoomStop } from './zoom.js'
+
+export { ZOOM_STOPS, rungParam } from './zoom.js'

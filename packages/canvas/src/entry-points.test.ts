@@ -16,18 +16,23 @@ describe('@repo/canvas entry points', () => {
     expect(exports['.']).toEqual({ types: './dist/index.d.ts', default: './dist/index.js' })
   })
 
-  it('ships the scale, the rails, the marks, the chrome, the rungs, the treatments, the drop and two bridge thresholds, and nothing else', () => {
+  it('ships the scale, the rails, the marks, the chrome, the rungs, the treatments, the drop, the arcs, the milestones, the zoom and two bridge thresholds, and nothing else', () => {
     expect(Object.keys(main).sort()).toEqual([
       'SPRINTS_PER_QUARTER',
+      'ZOOM_STOPS',
+      'arcLayout',
       'countsAsDone',
       'countsAsStarted',
       'dayToX',
+      'diamondPoints',
       'dropTargetFor',
+      'isMilestone',
       'itemsToMarks',
       'quarterBands',
       'railAtY',
       'railLayout',
       'rungFor',
+      'rungParam',
       'scaleFor',
       'sprintTicks',
       'todayLine',
@@ -36,6 +41,24 @@ describe('@repo/canvas entry points', () => {
       'widthOfDays',
       'xToDay',
     ])
+  })
+
+  it('keeps the arc and diamond px constants off the barrel, for the reason the rung bounds are off it', () => {
+    expect(Object.keys(main)).not.toContain('ARC_MIN_REACH')
+    expect(Object.keys(main)).not.toContain('ARC_LIFT')
+    expect(Object.keys(main)).not.toContain('DIAMOND_RADIUS')
+  })
+
+  it('ships the arc query as a type, a caller naming the object it passes and the answer it reads', () => {
+    const metrics: main.ArcMetrics = { chromeHeight: 40, railHeight: 50, barTop: 16, barHeight: 18 }
+    const asked: main.ArcQuery = {
+      plan: { startDate: '2026-01-05', sprintLengthDays: 10, timezone: 'UTC', epics: [], features: [], items: [] },
+      rails: [],
+      metrics,
+      ignoredEdges: [],
+    }
+    const answer: readonly main.DependencyArc[] = main.arcLayout(asked)
+    expect(answer).toEqual([])
   })
 
   it('ships all four drag types, a caller having to name the object it passes and the answer it reads', () => {
