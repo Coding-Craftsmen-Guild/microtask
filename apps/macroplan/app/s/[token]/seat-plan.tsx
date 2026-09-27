@@ -40,29 +40,26 @@ const refused = (detail: string): ReactNode => (
  * `new Date()`, which is what `PlanScreen.at` takes — and threaded down as the instant the today line
  * is drawn at, as the admin page does.
  *
- * `conflicts={null}` is the same sentence about the other slot, and it is the same missing pages that
- * make it true. A conflict row's whole point is a link to the control that fixes it, and every builder
- * in `lib/drawer-routes.ts` addresses `/plans/<planId>/…` — so drawing the list here would hand a seat
- * holder links to a surface that answers a cookie they cannot have and would redirect them to a login
- * with no password behind it (ADR 0032). The two `null`s therefore arrive and leave together: whoever
- * adds `/s/<token>/f/<featureId>` gains both a drawer to open and a list that can link to it, and both
- * lines here are compile errors that day rather than a screen quietly missing two things.
+ * ### Every slot is filled now but one, and that one is policy
  *
- * `drawer={null}` is this page **saying** it has no drawer, rather than leaving the prop off. The slot
- * is required on `PlanScreen` for that reason: `/s/<token>/f/<featureId>` and `/s/<token>/i/<itemId>`
- * are a later task — their builders are deliberately absent from `lib/drawer-routes.ts` until the
- * pages exist — and on the day they arrive this one line is a compile error rather than a seat screen
- * that goes on rendering without the panel it now has routes for.
+ * `bridge={null}` is the only `null` left, and it is `null` **for ever** rather than for want of work: no
+ * seat of any role holds `epic:bind`, an epic’s binding being the ceiling on everything a seat reaches in
+ * Microtask through the bridge (design §7.3), so there is nothing here for a seat to draw. That is worth
+ * stating because the other four were each `null` for an unfinished reason and are not any more — whoever
+ * fills the last one should find out it cannot be filled from here rather than discovering a 403.
  *
- * `share={null}` is the one remaining `null` that costs this surface something a seat may actually do.
- * `planCapabilities` answers a plan-scoped `manage` seat **`true` on all four `share:*` questions** —
- * `share:read`, `share:update` and `share:revoke` through `mayReach` with `'plan'`, and `share:create` off
- * the record — so such a holder may legitimately administer this plan’s other seats (ADR 0038, ADR 0053),
- * and the manager it would open is built and tested. What is missing is now only the four **seat twins** of
- * `actions/plan-share-links.ts`: the mechanism is settled, since the writes below are mounted and bound to
- * this seat’s token. `settings={null}` is the same sentence about the three plan-level actions, which have
- * no seat twin either although all three are `manage` — so a `manage` seat holding this plan cannot correct
- * its start date.
+ * `conflicts`, `drawer`, `settings` and `share` were all `null` and all for reasons that have since been
+ * settled, which is worth recording because each looked like a tier and was not:
+ *
+ * - **`drawer`** needed a route to sit in. `/s/<token>/f/<featureId>` and `/s/<token>/i/<itemId>` exist, and
+ *   the plan moved into `layout.tsx` so that opening one is a soft navigation rather than a rebuild of
+ *   2,200 table rows (ADR 0057).
+ * - **`conflicts`** needed links that could address this surface. The list takes a `DrawerRoutes` record
+ *   now instead of importing the admin builders, so a conflict row here points at `/s/<token>/…` rather
+ *   than at a page that answers a cookie a seat cannot have (ADR 0032).
+ * - **`settings`** and **`share`** needed seat twins of their actions, which `actions/seat-plan.ts` and
+ *   `actions/seat-seats.ts` now are. All seven are `manage`, so a `manage` seat administers the plan it was
+ *   given and its other seats — the API’s own answer, not a widening taken here.
  *
  * ### The writes are mounted, and what makes that safe
  *
