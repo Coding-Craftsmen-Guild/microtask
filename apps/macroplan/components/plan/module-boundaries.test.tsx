@@ -21,7 +21,7 @@ import {
   tangledPlan,
   unplacedPlan,
 } from './testing/plan-fixture'
-import { nothingDrawn, stubActions } from './testing/plan-writes'
+import { nothingDrawn, stubActions, stubPlanWrites } from './testing/plan-writes'
 import { CreateControls } from './drawer/create-controls'
 import { DeleteControl } from './drawer/delete-control'
 import { DependencyToggle } from './drawer/dependency-toggle'
@@ -39,6 +39,11 @@ import { TaskPicker } from './drawer/task-picker'
 import { BindingsPanel } from './bridge/bindings-panel'
 import { LabelFields } from './labels/label-fields'
 import { NewRailForm } from './rails/new-rail-form'
+import { DeletePlan } from './settings/delete-plan'
+import { SettingsPanel } from './settings/settings-panel'
+import { PlanNameForm } from './settings/plan-name-form'
+import { TimingFields } from './settings/timing-fields'
+import { TimingForm } from './settings/timing-form'
 import { RailFeature } from './rails/rail-feature'
 import { RailFields } from './rails/rail-fields'
 import { RailForm } from './rails/rail-form'
@@ -170,6 +175,12 @@ const DRAWER_ROW: TableRow = {
 // one tree draws none of them so the `empty:hidden` group is painted too.
 const STUB_ACTIONS = stubActions()
 
+// The three plan-level writes, which are **not** members of `PlanEditActions` and so are not in
+// `STUB_ACTIONS`: two of the three answer something other than a plan. `testing/plan-writes.ts` argues why,
+// and typing the doubles off the components' own write types is what keeps this from needing a cast — the
+// first draft reached for `STUB_ACTIONS.placeFeature as never`, which typechecks and proves nothing.
+const PLAN_WRITES = stubPlanWrites()
+
 const NOTHING_DRAWN = nothingDrawn()
 
 // The share manager, mounted the way `[planId]/layout.tsx` mounts it — nine flat props, four of them
@@ -269,6 +280,10 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [RailFields, 'rails/rail-fields.tsx'],
   [RailFeature, 'rails/rail-feature.tsx'],
   [NewRailForm, 'rails/new-rail-form.tsx'],
+  [PlanNameForm, 'settings/plan-name-form.tsx'],
+  [TimingForm, 'settings/timing-form.tsx'],
+  [TimingFields, 'settings/timing-fields.tsx'],
+  [DeletePlan, 'settings/delete-plan.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -337,6 +352,7 @@ const TREES = [
     bridge={null}
     groups={null}
     rails={null}
+    settings={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -351,6 +367,7 @@ const TREES = [
     bridge={null}
     groups={null}
     rails={null}
+    settings={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -365,6 +382,7 @@ const TREES = [
     bridge={null}
     groups={null}
     rails={null}
+    settings={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -379,6 +397,7 @@ const TREES = [
     bridge={null}
     groups={null}
     rails={null}
+    settings={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -440,6 +459,31 @@ const TREES = [
     rename={STUB_ACTIONS.renameLabel}
     rows={labelRows(planScreenModel(atlasPlan()))}
   />,
+  // The settings panel, so the three client forms inside it are walked. Its one datum is the plan model,
+  // which never crosses the boundary: each form is handed the plan's id, name and three calendar values as
+  // primitives. That is the whole reason the panel is a Server Component wrapping three client forms
+  // rather than one client panel taking a plan.
+  <SettingsPanel
+    key="f8"
+    mayRemove
+    mayRename
+    mayRetime
+    plan={planScreenModel(atlasPlan())}
+    remove={PLAN_WRITES.remove}
+    rename={PLAN_WRITES.rename}
+    retime={PLAN_WRITES.retime}
+  />,
+  // TimingFields sits inside TimingForm, so the walk stops before it and it needs a tree of its own —
+  // the same reason BindFields, LabelFields and RailFields each have one.
+  <TimingFields
+    key="f9"
+    onSprint={() => undefined}
+    onStart={() => undefined}
+    onZone={() => undefined}
+    sprintLengthDays={10}
+    startDate='2026-01-05'
+    timezone='UTC'
+  />,
   <BindingsPanel
     bind={STUB_ACTIONS.bindEpic}
     mayUnbind
@@ -454,6 +498,7 @@ const TREES = [
     bridge={null}
     groups={null}
     rails={null}
+    settings={null}
     progress={[]}
     conflicts={null}
     controls={ADMIN_CONTROLS}
@@ -475,6 +520,7 @@ const TREES = [
     bridge={null}
     groups={null}
     rails={null}
+    settings={null}
     progress={[]}
     conflicts={<ConflictList plan={TANGLED} />}
     controls={ADMIN_CONTROLS}

@@ -175,12 +175,28 @@ describe('the twenty-eight content controls are the twenty-eight writes, and nei
     expect(CONTROLS).toHaveLength(28)
   })
 
-  it('draws no control for the plan itself, there being no such action on either surface', () => {
+  // The three plan-level actions are a **third group** and not content controls, and this is what pins
+  // that boundary. It used to assert they were drawn nowhere at all, on the grounds that no Server Action
+  // called them — true for four phases, and the reason a plan given the wrong start date was wrong for
+  // ever. What the group separation buys is that `WRITES` stays exactly `PlanEditActions`, so the content
+  // sweep above still compares two lists that must match; two of these three could not join that
+  // interface anyway, `renamePlan` answering the stored name and `deletePlan` answering nothing.
+  it('keeps the three plan-level actions out of the content group, in a group of their own', () => {
     const asked: readonly string[] = Object.values(WRITES)
     expect(asked).not.toContain('plan:rename')
     expect(asked).not.toContain('plan:retime')
     expect(asked).not.toContain('plan:delete')
-    expect(Object.keys(planCapabilities('manage', PLAN)).sort()).toEqual(['content', 'seats'])
+    expect(Object.keys(planCapabilities('manage', PLAN)).sort()).toEqual(['content', 'plan', 'seats'])
+  })
+
+  it('answers all three of them true for a plan-scoped manage seat, every one being manage', () => {
+    expect(planCapabilities('manage', PLAN).plan).toEqual({ rename: true, retime: true, remove: true })
+  })
+
+  it('answers all three false for a view seat and for a write seat, so neither draws them', () => {
+    for (const role of ['view', 'write'] as const) {
+      expect(planCapabilities(role, PLAN).plan).toEqual({ rename: false, retime: false, remove: false })
+    }
   })
 
   it('keeps the seat four out of the content group, so no create is mistaken for a createEpic', () => {

@@ -132,6 +132,7 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
       drawer={null}
       plan={plan.value}
       progress={[]}
+      settings={null}
       share={null}
     />
   )

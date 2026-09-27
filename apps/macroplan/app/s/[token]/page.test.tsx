@@ -350,6 +350,7 @@ describe('which controls the seat’s own role draws', () => {
       'plan',
       'progress',
       'rails',
+      'settings',
       'share',
     ])
     expect(handed['drawer']).toBeNull()
@@ -366,6 +367,10 @@ describe('which controls the seat’s own role draws', () => {
     // put a feature on it — the admin surface is the only way into a plan. That is the token binding and
     // not a grant, so it lifts with `actions` exactly as the other two do.
     expect(handed['rails']).toBeNull()
+    // `settings` is the fifth, and the one this gap costs most: `plan:rename`, `plan:retime` and
+    // `plan:delete` are all `manage`, so a plan-scoped `manage` seat holds every one of them and cannot
+    // reach any — a seat given a plan cannot correct its start date. It lifts with `actions`.
+    expect(handed['settings']).toBeNull()
     expect((handed['controls'] as { seats: Record<string, boolean> }).seats).toEqual({
       read: false,
       create: false,

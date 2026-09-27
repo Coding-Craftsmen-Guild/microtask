@@ -37,13 +37,26 @@ import {
 import { featurePath, itemPath } from '../../../../lib/drawer-routes'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
+import { deletePlan, renamePlan, retimePlan } from '../../../../actions/plans'
 
-// The four seat actions by the names reflection can see, taken from the functions themselves so a rename
-// cannot leave this list standing. They are what the share manager is handed, and the sweep below requires
-// every function this layout hands over to be one of these or one of the plan writes.
-const SEAT_ACTIONS = [readPlanSeats, createPlanSeat, updatePlanSeat, revokePlanSeat].map(
-  (action) => action.name,
-)
+// Every action this layout hands over that is **not** a member of `PlanEditActions`, by the names
+// reflection can see — taken from the functions themselves so a rename cannot leave this list standing.
+// Two groups, and they are not on that interface for two different reasons.
+//
+// The four seat actions are about the plan's *seats* rather than its content, and they are what the share
+// manager is handed. The three plan actions are about the plan **itself** and could not all join
+// `PlanEditActions` if somebody wanted them to: every member of it answers an `ActionResult<Plan>` so that
+// `eachOrNoAnswer` can map over the object, and `renamePlan` answers the stored name while `deletePlan`
+// answers nothing and redirects. `lib/plan-capabilities.ts` holds that argument under `PlanOwnControls`.
+const OFF_INTERFACE = [
+  readPlanSeats,
+  createPlanSeat,
+  updatePlanSeat,
+  revokePlanSeat,
+  renamePlan,
+  retimePlan,
+  deletePlan,
+].map((action) => action.name)
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 
@@ -313,6 +326,7 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
       'plan',
       'progress',
       'rails',
+      'settings',
       'share',
     ])
     expect(handed['drawer']).toBe(DRAWER)
@@ -432,7 +446,7 @@ describe('the plan layout hands no share token to a component, however senior th
   // which is the one mechanism ADR 0040 describes for smuggling a token into a component.
   it('hands over every write by name and nothing bound, so no token hides in an action’s arguments', async () => {
     const handed = handedBy(await shown())
-    const expected = new Set([...Object.keys(ADMIN_PLAN_ACTIONS), ...SEAT_ACTIONS])
+    const expected = new Set([...Object.keys(ADMIN_PLAN_ACTIONS), ...OFF_INTERFACE])
     expect([...new Set(handed.functions)].sort()).toEqual([...expected].sort())
     expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
     expect(handed.functions.filter((name) => name === '')).toEqual([])

@@ -1,11 +1,13 @@
 import { createEpic, recolourEpic, removeEpic, renameEpic, reorderEpic } from '../../../../actions/epics'
 import { createFeature } from '../../../../actions/features'
 import { createLabel, recolourLabel, removeLabel, renameLabel } from '../../../../actions/labels'
+import { deletePlan, renamePlan, retimePlan } from '../../../../actions/plans'
 import { LabelsPanel } from '../../../../components/plan/labels/labels-panel'
 import { labelRows } from '../../../../components/plan/labels/label-rows'
 import type { PlanScreenModel } from '../../../../components/plan/plan-screen-model'
 import { railRows } from '../../../../components/plan/rails/rail-rows'
 import { RailsPanel } from '../../../../components/plan/rails/rails-panel'
+import { SettingsPanel } from '../../../../components/plan/settings/settings-panel'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 
 /**
@@ -85,6 +87,41 @@ export function groupsSlot(plan: PlanScreenModel) {
       remove={removeLabel}
       rename={renameLabel}
       rows={labelRows(plan)}
+    />
+  )
+}
+
+/**
+ * The settings panel as the admin surface builds it, or `null` where this reader may do none of the three.
+ *
+ * **The last of the four gaps that made a plan a one-way door.** A plan could be created and then never
+ * renamed, never retimed and never deleted; `components/plan/settings/settings-panel.tsx` holds that
+ * account and `PlanOwnControls` holds the argument for why these three are a group of their own rather than
+ * three more content controls.
+ *
+ * It mounts on **any one of the three** rather than on a single opener, which is the difference from the
+ * three slots above it: those are each built around one collection, so `epic:create` and `label:create` are
+ * the question "may this reader make one of these at all". There is no such question here — a plan already
+ * exists — so the panel is drawn whenever there is any section to put in it, and it answers `null` itself
+ * when all three are refused. Both halves are needed: this decides whether a page mounts it, and the panel
+ * decides whether an opened disclosure has anything inside.
+ *
+ * All three are `manage` in the kernel, so an admin holds them and a plan-scoped `manage` seat would too —
+ * which is why the three booleans cross as flat props rather than being assumed from the mount. A seat
+ * surface mounting this later needs no change here.
+ */
+export function settingsSlot(plan: PlanScreenModel) {
+  const { plan: own } = ADMIN_CONTROLS
+  if (!own.rename && !own.retime && !own.remove) return null
+  return (
+    <SettingsPanel
+      mayRemove={own.remove}
+      mayRename={own.rename}
+      mayRetime={own.retime}
+      plan={plan}
+      remove={deletePlan}
+      rename={renamePlan}
+      retime={retimePlan}
     />
   )
 }

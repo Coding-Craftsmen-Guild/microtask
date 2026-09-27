@@ -4,11 +4,26 @@ import type { ActionResult } from '../../../actions/result'
 import { ADMIN_CONTROLS } from '../../../lib/admin-controls'
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
+import type { DeleteWrite } from '../settings/delete-plan'
+import type { RenameWrite } from '../settings/plan-name-form'
+import type { RetimeWrite } from '../settings/timing-form'
 import { atlasPlan } from './plan-fixture'
 
 const NAMES = Object.keys(ADMIN_CONTROLS.content)
 
 const served = (): ActionResult<Plan> => ({ ok: true, value: atlasPlan() })
+/**
+ * The three doubles {@link stubPlanWrites} answers, typed off the components' own write types.
+ *
+ * Off `RenameWrite`, `RetimeWrite` and `DeleteWrite` rather than spelled out here, so a change to any of
+ * the three signatures is a compile error in this file rather than a double that has quietly stopped
+ * matching what the form it stands in for expects.
+ */
+export interface PlanWriteDoubles {
+  readonly rename: RenameWrite
+  readonly retime: RetimeWrite
+  readonly remove: DeleteWrite
+}
 
 /**
  * Every plan write as a spy, built off the control names rather than listed.
@@ -41,3 +56,24 @@ export const stubActions = (over: Partial<PlanEditActions> = {}): PlanEditAction
  */
 export const nothingDrawn = (): PlanContentControls =>
   Object.fromEntries(NAMES.map((name) => [name, false])) as unknown as PlanContentControls
+
+/**
+ * The three plan-level writes as spies: rename, retime, and delete.
+ *
+ * Listed rather than built off a key list, unlike {@link stubActions} above, and the difference is that
+ * these three **do not share a return type**. `renamePlan` answers the name the server stored, because a
+ * rename moves nothing on the axis and the whole plan would be the plan already on screen; `deletePlan`
+ * answers a refusal or nothing at all, because a plan that is gone has no representation and success
+ * redirects. Only `retimePlan` answers a plan. That is exactly why they are a group of their own
+ * (`PlanOwnControls`) rather than members of `PlanEditActions`, whose every member answers an
+ * `ActionResult<Plan>` so that `eachOrNoAnswer` can map over it.
+ *
+ * @param over - The members this test cares about, each replacing the spy of that name.
+ * @returns The three writes, each answering success against the Atlas fixture.
+ */
+export const stubPlanWrites = (over: Partial<PlanWriteDoubles> = {}): PlanWriteDoubles => ({
+  rename: vi.fn(() => Promise.resolve<ActionResult<string>>({ ok: true, value: atlasPlan().name })),
+  retime: vi.fn(() => Promise.resolve(served())),
+  remove: vi.fn(() => Promise.resolve(undefined)),
+  ...over,
+})

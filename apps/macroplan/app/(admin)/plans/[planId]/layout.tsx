@@ -14,7 +14,7 @@ import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { bindEpic, unbindEpic } from '../../../../actions/bridge'
 import { BindingsPanel } from '../../../../components/plan/bridge/bindings-panel'
 import { bindingRows } from '../../../../components/plan/bridge/binding-rows'
-import { groupsSlot, railsSlot } from './admin-slots'
+import { groupsSlot, railsSlot, settingsSlot } from './admin-slots'
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
 
@@ -179,6 +179,7 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       rails={railsSlot(loaded.value)}
       plan={loaded.value}
       progress={bridge?.items ?? []}
+      settings={settingsSlot(loaded.value)}
       share={
         <ShareManager
           editSeat={updatePlanSeat}

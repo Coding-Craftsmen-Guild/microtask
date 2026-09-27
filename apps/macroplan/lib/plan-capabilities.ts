@@ -76,8 +76,14 @@ export interface PlanSeatControls {
  * for `content.<name>` and `controls.<name>` across `components/` and `app/`, ignoring the three wiring
  * modules that name every control by definition.
  *
- * There is deliberately **no control about the plan itself**, and the reason is now two reasons.
- * `plan:rename`, `plan:retime` and `plan:delete` are real actions of the API with no Server Action on
+ * **There used to be no control about the plan itself, and that was the worst of these gaps.** It is now
+ * {@link PlanOwnControls}, a third group. The paragraph this replaces said a boolean for a write no control
+ * can call answers a question nobody asks — true, and it stopped being the whole story the moment a plan
+ * could be created: a plan given the wrong start date was wrong for ever, and a plan made by mistake could
+ * not be removed. A gap defended by "no control calls it" is only defensible while somebody is checking
+ * whether one should. What follows is the record of the state it replaced.
+ *
+ * `plan:rename`, `plan:retime` and `plan:delete` were real actions of the API with no Server Action on
  * either surface behind them, so a boolean for plan settings would answer a question no control can act
  * on. `workspace:create-plan` **does** have one — `actions/plans.ts`, which the plans index mounts a form
  * on — and still earns no boolean here: it is admin-only in the kernel, so no seat of any role can ever
@@ -239,7 +245,44 @@ export interface PlanContentControls {
 }
 
 /**
- * Which controls a plan surface draws, in **two named groups** rather than one flat set.
+ * What a caller may do to **the plan itself** — not its contents, and not its seats.
+ *
+ * A third group rather than three more members of {@link PlanContentControls}, and the boundary is the
+ * same one that separates the first two: these three answer questions about a different subject. A rail,
+ * a feature and an item are things *in* a plan, and every write of one answers the whole plan back
+ * because it may have moved every bar. A plan’s own name, calendar and existence are not in it.
+ *
+ * The mechanical consequence is why the split is structural rather than tidy. {@link PlanContentControls}
+ * is `PlanEditActions`’ own list name for name, and `plan-capabilities.test.ts` compares the two key sets
+ * — so a member added here would demand a matching member on that interface, where it does not belong:
+ * `PlanEditActions` is flat because `eachOrNoAnswer` admits only members answering a promise an
+ * `ActionFailure` fits into, and **two of these three do not answer a plan at all**. `renamePlan` answers
+ * the stored *name*, because a rename moves nothing on the axis; `deletePlan` answers nothing and
+ * redirects, because a plan that is gone has no representation. Only `retimePlan` would have fitted.
+ *
+ * All three are `manage` in the kernel’s policy, so a plan-scoped `manage` seat holds every one of them —
+ * it may rename, retime and delete the plan it was given, and is still refused a **new** plan, because
+ * `workspace:create-plan` is admin-only (ADR 0009). There is deliberately no `create` here for that
+ * reason: it is not a fact about a plan, it is a fact about the workspace, and the index is where it is
+ * asked.
+ */
+export interface PlanOwnControls {
+  /** Renaming the plan. */
+  readonly rename: boolean
+
+  /**
+   * Changing its start date, its sprint length or its timezone.
+   *
+   * One boolean for all three, because the API gates all three as `plan:retime` — and a form that sent a
+   * timing field *and* a name would meet `plan:rename` as well, which is why `retimePlan` cannot send one.
+   */
+  readonly retime: boolean
+
+  /** Deleting it, everything on its rails, and every seat that opened it. */
+  readonly remove: boolean
+}
+/**
+ * Which controls a plan surface draws, in **three named groups** rather than one flat set.
  *
  * ### Why two groups
  *
@@ -275,6 +318,9 @@ export interface PlanControls {
 
   /** The four questions a share manager asks, which are about seats and not about content. */
   readonly seats: PlanSeatControls
+
+  /** The three about the plan itself: its name, its calendar, and whether it goes on existing. */
+  readonly plan: PlanOwnControls
 }
 
 /**
@@ -401,5 +447,10 @@ export function planControls(
       createTask: may('item:link'),
     },
     seats,
+    plan: {
+      rename: may('plan:rename'),
+      retime: may('plan:retime'),
+      remove: may('plan:delete'),
+    },
   }
 }

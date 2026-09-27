@@ -208,11 +208,39 @@ export interface PlanScreenProps {
    *
    * A **slot** for the reason the three beside it are: what fills it is five actions plus a sixth that
    * creates a feature, and whose credential each carries is the page's decision rather than this
-   * component's. It joins them in the heading row, which now holds four — the most a heading can carry
-   * before the page needs a different shape, and the point at which the grid below is what gives way
-   * next rather than another manager.
+   * component's. It joins them in the heading row, which holds five with
+   * {@link PlanScreenProps.settings} — where that prop's own block settles what this one used to claim was
+   * the ceiling.
    */
   readonly rails: ReactNode
+  /**
+ * The plan's own name, calendar and deletion: the settings panel, or `null`.
+   *
+   * The fifth manager, and the only one holding a control that **destroys the page it is on**. It is placed
+   * last in the row for that reason: a reader reaching for the group chips should not pass `Delete plan` on
+   * the way to them.
+   *
+   * A slot for the reason the other four are — what fills it is a decision only the page that read the
+   * credential can make. `null` on `/s/<token>` today, and that `null` is the same unfinished token binding
+   * as `share` and `rails` rather than a policy: `plan:rename`, `plan:retime` and `plan:delete` are all
+   * `manage`, so a plan-scoped `manage` seat holds every one of them. This is the slot where that gap costs
+   * the most, because a seat holding `manage` can be given a plan and cannot correct its start date.
+   *
+   * ### The fifth slot this file warned about
+   *
+   * The block below used to say a fifth was "a question before it is a refactor: four managers and lists
+   * above one timeline is already the most a heading can carry". The question was asked and answered the
+   * other way, and the reasoning is worth keeping rather than quietly overriding: that warning was written
+   * when a manager meant an expanded panel. All five are closed `<details>` whose summary is one line, so
+   * the row is five compact buttons that wrap, and what the warning was really about — how much is
+   * *expanded* above the bars — is unchanged, since only one is ever open at a time in practice.
+   *
+   * The refactor it named instead — collapsing the manager props into one `managers` slot, as `PlanHeading`
+   * already takes — was weighed and **declined**, because each of these props carries a sentence the seat
+   * page states by name. `share={null}` and `rails={null}` are each a line somebody has to revisit the day
+   * that surface gains one, and one `managers={null}` would collapse five such lines into a shrug.
+   */
+  readonly settings: ReactNode
 
   /**
    * What each linked item's task counts, as the bridge answered it — `[]` when nothing is linked.
@@ -316,17 +344,22 @@ export interface PlanScreenProps {
  * panels are peers of one another by necessity, and a component drawn around any of them breaks the
  * sibling selector the whole switch is built on. So the next thing to give way, if a fifth slot ever
  * arrives, is the **grid wrapper and the slot order** — `./plan-body.tsx` taking the three `ReactNode`s
- * and the two panels — and not another piece of the switch. A fifth slot is also a question before it is
- * a refactor: four managers and lists above one timeline is already the most a heading can carry before
- * the page needs a different shape.
+ * and the two panels — and not another piece of the switch.
+ *
+ * A fifth slot **arrived** and was not the refactor this block expected. {@link PlanScreenProps.settings}
+ * carries the reasoning: the warning that four managers were the ceiling was written when a manager meant an
+ * expanded panel, and all five are closed disclosures one line tall. Collapsing the five manager props into
+ * one `managers` slot was weighed there and declined, because each prop carries a sentence the seat page
+ * states by name. So what still gives way next, if the heading really does fill, is the **grid wrapper and
+ * the slot order** — and not another piece of the switch.
  */
 export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, bridge, controls, conflicts, drawer, groups, progress, share } = props
-  const { rails } = props
+  const { rails, settings } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
     <div className="grid gap-4 pt-6" data-slot="plan-root">
-      <PlanHeading managers={<>{share}{bridge}{rails}{groups}</>} plan={plan} />
+      <PlanHeading managers={<>{share}{bridge}{rails}{groups}{settings}</>} plan={plan} />
       {conflicts}
       {drawer}
       <div className={VIEW_SWITCH.views}>
