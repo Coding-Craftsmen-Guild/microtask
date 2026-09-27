@@ -19,6 +19,7 @@ import {
   FEATURE_1,
   ITEM_1,
   PLAN_A,
+  railedPlan,
   SEAT_TOKEN,
   tangledPlan,
   unplacedPlan,
@@ -54,6 +55,10 @@ import { LabelForm } from './labels/label-form'
 import { labelRows } from './labels/label-rows'
 import { LabelsPanel } from './labels/labels-panel'
 import { NewLabelForm } from './labels/new-label-form'
+import { PlanSidebar } from './sidebar/plan-sidebar'
+import { SidebarSearch } from './sidebar/sidebar-search'
+import { SidebarActions } from './sidebar/sidebar-actions'
+import { sidebarRails } from './sidebar/sidebar-rows'
 import { ShareManager } from './share/share-manager'
 import { seatDoubles } from './share/testing/seat-doubles'
 import { drawerSubject } from './drawer/subject'
@@ -285,6 +290,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [TimingForm, 'settings/timing-form.tsx'],
   [TimingFields, 'settings/timing-fields.tsx'],
   [DeletePlan, 'settings/delete-plan.tsx'],
+  [SidebarSearch, 'sidebar/sidebar-search.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -349,6 +355,7 @@ const clientProps = (node: unknown): readonly HandedToClient[] => {
 const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
+    sidebar={null}
     zoom="feature"
     at={AT}
     groups={null}
@@ -364,6 +371,7 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    sidebar={null}
     zoom="feature"
     at={AT}
     groups={null}
@@ -379,6 +387,7 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    sidebar={null}
     zoom="feature"
     at={AT}
     groups={null}
@@ -394,6 +403,7 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    sidebar={null}
     zoom="feature"
     at={AT}
     groups={null}
@@ -498,6 +508,7 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    sidebar={null}
     zoom="feature"
     at={AT}
     groups={null}
@@ -520,6 +531,7 @@ const TREES = [
   panel({ controls: NOTHING_DRAWN, key: 'i' }),
   <PlanScreen
     actions={STUB_ACTIONS}
+    sidebar={null}
     zoom="feature"
     at={AT}
     groups={null}
@@ -581,6 +593,29 @@ const TREES = [
   // hrefs from the same plan and only one of them is reachable without a cookie. Walked here so the seat
   // pairing is checked by the same sweep rather than only by the page that mounts it.
   <ConflictList key="k2" plan={TANGLED} root={SEAT_TOKEN} routes={SEAT_DRAWER_ROUTES} />,
+  // The sidebar, which is the admin surface's whole navigation and the one place the four plan-level
+  // drawers are linked from. Rendered from the **railed** plan so the tree paints a rail with features, a
+  // rail with none, and the rail no epic claims — three row states the Atlas fixture has only one of.
+  // `SidebarSearch` is the one client component inside it, so the walk stops there and its props are
+  // checked; it takes two strings, which is why it needs no tree of its own the way RailFields does.
+  <PlanSidebar
+    actions={
+      <SidebarActions
+        key="sa"
+        mayAddGroup
+        mayAddRail
+        mayShare
+        maySettings
+        planId={PLAN_A}
+      />
+    }
+    key="l"
+    planId={PLAN_A}
+    rails={sidebarRails(planScreenModel(railedPlan()))}
+  />,
+  // And again with no rails at all, which is the state a new plan is in and the one the empty sentence is
+  // for: the row markup above never renders it, so a sweep without this tree would leave that class unseen.
+  <PlanSidebar actions={null} key="l2" planId={PLAN_A} rails={[]} />,
   MANAGER,
 ]
 

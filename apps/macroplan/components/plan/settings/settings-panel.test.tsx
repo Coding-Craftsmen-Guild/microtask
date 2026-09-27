@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan } from '../testing/plan-fixture'
 import { stubPlanWrites } from '../testing/plan-writes'
-import { SETTINGS_WORDS, SettingsPanel } from './settings-panel'
+import { SettingsPanel } from './settings-panel'
+import { SETTINGS_WORDS } from './settings-words'
 import { TIMING_WORDS } from './timing-fields'
 
 const PLAN = planScreenModel(atlasPlan())

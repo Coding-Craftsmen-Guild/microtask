@@ -1,30 +1,15 @@
-import { DeletePlan, type DeleteWrite } from './delete-plan'
-import { PlanNameForm, type RenameWrite } from './plan-name-form'
-import { TimingForm, type RetimeWrite } from './timing-form'
+import type { DeleteWrite } from './delete-plan'
+import type { RenameWrite } from './plan-name-form'
+import { SettingsSections } from './settings-sections'
+import { SETTINGS_WORDS } from './settings-words'
+import type { RetimeWrite } from './timing-form'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 const PANEL = 'rounded-lg border border-border p-3'
 
 const SUMMARY = 'cursor-pointer text-[13px] font-semibold'
 
-const SECTION = 'grid gap-0.5 pt-3'
-
-const HEADING = 'text-[12px] font-semibold tracking-wide text-muted-foreground uppercase'
-
-/**
- * What the disclosure is called, and what each section of it is.
- *
- * `danger` is the whole sentence and not the word `Delete`, because the button inside that section is
- * labelled `Delete` — a heading and a control reading the same word are two elements a query cannot tell
- * apart, and neither can somebody listening to the page. The same pairing runs one level down, where the
- * trigger says `Delete` and the confirm says `Delete plan`.
- */
-export const SETTINGS_WORDS = {
-  open: 'Plan settings',
-  name: 'Name',
-  timing: 'Calendar',
-  danger: 'Delete this plan',
-} as const
+const SECTIONS = 'grid gap-3 pt-3'
 
 /** Props for {@link SettingsPanel}. */
 export interface SettingsPanelProps {
@@ -87,30 +72,17 @@ export function SettingsPanel(props: SettingsPanelProps) {
   return (
     <details className={PANEL} data-slot="settings-panel">
       <summary className={SUMMARY}>{SETTINGS_WORDS.open}</summary>
-      {mayRename ? (
-        <div className={SECTION}>
-          <p className={HEADING}>{SETTINGS_WORDS.name}</p>
-          <PlanNameForm name={plan.name} planId={plan.id} rename={rename} />
-        </div>
-      ) : null}
-      {mayRetime ? (
-        <div className={SECTION}>
-          <p className={HEADING}>{SETTINGS_WORDS.timing}</p>
-          <TimingForm
-            planId={plan.id}
-            retime={retime}
-            sprintLengthDays={plan.sprintLengthDays}
-            startDate={plan.startDate}
-            timezone={plan.timezone}
-          />
-        </div>
-      ) : null}
-      {mayRemove ? (
-        <div className={SECTION}>
-          <p className={HEADING}>{SETTINGS_WORDS.danger}</p>
-          <DeletePlan name={plan.name} planId={plan.id} remove={remove} />
-        </div>
-      ) : null}
+      <div className={SECTIONS}>
+        <SettingsSections
+          mayRemove={mayRemove}
+          mayRename={mayRename}
+          mayRetime={mayRetime}
+          plan={plan}
+          remove={remove}
+          rename={rename}
+          retime={retime}
+        />
+      </div>
     </details>
   )
 }

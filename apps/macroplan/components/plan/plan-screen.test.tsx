@@ -55,6 +55,7 @@ const show = (over: Shown = {}) =>
   render(
     <PlanScreen
       actions={over.actions ?? null}
+      sidebar={null}
       zoom="feature"
       at={AT}
       groups={null}

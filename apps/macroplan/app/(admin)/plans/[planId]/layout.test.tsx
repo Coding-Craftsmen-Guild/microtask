@@ -13,12 +13,6 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../components/plan/testing/fake-plan-api'
-import {
-  createPlanSeat,
-  readPlanSeats,
-  revokePlanSeat,
-  updatePlanSeat,
-} from '../../../../actions/plan-share-links'
 import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
 import { handedBy, tokensHandedBy } from '../../../../components/plan/testing/handed'
 import {
@@ -37,25 +31,16 @@ import {
 import { featurePath, itemPath } from '../../../../lib/drawer-routes'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
-import { deletePlan, renamePlan, retimePlan } from '../../../../actions/plans'
 
 // Every action this layout hands over that is **not** a member of `PlanEditActions`, by the names
 // reflection can see — taken from the functions themselves so a rename cannot leave this list standing.
-// Two groups, and they are not on that interface for two different reasons.
-//
-// The four seat actions are about the plan's *seats* rather than its content, and they are what the share
-// manager is handed. The three plan actions are about the plan **itself** and could not all join
-// `PlanEditActions` if somebody wanted them to: every member of it answers an `ActionResult<Plan>` so that
-// `eachOrNoAnswer` can map over the object, and `renamePlan` answers the stored name while `deletePlan`
-// answers nothing and redirects. `lib/plan-capabilities.ts` holds that argument under `PlanOwnControls`.
+// It is now **only** the two path builders, and what left it is the point. The four seat actions and the
+// three plan-own ones used to be handed from this layout, because the share manager and the settings panel
+// were collapsed disclosures in the plan heading. Design §4 moved both into drawer routes, so the layout
+// hands neither — and the guard moved with them rather than being dropped: `share/page.test.tsx` and
+// `settings/page.test.tsx` each assert their own route hands its actions by name with nothing bound, which
+// is where ADR 0040's check has to live once the action does.
 const OFF_INTERFACE = [
-  readPlanSeats,
-  createPlanSeat,
-  updatePlanSeat,
-  revokePlanSeat,
-  renamePlan,
-  retimePlan,
-  deletePlan,
   // The two drawer-path builders, which are functions this layout hands the conflict list — and the only
   // members of this list that are **not** actions at all. They are here because the list takes its
   // surface's routes rather than importing them, which is what let it be mounted on the seat surface: a
@@ -335,33 +320,44 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
       'rails',
       'settings',
       'share',
+      'sidebar',
       'zoom',
     ])
     expect(handed['drawer']).toBe(DRAWER)
     expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)
     expect(isValidElement<{ plan: unknown }>(handed['conflicts'])).toBe(true)
-    // The groups panel is built by `groups-slot.tsx` rather than inline, because this file's own layout was
-    // five lines from ADR 0027's cap. It is an element and not `null` here because `ADMIN_CONTROLS` draws
-    // every control, which is what that slot branches on.
-    expect(isValidElement(handed['groups'])).toBe(true)
+    // The sidebar is built by `admin-slots.tsx` rather than inline, because this file's own layout was five
+    // lines from ADR 0027's cap. It is an element and not `null` here because `ADMIN_CONTROLS` draws every
+    // control; the four manager slots beside it are `null` now, which the case below asserts by name.
+    expect(isValidElement(handed['sidebar'])).toBe(true)
   })
 
-  // The manager is handed the plan's id and the four seat answers as flat primitives, and its four actions
-  // as module functions — never a seat, a count or a token, which is what the sweep further down asserts by
-  // shape. The id is the API's own rather than the URL's, so it is the plan this screen is drawing.
-  it('builds the share manager on the plan the API confirmed, with the four seat answers spread', async () => {
+  // The sidebar is handed the plan's id and its rail tree, and never a seat, a count or a token — which is
+  // what the sweep further down asserts by shape. The id is the API's own rather than the URL's, so it is
+  // the plan this screen is drawing.
+  //
+  // This case used to be the share manager's, and it is the sidebar's for the reason the whole revision
+  // exists: the four managers this layout built were collapsed disclosures in the plan heading, and every
+  // one of them is now a drawer route linked from the sidebar (design §§3–4). The share manager's own props
+  // are asserted by `share/page.test.tsx`, which is the thing that builds it now.
+  it('builds the sidebar on the plan the API confirmed, and hands it the rail tree', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const element = await PlanLayout(propsOf(PLAN_A))
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    const share = handed['share']
-    const props = isValidElement<Record<string, unknown>>(share) ? share.props : {}
+    const sidebar = handed['sidebar']
+    const props = isValidElement<Record<string, unknown>>(sidebar) ? sidebar.props : {}
     expect(props['planId']).toBe(PLAN_A)
-    expect(props['mayRead']).toBe(true)
-    expect(props['mayCreate']).toBe(true)
-    expect(props['mayUpdate']).toBe(true)
-    expect(props['mayRevoke']).toBe(true)
-    expect(Object.values(props).filter((one) => typeof one === 'function')).toHaveLength(4)
+    expect(Array.isArray(props['rails'])).toBe(true)
+    expect(props['rails']).toHaveLength(atlasPlan().epics.length)
+  })
+
+  it('draws no manager in the heading any more, all four being routes the sidebar links to', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    const element = await PlanLayout(propsOf(PLAN_A))
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    for (const slot of ['share', 'rails', 'groups', 'settings']) expect(handed[slot]).toBeNull()
   })
 
   it('builds that list from the very plan it hands the screen, never from a second read', async () => {

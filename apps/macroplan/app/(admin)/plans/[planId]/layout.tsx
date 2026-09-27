@@ -1,23 +1,14 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import {
-  createPlanSeat,
-  readPlanSeats,
-  revokePlanSeat,
-  updatePlanSeat,
-} from '../../../../actions/plan-share-links'
 import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
 import { ConflictList } from '../../../../components/plan/conflicts/conflict-list'
 import { PlanScreen } from '../../../../components/plan/plan-screen'
-import { ShareManager } from '../../../../components/plan/share/share-manager'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { ADMIN_DRAWER_ROUTES } from '../../../../lib/drawer-routes'
 import { readZoom } from '../../../../lib/zoom'
-import { groupsSlot, railsSlot, settingsSlot } from './admin-slots'
+import { sidebarSlot } from './admin-slots'
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
-
-const SEATS = ADMIN_CONTROLS.seats
 
 /** Props for {@link PlanLayout}. */
 export interface PlanLayoutProps {
@@ -163,25 +154,14 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       conflicts={<ConflictList plan={loaded.value} root={planId} routes={ADMIN_DRAWER_ROUTES} />}
       controls={ADMIN_CONTROLS}
       drawer={children}
-      groups={groupsSlot(loaded.value)}
-      rails={railsSlot(loaded.value)}
+      groups={null}
+      rails={null}
       plan={loaded.value}
       progress={bridge?.items ?? []}
-      settings={settingsSlot(loaded.value)}
+      settings={null}
+      sidebar={sidebarSlot(loaded.value)}
       zoom={zoom}
-      share={
-        <ShareManager
-          editSeat={updatePlanSeat}
-          listSeats={readPlanSeats}
-          mayCreate={SEATS.create}
-          mayRead={SEATS.read}
-          mayRevoke={SEATS.revoke}
-          mayUpdate={SEATS.update}
-          mintSeat={createPlanSeat}
-          planId={loaded.value.id}
-          revokeSeat={revokePlanSeat}
-        />
-      }
+      share={null}
     />
   )
 }

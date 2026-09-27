@@ -7,10 +7,9 @@ import { CreateControls } from './create-controls'
 import { DrawerEdits } from './drawer-edits'
 import { DrawerFacts } from './drawer-facts'
 import { DrawerHeading, TITLE_ID } from './drawer-heading'
+import { DRAWER_DOCK } from './drawer-shell'
 import { DrawerManage } from './drawer-manage'
 import type { DrawerValues } from './values'
-
-const PANEL = 'grid gap-3 rounded-xl bg-card p-4 ring-1 ring-foreground/10'
 
 const CLOSE = 'text-[13px] text-brand'
 
@@ -156,7 +155,7 @@ export function DrawerPanel(props: DrawerPanelProps) {
   return (
     <aside
       aria-labelledby={TITLE_ID}
-      className={PANEL}
+      className={DRAWER_DOCK}
       data-kind={row.kind}
       data-slot="drawer-panel"
       data-treatment={row.treatment}

@@ -10,6 +10,8 @@ import { VIEW_SWITCH } from './view-switch'
 
 const HINT = 'Choose which rendering of this plan is on screen. The table stays readable either way.'
 
+const SPLIT = 'grid items-start gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]'
+
 /** Props for {@link PlanScreen}. */
 export interface PlanScreenProps {
   /**
@@ -133,6 +135,24 @@ export interface PlanScreenProps {
    * markup nobody reads, and the admin surface's empty state is a page that says something instead.
    */
   readonly drawer: ReactNode
+
+  /**
+   * The rail sidebar, or `null` on a surface that has none.
+   *
+   * The way into a plan (design §3): every rail, every feature, a filter, and the four plan-level drawers.
+   * It is a slot for the reason the managers are — which links a reader may follow is a decision only the
+   * page holding the credential can make — and it is `null` on the seat surface, which keeps its own panels.
+   *
+   * A `null` here leaves the split with an empty first track rather than a missing column, which is why the
+   * graph is the **second** track: a surface with no sidebar gets the same timeline in the same place.
+   *
+   * The split it sits in is `SPLIT` above, and two of its three parts are load-bearing. `items-start` stops
+   * the sidebar stretching to the height of a forty-rail canvas. `minmax(0,1fr)` on the graph's track rather
+   * than `1fr` is the one that is easy to get wrong: a grid track's default minimum is `auto`, which is its
+   * content's width, so a timeline wider than the viewport would push the track open and take the **page's**
+   * horizontal scrollbar with it instead of scrolling inside `VIEW_SWITCH.scroller`.
+   */
+  readonly sidebar: ReactNode
 
   /**
    * Who else may open this plan: the share manager, or `null` on a surface that administers no seats.
@@ -345,39 +365,42 @@ export interface PlanScreenProps {
  */
 export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, controls, conflicts, drawer, groups, progress, share } = props
-  const { rails, settings, zoom } = props
+  const { rails, settings, sidebar, zoom } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
     <div className="grid gap-4 pt-6" data-slot="plan-root">
       <PlanHeading managers={<>{share}{rails}{groups}{settings}</>} plan={plan} />
       {conflicts}
       {drawer}
-      <div className={VIEW_SWITCH.views}>
-        <p className="sr-only" id={VIEW_SWITCH.hintId}>
-          {HINT}
-        </p>
-        <input
-          aria-describedby={VIEW_SWITCH.hintId}
-          className={VIEW_SWITCH.timelineRadio}
-          defaultChecked
-          id={VIEW_SWITCH.timelineId}
-          name="plan-view"
-          type="radio"
-        />
-        <label className={VIEW_SWITCH.timelineTab} htmlFor={VIEW_SWITCH.timelineId}>
-          Timeline
-        </label>
-        <input
-          aria-describedby={VIEW_SWITCH.hintId}
-          className={VIEW_SWITCH.tableRadio}
-          id={VIEW_SWITCH.tableId}
-          name="plan-view"
-          type="radio"
-        />
-        <label className={VIEW_SWITCH.tableTab} htmlFor={VIEW_SWITCH.tableId}>
-          Table
-        </label>
-        <PlanViews at={at} place={place} plan={plan} progress={progress} zoom={zoom} />
+      <div className={SPLIT}>
+        {sidebar}
+        <div className={VIEW_SWITCH.views}>
+          <p className="sr-only" id={VIEW_SWITCH.hintId}>
+            {HINT}
+          </p>
+          <input
+            aria-describedby={VIEW_SWITCH.hintId}
+            className={VIEW_SWITCH.timelineRadio}
+            defaultChecked
+            id={VIEW_SWITCH.timelineId}
+            name="plan-view"
+            type="radio"
+          />
+          <label className={VIEW_SWITCH.timelineTab} htmlFor={VIEW_SWITCH.timelineId}>
+            Timeline
+          </label>
+          <input
+            aria-describedby={VIEW_SWITCH.hintId}
+            className={VIEW_SWITCH.tableRadio}
+            id={VIEW_SWITCH.tableId}
+            name="plan-view"
+            type="radio"
+          />
+          <label className={VIEW_SWITCH.tableTab} htmlFor={VIEW_SWITCH.tableId}>
+            Table
+          </label>
+          <PlanViews at={at} place={place} plan={plan} progress={progress} zoom={zoom} />
+        </div>
       </div>
     </div>
   )

@@ -106,3 +106,45 @@ export const SEAT_DRAWER_ROUTES: DrawerRoutes = { feature: SEAT_FEATURE, item: S
  * feature builder from one surface beside an item builder from the other.
  */
 export const ADMIN_DRAWER_ROUTES: DrawerRoutes = { feature: featurePath, item: itemPath }
+
+const RAIL_SEGMENT = 'r'
+
+const GROUP_SEGMENT = 'g'
+
+/**
+ * Where a rail's own drawer is: `/plans/<planId>/r/<epicId>`.
+ *
+ * The third one-letter segment beside `f` and `i`, for the reason those two are one letter. A rail had
+ * no drawer at all before this revision — binding, renaming, recolouring, reordering and deleting one
+ * were all in a `<details>` in the plan heading that listed every rail at once — and design §4 is the
+ * argument for moving them: a form behind a collapsed disclosure is not somewhere anybody finds a way
+ * in, which two separate reports of "there is no option to add anything" established.
+ *
+ * It carries adding a **feature** too, rather than that being a fourth segment under it. A feature names
+ * the rail it sits on and nothing else, so "add a feature here" is one field on the rail it is added to;
+ * a `r/<epicId>/new/feature` route would be a second address for one form whose whole content is a name.
+ */
+export const railPath = (planId: string, epicId: string): string =>
+  drawerPath(planPath(planId), RAIL_SEGMENT, epicId)
+
+/** Where a group's own drawer is: `/plans/<planId>/g/<labelId>`. */
+export const groupPath = (planId: string, labelId: string): string =>
+  drawerPath(planPath(planId), GROUP_SEGMENT, labelId)
+
+/**
+ * The four drawers that are about the plan rather than about something in it.
+ *
+ * Static segments and so plain suffixes on {@link planPath}, with nothing to encode: there is no id in
+ * any of them. They are a record rather than four exported functions because every caller that draws one
+ * draws several — the sidebar's header offers `newRail`, `newGroup`, `settings` and `share` together —
+ * and a record is one import that cannot be half-updated.
+ *
+ * `new/rail` and `new/group` share a `new` segment so that "make one of these" reads the same for both,
+ * and neither can shadow anything: every child of `[planId]` is static.
+ */
+export const PLAN_DRAWERS = {
+  newRail: (planId: string): string => `${planPath(planId)}/new/rail`,
+  newGroup: (planId: string): string => `${planPath(planId)}/new/group`,
+  settings: (planId: string): string => `${planPath(planId)}/settings`,
+  share: (planId: string): string => `${planPath(planId)}/share`,
+} as const

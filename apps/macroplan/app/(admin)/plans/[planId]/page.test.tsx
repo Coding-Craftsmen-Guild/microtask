@@ -24,16 +24,21 @@ const functionsIn = (value: unknown, seen = new WeakSet<object>()): readonly str
 const shown = (): ReactNode => PlanPage()
 
 describe('the plan page with nothing selected', () => {
-  it('says what the drawer beside the plan is for, rather than leaving an empty column', () => {
+  // It used to render one sentence saying what the address does, because the drawer was then a card in the
+  // page's own flow and an empty slot would have been an unexplained gap. A drawer is now a panel docked to
+  // the right-hand edge, so nothing open means no panel and the graph has the full width — and the sentence
+  // would have been out of date besides, the sidebar now linking to every rail and every feature.
+  it('renders nothing at all, a docked drawer needing no placeholder to explain a gap', () => {
     render(shown())
-    expect(screen.getByText(/own address/)).toBeTruthy()
-    expect(document.querySelector('[data-slot="drawer-empty"]')).toBeTruthy()
+    expect(shown()).toBeNull()
+    expect(document.body.textContent).toBe('')
   })
 
   it('draws no panel, because a collapsed drawer is markup with nothing in it to read', () => {
     render(shown())
     expect(screen.queryByRole('complementary')).toBeNull()
     expect(document.querySelector('[data-slot="drawer-panel"]')).toBeNull()
+    expect(document.querySelector('[data-slot="drawer-shell"]')).toBeNull()
     expect(document.querySelector('dl')).toBeNull()
   })
 

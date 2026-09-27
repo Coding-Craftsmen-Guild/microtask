@@ -58,3 +58,26 @@ export function bindingRows(plan: PlanScreenModel, bridge: PlanBridge | null): r
       }
     })
 }
+
+/** What a rail's state reads as, so no two surfaces word the same state differently. */
+export const BINDING_WORDS = {
+  unbound: 'not bound to a Microtask project',
+  dead: 'bound, but its token no longer works — rebind it',
+} as const
+
+/**
+ * One rail's binding as a sentence: bound and to what, bound but dead, or not bound.
+ *
+ * **Three states and not two.** A rail can be bound to nothing, bound and live, or bound with a token
+ * that no longer resolves — revoked in Microtask, or its project deleted. Design §7.2 requires the last to
+ * render as "unlinked" rather than as an error everywhere else in the product, and the bridge answers it
+ * that way; the rail drawer is the one surface whose reader can *fix* it, so it says so in its own words
+ * rather than making a revoked rail indistinguishable from one nobody ever bound.
+ *
+ * That is not a leak. Which project a rail stores is already on the plan read's admin-only block, and the
+ * only surface that draws this is drawn for the same principal.
+ */
+export function bindingStateOf(row: BindingRow): string {
+  if (row.projectId !== null) return `bound to ${row.projectId} at ${row.role ?? 'view'}`
+  return row.stored ? BINDING_WORDS.dead : BINDING_WORDS.unbound
+}

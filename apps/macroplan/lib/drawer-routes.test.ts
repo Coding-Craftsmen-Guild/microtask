@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { FEATURE_1, ITEM_1, PLAN_A, SEAT_TOKEN } from '../components/plan/testing/plan-fixture'
-import { ADMIN_DRAWER_ROUTES, SEAT_DRAWER_ROUTES, featurePath, itemPath } from './drawer-routes'
+import {
+  ADMIN_DRAWER_ROUTES,
+  PLAN_DRAWERS,
+  SEAT_DRAWER_ROUTES,
+  featurePath,
+  groupPath,
+  itemPath,
+  railPath,
+} from './drawer-routes'
 import { isLinkSurface, planPath } from './routes'
 
 describe('the two segments a selection is spelled with', () => {
@@ -93,13 +101,37 @@ describe('each surface addresses its own drawer, and neither can address the oth
     )
   })
 
-  it('exports the two builders and the two records, and nothing else', async () => {
+  it('exports the subject builders, the two surface records and the plan drawers, and nothing else', async () => {
     const drawerRoutes: Record<string, unknown> = await import('./drawer-routes')
     expect(Object.keys(drawerRoutes).sort()).toEqual([
       'ADMIN_DRAWER_ROUTES',
+      'PLAN_DRAWERS',
       'SEAT_DRAWER_ROUTES',
       'featurePath',
+      'groupPath',
       'itemPath',
+      'railPath',
     ])
+  })
+
+  it('addresses a rail and a group by one letter each, as a feature and an item are', () => {
+    expect(railPath(PLAN_A, 'EP1')).toBe(`/plans/${PLAN_A}/r/EP1`)
+    expect(groupPath(PLAN_A, 'LB1')).toBe(`/plans/${PLAN_A}/g/LB1`)
+  })
+
+  it('encodes an id that would otherwise reach a router as a path segment', () => {
+    expect(railPath(PLAN_A, '../../etc')).toBe(`/plans/${PLAN_A}/r/..%2F..%2Fetc`)
+    expect(groupPath(PLAN_A, '../../etc')).toBe(`/plans/${PLAN_A}/g/..%2F..%2Fetc`)
+  })
+
+  it('builds the four plan-level drawers off the same plan path every other builder uses', () => {
+    expect(PLAN_DRAWERS.newRail(PLAN_A)).toBe(`/plans/${PLAN_A}/new/rail`)
+    expect(PLAN_DRAWERS.newGroup(PLAN_A)).toBe(`/plans/${PLAN_A}/new/group`)
+    expect(PLAN_DRAWERS.settings(PLAN_A)).toBe(`/plans/${PLAN_A}/settings`)
+    expect(PLAN_DRAWERS.share(PLAN_A)).toBe(`/plans/${PLAN_A}/share`)
+  })
+
+  it('offers exactly the four, so a fifth cannot be added without this list noticing', () => {
+    expect(Object.keys(PLAN_DRAWERS).sort()).toEqual(['newGroup', 'newRail', 'settings', 'share'])
   })
 })

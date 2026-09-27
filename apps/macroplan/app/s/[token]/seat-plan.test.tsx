@@ -541,6 +541,7 @@ describe('which controls the seat’s own role draws', () => {
       'rails',
       'settings',
       'share',
+      'sidebar',
       'zoom',
     ])
     expect(handed['drawer']).toBeNull()

@@ -145,6 +145,7 @@ export async function seatPlanScreen(token: string, drawer: ReactNode) {
       progress={bridge?.items ?? []}
       settings={seatSettingsSlot(plan.value, own, controls)}
       share={seatShareSlot(plan.value, seats, controls)}
+      sidebar={null}
       zoom={DEFAULT_ZOOM}
     />
   )
