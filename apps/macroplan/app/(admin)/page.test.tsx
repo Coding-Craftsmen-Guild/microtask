@@ -117,11 +117,27 @@ describe('the admin landing page', () => {
     )
   })
 
-  it('caps itself with @repo/ui’s own COLUMN, which the now-wide layout no longer does for it', async () => {
+  it('pads and scrolls itself, the width="full" layout having dropped both for the plan page’s sake', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const { container } = await show()
-    expect(container.firstElementChild?.className).toBe(COLUMN)
+    expect(container.firstElementChild?.className).toBe(
+      'h-full overflow-y-auto px-5 pb-20 max-sm:px-3.5',
+    )
+  })
+
+  it('opens exactly one vertical scroller, because a document inside a h-dvh frame must own its own', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan(), beaconPlan()]
+    const { container } = await show()
+    expect(container.querySelectorAll('.overflow-y-auto')).toHaveLength(1)
+  })
+
+  it('caps itself with @repo/ui’s own COLUMN inside that scroller, no layout doing it on the page’s behalf', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    const { container } = await show()
+    expect(container.firstElementChild?.firstElementChild?.className).toBe(COLUMN)
   })
 
   it('carries the seat count an admin is told, and no plan contents at all', async () => {

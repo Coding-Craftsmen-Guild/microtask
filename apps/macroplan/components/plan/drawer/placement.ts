@@ -2,7 +2,7 @@ import type { FeaturePlacement, ItemPlacement } from '@repo/api-client'
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { SubjectWrite } from './field'
-import type { PlaceTarget, SubjectKind } from './values'
+import type { SubjectKind } from './values'
 
 /** The two place writes, with the boolean that decides whether this subject's controls are drawn. */
 export interface SubjectPlacement {
@@ -128,7 +128,6 @@ export function stepsFor(
   siblingIds: readonly string[],
   id: string,
   parentId: string,
-  targets: readonly PlaceTarget[],
 ): readonly PlaceStep[] {
   const here = siblingIds.indexOf(id)
   if (here === -1) return []
@@ -137,12 +136,8 @@ export function stepsFor(
   return [
     { key: 'up', label: 'Move up', parentId, position: up ?? here, disabled: up === null },
     { key: 'down', label: 'Move down', parentId, position: down ?? here, disabled: down === null },
-    ...targets.map((target) => ({
-      key: target.id,
-      label: `Move to ${target.name}`,
-      parentId: target.id,
-      position: here,
-      disabled: false,
-    })),
   ]
 }
+
+/** Where the subject sits among its siblings today, which is the position a move keeps. */
+export const positionOf = (siblingIds: readonly string[], id: string): number => siblingIds.indexOf(id)

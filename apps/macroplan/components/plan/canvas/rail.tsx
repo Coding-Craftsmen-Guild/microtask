@@ -2,62 +2,35 @@ import type { RailBox } from '@repo/canvas'
 import { RailFeatures } from './rail-features'
 import { ItemMarkShape } from './item-mark'
 import { joinRailIds } from './selection'
-import { UnplacedFeatures } from './unplaced-features'
-import { insideRail, type RailFrame } from './view'
+import { LAYOUT, type RailFrame } from './view'
 
-const RAIL_LABEL = 'fill-foreground text-[12px] font-semibold'
+const BAND = 'fill-transparent'
 
-const UNCLAIMED = 'Unclaimed rail'
+const RULE = 'stroke-border'
 
 /** Props for {@link Rail}. */
 export interface RailProps {
-  /** The rail, as `railLayout` returned it: its epic id, that epic's colour, and its placed bars. */
   readonly rail: RailBox
 
-  /** Its epic's name, joined back from the plan, or `undefined` for a rail no epic claims. */
-  readonly name: string | undefined
-
-  /** Its features the forward pass left off the axis. */
-  readonly unplaced: readonly string[]
-
-  /** Everything every rail on this canvas shares. */
   readonly frame: RailFrame
 
-  /** The y of this rail's own band. */
   readonly top: number
+
+  /** How wide the canvas is, for the band's own hairline. */
+  readonly width: number
 }
 
 /**
- * One rail: its epic's name in the gutter, its placed features as bars, and their items under them.
+ * One rail band: a rule under it, its bars, and the item ticks beneath them.
  *
- * The name is a **join back to the plan**, not something the layout handed over: a `RailBox` carries
- * an `epicId` and a colour and no name, because `railsOf` identifies a rail by `features[0].epicId`
- * and a name is a fact about the epic record. A rail whose `epicId` names no epic in the plan says so
- * — `Unclaimed rail`, drawn in the neutral hue its `colour: null` leaves — rather than borrowing a
- * neighbour's name or being dropped, for the same reason the forward pass places it rather than
- * dropping it.
+ * The rail's **name is not here** — it is an HTML row in the column beside the canvas, for the
+ * reasons `board-css.ts` sets out. What is left is geometry, which is why this took a `name` prop
+ * and no longer does.
  *
- * Every treatment is read out of the shared map as `treatments.get(id) ?? 'solid'`, which is the read
- * `treatmentsOf` documents: the map holds only the non-solid marks, and a map with a `'solid'` entry
- * for all 2,000 placed items would be 2,000 entries saying what the default already says.
- *
- * What the rung decides is what goes on the rail, never the rail itself. `DRAWS` in `./rung-view.ts` is
- * that table: below the epic rung a feature is a bar with its items under it, and at the epic rung it is
- * a {@link FeatureNode} instead — §5's own two rows. Arcs are in neither branch, because they are drawn
- * once over every rail rather than into one; `./arc-layer.tsx` says why a cross-rail arc can belong to
- * no rail group.
- *
- * ### The two attributes nothing on this canvas reads
- *
- * `data-colour` and `data-feature-ids` are the two members of a `RailBox` the drawing does not otherwise
- * leave in the markup: a rail's hue reaches the SVG only as each mark's inline style, so a rail with no
- * marks carries it nowhere, and its feature **order** reaches it only as two runs of ids whose
- * interleaving is lost. `./selection.ts` reads both back, and says why a drag has to rebuild the layout
- * from the markup rather than be handed it. `data-colour` is **absent** for a rail no epic claims, which
- * is the `colour: null` the layout answered and the one `dropTargetFor` refuses a drop on — an empty
- * string would be a colour.
+ * The hairline is drawn per rail rather than once for the grid because it has to fall at the bottom
+ * of each band, and a band's height is this component's own number.
  */
-export function Rail({ rail, name, unplaced, frame, top }: RailProps) {
+export function Rail({ rail, frame, top, width }: RailProps) {
   return (
     <g
       data-colour={rail.colour ?? undefined}
@@ -65,12 +38,14 @@ export function Rail({ rail, name, unplaced, frame, top }: RailProps) {
       data-feature-ids={joinRailIds(rail.featureIds)}
       data-slot="rail"
     >
-      <text className={RAIL_LABEL} x={frame.labelX} y={insideRail(top, 'label')}>
-        {name ?? UNCLAIMED}
-      </text>
-      {frame.draws.bars ? (
-        <UnplacedFeatures colour={rail.colour} featureIds={unplaced} frame={frame} top={top} />
-      ) : null}
+      <rect className={BAND} height={LAYOUT.railHeight} width={width} x={0} y={top} />
+      <line
+        className={RULE}
+        x1={0}
+        x2={width}
+        y1={top + LAYOUT.railHeight}
+        y2={top + LAYOUT.railHeight}
+      />
       <RailFeatures frame={frame} rail={rail} top={top} />
       {frame.draws.items
         ? rail.bars.flatMap((bar) =>

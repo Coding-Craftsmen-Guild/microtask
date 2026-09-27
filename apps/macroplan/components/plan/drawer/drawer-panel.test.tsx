@@ -103,6 +103,7 @@ interface Open {
 const open = (over: Open = {}) =>
   render(
     <DrawerPanel
+      attention={null}
       actions={over.actions ?? stubActions()}
       closeHref={CLOSE}
       controls={over.controls ?? drawing()}

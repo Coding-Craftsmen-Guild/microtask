@@ -1,76 +1,37 @@
-import { ShareManager } from '../../../components/plan/share/share-manager'
+import type { PlanEditActions } from '../../../components/plan/edit-actions'
 import type { PlanScreenModel } from '../../../components/plan/plan-screen-model'
+import { seatGroupsPanel, seatRailsPanel } from './seat-content-panels'
+import { ShareManager } from '../../../components/plan/share/share-manager'
 import type { SeatManagerActions, SeatPlanOwnActions } from '../../../components/plan/seat-own-actions'
 import { SettingsPanel } from '../../../components/plan/settings/settings-panel'
 import type { PlanControls } from '../../../lib/plan-capabilities'
 
-/**
- * The two slots a seat surface fills that are about the **plan** rather than what is on its rails.
- *
- * Split from `./seat-slots.tsx` when that file met ADR 0027’s eighty-line cap for a `.tsx`, and split
- * **here** rather than one panel per file because the two halves answer different questions. The rails and
- * the groups are collections *in* the plan, each slot opened by a `create` action on that collection; these
- * two are about the plan itself and its seats, and neither has a collection to be opened by.
- *
- * Both are `manage`-only, and neither is refused for want of a mechanism any longer: the seat twins of both
- * sets of actions exist (`actions/seat-plan.ts`, `actions/seat-seats.ts`), each taking the token first so
- * `components/plan/seat-own-actions.ts` can bind it in — and the page's leak sweep calls every bound action
- * it is handed to prove the token it carries is the visitor's own (`page.test.tsx`).
- */
-/**
- * The settings panel as a seat builds it, or `null` where this seat may do none of the three.
- *
- * The twin of `settingsSlot`, and the one whose absence cost a `manage` seat most: all three plan-level
- * actions are `manage`, so a seat given a plan may rename it, retime it and delete it — and until these
- * twins existed it could do none of them, so a plan handed over with the wrong start date was wrong for
- * whoever received it.
- *
- * **Deleting from here ends the caller’s own access**, because deleting a plan revokes every seat on it
- * inside the same locked write. `seatDeletePlan` therefore redirects to `/s/unavailable` rather than to an
- * index a seat is refused, and the confirm says the links stop working — which is true of the person
- * clicking it.
- */
-export function seatSettingsSlot(
-  plan: PlanScreenModel,
-  writes: SeatPlanOwnActions,
-  controls: PlanControls,
-) {
-  const { plan: own } = controls
-  if (!own.rename && !own.retime && !own.remove) return null
+const PANELS = 'grid gap-2 border-t border-border px-3 py-3'
+
+/** The three action records a seat's panels write through, named together so none is passed alone. */
+export interface SeatPanelActions {
+  readonly writes: PlanEditActions
+  readonly own: SeatPlanOwnActions
+  readonly seats: SeatManagerActions
+}
+
+const settingsPanel = (plan: PlanScreenModel, own: SeatPlanOwnActions, controls: PlanControls) => {
+  const { plan: mine } = controls
+  if (!mine.rename && !mine.retime && !mine.remove) return null
   return (
     <SettingsPanel
-      mayRemove={own.remove}
-      mayRename={own.rename}
-      mayRetime={own.retime}
+      mayRemove={mine.remove}
+      mayRename={mine.rename}
+      mayRetime={mine.retime}
       plan={plan}
-      remove={writes.remove}
-      rename={writes.rename}
-      retime={writes.retime}
+      remove={own.remove}
+      rename={own.rename}
+      retime={own.retime}
     />
   )
 }
 
-/**
- * The share manager as a seat builds it, or `null` where this seat is told no seats at all.
- *
- * The twin of what `[planId]/layout.tsx` mounts, and the last of the five `null`s on this surface to lift.
- * `capabilities()` answers a plan-scoped `manage` seat true on all four `share:*` questions (ADR 0038, ADR
- * 0053), so administering this plan’s other seats is the API’s own answer rather than a widening taken here.
- *
- * Drawn on `seats.read`, because a manager that cannot list is a dialog that opens onto nothing; the other
- * three cross as flat booleans, which is the shape `module-boundaries.test.tsx` admits.
- *
- * **The seats it lists carry live tokens**, and that is the one thing to hold steady about this slot: they
- * arrive from `seatReadSeats` **after** the manager is open, never in this page’s payload. `planScreenModel`
- * drops the block on the server and its `shareLinks?: never` makes carrying one a compile error, so no
- * token is in the HTML — which is exactly the property ADR 0033 asks for, and mounting a manager does not
- * weaken it.
- */
-export function seatShareSlot(
-  plan: PlanScreenModel,
-  seats: SeatManagerActions,
-  controls: PlanControls,
-) {
+const sharePanel = (plan: PlanScreenModel, seats: SeatManagerActions, controls: PlanControls) => {
   if (!controls.seats.read) return null
   return (
     <ShareManager
@@ -84,5 +45,37 @@ export function seatShareSlot(
       planId={plan.id}
       revokeSeat={seats.revoke}
     />
+  )
+}
+
+/**
+ * Everything a seat may manage, under the rail tree in the sidebar.
+ *
+ * ### Why here and not in drawers
+ *
+ * The admin surface opens a rail, a group, the settings and the share list as routes (ADR 0057). The
+ * seat surface addresses features and items and nothing else, so there is no `/s/<token>/settings`
+ * to link to, and building four more routes is a larger change than this revision is. Until there
+ * is, these stay the collapsed panels they have always been — moved out of the page body, where
+ * they pushed the board down, and into the column that already scrolls.
+ *
+ * A `view` seat, which is what most links are, gets `null` from all four and no panel at all.
+ */
+export function seatManageSlot(
+  plan: PlanScreenModel,
+  actions: SeatPanelActions,
+  controls: PlanControls,
+) {
+  const panels = [
+    seatRailsPanel(plan, actions.writes, controls),
+    seatGroupsPanel(plan, actions.writes, controls),
+    settingsPanel(plan, actions.own, controls),
+    sharePanel(plan, actions.seats, controls),
+  ].filter((panel) => panel !== null)
+  if (panels.length === 0) return null
+  return (
+    <div className={PANELS} data-slot="seat-manage">
+      {panels}
+    </div>
   )
 }

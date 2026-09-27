@@ -10,7 +10,7 @@ import type { Plan } from '@repo/api-client'
 /** Adds one rail: the plan and the name it is called. The colour is the server's to pick. */
 export type CreateRailWrite = (
   planId: string,
-  epic: { readonly name: string },
+  epic: { readonly name: string; readonly colour?: string },
 ) => Promise<ActionResult<Plan>>
 
 /** Props for {@link NewRailForm}. */
@@ -20,6 +20,15 @@ export interface NewRailFormProps {
 
   /** Sends it. */
   readonly create: CreateRailWrite
+
+  /**
+   * The hue to propose for this rail, from `rail-palette.ts`.
+   *
+   * Computed on the server from how many rails the plan already holds, because a client component
+   * may be handed a primitive and not a plan, and because the count is a fact about the plan rather
+   * than about this form.
+   */
+  readonly colour: string
 }
 
 const ROW = 'flex flex-wrap items-center gap-2'
@@ -47,7 +56,7 @@ export const NEW_RAIL_WORDS = {
  * not name a rail editor. It does not; what the row also does not say is that without one a plan is a
  * dead end, which is the part that went unnoticed until somebody made a plan and could put nothing in it.
  *
- * It sends **no colour** and no placement. `CreateEpicPayload` leaves the hue optional and the service
+ * It sends a **proposed colour** and no placement. `CreateEpicPayload` leaves the hue optional and the service
  * picks one, so the single place a default is chosen is the server; and the rail lands at the bottom
  * because work is added in the order it is discovered (spec §6), which is why the payload carries no
  * position at all. Both are one control away on the row the new rail arrives as.
@@ -56,7 +65,7 @@ export const NEW_RAIL_WORDS = {
  * on are about the value: a plan at `LIMITS.epicsPerPlan` answers 422, and a name of nothing but
  * whitespace is refused here before a request is made.
  */
-export function NewRailForm({ planId, create }: NewRailFormProps) {
+export function NewRailForm({ planId, create, colour }: NewRailFormProps) {
   const [typed, setTyped] = useState('')
   const [problem, setProblem] = useState('')
 
@@ -65,7 +74,7 @@ export function NewRailForm({ planId, create }: NewRailFormProps) {
       setProblem(NEW_RAIL_WORDS.empty)
       return
     }
-    const result = await orNoAnswer(create)(planId, { name: typed.trim() })
+    const result = await orNoAnswer(create)(planId, { colour, name: typed.trim() })
     setProblem(result.ok ? NEW_RAIL_WORDS.cleared : result.detail)
     if (result.ok) setTyped('')
   }

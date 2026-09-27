@@ -1,6 +1,6 @@
 import type { DropTarget } from '@repo/canvas'
 
-const NOTICE = 'pt-1 text-[13px] text-muted-foreground'
+const NOTICE = 'sticky left-0 z-20 w-fit pt-1 text-[13px] text-muted-foreground'
 
 const UNDO = 'ml-2 text-brand underline'
 

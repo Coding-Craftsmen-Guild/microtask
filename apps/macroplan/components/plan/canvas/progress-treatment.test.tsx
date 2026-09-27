@@ -1,7 +1,7 @@
 import type { Treatment } from '@repo/canvas'
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { atlasPlan, ITEM_1, ITEM_2 } from '../testing/plan-fixture'
+import { atlasPlan, ITEM_1, ITEM_2, ITEM_3, type StoredPlan } from '../testing/plan-fixture'
 import { planScreenModel } from '../plan-screen-model'
 import { PlanCanvas } from './plan-canvas'
 import { countedTreatment, withProgress, type Counted } from './view'
@@ -12,17 +12,34 @@ const counted = (itemId: string, done: number, total: number): Counted => [
   { itemId, progress: { done, total } },
 ]
 
+// `ITEM_1` begun, `ITEM_2` finished, `ITEM_3` counted by nothing: one render holding all three levels, so a
+// test about what tells them apart compares marks drawn by the same canvas rather than three of them.
+const EVERY_LEVEL: Counted = [
+  { itemId: ITEM_1, progress: { done: 2, total: 4 } },
+  { itemId: ITEM_2, progress: { done: 4, total: 4 } },
+]
+
+const canvasOf = (progress: Counted, plan: StoredPlan = atlasPlan()): HTMLElement =>
+  render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} progress={progress} />).container
+
+const markFor = (container: HTMLElement, itemId: string): Element | null =>
+  container.querySelector(`[data-item-id="${itemId}"]`)
+
+const classOf = (container: HTMLElement, itemId: string): string =>
+  markFor(container, itemId)?.getAttribute('class') ?? ''
+
+const styleOf = (container: HTMLElement, itemId: string): string =>
+  markFor(container, itemId)?.getAttribute('style') ?? ''
+
 const drawn = (progress: Counted): ReadonlyMap<string, string | null> => {
-  const { container } = render(
-    <PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} progress={progress} />,
-  )
-  const marks = [...container.querySelectorAll('[data-slot="item-mark"]')]
+  const marks = [...canvasOf(progress).querySelectorAll('[data-slot="item-mark"]')]
   return new Map(marks.map((mark) => [mark.getAttribute('data-item-id') ?? '', mark.getAttribute('data-treatment')]))
 }
 
 describe('countedTreatment turns one counted pair into a treatment or into nothing', () => {
   it('answers done at or past the total, and started between nothing and the total', () => {
     expect(countedTreatment({ done: 4, total: 4 })).toBe('done')
+    expect(countedTreatment({ done: 5, total: 4 })).toBe('done')
     expect(countedTreatment({ done: 1, total: 4 })).toBe('started')
   })
 
@@ -43,7 +60,8 @@ describe('withProgress overlays what a linked task counts onto the schedule’s 
   })
 
   // A hollow item was never sized and a contradicted one sits in a cycle. Either is a more urgent sentence
-  // than how far along its task is, and a plan that contradicts itself must not hide that behind a tick.
+  // than how far along its task is, and a plan that contradicts itself must not hide that behind a finished
+  // fill — `attentionOf` reads those same two states to mark the entity itself in the sidebar tree.
   it('leaves a mark the schedule already has an opinion about exactly as it found it', () => {
     for (const held of ['hollow', 'contradicted'] as const) {
       const schedule: ReadonlyMap<string, Treatment> = new Map([[ITEM_1, held]])
@@ -69,14 +87,7 @@ describe('the canvas draws the three progress levels and stays one element per i
   // The constraint the whole shape of this feature is built around: a third *discrete* level costs one more
   // key in two records, where a continuous fill would cost an element or a gradient definition per mark.
   it('adds no element to a started mark, which is why it is a level and not a partial fill', () => {
-    const { container } = render(
-      <PlanCanvas
-        at={AT}
-        place={null}
-        plan={planScreenModel(atlasPlan())}
-        progress={counted(ITEM_1, 2, 4)}
-      />,
-    )
+    const container = canvasOf(counted(ITEM_1, 2, 4))
     const marks = [...container.querySelectorAll('[data-slot="item-mark"]')]
     expect(marks.length).toBeGreaterThan(0)
     for (const mark of marks) expect(mark.children).toHaveLength(0)
@@ -87,23 +98,39 @@ describe('the canvas draws the three progress levels and stays one element per i
     expect(defs.map((node) => node.tagName)).toEqual(['marker', 'marker', 'marker'])
   })
 
+  // Names are drawn on this canvas now, and they are drawn per **bar**: one `<text>` beside each one, at the
+  // budget `barLabels` measured. The count that has to hold at the 2,000-item cap is per *item*, and it
+  // survives that — three placed items under two bars draw two labels and not five, because an item's own
+  // name stays in the table, which is the rendering a reader can actually read.
+  it('names every bar and no item, so the labels the canvas gained cost nothing per item', () => {
+    const container = canvasOf(EVERY_LEVEL)
+    expect(container.querySelectorAll('[data-slot="item-mark"]')).toHaveLength(3)
+    const labels = [...container.querySelectorAll('[data-slot="bar-label"]')]
+    expect(labels).toHaveLength(2)
+    expect(labels.map((label) => label.textContent).join(' ')).not.toContain('Sessions')
+  })
+
   // Painted so the three differ in lightness as well as in outline, which is what makes them readable in
-  // greyscale: `started` is the only one of the three that is partly filled.
+  // greyscale: `started` is the only one of the three whose hue is laid down at part opacity.
   it('paints a started mark at a partial fill and a done one at a full one', () => {
-    const { container } = render(
-      <PlanCanvas
-        at={AT}
-        place={null}
-        plan={planScreenModel(atlasPlan())}
-        progress={[
-          { itemId: ITEM_1, progress: { done: 2, total: 4 } },
-          { itemId: ITEM_2, progress: { done: 4, total: 4 } },
-        ]}
-      />,
-    )
-    const styleOf = (itemId: string): string =>
-      container.querySelector(`[data-item-id="${itemId}"]`)?.getAttribute('style') ?? ''
-    expect(styleOf(ITEM_1)).toContain('fill-opacity')
-    expect(styleOf(ITEM_2)).not.toContain('fill-opacity')
+    const container = canvasOf(EVERY_LEVEL)
+    expect(styleOf(container, ITEM_1)).toContain('fill-opacity')
+    expect(styleOf(container, ITEM_2)).not.toContain('fill-opacity')
+  })
+
+  // The paint is split in two: the class fixes the treatment and an inline style carries the rail's hue. A
+  // rail no epic claims has no hue to carry — `RailBox.colour` is `null` there and `hueStyle` answers no
+  // style at all — so on that rail the class is the whole drawing, and the three levels still have to
+  // differ. They do, in two channels rather than one: `done` sits on its own chart ramp, while `started`
+  // keeps `solid`'s fill and is told apart by its outline, the thinner fill being the half in the style.
+  it('separates the three levels by class alone on the rail that has no hue to paint with', () => {
+    const container = canvasOf(EVERY_LEVEL, atlasPlan({ epics: [] }))
+    expect(styleOf(container, ITEM_1)).toBe('')
+    expect(classOf(container, ITEM_3)).toContain('fill-chart-3')
+    expect(classOf(container, ITEM_1)).toContain('fill-chart-3')
+    expect(classOf(container, ITEM_2)).toContain('fill-chart-4')
+    expect(classOf(container, ITEM_3)).toContain('stroke-none')
+    expect(classOf(container, ITEM_1)).toContain('stroke-chart-3')
+    expect(new Set([ITEM_1, ITEM_2, ITEM_3].map((id) => classOf(container, id))).size).toBe(3)
   })
 })

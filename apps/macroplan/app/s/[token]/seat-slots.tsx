@@ -1,80 +1,48 @@
+import type { AttentionMap } from '../../../components/plan/attention/attention'
+import { trayRows } from '../../../components/plan/attention/tray-rows'
+import { UnscheduledTray } from '../../../components/plan/attention/unscheduled-tray'
+import { GroupChips } from '../../../components/plan/labels/group-chips'
 import { labelRows } from '../../../components/plan/labels/label-rows'
-import { LabelsPanel } from '../../../components/plan/labels/labels-panel'
-import type { PlanEditActions } from '../../../components/plan/edit-actions'
 import type { PlanScreenModel } from '../../../components/plan/plan-screen-model'
-import { railRows } from '../../../components/plan/rails/rail-rows'
-import { RailsPanel } from '../../../components/plan/rails/rails-panel'
-import type { PlanControls } from '../../../lib/plan-capabilities'
+import { PlanSidebar } from '../../../components/plan/sidebar/plan-sidebar'
+import { sidebarRails } from '../../../components/plan/sidebar/sidebar-rows'
+import { SEAT_DRAWER_ROUTES } from '../../../lib/drawer-routes'
 
 /**
- * The rails panel as a **seat** builds it, or `null` where this seat may not make a rail.
+ * The rail tree, rooted at the token rather than at a plan id.
  *
- * The twin of `railsSlot` on the admin surface, and it exists for the reason two wirings of
- * `PlanEditActions` exist at all: the components are the same, and what differs is whose credential each
- * write carries. An admin's are Server Actions reading `mp_admin`; a seat's are the same actions with its
- * token bound in (`components/plan/seat-actions.ts`).
+ * Every link it draws goes through {@link SEAT_DRAWER_ROUTES}, so a holder following one stays on
+ * `/s/<token>/…`. Importing the admin builders — which is what the tree used to do — would have sent
+ * them to `/plans/…`, a surface that reads a cookie they have not got, and on to a sign-in page.
  *
- * ### What a seat may actually do here, which is more than nothing and less than everything
- *
- * Every rail action is `manage` in the kernel's policy, so a `manage` seat draws this panel in full and a
- * `view` or `write` seat draws none of it — `createEpic` is what decides that, exactly as on the admin
- * surface. `createFeature` is a **`write`** grant, so the `Add feature` box on each row is the one control
- * here a `write` seat could use — and it never sees the panel to reach it, because a rail it cannot create
- * is a rail it cannot be shown a list of. That is a real consequence of opening the panel on one action and
- * it is recorded rather than worked around: a per-row control whose panel is gated higher than itself wants
- * a surface of its own, not a looser gate on this one.
- *
- * The controls are the seat's own, from `planCapabilities`, and not `ADMIN_CONTROLS`. That is the whole
- * difference between this function and its admin twin, and it is why they are two functions rather than one
- * taking a controls argument: a page that could be handed either set is a page that could be handed the
- * wrong one.
+ * It carries **no actions**. A seat that may add a rail has no `new/rail` route on this surface to
+ * send them to, and a button that navigates nowhere is worse than an absent one.
  */
-export function seatRailsSlot(plan: PlanScreenModel, writes: PlanEditActions, controls: PlanControls) {
-  if (!controls.content.createEpic) return null
+export function seatSidebarSlot(plan: PlanScreenModel, token: string, found: AttentionMap) {
   return (
-    <RailsPanel
-      create={writes.createEpic}
-      createFeature={writes.createFeature}
-      mayAddFeature={controls.content.createFeature}
-      mayRecolour={controls.content.recolourEpic}
-      mayRemove={controls.content.removeEpic}
-      mayRename={controls.content.renameEpic}
-      mayReorder={controls.content.reorderEpic}
-      planId={plan.id}
-      recolour={writes.recolourEpic}
-      remove={writes.removeEpic}
-      rename={writes.renameEpic}
-      reorder={writes.reorderEpic}
-      rows={railRows(plan)}
+    <PlanSidebar
+      actions={null}
+      found={found}
+      rails={sidebarRails(plan)}
+      root={token}
+      routes={SEAT_DRAWER_ROUTES}
     />
   )
 }
 
-/**
- * The groups panel as a seat builds it, or `null` where this seat may not make a group.
- *
- * The twin of `groupsSlot`, and the same three-way split: `label:create` decides whether the editing half
- * is drawn at all, and the three answers that vary within it cross as flat booleans.
- *
- * The **chips** are not here and never were on either surface. They are mounted by `PlanHeading` from
- * `plan.labels`, because selecting a group writes nothing and so needs no credential — which is the
- * correction `components/plan/plan-heading.tsx` records, made after the chips were briefly inside this
- * panel and the whole feature became admin-only by accident. So a `view` seat selects groups and edits
- * none, which is exactly right and is what this function must not undo.
- */
-export function seatGroupsSlot(plan: PlanScreenModel, writes: PlanEditActions, controls: PlanControls) {
-  if (!controls.content.createLabel) return null
+/** The features with no bar, addressed at the token so a holder stays on their own surface. */
+export function seatTraySlot(plan: PlanScreenModel, token: string, found: AttentionMap) {
   return (
-    <LabelsPanel
-      create={writes.createLabel}
-      mayRecolour={controls.content.recolourLabel}
-      mayRemove={controls.content.removeLabel}
-      mayRename={controls.content.renameLabel}
-      planId={plan.id}
-      recolour={writes.recolourLabel}
-      remove={writes.removeLabel}
-      rename={writes.renameLabel}
-      rows={labelRows(plan)}
+    <UnscheduledTray
+      found={found}
+      root={token}
+      routes={SEAT_DRAWER_ROUTES}
+      rows={trayRows(plan)}
     />
   )
+}
+
+/** The group chips, which a holder may use to pick out work across rails whatever their role. */
+export function seatGroupsSlot(plan: PlanScreenModel) {
+  return <GroupChips rows={labelRows(plan)} />
 }

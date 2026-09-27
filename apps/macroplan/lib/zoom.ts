@@ -1,7 +1,6 @@
 import { rungParam } from '@repo/canvas'
 import type { Rung } from '@repo/canvas'
 import { cookies } from 'next/headers'
-import { DEFAULT_ZOOM } from '../components/plan/canvas/zoom-view'
 
 /**
  * The cookie the chosen rung is kept in.
@@ -14,7 +13,7 @@ import { DEFAULT_ZOOM } from '../components/plan/canvas/zoom-view'
 export const ZOOM_COOKIE = 'mp_zoom'
 
 /**
- * The rung the plan canvas should draw at, read from the cookie and defaulted.
+ * The rung the reader last chose, or `null` if they have never chosen one.
  *
  * ### Why a cookie and not a search param
  *
@@ -33,12 +32,19 @@ export const ZOOM_COOKIE = 'mp_zoom'
  * ### Why `rungParam` and not a cast
  *
  * The cookie is client-writable — anyone can set `mp_zoom` to anything — so the value is validated
- * rather than trusted. `rungParam` answers `null` for junk and the default is applied here, so no
- * `ZOOM_VIEW` lookup can miss and no canvas can be asked to draw at a rung that does not exist. That is
- * the whole of the trust boundary for this value: it selects one of three server-held records and is
- * never interpolated into anything.
+ * rather than trusted. `rungParam` answers `null` for junk, so no `ZOOM_VIEW` lookup can miss and no
+ * canvas can be asked to draw at a rung that does not exist. That is the whole of the trust boundary
+ * for this value: it selects one of three server-held records and is never interpolated into anything.
+ *
+ * ### Why null rather than a default
+ *
+ * "Never chose one" and "chose the middle rung" are different facts, and only the caller can act on
+ * the difference: with no choice to honour, the page opens the plan at whichever scale fits it, which
+ * depends on the plan and cannot be decided here. Defaulting in this function is what made every plan
+ * open at one scale whatever its length, and a sixteen-day plan spread across a quarter axis — bars in
+ * the first ninety pixels of eleven hundred — is what that looked like.
  */
-export async function readZoom(): Promise<Rung> {
+export async function readZoom(): Promise<Rung | null> {
   const jar = await cookies()
-  return rungParam(jar.get(ZOOM_COOKIE)?.value ?? null) ?? DEFAULT_ZOOM
+  return rungParam(jar.get(ZOOM_COOKIE)?.value ?? null)
 }

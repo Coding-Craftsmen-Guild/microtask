@@ -34,11 +34,11 @@ export interface AdminLayoutProps {
  */
 export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
-    <>
-      <AppBar logo={<Logo size="bar" />} product="Macroplan">
+    <div className="flex h-dvh flex-col">
+      <AppBar logo={<Logo size="bar" />} product="Macroplan" width="wide">
         <SignOutForm />
       </AppBar>
-      <Page width="wide">{children}</Page>
-    </>
+      <Page width="full">{children}</Page>
+    </div>
   )
 }

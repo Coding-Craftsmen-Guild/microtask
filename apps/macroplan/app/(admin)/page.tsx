@@ -47,7 +47,8 @@ export default async function MacroplanPage() {
   const now = Date.now()
   const loaded = await adminCall('/', (api) => api.plans.list())
   return (
-    <div className={COLUMN}>
+    <div className="h-full overflow-y-auto px-5 pb-20 max-sm:px-3.5">
+      <div className={COLUMN}>
       <div className="grid gap-4 pt-6">
         <CreatePlan onCreate={createPlan} today={new Date(now).toISOString().slice(0, 10)} />
         {loaded.ok ? (
@@ -57,6 +58,7 @@ export default async function MacroplanPage() {
             {loaded.detail}
           </p>
         )}
+        </div>
       </div>
     </div>
   )

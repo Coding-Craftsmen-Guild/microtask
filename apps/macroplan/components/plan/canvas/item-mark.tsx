@@ -2,56 +2,40 @@ import type { ItemMark, Treatment } from '@repo/canvas'
 import { hueStyle, TREATMENT_CLASS } from './treatments'
 import { insideRail, LAYOUT } from './view'
 
+const GAP = 0.75
+
+const MARK_OPACITY = 0.55
+
 /** Props for {@link ItemMarkShape}. */
 export interface ItemMarkShapeProps {
-  /** The mark, already laid out: its days and its px, computed by `itemsToMarks`. */
   readonly mark: ItemMark
 
-  /** Its rail's epic's own `#rrggbb`, or `null` for a rail no epic claims. */
   readonly colour: string | null
 
-  /** How its schedule says to draw it. */
   readonly treatment: Treatment
 
-  /** The y of its rail's own band. */
   readonly top: number
 
-  /**
-   * The group its **feature** is in, or `null`. An item has no group of its own.
-   *
-   * Carried so that choosing a group dims a feature's items with its bar rather than leaving a row of
-   * bright strips under a dimmed bar. It costs one attribute and no element, which is what `ItemMarkShape`
-   * has to cost at the 2,000-item cap.
-   */
   readonly labelId: string | null
 }
 
 /**
- * One item as a thin strip under its feature's bar: §5's "items inside where they fit".
+ * One item as a tick under its feature's bar.
  *
- * **Exactly one element per item, and that is a requirement rather than tidiness.** Phase 2's gate is
- * that "the canvas renders at the 2 000-item cap", and a mark built from a group with a rect and a
- * label inside it would put six thousand nodes on the page for a plan at that cap. An item's own name
- * belongs to the table, which is the rendering a reader can actually read, and to the item rung's
- * labels, which §5 puts there and phase 2 does not draw.
+ * Lighter than the bar above it, so the row reads as a bar with a breakdown beneath rather than as a
+ * bar with a shadow. At full strength and the same hue the strip was the most common thing on the
+ * canvas to be mistaken for a rendering artefact.
  *
- * That count is also why a mark carries **no `<title>` and so no hover date of its own**, and why
- * the sprint's hover target behind it does not cover for one: a painted fill absorbs the pointer,
- * and an SVG tooltip walks the hit element's ancestors rather than the paint order.
- * `FeatureBarMark` sets out that whole trade — including why the target is deliberately not moved
- * above the rails before phase 3 makes marks interactive.
+ * A zero-width mark is still drawn, as a hairline: an item estimated at zero days is a real item
+ * somebody entered, and dropping it would make a feature's breakdown silently disagree with its
+ * drawer.
  *
- * It takes its epic's colour from the rail it was drawn under, not from a lookup of its own: an item
- * has a `featureId` and no `epicId`, and the rail already knows which epic's hue it is painting.
+ * ### Why each tick is pulled in from its own span
  *
- * **The treatment is always `'solid'` here, and the prop is still right.** The forward pass puts an
- * item in `spans` or in `unscheduled` and never both — `writeFeature` pushes an entry for an unplaced
- * feature *and each of its items*, and `writeItems` pushes one for each estimateless item of a placed
- * feature — and `itemsToMarks` produces a mark only for an id it finds in `spans`. So no mark can
- * carry `'hollow'` or `'contradicted'`, and `UnplacedFeatures` is the one place either is ever seen.
- * The prop stays because `Rail` reads one treatment map for bars and marks alike, because a total
- * component cannot be handed a state it does not draw, and because phase 4 widens the union with
- * states a *placed* item will have.
+ * `endDay` is exclusive and a mark's `x` comes from its `startDay`, so two consecutive items share a
+ * boundary exactly: drawn at their true widths in one colour they abut, and a feature's four items
+ * render as one unbroken strip. A fraction of a pixel of air at each end is what makes four ticks
+ * read as four.
  */
 export function ItemMarkShape({ mark, colour, treatment, top, labelId }: ItemMarkShapeProps) {
   return (
@@ -62,9 +46,11 @@ export function ItemMarkShape({ mark, colour, treatment, top, labelId }: ItemMar
       data-slot="item-mark"
       data-treatment={treatment}
       height={LAYOUT.markHeight}
+      opacity={MARK_OPACITY}
+      rx={1}
       style={hueStyle(treatment, colour)}
-      width={mark.width}
-      x={mark.x}
+      width={Math.max(mark.width - GAP * 2, 0.5)}
+      x={mark.x + GAP}
       y={insideRail(top, 'mark')}
     />
   )

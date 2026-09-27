@@ -1,4 +1,5 @@
 import { NewRailForm, type CreateRailWrite } from './new-rail-form'
+import { nextRailColour } from './rail-palette'
 import { RailFeature, type CreateFeatureWrite } from './rail-feature'
 import { RailForm, type RailDelete, type RailOrderWrite, type RailWrite } from './rail-form'
 import type { RailRow } from './rail-rows'
@@ -122,7 +123,7 @@ export function RailsPanel(props: RailsPanelProps) {
               ) : null}
             </div>
           ))}
-          <NewRailForm create={create} planId={planId} />
+          <NewRailForm colour={nextRailColour(rows.length)} create={create} planId={planId} />
         </div>
       </details>
     </div>

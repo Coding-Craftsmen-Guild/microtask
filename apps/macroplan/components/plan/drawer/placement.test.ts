@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ADMIN_CONTROLS } from '../../../lib/admin-controls'
 import { nothingDrawn, stubActions } from '../testing/plan-writes'
-import { placementFor, stepsFor } from './placement'
-import type { PlaceTarget } from './values'
+import { placementFor, positionOf, stepsFor } from './placement'
 
 const A = 'feature-a'
 
@@ -12,16 +11,11 @@ const C = 'feature-c'
 
 const RAIL = 'epic-1'
 
-const OTHER: readonly PlaceTarget[] = [
-  { id: 'epic-2', name: 'Payments' },
-  { id: 'epic-3', name: 'Growth' },
-]
-
-const labels = (siblingIds: readonly string[], id: string, targets = OTHER) =>
-  stepsFor(siblingIds, id, RAIL, targets).map((step) => `${step.label}${step.disabled ? ' (off)' : ''}`)
+const labels = (siblingIds: readonly string[], id: string) =>
+  stepsFor(siblingIds, id, RAIL).map((step) => `${step.label}${step.disabled ? ' (off)' : ''}`)
 
 const stepAt = (id: string, key: string) => {
-  const found = stepsFor([A, B, C], id, RAIL, OTHER).find((step) => step.key === key)
+  const found = stepsFor([A, B, C], id, RAIL).find((step) => step.key === key)
   if (found === undefined) throw new Error(`no step ${key}`)
   return found
 }
@@ -54,22 +48,20 @@ describe('which write places a subject of each kind', () => {
 })
 
 describe('the steps a keyboard is offered', () => {
-  it('offers one step each way and one per other parent, in reading order', () => {
-    expect(labels([A, B, C], B)).toEqual([
-      'Move up',
-      'Move down',
-      'Move to Payments',
-      'Move to Growth',
-    ])
+  // One per other parent used to be here too, and a plan with eleven other features put eleven
+  // full-width "Move to …" buttons down the drawer. The destinations are one select now
+  // (`move-target.tsx`); these two stay buttons because each is one click and each is the common case.
+  it('offers one step each way, and nothing per other parent', () => {
+    expect(labels([A, B, C], B)).toEqual(['Move up', 'Move down'])
   })
 
   it('disables the step there is nowhere to take, at each end of the list', () => {
-    expect(labels([A, B, C], A).slice(0, 2)).toEqual(['Move up (off)', 'Move down'])
-    expect(labels([A, B, C], C).slice(0, 2)).toEqual(['Move up', 'Move down (off)'])
+    expect(labels([A, B, C], A)).toEqual(['Move up (off)', 'Move down'])
+    expect(labels([A, B, C], C)).toEqual(['Move up', 'Move down (off)'])
   })
 
   it('disables both for the only sibling there is, nothing being anywhere relative to nothing', () => {
-    expect(labels([A], A).slice(0, 2)).toEqual(['Move up (off)', 'Move down (off)'])
+    expect(labels([A], A)).toEqual(['Move up (off)', 'Move down (off)'])
   })
 
   // The number is an index in the list with the subject lifted out, which is what `placeAmong` reads:
@@ -91,28 +83,12 @@ describe('the steps a keyboard is offered', () => {
     expect(stepAt(B, 'down').parentId).toBe(RAIL)
   })
 
-  // §6 has a drag "move a feature to another rail", and it is the same write with a different parent. The
-  // place it keeps is its own, clamped by `placeAmong` where the rail it lands on is shorter.
-  it('sends each other parent with the place the subject already has, and never a count', () => {
-    expect(stepAt(B, 'epic-2')).toEqual({
-      key: 'epic-2',
-      label: 'Move to Payments',
-      parentId: 'epic-2',
-      position: 1,
-      disabled: false,
-    })
-  })
-
-  it('offers no move where the plan has no other parent, rather than a control that means nothing', () => {
-    expect(labels([A, B], A, [])).toEqual(['Move up (off)', 'Move down'])
-  })
-
   it('offers nothing at all for a subject the list does not hold, which is a corrupt order and not a step', () => {
-    expect(stepsFor([A, B], 'feature-gone', RAIL, OTHER)).toEqual([])
+    expect(stepsFor([A, B], 'feature-gone', RAIL)).toEqual([])
   })
 
   it('carries five primitives per step and nothing a client component may not hold', () => {
-    for (const step of stepsFor([A, B, C], B, RAIL, OTHER)) {
+    for (const step of stepsFor([A, B, C], B, RAIL)) {
       expect(Object.keys(step).sort()).toEqual([
         'disabled',
         'key',
@@ -124,5 +100,24 @@ describe('the steps a keyboard is offered', () => {
         expect(['string', 'number', 'boolean']).toContain(typeof value)
       }
     }
+  })
+})
+
+// §6 has a drag "move a feature to another rail", and it is the same write with a different parent. The
+// place it keeps is its own, clamped by `placeAmong` where the rail it lands on is shorter — so a move
+// across parents sends the position the subject already holds, and the picker reads it from here.
+describe('the place a move across parents keeps', () => {
+  it('answers the subject’s own index among its siblings', () => {
+    expect(positionOf([A, B, C], B)).toBe(1)
+    expect(positionOf([A, B, C], A)).toBe(0)
+    expect(positionOf([A, B, C], C)).toBe(2)
+  })
+
+  it('answers -1 for a subject the list does not hold, which no control renders for', () => {
+    expect(positionOf([A, B], 'feature-gone')).toBe(-1)
+  })
+
+  it('reads the same list the steps do, so a move sideways and a move along agree about where it is', () => {
+    expect(positionOf([A, B, C], B)).toBe(stepAt(B, 'up').position + 1)
   })
 })

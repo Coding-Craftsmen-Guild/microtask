@@ -57,4 +57,29 @@ describe('Page', () => {
     expect(screen.getByRole('main')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Timeline' })).toBeTruthy()
   })
+it('drops the padding as well for width="full", which is what an application frame needs', () => {
+    const { container } = render(<Page width="full">body</Page>)
+    const classes = container.querySelector('main')?.className ?? ''
+    expect(classes).not.toContain('pb-20')
+    expect(classes).not.toContain('px-5')
+    expect(classes).not.toContain('max-w-[900px]')
+  })
+
+  // Without flex-1 the frame collapses to its content and the viewport is blank beneath it, which is
+  // what the plan page looked like before this was here. Its layout supplies the flex column.
+  it('grows to fill a flex column for width="full", the frame sizing itself to the viewport', () => {
+    const { container } = render(<Page width="full">body</Page>)
+    const classes = container.querySelector('main')?.className ?? ''
+    expect(classes).toContain('flex-1')
+    expect(classes).toContain('min-h-0')
+  })
+
+  it('renders the main landmark for width="full" too, so the page keeps one', () => {
+    render(
+      <Page width="full">
+        <h1>Board</h1>
+      </Page>,
+    )
+    expect(screen.getByRole('main')).toBeTruthy()
+  })
 })

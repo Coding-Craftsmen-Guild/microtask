@@ -1,37 +1,74 @@
 /**
- * The ids and class names the plan screen's two-radio view switch is built out of.
+ * The timeline-or-table switch, as ids, whole class strings, and one rule the page carries.
  *
- * A module of constants and **deliberately not a component.** `PlanScreen` argues it at length: a
- * `peer-*` variant is a sibling selector, so the two radios, their labels and both panels have to be
- * siblings under one flex parent, and any wrapper drawn around the radios breaks the only connection
- * that makes the switch work without JavaScript. That rules out extracting the markup and leaves the
- * strings, which is what this file is. There is nothing here to render and there cannot be.
+ * ### Why a radio and not state
  *
- * One record rather than ten exported constants, for the reason `canvas/view.ts`' `LAYOUT` is one: it
- * is one decision — how the switch is wired and painted — and the parts are coupled. The `peer/timeline`
- * and `peer/table` names in `timelineRadio` and `tableRadio` are what `timelineTab`, `tableTab`,
- * `scroller` and `tablePanel` select on, so a name changed in one of them and not the others is a
- * switch that silently stops switching; and `timelineId`, `tableId` and `hintId` are the same wiring
- * seen from the markup's side, tying each label to its input and both inputs to the one sentence that
- * says what the choice does.
+ * Both views are server-rendered from one read of the plan, and which one is on screen is a
+ * preference with no consequence beyond the pixels. A checked radio and two CSS rules do that with
+ * no client component, no hydration and no round trip — the argument ADR 0064 makes for group
+ * selection, applied to the one other thing on this page that is pure presentation.
  *
- * Every value is a whole string literal, because Tailwind's scanner reads source as plain text and
- * emits no CSS for a class name it cannot see in one piece. `module-boundaries.test.tsx` walks this
- * directory and would fail on a composed one.
+ * ### Why `:has()` and not `peer-checked:`
+ *
+ * `peer-*` compiles to the CSS sibling combinator, so it can only reach an element that follows the
+ * input **in the same parent**. The tabs belong in the toolbar strip and the panels are two regions
+ * down the frame, and the first revision's switch only worked because every one of those things was
+ * crammed into one flex row. Hoisting the condition to the shell with `:has()` lets each live where
+ * it belongs, and is the same mechanism the group chips and the rail selection already use.
+ *
+ * The tab *labels* keep `peer-checked/`: a label and its input really are siblings, and that is a
+ * cheaper rule than a second `:has()`.
  */
 export const VIEW_SWITCH = {
-  views: 'flex flex-wrap items-center gap-x-2 gap-y-4',
+  tabs: 'flex items-center gap-0.5 rounded-lg bg-muted p-0.5',
   timelineId: 'plan-view-timeline',
   tableId: 'plan-view-table',
   hintId: 'plan-view-hint',
   timelineRadio: 'peer/timeline sr-only',
   tableRadio: 'peer/table sr-only',
   timelineTab:
-    'cursor-pointer rounded-lg px-3 py-1.5 text-[13px] font-semibold text-muted-foreground ring-1 ring-foreground/10 peer-checked/timeline:bg-card peer-checked/timeline:text-foreground peer-focus-visible/timeline:ring-2 peer-focus-visible/timeline:ring-brand',
+    'cursor-pointer rounded-md px-2.5 py-1 text-[13px] font-medium text-muted-foreground hover:text-foreground peer-checked/timeline:bg-background peer-checked/timeline:text-foreground peer-checked/timeline:shadow-sm peer-focus-visible/timeline:outline-2 peer-focus-visible/timeline:outline-brand',
   tableTab:
-    'cursor-pointer rounded-lg px-3 py-1.5 text-[13px] font-semibold text-muted-foreground ring-1 ring-foreground/10 peer-checked/table:bg-card peer-checked/table:text-foreground peer-focus-visible/table:ring-2 peer-focus-visible/table:ring-brand',
-  scroller:
-    'w-full overflow-x-auto rounded-xl bg-card p-3 ring-1 ring-foreground/10 peer-checked/table:hidden',
-  tablePanel:
-    'w-full rounded-xl bg-card p-3 ring-1 ring-foreground/10 peer-checked/timeline:sr-only',
+    'cursor-pointer rounded-md px-2.5 py-1 text-[13px] font-medium text-muted-foreground hover:text-foreground peer-checked/table:bg-background peer-checked/table:text-foreground peer-checked/table:shadow-sm peer-focus-visible/table:outline-2 peer-focus-visible/table:outline-brand',
+  timelinePanel: 'flex min-h-0 flex-1 flex-col',
+  tablePanel: 'min-h-0 flex-1 overflow-auto p-3',
 } as const
+
+const SHELL = '[data-slot="plan-shell"]'
+
+const CHECKED = '#plan-view-table:checked'
+
+const TIMELINE = '[data-slot="timeline-panel"]'
+
+const TABLE = '[data-slot="table-panel"]'
+
+const OFF_SCREEN =
+  'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0'
+
+/**
+ * The two rules that put whichever view is not chosen out of the way.
+ *
+ * ### The two are not treated alike, on purpose
+ *
+ * The unchosen **timeline** is `display:none`. It is an `<svg role="img">` with a label and nothing
+ * else inside it that a screen reader can use, so removing it costs a reader one alt text.
+ *
+ * The unchosen **table** is taken off screen instead, with the declarations `sr-only` compiles to.
+ * The table is the accessible rendering of this plan — every feature, every item, every date, as
+ * rows — and the canvas is not. Hiding it outright would mean that a reader who cannot see the
+ * timeline has to find and operate a view switch before the plan exists for them at all. Off screen
+ * it stays in the accessibility tree whichever view is chosen, and that is the property worth
+ * keeping: it was true of the first revision, and it is the one thing about that switch that was
+ * right.
+ *
+ * Static, unlike the group and selection sheets, because there are exactly two views and neither is
+ * named after anything in the plan. It is a `<style>` rather than a utility because there is no
+ * utility for "an ancestor of me contains a checked input", which is the whole condition.
+ *
+ * Written so the timeline shows when neither rule matches: a page whose style element failed to
+ * load, or whose radios never rendered, shows the plan rather than nothing.
+ *
+ * The off-screen declarations are what `sr-only` compiles to, written out because a `:has()` rule
+ * cannot apply a utility class.
+ */
+export const VIEW_SWITCH_CSS = `${SHELL}:has(${CHECKED}) ${TIMELINE}{display:none}${SHELL}:not(:has(${CHECKED})) ${TABLE}{${OFF_SCREEN}}`

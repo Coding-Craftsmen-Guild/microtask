@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation'
 import { ADMIN_PLAN_ACTIONS } from '../../../../../../components/plan/admin-actions'
+import { attentionOf } from '../../../../../../components/plan/attention/attention'
+import { AttentionCallout } from '../../../../../../components/plan/attention/attention-mark'
 import { DrawerPanel } from '../../../../../../components/plan/drawer/drawer-panel'
 import { drawerSubject } from '../../../../../../components/plan/drawer/subject'
 import { ADMIN_CONTROLS } from '../../../../../../lib/admin-controls'
@@ -73,6 +75,7 @@ export default async function ItemDrawerPage({ params }: ItemDrawerPageProps) {
   return (
     <DrawerPanel
       actions={ADMIN_PLAN_ACTIONS}
+      attention={<AttentionCallout on={attentionOf(loaded.value).get(subject.row.id)} />}
       closeHref={planPath(planId)}
       controls={ADMIN_CONTROLS.content}
       description={described.ok ? described.value : null}

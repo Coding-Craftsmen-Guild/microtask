@@ -29,9 +29,9 @@ export interface LinkFrameProps {
  */
 export function LinkFrame({ home, children }: LinkFrameProps) {
   return (
-    <>
-      <AppBar href={home} logo={<Logo size="bar" />} product="Macroplan" />
-      <Page width="wide">{children}</Page>
-    </>
+    <div className="flex h-dvh flex-col">
+      <AppBar href={home} logo={<Logo size="bar" />} product="Macroplan" width="wide" />
+      <Page width="full">{children}</Page>
+    </div>
   )
 }

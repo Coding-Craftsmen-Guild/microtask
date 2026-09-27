@@ -16,6 +16,7 @@ import {
   atlasPlan,
   EPIC_1,
   FEATURE_1,
+  FEATURE_2,
   MANAGE_SEAT_TOKEN,
   PLAN_A,
   REVOKED_SEAT_TOKEN,
@@ -23,6 +24,8 @@ import {
   tangledPlan,
   WRITE_SEAT_TOKEN,
 } from '../../../components/plan/testing/plan-fixture'
+import { DEFAULT_ZOOM, openingZoom } from '../../../components/plan/canvas/zoom-view'
+import { SEAT_DRAWER_ROUTES } from '../../../lib/drawer-routes'
 import { planCapabilities } from '../../../lib/plan-capabilities'
 import { SERVICE_UNAVAILABLE } from '../../../lib/problem'
 import { ACTION_REFUSALS } from '../../../lib/refusal'
@@ -162,6 +165,12 @@ const seated = (token: string): string => {
 }
 
 const show = async (token = SEAT_TOKEN) => render(await screenFor(token))
+
+const slot = (name: string): Element | null => document.querySelector(`[data-slot="${name}"]`)
+
+const slots = (name: string): readonly Element[] => [
+  ...document.querySelectorAll(`[data-slot="${name}"]`),
+]
 
 const thrownBy = async (token: string): Promise<unknown> => {
   try {
@@ -303,9 +312,14 @@ describe('a plan seat lands on the one plan its token opens', () => {
       await show(token)
       expect(screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })).toBeTruthy()
       expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
-      expect(document.querySelectorAll('[data-slot="feature-bar"]')).toHaveLength(2)
-      expect(document.querySelectorAll('[data-slot="item-mark"]')).toHaveLength(3)
-      expect(screen.getByText('starts 2026-09-28 · 14-day sprints · Europe/Belgrade')).toBeTruthy()
+      expect(slots('feature-bar')).toHaveLength(2)
+      expect(slots('item-mark')).toHaveLength(3)
+      // The calendar is three spans with `aria-hidden` separators between them rather than one
+      // sentence, so each fact is asserted on its own. Matching the punctuated line would be
+      // asserting how the head spells a separator, which is not a thing about this page at all.
+      for (const fact of ['starts 2026-09-28', '14-day sprints', 'Europe/Belgrade']) {
+        expect(screen.getByText(fact)).toBeTruthy()
+      }
     },
   )
 
@@ -316,25 +330,133 @@ describe('a plan seat lands on the one plan its token opens', () => {
     expect(screen.getByRole('radio', { name: 'Table' })).toBeTruthy()
   })
 
-  // This asserted the opposite for four phases — no conflict list at all — and the reason was never that a
-  // seat has nothing to fix: every link such a list drew was an admin drawer path, so a seat holder
-  // following one would be sent to a surface that reads a cookie they have not got (ADR 0032). The list now
-  // takes its surface’s own routes (`lib/drawer-routes.ts`), so it can be mounted here, and a `view` seat
-  // gets it too: a conflict is a fact about the plan, and reading one needs no authority to fix it.
-  it('draws the conflict list, now that its links can address this surface', async () => {
+  // **The bug this page shipped with, stated as a test.** The screen's split is a flex row of a
+  // sidebar pane and a main pane, and it was a two-column grid when this surface passed `null` for
+  // the sidebar: a null child is no grid item at all, so the board became the *first* item and drew
+  // itself into the 17rem names track — a 272px timeline on a 1545px page, with the wide column
+  // beside it empty. It is asserted as containment rather than as a class, because what went wrong
+  // was which box the board was in.
+  it('gives the rail tree a pane of its own and draws the board in the pane beside it', async () => {
+    seated(SEAT_TOKEN)
+    await show()
+    const side = slot('plan-side')
+    const board = slot('plan-board')
+    expect(side?.querySelector('[data-slot="plan-sidebar"]')).not.toBeNull()
+    expect(board).not.toBeNull()
+    expect(side?.contains(board as Node)).toBe(false)
+    expect(slot('plan-main')?.contains(board as Node)).toBe(true)
+  })
+
+  // The tree lists every rail and every feature, so this surface draws links where it used to draw
+  // none — and the rails are the exception. `SEAT_DRAWER_ROUTES.rail` is `null` because there is no
+  // `/s/<token>/r/<epicId>` to open, and linking the admin one would send a holder to a password
+  // form they have no password for (ADR 0032). Asserted by accessible name, which covers both places
+  // a rail is named: the tree, and the names column beside the canvas.
+  it('names each rail as text and never as a link, a seat having no rail drawer to open', async () => {
+    seated(SEAT_TOKEN)
+    await show()
+    expect(SEAT_DRAWER_ROUTES.rail).toBeNull()
+    expect(slot('rail-names')?.textContent).toContain('Platform')
+    expect(screen.queryAllByRole('link', { name: 'Platform' })).toEqual([])
+  })
+
+  // A feature is the thing a seat *can* open, and it is linked twice over: the bar on the canvas, which is
+  // what a reader clicks first, and the row in the tree, which is the keyboard path to the same drawer —
+  // the bar is `tabIndex={-1}` inside a `role="img"`, so it is no keyboard stop at all. Both are built from
+  // the same `SEAT_DRAWER_ROUTES`, so they cannot disagree about where a feature lives on this surface.
+  it('offers a feature both ways — its bar and its tree row — at one address under this token', async () => {
+    seated(SEAT_TOKEN)
+    await show()
+    const ways = screen.getAllByRole('link', { name: 'Auth rewrite' })
+    expect(ways).toHaveLength(2)
+    expect([...new Set(ways.map((one) => one.getAttribute('href')))]).toEqual([
+      `/s/${SEAT_TOKEN}/f/${FEATURE_1}`,
+    ])
+  })
+
+  // Zoom is a cookie on the admin surface — `readZoom` reads one and the control's form writes one,
+  // then revalidates `/plans` — and this page may read no cookie at all, so it is handed no control
+  // and picks the rung the plan itself fits instead. Atlas ends on day eight, which is 28 days once
+  // the axis is padded out to whole sprints and so about 1200px at forty-two pixels a day: it fits,
+  // so the finest rung wins. That is a real difference from the constant this used to pass, which
+  // spread those eight days across a quarter of axis and left the rest of the chart blank.
+  it('opens at the rung this plan fits, rather than at the one constant it cannot improve on', async () => {
+    seated(SEAT_TOKEN)
+    const element: ReactNode = await screenFor(SEAT_TOKEN)
+    const handed = isValidElement<{ zoom: unknown }>(element) ? element.props.zoom : null
+    expect(handed).toBe('item')
+    expect(handed).toBe(openingZoom(atlasPlan()))
+    expect(handed).not.toBe(DEFAULT_ZOOM)
+  })
+
+  // **Where the conflict list went.** This surface mounted one for a phase, and a `view` seat got it too
+  // on the argument that a conflict is a fact about the plan rather than something needing the authority
+  // to fix it. That argument survives; the panel does not. It listed every complaint the schedule made —
+  // one row per unsized *item* included, each row printed twice — above the timeline, which is how the
+  // deployed page came to start 2780px down. What a seat gets instead is one row per feature that has **no
+  // bar**, under the board: the tangled plan's cycle strands two of its four features, so the tray names
+  // those two, in the rail order the reader just saw, and says why beside each.
+  it('lists each feature with no bar in a tray under the board, where a panel used to sit above it', async () => {
     seated(SEAT_TOKEN)
     api.plans = [tangledPlan()]
     await show()
-    expect(document.querySelector('[data-slot="conflict-list"]')).not.toBeNull()
-    expect(screen.queryAllByRole('link').length).toBeGreaterThan(0)
+    const tray = slot('unscheduled-tray')
+    expect(tray).not.toBeNull()
+    expect(slots('tray-row').map((row) => row.querySelector('a')?.textContent)).toEqual([
+      'Auth rewrite',
+      'Billing',
+    ])
+    expect(tray?.textContent).toContain('In a dependency cycle')
+    expect(slot('timeline-panel')?.contains(tray as Node)).toBe(true)
   })
 
-  // A plan that contradicts itself in none of the three ways draws nothing, so the case above is about the
-  // list being reachable rather than about it always being there.
-  it('draws none for a plan that contradicts itself in none of the three ways', async () => {
+  // Its links are this surface's own, which is the thing the old panel could never manage: it imported the
+  // admin path builders, so every row it drew addressed `/plans/…`, and that is why it was admin-only until
+  // the routes were handed in. The tray takes `SEAT_DRAWER_ROUTES` from this page, so a holder following a
+  // row stays on the surface their token opens.
+  it('links each tray row into this surface, so acting on a stranded feature needs no cookie', async () => {
+    seated(SEAT_TOKEN)
+    api.plans = [tangledPlan()]
+    await show()
+    const hrefs = [...document.querySelectorAll('[data-slot="tray-row"] a')].map((one) =>
+      one.getAttribute('href'),
+    )
+    expect(hrefs).toEqual([`/s/${SEAT_TOKEN}/f/${FEATURE_1}`, `/s/${SEAT_TOKEN}/f/${FEATURE_2}`])
+  })
+
+  // An unsized item gets no row of its own. It rolls up into a badge on the feature that owns it — the
+  // cycle here drags `Invoices` off the axis with `Billing`, and `Billing` carries both facts on one dot —
+  // which is the difference between the three marks this plan draws and one row per complaint, the shape
+  // that reached thirty rows on the deployed plan.
+  it('rolls the item the cycle also stranded into its feature’s own mark, not a row beside it', async () => {
+    seated(SEAT_TOKEN)
+    api.plans = [tangledPlan()]
+    await show()
+    expect(slots('tray-row')).toHaveLength(2)
+    expect(slot('unscheduled-tray')?.textContent).not.toContain('Invoices')
+    const titles = slots('attention-dot').map((dot) => dot.getAttribute('title'))
+    expect(titles).toContain('In a dependency cycle · 1 item needs an estimate')
+    expect(titles).toContain('Dependency on Reporting set aside')
+  })
+
+  // The head counts **features**, and the count is what tells a reader there is anything to look for at
+  // all. Not entities: the map holds the stranded item too, and counting that beside its feature's rollup
+  // made the header say more than the page under it shows.
+  it('counts the three features that want looking at, beside the plan’s calendar', async () => {
+    seated(SEAT_TOKEN)
+    api.plans = [tangledPlan()]
+    await show()
+    expect(slot('attention-chip')?.textContent).toBe('3 need attention')
+  })
+
+  // A plan whose every feature has a bar draws no tray, no dot and no count, so the four cases above are
+  // about a plan in trouble rather than about furniture this page always carries.
+  it('draws no tray, no mark and no count for a plan whose every feature has a bar', async () => {
     seated(SEAT_TOKEN)
     await show()
-    expect(document.querySelector('[data-slot="conflict-list"]')).toBeNull()
+    expect(slot('unscheduled-tray')).toBeNull()
+    expect(slot('attention-dot')).toBeNull()
+    expect(slot('attention-chip')).toBeNull()
   })
 })
 
@@ -383,12 +505,12 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
 
   // **No other seat’s token, and the visitor’s own only as a path on this surface.**
   //
-  // This asserted *no token at all* until the conflict list was mounted here, and that was right for as
-  // long as this screen drew no link: the brand link carrying the token is `LinkFrame`’s, one level up in
-  // the layout. A conflict row links to `/s/<token>/f/<featureId>`, so the token is now in the screen’s own
-  // payload — which is admissible for exactly one token, the visitor’s own, already in the address bar they
-  // arrived by (ADR 0040), and already in that brand link. The `/s/*` subtree sets `no-referrer`, so
-  // following one of these links does not hand the token to anywhere else either.
+  // This asserted *no token at all* while this screen drew no link, and the sidebar is what ended that:
+  // every rail's features are links to `/s/<token>/f/<featureId>`, and the tray adds one per stranded
+  // feature. So the token is in the screen's own payload — admissible for exactly one token, the visitor's
+  // own, already in the address bar they arrived by (ADR 0040) and already in `LinkFrame`'s brand link one
+  // level up. The `/s/*` subtree sets `no-referrer`, so following one of these does not hand the token
+  // anywhere else either.
   //
   // What the two halves below say is stronger than the assertion they replace, rather than weaker. No
   // **other** seat’s token appears at all — which is the leak that would matter, a manage seat being the
@@ -408,16 +530,16 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
     for (const token of others) expect(container.innerHTML).not.toContain(token)
     // The visitor's own, checked against the **rendered markup** rather than the element tree, and that
     // distinction is the point. `stringsIn` walks every element including Server Components, and a Server
-    // Component's props are not serialised to the browser — `ConflictList` is handed the bare token as its
-    // `root` and nothing of that reaches the client. What does reach it is the HTML, so the attribute sweep
-    // below is the one that describes the exposure: the token is in link hrefs on this surface and nowhere
-    // else, not in a `data-` attribute, a name or a value of any other kind.
-    // Whatever carries it must be an href on this surface. For the Atlas fixture that is **nothing at all**,
-    // because a plan that contradicts itself in none of the three ways gives the conflict list nothing to
-    // link to — so the token reaches the browser only once there is a link to put it in. The case below,
-    // against a plan that does contradict itself, is where an href is required to exist; asserting one here
-    // would be asserting that this fixture has a conflict, which is a different claim.
-    for (const [name, value] of attributesContaining(container, MANAGE_SEAT_TOKEN)) {
+    // Component's props are not serialised to the browser — `PlanSidebar` and `UnscheduledTray` are each
+    // handed the bare token as their `root` and nothing of that reaches the client. What does reach it is
+    // the HTML, so the attribute sweep below is the one that describes the exposure: the token is in link
+    // hrefs on this surface and nowhere else, not in a `data-` attribute, a name or a value of any other
+    // kind. It is required to be in at least one, which it was not while this screen linked to nothing:
+    // the Atlas fixture now draws a tree of them, so a sweep finding none would mean the sidebar had
+    // stopped rendering rather than that nothing leaked.
+    const carried = attributesContaining(container, MANAGE_SEAT_TOKEN)
+    expect(carried.length).toBeGreaterThan(0)
+    for (const [name, value] of carried) {
       expect({ name, onSurface: value.startsWith(`/s/${MANAGE_SEAT_TOKEN}/`) }).toEqual({
         name: 'href',
         onSurface: true,
@@ -425,10 +547,11 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
     }
   })
 
-  // The half above would pass for a surface that drew no link at all, so this is what makes it a rule: a
-  // plan that contradicts itself in all three ways gives the conflict list something to link to, and every
-  // link it draws is a path on this surface rather than an admin one.
-  it('addresses every conflict link at this surface, never at /plans, which needs a cookie', async () => {
+  // The same rule over the plan that needs every link this surface can draw: the tree links four features,
+  // the tray links the two with no bar, and not one of them may be the admin path a cookie answers. The
+  // rails are the ones with no link at all, `SEAT_DRAWER_ROUTES.rail` being null, so an href here is always
+  // a feature or an item.
+  it('addresses every link it draws at this surface, never at /plans, which needs a cookie', async () => {
     seated(MANAGE_SEAT_TOKEN)
     api.plans = [tangledPlan()]
     const { container } = render(await screenFor(MANAGE_SEAT_TOKEN))
@@ -436,7 +559,7 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
     expect(hrefs.length).toBeGreaterThan(0)
     for (const href of hrefs) expect(href.startsWith(`/s/${MANAGE_SEAT_TOKEN}/`)).toBe(true)
     // And every attribute carrying the token is one of those hrefs, which is what makes the case above a
-    // rule rather than a statement about a fixture with no links in it.
+    // rule rather than a statement about which of this page's regions happened to render a link.
     for (const [name] of attributesContaining(container, MANAGE_SEAT_TOKEN)) {
       expect(name).toBe('href')
     }
@@ -519,12 +642,12 @@ describe('which controls the seat’s own role draws', () => {
 
   // The role and the scope are what `planCapabilities` is asked with, and neither goes down: a
   // permission restated below this point is one nothing authorises, and a component added later
-  // could ask a second question of it. What the screen gets is the plan, the instant, the controls and
-  // three explicitly empty slots — six props and no seventh. All three slots are in the set because all
-  // three are required on the screen and this surface fills none of them: it has no drawer route, a
-  // conflict list links only to those routes, and a share manager would need this seat's token bound into
-  // its actions — so `null` three times is what this page states about itself.
-  it('hands the screen the controls and never the role, the scope or the share view itself', async () => {
+  // could ask a second question of it. What the screen takes is now fifteen props rather than
+  // thirteen, and the four slots it used to be handed — `conflicts`, `rails`, `settings`, `share` —
+  // are gone from the list: the panel is deleted outright and the other three are one `manage` slot
+  // on the screen, which this surface fills from the sidebar instead. `home`, `root`, `routes`,
+  // `tray`, `zoomControl` and `manage` are what replaced them.
+  it('hands the screen fifteen props, the four panel slots it used to take being gone', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
     expect(isValidElement(element)).toBe(true)
@@ -532,42 +655,74 @@ describe('which controls the seat’s own role draws', () => {
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
-      'conflicts',
       'controls',
       'drawer',
       'groups',
+      'home',
+      'manage',
       'plan',
       'progress',
-      'rails',
-      'settings',
-      'share',
+      'root',
+      'routes',
       'sidebar',
+      'tray',
       'zoom',
+      'zoomControl',
     ])
-    expect(handed['drawer']).toBeNull()
-    // `conflicts` is an element now, not `null`: the list takes its surface's own drawer routes, so its links
-    // address `/s/<token>/…` rather than an admin path nobody here can follow. `drawer` stays `null` in this
-    // case because the *screen* is called with no drawer — `layout.tsx` is what passes its children in.
-    expect(handed['conflicts']).not.toBeNull()
-    // The four manager slots are `null` **for this seat** and no longer for want of a mechanism. This case
-    // holds a `write` token, and every action behind all four is `manage` in the kernel: the share four, the
-    // five rail actions, the five group ones and the three plan ones. So each slot answers `null` because
-    // this seat may not use it — which is the API's own answer restated as a rendering one — and the case
-    // below proves a `manage` seat is handed all four. Both directions are needed: a surface that drew
-    // nothing for anybody would satisfy this one alone.
-    expect(handed['share']).toBeNull()
-    expect(handed['groups']).toBeNull()
-    expect(handed['rails']).toBeNull()
-    expect(handed['settings']).toBeNull()
+  })
+
+  // Four of them are `null`, and each `null` is this page saying something about itself rather than a
+  // slot nobody got round to filling.
+  //
+  // `drawer` because the *screen* is called with none here — `layout.tsx` is what passes its children in.
+  // `home` because there is no plan index a seat may reach, so the head climbs to nothing rather than
+  // offering a crumb into a surface that answers with a password form. `manage` because the buttons it draws
+  // are links
+  // to `/plans/<id>/new/group`, `/settings` and `/share`, none of which exists under `/s/<token>` — this
+  // seat's own editors are in the sidebar, which is the case below. And `zoomControl` because choosing a
+  // zoom means writing the `mp_zoom` cookie and revalidating `/plans`, both of which this surface is
+  // forbidden (ADR 0040); the rung it opens at is the plan's own fit instead.
+  it('states four slots empty: no drawer, no plan index, no whole-plan actions and no zoom to keep', async () => {
+    seated(WRITE_SEAT_TOKEN)
+    const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    for (const empty of ['drawer', 'home', 'manage', 'zoomControl']) {
+      expect(handed[empty], empty).toBeNull()
+    }
+    // And three that are filled, every one of them new to this surface: the tree that used to be a null
+    // column, the chips that used to be the heading's, and the tray that replaced the conflict panel.
+    for (const filled of ['groups', 'sidebar', 'tray']) {
+      expect(handed[filled], filled).not.toBeNull()
+    }
+  })
+
+  // Every URL this screen builds is rooted at the token and not at the plan id, which is the whole of what
+  // `root` and `routes` are for: one surface hands its own root plus its own builders, and the components
+  // that draw a link — the tree, the tray, the names column — need no opinion about which kind of string
+  // they hold. Handing `PLAN_A` here would give a holder a page of links into a surface their token does
+  // not open.
+  it('roots every link the screen builds at this URL’s token, never at the plan id it resolved to', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    const element: ReactNode = await screenFor(MANAGE_SEAT_TOKEN)
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    expect(handed['root']).toBe(MANAGE_SEAT_TOKEN)
+    expect(handed['root']).not.toBe(PLAN_A)
+    expect(handed['routes']).toBe(SEAT_DRAWER_ROUTES)
+  })
+
+  it('hands the screen the capabilities themselves and never the role or the scope it asked with', async () => {
+    seated(WRITE_SEAT_TOKEN)
+    const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
     expect((handed['controls'] as { seats: Record<string, boolean> }).seats).toEqual({
       read: false,
       create: false,
       update: false,
       revoke: false,
     })
-    // `actions` is the seat's own wiring now, every member bound to the token in this page's URL. What
-    // makes that safe is the pair of cases above rather than this one: they call each handed action and
-    // assert the token it carries is the visitor's own and no other. Asserted here as a shape only — that
+    // `actions` is the seat's own wiring, every member bound to the token in this page's URL. What
+    // makes that safe is the sweep above rather than this case: it calls each handed action and
+    // asserts the token it carries is the visitor's own and no other. Asserted here as a shape only — that
     // it is an object of functions — because which functions is `seat-actions.test.ts`'s question.
     const writes = handed['actions'] as Record<string, unknown>
     expect(Object.values(writes).every((one) => typeof one === 'function')).toBe(true)
@@ -576,30 +731,51 @@ describe('which controls the seat’s own role draws', () => {
     expect(groups.flatMap((group) => Object.values(group)).every((one) => typeof one === 'boolean')).toBe(true)
   })
 
-
-  // The other direction, and the case that makes the four `null`s above a rule rather than a surface that
-  // draws nothing. Every action behind these slots is `manage`, so a `manage` seat is handed all four —
-  // which is what a plan shared at `manage` is for: the holder can add a rail, put a feature on it, group
-  // it, correct the plan’s calendar and hand on a seat of its own, without an admin cookie anywhere.
-  it('hands a manage seat all four manager slots, every action behind them being manage', async () => {
+  // The four editors a seat may be handed are the same four as before — rails, groups, settings, seats —
+  // and they are no longer four props of the screen. They are one panel under the rail tree, in the column
+  // that already scrolls, because this surface has no `/s/<token>/settings` route to open them as drawers
+  // and a collapsed panel in the page body pushed the board down. Which is what a plan shared at `manage`
+  // is for: the holder adds a rail, groups a feature, corrects the calendar and hands on a seat of their
+  // own, with no admin cookie anywhere.
+  it('puts all four editors under the rail tree for a manage seat, every action behind them being manage', async () => {
     seated(MANAGE_SEAT_TOKEN)
-    const element: ReactNode = await screenFor(MANAGE_SEAT_TOKEN)
-    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    for (const slot of ['share', 'groups', 'rails', 'settings']) {
-      expect(handed[slot], slot).not.toBeNull()
+    await show(MANAGE_SEAT_TOKEN)
+    const panel = slot('seat-manage')
+    expect(panel).not.toBeNull()
+    for (const each of ['rails-panel', 'labels-panel', 'settings-panel']) {
+      expect(panel?.querySelector(`[data-slot="${each}"]`), each).not.toBeNull()
     }
+    expect(panel?.contains(screen.getByRole('button', { name: 'Share' }))).toBe(true)
+    expect(slot('plan-side')?.contains(panel as Node)).toBe(true)
   })
 
-  // A view seat is the floor: it may select a group from the chips the heading draws and edit nothing, so
-  // every manager slot is refused it as well.
-  it('hands a view seat none of them, the chips it can use being the heading’s own', async () => {
+  // The other direction, and what makes the case above a rule rather than a page that draws everything for
+  // everybody. Every action behind the four is `manage` in the kernel — the share four, the five rail
+  // actions, the five group ones and the three plan ones — so a `write` seat is refused all of them just as
+  // a `view` seat is, and the panel that would hold them is absent rather than empty.
+  it.each([SEAT_TOKEN, WRITE_SEAT_TOKEN])(
+    'draws no editor at all for the seat holding %s, every one of the four being manage',
+    async (token) => {
+      seated(token)
+      await show(token)
+      expect(slot('seat-manage')).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Share' })).toBeNull()
+    },
+  )
+
+  // A view seat is the floor, and it still gets the one control that changes only what is on screen: the
+  // group chips, which are the toolbar's rather than the heading's now. Picking one dims everything outside
+  // that group through a generated stylesheet, so it writes nothing and asks nothing of the API.
+  it('gives a view seat the group chips all the same, picking one writing nothing to the plan', async () => {
     seated(SEAT_TOKEN)
-    const element: ReactNode = await screenFor(SEAT_TOKEN)
-    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    for (const slot of ['share', 'groups', 'rails', 'settings']) {
-      expect(handed[slot], slot).toBeNull()
-    }
+    await show()
+    expect(slot('group-chips')).not.toBeNull()
+    expect(slots('group-chip').map((chip) => chip.textContent)).toEqual([
+      'Phase 1 · 1 feature',
+      'Phase 2 · empty',
+    ])
   })
+
   it('draws no control for a view seat and every content one for a manage seat', async () => {
     const drawn = (element: ReactNode): readonly (readonly [string, boolean])[] =>
       isValidElement<{ controls: { content: Record<string, boolean> } }>(element)

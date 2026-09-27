@@ -2,75 +2,65 @@ import type { Rung } from '@repo/canvas'
 import { chooseZoom } from '../../../actions/zoom'
 import { ZOOM_ORDER, ZOOM_WORDS } from './zoom-view'
 
-const ROW = 'flex flex-wrap items-center gap-1.5'
+const ROW = 'flex items-center gap-2'
 
-const LEGEND = 'text-[13px] text-muted-foreground'
+const LEGEND = 'text-[12px] text-muted-foreground'
+
+const GROUP = 'flex items-center gap-0.5 rounded-lg bg-muted p-0.5'
 
 const CHOSEN =
-  'cursor-default rounded-lg bg-card px-3 py-1.5 text-[13px] font-semibold text-foreground ring-1 ring-foreground/10'
+  'cursor-default rounded-md bg-background px-2.5 py-1 text-[13px] font-medium text-foreground shadow-sm'
 
 const OFFERED =
-  'cursor-pointer rounded-lg px-3 py-1.5 text-[13px] font-semibold text-muted-foreground ring-1 ring-foreground/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-brand'
+  'cursor-pointer rounded-md px-2.5 py-1 text-[13px] font-medium text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand'
 
 /** Props for {@link ZoomSwitch}. */
 export interface ZoomSwitchProps {
-  /** The rung the canvas beside this is drawing at, so the control marks it. */
   readonly zoom: Rung
 }
 
 /**
- * How far out to stand: §5's three rungs, as three buttons over one Server Action.
+ * How much time is on screen: a year, a quarter or a sprint.
  *
- * ### Why this exists at all
+ * ### Why the chosen one looks the way it does
  *
- * Through phase 4 the canvas drew one fixed 60-working-day window, so of §5's three detail levels
- * exactly one was reachable and the epic rung — the one the whole git-graph shape was designed for —
- * could not be seen in the product. `plan-canvas.tsx` recorded the gap as "phase 3's zoom and pan will
- * pass them", and phase 3 did not.
+ * It is a raised tile in a sunken group, which is what the view tabs beside it are and what both
+ * reference tools use for a segmented control. The first revision gave the chosen stop `bg-card` and
+ * a `ring-1`, and gave every other stop a `ring-1` as well — on a white page `bg-card` *is* the page,
+ * so all three rendered as identical outlined pills and the control never said which one was on.
  *
- * ### A form, not radios
+ * ### Why the chosen one is not a button
  *
- * The view switch beside this is two radios and no JavaScript, and that works because both its panels
- * are already rendered — switching hides one with CSS. A rung cannot be done that way: the three differ
- * in `pxPerDay`, in what chrome is drawn, and in whether a feature is a bar or a node, so CSS would have
- * to be given all three canvases to choose between. The table and the canvas are already both always
- * mounted (ADR 0056), and two more canvases is the doubling `item-mark.tsx` exists to refuse. So the
- * server re-renders one canvas, and the switch is a form.
- *
- * ### The chosen rung is not a button
- *
- * It is a `<span aria-current="true">`, so the control has two buttons and not three: a submit that sets
- * the rung already set is a round trip that redraws the same canvas. It also gives a screen reader the
- * one word that matters — which of the three is on — rather than three interchangeable buttons.
- *
- * `name="rung"` on each button is what `chooseZoom` reads. One unbound action over one form, rather than
- * three `bind` calls, for the reason that action's own note gives: a `bound ` prefix is the signal ADR
- * 0040 reserves for a token reaching a component, and a zoom level is not one.
+ * Pressing it would submit the zoom the page is already drawn at. A `<span>` says the same thing to a
+ * pointer, to a keyboard and to a screen reader — `aria-current` carries the state — without offering
+ * a round trip that changes nothing.
  */
 export function ZoomSwitch({ zoom }: ZoomSwitchProps) {
   return (
-    <form action={chooseZoom} className={ROW}>
+    <form action={chooseZoom} className={ROW} data-slot="zoom-switch">
       <span className={LEGEND} id="plan-zoom-legend">
         Zoom
       </span>
-      {ZOOM_ORDER.map((rung) =>
-        rung === zoom ? (
-          <span aria-current="true" className={CHOSEN} key={rung}>
-            {ZOOM_WORDS[rung]}
-          </span>
-        ) : (
-          <button
-            aria-describedby="plan-zoom-legend"
-            className={OFFERED}
-            key={rung}
-            name="rung"
-            type="submit"
-            value={rung}
-          >
-            {ZOOM_WORDS[rung]}
-          </button>
-        ),
-      )}
+      <div className={GROUP}>
+        {ZOOM_ORDER.map((rung) =>
+          rung === zoom ? (
+            <span aria-current="true" className={CHOSEN} key={rung}>
+              {ZOOM_WORDS[rung]}
+            </span>
+          ) : (
+            <button
+              aria-describedby="plan-zoom-legend"
+              className={OFFERED}
+              key={rung}
+              name="rung"
+              type="submit"
+              value={rung}
+            >
+              {ZOOM_WORDS[rung]}
+            </button>
+          ),
+        )}
+      </div>
     </form>
   )
 }

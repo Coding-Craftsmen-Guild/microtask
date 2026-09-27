@@ -11,10 +11,15 @@ import type { PlanContentControls } from '../../lib/plan-capabilities'
 import type { DrawerValues } from './drawer/values'
 import { PlanCanvas } from './canvas/plan-canvas'
 import { PlanScreen } from './plan-screen'
+import { attentionOf } from './attention/attention'
+import { AttentionCallout, AttentionChip } from './attention/attention-mark'
+import { trayRows } from './attention/tray-rows'
+import { UnscheduledTray } from './attention/unscheduled-tray'
+import { PlanManage } from './shell/plan-manage'
+import { ZoomSwitch } from './canvas/zoom-switch'
 import { planScreenModel } from './plan-screen-model'
 import type { TableRow } from './table/rows'
 import { PlanTable } from './table/plan-table'
-import { ConflictList } from './conflicts/conflict-list'
 import {
   atlasPlan,
   FEATURE_1,
@@ -35,6 +40,7 @@ import { NameField } from './drawer/name-field'
 import { GroupField } from './drawer/group-field'
 import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
+import { MoveTargetField } from './drawer/move-target'
 import { DragRoot } from './canvas/drag-root'
 import { BindFields } from './bridge/bind-fields'
 import { BindForm } from './bridge/bind-form'
@@ -235,6 +241,7 @@ interface Panel {
 const panel = (over: Panel) => (
   <DrawerPanel
     actions={STUB_ACTIONS}
+    attention={<AttentionCallout on={attentionOf(TANGLED).get(FEATURE_1)} />}
     closeHref="/plans/atlas"
     controls={over.controls ?? ADMIN_CONTROLS.content}
     link={null}
@@ -284,6 +291,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [PinField, 'drawer/pin-field.tsx'],
   [GroupField, 'drawer/group-field.tsx'],
   [PlaceControl, 'drawer/place-control.tsx'],
+  [MoveTargetField, 'drawer/move-target.tsx'],
   [DragRoot, 'canvas/drag-root.tsx'],
   [BindForm, 'bridge/bind-form.tsx'],
   [BindFields, 'bridge/bind-fields.tsx'],
@@ -366,65 +374,73 @@ const clientProps = (node: unknown): readonly HandedToClient[] => {
 const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
-    sidebar={null}
-    zoom="feature"
     at={AT}
-    groups={null}
-    rails={null}
-    settings={null}
-    progress={[]}
-    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
-    share={null}
+    groups={null}
+    home="/"
+    manage={null}
+    progress={[]}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
+    sidebar={null}
+    tray={null}
+    zoom="feature"
+    zoomControl={null}
     key="a"
     plan={planScreenModel(atlasPlan())}
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
-    sidebar={null}
-    zoom="feature"
     at={AT}
-    groups={null}
-    rails={null}
-    settings={null}
-    progress={[]}
-    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
-    share={null}
+    groups={null}
+    home="/"
+    manage={null}
+    progress={[]}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
+    sidebar={null}
+    tray={null}
+    zoom="feature"
+    zoomControl={null}
     key="b"
     plan={planScreenModel(unplacedPlan('no-estimate'))}
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
-    sidebar={null}
-    zoom="feature"
     at={AT}
-    groups={null}
-    rails={null}
-    settings={null}
-    progress={[]}
-    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
-    share={null}
+    groups={null}
+    home="/"
+    manage={null}
+    progress={[]}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
+    sidebar={null}
+    tray={null}
+    zoom="feature"
+    zoomControl={null}
     key="c"
     plan={planScreenModel(unplacedPlan('in-cycle'))}
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
-    sidebar={null}
-    zoom="feature"
     at={AT}
-    groups={null}
-    rails={null}
-    settings={null}
-    progress={[]}
-    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={null}
-    share={null}
+    groups={null}
+    home="/"
+    manage={null}
+    progress={[]}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
+    sidebar={null}
+    tray={null}
+    zoom="feature"
+    zoomControl={null}
     key="d"
     plan={planScreenModel(unclaimed())}
   />,
@@ -522,19 +538,21 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
-    sidebar={null}
-    zoom="feature"
     at={AT}
-    groups={null}
-    rails={null}
-    settings={null}
-    progress={[]}
-    conflicts={null}
     controls={ADMIN_CONTROLS}
     drawer={panel({ key: 'g1' })}
-    share={null}
+    groups={null}
+    home="/"
     key="g"
+    manage={null}
     plan={planScreenModel(atlasPlan())}
+    progress={[]}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
+    sidebar={null}
+    tray={null}
+    zoom="feature"
+    zoomControl={null}
   />,
   panel({
     description: 'Ship behind a flag',
@@ -545,19 +563,28 @@ const TREES = [
   panel({ controls: NOTHING_DRAWN, key: 'i' }),
   <PlanScreen
     actions={STUB_ACTIONS}
-    sidebar={null}
-    zoom="feature"
     at={AT}
-    groups={null}
-    rails={null}
-    settings={null}
-    progress={[]}
-    conflicts={<ConflictList root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} plan={TANGLED} />}
     controls={ADMIN_CONTROLS}
     drawer={null}
-    share={MANAGER}
+    groups={null}
+    home="/"
     key="j"
+    manage={MANAGER}
     plan={TANGLED}
+    progress={[]}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
+    sidebar={null}
+    tray={
+      <UnscheduledTray
+        found={attentionOf(TANGLED)}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
+        rows={trayRows(TANGLED)}
+      />
+    }
+    zoom="feature"
+    zoomControl={<ZoomSwitch zoom="feature" />}
   />,
   // The four rail files are the way into a plan, so the sweep has to reach all of them: RailFields sits
   // inside RailForm and RailFeature beside it, and the walk stops at a client boundary rather than going
@@ -602,34 +629,53 @@ const TREES = [
     planId={atlasPlan().id}
     railName="Platform"
   />,
-  <ConflictList key="k" plan={TANGLED} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} />,
-  // The same list addressed as the **seat** surface addresses it, because the two records produce different
-  // hrefs from the same plan and only one of them is reachable without a cookie. Walked here so the seat
-  // pairing is checked by the same sweep rather than only by the page that mounts it.
-  <ConflictList key="k2" plan={TANGLED} root={SEAT_TOKEN} routes={SEAT_DRAWER_ROUTES} />,
+  // The same tray addressed as the **seat** surface addresses it, because the two records produce
+  // different hrefs from the same plan and only one of them is reachable without a cookie. Walked here so
+  // the seat pairing is checked by the same sweep rather than only by the page that mounts it.
+  <UnscheduledTray
+    found={attentionOf(TANGLED)}
+    key="k2"
+    root={SEAT_TOKEN}
+    routes={SEAT_DRAWER_ROUTES}
+    rows={trayRows(TANGLED)}
+  />,
+  // The callout the same facts become inside a drawer, which is where the sentences went.
+  <AttentionCallout key="k3" on={attentionOf(TANGLED).get(FEATURE_1)} />,
+  <AttentionChip count={4} key="k4" />,
   // The sidebar, which is the admin surface's whole navigation and the one place the four plan-level
   // drawers are linked from. Rendered from the **railed** plan so the tree paints a rail with features, a
   // rail with none, and the rail no epic claims — three row states the Atlas fixture has only one of.
   // `SidebarSearch` is the one client component inside it, so the walk stops there and its props are
   // checked; it takes two strings, which is why it needs no tree of its own the way RailFields does.
   <PlanSidebar
-    actions={
-      <SidebarActions
-        key="sa"
-        mayAddGroup
-        mayAddRail
-        mayShare
-        maySettings
-        planId={PLAN_A}
-      />
-    }
+    actions={<SidebarActions key="sa" mayAddRail planId={PLAN_A} railCount={3} />}
+    found={attentionOf(TANGLED)}
     key="l"
-    planId={PLAN_A}
     rails={sidebarRails(planScreenModel(railedPlan()))}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
   />,
+  // And as the seat surface mounts it, where a rail is a heading rather than a link.
+  <PlanSidebar
+    actions={null}
+    found={attentionOf(TANGLED)}
+    key="l3"
+    rails={sidebarRails(planScreenModel(railedPlan()))}
+    root={SEAT_TOKEN}
+    routes={SEAT_DRAWER_ROUTES}
+  />,
+  // The whole-plan actions, which moved out of the sidebar and into the title row.
+  <PlanManage key="pm" mayAddGroup maySettings mayShare planId={PLAN_A} />,
   // And again with no rails at all, which is the state a new plan is in and the one the empty sentence is
   // for: the row markup above never renders it, so a sweep without this tree would leave that class unseen.
-  <PlanSidebar actions={null} key="l2" planId={PLAN_A} rails={[]} />,
+  <PlanSidebar
+    actions={null}
+    found={attentionOf(TANGLED)}
+    key="l2"
+    rails={[]}
+    root={PLAN_A}
+    routes={ADMIN_DRAWER_ROUTES}
+  />,
   MANAGER,
 ]
 

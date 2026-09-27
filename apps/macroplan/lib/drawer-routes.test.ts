@@ -125,10 +125,22 @@ describe('each surface addresses its own drawer, and neither can address the oth
   })
 
   it('builds the four plan-level drawers off the same plan path every other builder uses', () => {
-    expect(PLAN_DRAWERS.newRail(PLAN_A)).toBe(`/plans/${PLAN_A}/new/rail`)
+    expect(PLAN_DRAWERS.newRail(PLAN_A)).toBe(`/plans/${PLAN_A}/new/rail?n=0`)
     expect(PLAN_DRAWERS.newGroup(PLAN_A)).toBe(`/plans/${PLAN_A}/new/group`)
     expect(PLAN_DRAWERS.settings(PLAN_A)).toBe(`/plans/${PLAN_A}/settings`)
     expect(PLAN_DRAWERS.share(PLAN_A)).toBe(`/plans/${PLAN_A}/share`)
+  })
+
+  // The count rides on the link because the sidebar that draws it already knows how many rails there
+  // are, and the route it opens is deliberately request-free: reading the plan again for one integer
+  // would trade that away. `rail-palette.ts` carries why a new rail is proposed a hue at all.
+  it('carries the rail count on the new-rail link, so the form can propose a distinguishable hue', () => {
+    expect(PLAN_DRAWERS.newRail(PLAN_A, 3)).toBe(`/plans/${PLAN_A}/new/rail?n=3`)
+  })
+
+  it('floors a count nobody should have passed, rather than putting it in a URL', () => {
+    expect(PLAN_DRAWERS.newRail(PLAN_A, -2)).toBe(`/plans/${PLAN_A}/new/rail?n=0`)
+    expect(PLAN_DRAWERS.newRail(PLAN_A, 2.7)).toBe(`/plans/${PLAN_A}/new/rail?n=2`)
   })
 
   it('offers exactly the four, so a fifth cannot be added without this list noticing', () => {

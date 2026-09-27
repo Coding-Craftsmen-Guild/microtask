@@ -1,9 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-
-const BOX =
-  'w-full rounded-md border border-border bg-background px-2 py-1 text-[13px] outline-none focus-visible:border-brand'
+import { SIDE } from './sidebar-css'
 
 const ROW = '[data-slot="sidebar-row"]'
 
@@ -83,7 +81,7 @@ export function SidebarSearch({ label, hint }: SidebarSearchProps) {
   return (
     <input
       aria-label={label}
-      className={BOX}
+      className={SIDE.search}
       onChange={(event) => filter(event.target.value)}
       placeholder={hint}
       ref={box}

@@ -7,8 +7,19 @@ export interface PageProps {
   /**
    * `column` is legacy's capped 900px column; `wide` drops the cap for content that wants the
    * viewport, such as a timeline that scrolls horizontally. Defaults to `column`.
+   *
+   * `full` drops the padding as well and **grows to fill its parent**, for a page that is an
+   * application frame rather than a document: one that sizes itself to the viewport, draws its own
+   * regions edge to edge and scrolls inside them. Such a page cannot live inside `wide`'s 80px of
+   * bottom padding, because that padding is what puts a second scrollbar on a page already managing
+   * its own.
+   *
+   * It is the one width with a **requirement of its layout**: the element around it must be a flex
+   * column with a height — `flex h-dvh flex-col` is what both of this repo's surfaces use. Without
+   * one, `flex-1` has nothing to grow inside and the frame collapses to its content, leaving the
+   * page short and the viewport blank beneath it.
    */
-  width?: 'column' | 'wide'
+  width?: 'column' | 'wide' | 'full'
 }
 
 /**
@@ -32,9 +43,10 @@ export interface PageProps {
  */
 export const COLUMN = 'mx-auto w-full max-w-[900px]'
 
-const CLASS_BY_WIDTH: Readonly<Record<'column' | 'wide', string>> = {
+const CLASS_BY_WIDTH: Readonly<Record<'column' | 'wide' | 'full', string>> = {
   column: 'mx-auto w-full max-w-[900px] px-5 pb-20 max-sm:px-3.5',
   wide: 'mx-auto w-full px-5 pb-20 max-sm:px-3.5',
+  full: 'flex min-h-0 w-full flex-1 flex-col',
 }
 
 /**

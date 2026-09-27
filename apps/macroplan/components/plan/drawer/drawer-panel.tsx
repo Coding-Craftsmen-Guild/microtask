@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import type { ReactNode } from 'react'
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
@@ -6,12 +5,10 @@ import type { TableRow } from '../table/rows'
 import { CreateControls } from './create-controls'
 import { DrawerEdits } from './drawer-edits'
 import { DrawerFacts } from './drawer-facts'
-import { DrawerHeading, TITLE_ID } from './drawer-heading'
-import { DRAWER_DOCK } from './drawer-shell'
+import { KINDS, nameOf } from './drawer-heading'
+import { DRAWER, DrawerBody, DrawerHead, DrawerScrim, TITLE_ID } from './drawer-dock'
 import { DrawerManage } from './drawer-manage'
 import type { DrawerValues } from './values'
-
-const CLOSE = 'text-[13px] text-brand'
 
 /** Props for {@link DrawerPanel}. */
 export interface DrawerPanelProps {
@@ -71,6 +68,9 @@ export interface DrawerPanelProps {
    * bridge read, which draws the drawer exactly as it drew before this phase.
    */
   readonly link: ReactNode
+
+  /** What is wrong with this subject, as a callout over its fields. Nothing when it is fine. */
+  readonly attention: ReactNode
 }
 
 /**
@@ -152,15 +152,20 @@ export interface DrawerPanelProps {
  */
 export function DrawerPanel(props: DrawerPanelProps) {
   const { link, planId, row, values, description, controls, actions, closeHref } = props
+  const { attention } = props
   return (
-    <aside
-      aria-labelledby={TITLE_ID}
-      className={DRAWER_DOCK}
-      data-kind={row.kind}
-      data-slot="drawer-panel"
-      data-treatment={row.treatment}
-    >
-      <DrawerHeading row={row} />
+    <>
+      <DrawerScrim closeHref={closeHref} />
+      <aside
+        aria-labelledby={TITLE_ID}
+        className={DRAWER.dock}
+        data-kind={row.kind}
+        data-slot="drawer-panel"
+        data-treatment={row.treatment}
+      >
+        <DrawerHead closeHref={closeHref} kind={KINDS[row.kind]} title={nameOf(row)} />
+        <DrawerBody>
+      {attention}
       <DrawerFacts row={row} sizedByItems={values.sizedByItems} />
       <DrawerEdits
         actions={actions}
@@ -188,9 +193,8 @@ export function DrawerPanel(props: DrawerPanelProps) {
         planId={planId}
         railId={values.place.railId}
       />
-      <Link className={CLOSE} href={closeHref}>
-        Close
-      </Link>
-    </aside>
+        </DrawerBody>
+      </aside>
+    </>
   )
 }

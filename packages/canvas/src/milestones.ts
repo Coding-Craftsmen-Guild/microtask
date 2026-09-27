@@ -4,11 +4,15 @@ import type { FeatureBar } from './rails.js'
  * Half the width and half the height of a milestone diamond, in px.
  *
  * One number for both, so the diamond is square on its diagonals however the bars around it are sized.
- * It is deliberately a little larger than half `LAYOUT.barHeight` in `apps/macroplan`: a diamond
- * inscribed in a bar's height reads as smaller than the bars beside it, because a rotated square
- * encloses half the area of the box it fits in.
+ *
+ * It is deliberately a little **smaller** than half `LAYOUT.barHeight` in `apps/macroplan`. A rotated
+ * square encloses half the area of the box it fits in, so matching the bar height would be the fair
+ * comparison — but a milestone sits at a single day, and half its width falls to the *left* of that
+ * day, over whatever bar ends there. A feature that finishes the day a milestone falls on is the
+ * ordinary case, so the overlap is the ordinary case too, and a diamond that covers eleven pixels of
+ * the bar before it reads as a rendering fault rather than as a marker.
  */
-export const DIAMOND_RADIUS = 11
+export const DIAMOND_RADIUS = 8
 
 /**
  * Whether a placed bar is a milestone: a real position on the axis that takes no time.

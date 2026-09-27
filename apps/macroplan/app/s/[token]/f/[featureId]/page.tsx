@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import { DrawerPanel } from '../../../../../components/plan/drawer/drawer-panel'
 import { drawerSubject } from '../../../../../components/plan/drawer/subject'
+import { attentionOf } from '../../../../../components/plan/attention/attention'
+import { AttentionCallout } from '../../../../../components/plan/attention/attention-mark'
 import { seatPlanActions } from '../../../../../components/plan/seat-actions'
 import { planCapabilities } from '../../../../../lib/plan-capabilities'
 import { linkPath } from '../../../../../lib/routes'
@@ -65,6 +67,7 @@ export default async function SeatFeatureDrawerPage({ params }: SeatFeatureDrawe
   return (
     <DrawerPanel
       actions={seatPlanActions(token)}
+      attention={<AttentionCallout on={attentionOf(plan.value).get(subject.row.id)} />}
       closeHref={linkPath(token)}
       controls={planCapabilities(share.value.role, share.value.scope).content}
       description={null}

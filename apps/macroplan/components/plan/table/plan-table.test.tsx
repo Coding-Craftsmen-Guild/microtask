@@ -3,6 +3,7 @@ import { itemsToMarks, railLayout } from '@repo/canvas'
 import { LIMITS } from '@repo/contracts'
 import { cleanup, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
+import { trayRows } from '../attention/tray-rows'
 import { PlanCanvas } from '../canvas/plan-canvas'
 import { CANVAS_SCALE } from '../canvas/view'
 import { planScreenModel } from '../plan-screen-model'
@@ -24,6 +25,12 @@ const COLUMNS = ['Epic', 'Feature', 'Item', 'Group', 'Estimate', 'Sprint', 'Prog
 const NAME = 'Table of Atlas rollout'
 
 const all = (selector: string): readonly Element[] => [...document.querySelectorAll(selector)]
+
+/** Every feature and item the rendered canvas emitted an element for, in document order. */
+const drawnIds = (): readonly string[] =>
+  all('[data-feature-id], [data-item-id]').map(
+    (mark) => mark.getAttribute('data-feature-id') ?? mark.getAttribute('data-item-id') ?? '',
+  )
 
 const rowFor = (id: string): HTMLElement => screen.getByTestId(`row-${id}`)
 
@@ -101,25 +108,33 @@ describe('the parity that makes the table a second rendering of the same data', 
     for (const id of drawn) expect(rowFor(id), id).toBeTruthy()
   })
 
-  it('names every id the canvas actually emits an element for, bars, marks and stubs alike', () => {
-    const cases = [
-      { plan: atlasPlan(), stubs: [] as readonly string[] },
-      { plan: unplacedPlan('no-estimate'), stubs: [FEATURE_2] },
-      { plan: unplacedPlan('in-cycle'), stubs: [FEATURE_2] },
-    ]
-    for (const one of cases) {
-      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(one.plan)} />)
-      const drawn = all('[data-feature-id], [data-item-id]').map(
-        (mark) => mark.getAttribute('data-feature-id') ?? mark.getAttribute('data-item-id') ?? '',
-      )
-      const stubbed = all('[data-placed="false"]').map(
-        (stub) => stub.getAttribute('data-feature-id') ?? '',
-      )
+  it('names every id the canvas actually emits an element for, bars and item marks alike', () => {
+    for (const plan of [atlasPlan(), unplacedPlan('no-estimate'), unplacedPlan('in-cycle')]) {
+      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />)
+      const drawn = drawnIds()
       cleanup()
-      expect(stubbed, 'the off-axis stubs the canvas drew').toEqual(one.stubs)
       expect(drawn.length).toBeGreaterThan(2)
-      render(<PlanTable plan={planScreenModel(one.plan)} />)
-      for (const id of [...drawn, ...stubbed]) expect(rowFor(id), id).toBeTruthy()
+      render(<PlanTable plan={planScreenModel(plan)} />)
+      for (const id of drawn) expect(rowFor(id), id).toBeTruthy()
+      cleanup()
+    }
+  })
+
+  // This is what the gutter-stub half of the case above became. An unplaced feature has no mark on
+  // the canvas at all now — the SVG draws placed geometry only, and `data-placed` went with the stub
+  // that carried it — so the parity the table owes is to the canvas **and** the tray beneath it:
+  // `trayRows` is the whole of what the picture leaves out, and the table still has a row for each.
+  it('names the features the tray lists, the canvas drawing no mark whatever for them now', () => {
+    for (const reason of ['no-estimate', 'in-cycle'] as const) {
+      const plan = planScreenModel(unplacedPlan(reason))
+      render(<PlanCanvas at={AT} place={null} plan={plan} />)
+      expect(all(`[data-feature-id="${FEATURE_2}"]`), reason).toHaveLength(0)
+      expect(all('[data-placed]'), reason).toHaveLength(0)
+      cleanup()
+      const listed = trayRows(plan).map((row) => row.id)
+      expect(listed, reason).toEqual([FEATURE_2])
+      render(<PlanTable plan={plan} />)
+      for (const id of listed) expect(rowFor(id), id).toBeTruthy()
       cleanup()
     }
   })

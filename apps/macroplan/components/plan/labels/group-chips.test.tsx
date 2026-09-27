@@ -4,7 +4,7 @@ import { FEATURE_1, FEATURE_2, LABEL_1, LABEL_2, atlasPlan } from '../testing/pl
 import { planScreenModel } from '../plan-screen-model'
 import { PlanTable } from '../table/plan-table'
 import { GROUP_RADIO_NAME, groupRadioId, groupCss, ALL_RADIO_ID, DIMMED_OPACITY } from './group-css'
-import { GROUP_WORDS, GroupChips } from './group-chips'
+import { GroupChips } from './group-chips'
 import { labelRows } from './label-rows'
 
 const ROWS = labelRows(planScreenModel(atlasPlan()))
@@ -27,11 +27,22 @@ describe('the chips that select one group across every rail', () => {
     expect(radios().filter((one) => one.defaultChecked).map((one) => one.id)).toEqual([ALL_RADIO_ID])
   })
 
-  it('names each group and says how much is in it, an empty one included', () => {
+  it('names each group and counts what is in it, an empty one in a single word', () => {
     render(<GroupChips rows={ROWS} />)
 
+    // The words themselves, not `GROUP_WORDS.none` interpolated. An empty group first read
+    // "nothing in it yet", which is a sentence in a control strip and wrapped the chip row onto a
+    // second line; it is now "empty". A test that interpolates the constant asserts only that the
+    // chip uses its own constant, so it passed unchanged through that rewording and would pass
+    // through the next one — including a reword to nothing at all.
     expect(screen.getByText('Phase 1 · 1 feature')).toBeTruthy()
-    expect(screen.getByText(`Phase 2 · ${GROUP_WORDS.none}`)).toBeTruthy()
+    expect(screen.getByText('Phase 2 · empty')).toBeTruthy()
+  })
+
+  it('names the chip that clears the choice, so the way back out of a group is a word and not a gesture', () => {
+    render(<GroupChips rows={ROWS} />)
+
+    expect(document.querySelector(`label[for="${ALL_RADIO_ID}"]`)?.textContent).toBe('All work')
   })
 
   it('keeps every radio a label of its own chip, so a click on the words checks it', () => {
@@ -41,6 +52,31 @@ describe('the chips that select one group across every rail', () => {
       const chip = document.querySelector(`label[for="${one.id}"]`)
       expect({ id: one.id, labelled: chip !== null }).toEqual({ id: one.id, labelled: true })
       expect(chip?.previousElementSibling).toBe(one)
+    }
+  })
+
+  /**
+   * The chosen chip and the focused chip are the whole of the feedback this control gives, and the
+   * browser draws both — there is no state and no JavaScript to fall back on. So the radio must stay
+   * `sr-only` (offscreen but focusable) rather than hidden, and the chip beside it must keep a
+   * `peer-checked:` and a `peer-focus-visible:` variant.
+   *
+   * Variant prefixes and not colours: the palette was just restyled — a `ring` became an `outline`,
+   * and the resting text went muted — and pinning `ring-2` would have failed that restyle while
+   * saying nothing about whether a chosen chip still looks chosen.
+   */
+  it('leaves chosen and focused to the browser, which needs the radio sr-only and the chip its peer', () => {
+    render(<GroupChips rows={ROWS} />)
+
+    // So the loop below cannot pass by finding nothing: one radio per group, plus the clearing one.
+    expect(radios()).toHaveLength(ROWS.length + 1)
+    for (const one of radios()) {
+      const classes = one.className.split(' ')
+      const chip = document.querySelector(`label[for="${one.id}"]`)?.getAttribute('class') ?? ''
+      expect({ id: one.id, offscreen: classes.includes('sr-only'), peer: classes.includes('peer') })
+        .toEqual({ id: one.id, offscreen: true, peer: true })
+      expect(chip).toContain('peer-checked:')
+      expect(chip).toContain('peer-focus-visible:')
     }
   })
 

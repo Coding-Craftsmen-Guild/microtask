@@ -3,10 +3,14 @@ import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { LABEL } from './field'
 import { PlaceControl } from './place-control'
-import { placementFor, stepsFor } from './placement'
+import { joinGroups } from './group-options'
+import { MoveTargetField } from './move-target'
+import { placementFor, positionOf, stepsFor } from './placement'
 import type { DrawerValues, SubjectKind } from './values'
 
-const GROUP = 'grid gap-1 border-0 p-0'
+const GROUP = 'grid gap-1.5 border-0 p-0'
+
+const STEPS = 'flex gap-1.5'
 
 const LEGEND: Readonly<Record<SubjectKind, string>> = {
   feature: 'Move on its rail',
@@ -78,20 +82,31 @@ export function PlaceControls({ planId, row, values, controls, actions }: PlaceC
   return (
     <fieldset className={GROUP}>
       <legend className={LABEL}>{LEGEND[row.kind]}</legend>
-      {stepsFor(values.place.siblingIds, row.id, parentId, values.place.targets).map((step) => (
-        <PlaceControl
-          disabled={step.disabled}
-          key={step.key}
-          kind={row.kind}
-          label={step.label}
-          parentId={step.parentId}
-          placeFeature={placement.placeFeature}
-          placeItem={placement.placeItem}
-          planId={planId}
-          position={step.position}
-          subjectId={row.id}
-        />
-      ))}
+      <div className={STEPS}>
+        {stepsFor(values.place.siblingIds, row.id, parentId).map((step) => (
+          <PlaceControl
+            disabled={step.disabled}
+            key={step.key}
+            kind={row.kind}
+            label={step.label}
+            parentId={step.parentId}
+            placeFeature={placement.placeFeature}
+            placeItem={placement.placeItem}
+            planId={planId}
+            position={step.position}
+            subjectId={row.id}
+          />
+        ))}
+      </div>
+      <MoveTargetField
+        kind={row.kind}
+        placeFeature={placement.placeFeature}
+        placeItem={placement.placeItem}
+        planId={planId}
+        position={positionOf(values.place.siblingIds, row.id)}
+        subjectId={row.id}
+        targets={joinGroups(values.place.targets)}
+      />
     </fieldset>
   )
 }

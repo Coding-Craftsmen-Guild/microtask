@@ -1,8 +1,8 @@
 import {
+  barLabels,
   dayToX,
   itemsToMarks,
   railLayout,
-  rungFor,
   scaleFor,
   countsAsDone,
   countsAsStarted,
@@ -11,12 +11,15 @@ import {
 } from '@repo/canvas'
 import type {
   ArcMetrics,
+  BarLabel,
   DayRange,
   DependencyArc,
   ItemMark,
+  LabelMetrics,
   PlanScale,
   RailBox,
   RailMetrics,
+  Rung,
   Treatment,
 } from '@repo/canvas'
 import { canvasArcs } from './arc-view'
@@ -25,275 +28,156 @@ import type { RungDrawing } from './rung-view'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
- * The stretch of working days the canvas draws, and the one number on this screen that nothing
- * measured.
+ * The fallback window a canvas draws when a caller names none: one quarter of working days.
  *
- * **It is a constant, not a measurement, and it could not be one.** The canvas is a Server
- * Component, so no viewport exists when it renders; and `happy-dom` answers every
- * `getBoundingClientRect` with a zero `DOMRect`, so a client component that measured one could not
- * be tested either. A range that came from a measurement would therefore be a number no test could
- * pin and no server could read. Phase 3's zoom and pan will pass a range in as a prop —
- * {@link PlanCanvasProps} already accepts one — and this is what the admin page chooses until they
- * do.
- *
- * Sixty working days is **one quarter, and deliberately the widest view still on the feature rung**.
- * `rungFor` in `@repo/canvas` answers `'feature'` for a range of 21 to 60 days and `'epic'` for
- * anything wider, and an epic-rung canvas draws rails with no bars on them at all — so a range
- * picked to show a whole plan, which is almost always wider than a quarter, would render a timeline
- * with nothing on it. `canvas/plan-canvas.test.tsx` asserts the rung this constant is at, so that
- * cannot happen silently.
+ * Every real caller passes a range derived from the plan (`rangeFor`), so this is the default a test
+ * or a stray render gets rather than the product's own window. It stays a whole quarter because that
+ * is the rung `rungFor` calls `feature`, which is the rung with bars and item ticks on it.
  */
 export const CANVAS_RANGE: DayRange = { fromDay: 0, toDay: 60 }
 
 /**
- * Fourteen px per working day, with a 160px gutter for the rail labels.
+ * The default scale, with **no gutter**.
  *
- * `pxPerDay` is a whole number because `PlanScale` asks for one: `xToDay` divides by it, and a
- * fraction that is inexact in binary makes a hover name the day before the one it is over. At 14 a
- * quarter is 840px of axis, so {@link CANVAS_RANGE} plus the gutter is a 1,000px canvas — wider than
- * the admin column on a laptop, which is why the screen wraps it in its own scroll container.
- *
- * The gutter is what a rail's name is drawn in. `PlanScale` documents it as the inset "before day
- * 0 … without it a rail label drawn at day 0's x would sit on the axis's own left edge with nothing
- * to its left to hold it", and 160px is what an epic name needs at this type size.
+ * The gutter was the strip of SVG to the left of day zero that the rail names were drawn into. Names
+ * are HTML now, in a column beside the canvas, so there is nothing to the left of day zero and
+ * `dayToX(0)` is `0`. Keeping a gutter would leave an empty inset at the start of every axis and
+ * push the first bar away from the header cell above it.
  */
-export const CANVAS_SCALE: PlanScale = scaleFor({ pxPerDay: 14, gutter: 160 })
+export const CANVAS_SCALE: PlanScale = scaleFor({ pxPerDay: 14, gutter: 0 })
 
 /**
- * Every fixed px measurement the canvas lays itself out with, in user units of the `viewBox`.
+ * The vertical geometry of one rail band, and the horizontal insets inside it.
  *
- * One record rather than eight exported constants, because these are one decision — how tall a rail
- * band is and where the three things inside it sit — and a caller that could take `barTop` without
- * `railHeight` would be free to draw a bar outside its own rail.
+ * `chromeHeight` is zero: the quarter and week headings are an HTML row above the canvas, so the
+ * first rail starts at the top of the SVG. It stays in the record because `ArcMetrics` and
+ * `RailMetrics` both declare it, and an arc's y and a drop target's rail are still measured from the
+ * same origin the bars are.
  *
- * - `chromeHeight` is the band above the rails, holding the quarter labels and the sprint ticks.
- * - `railHeight` is one rail's own band: its name, its bars and the item marks under them.
- * - `barHeight` and `barTop` are a feature bar's height and its top **within its rail**.
- * - `markHeight` and `markTop` are an item mark's, a thin strip just under the bar it belongs to, so
- *   a feature and its items read as one thing rather than two rows.
- * - `labelBaseline` is how far a `<text>` baseline sits below the top of whatever band it labels.
- * - `labelInset` is the inset a `<text>` is drawn at, so a label never touches the edge it is
- *   clamped to.
- * - `stubWidth` and `stubGap` size and space the off-axis stubs {@link stubX} lays out.
- *
- * `stubWidth` and `stubGap` are here rather than local to the component that draws a stub, because
- * they are **shared geometry**: {@link stubX} needs both to know where the next stub starts, so a
- * value changed in one place and not the other is a row of overlapping rects. A purely cosmetic
- * number that nothing else reads — a corner radius — stays local to its own component.
- *
- * It `satisfies RailMetrics`, and that clause is load-bearing rather than decoration. `railAtY` and
- * `dropTargetFor` in `@repo/canvas` are handed **this record**: that package holds no viewport and no
- * type size, so it takes the two numbers a rail band is made of rather than declaring them, and its own
- * `RailMetrics` asks for "the record that is rendered from, rather than a fresh literal at the call
- * site", a second literal being "a band this reads and a band the SVG drew, free to disagree". Passing
- * an identifier runs no excess-property check, so until this clause the subset relation held by
- * hand-maintained luck — `chromeHeight` renamed in either package compiled here and broke at the drop.
- * With it, either rename is a compile error in this file. `as const` still comes first, so every field
- * keeps its literal type and nothing widens to `number`.
- *
- * The clause is `RailMetrics & Record<string, number>` and **not** `RailMetrics` alone, which does not
- * compile: `satisfies` runs an excess-property check against an object **literal**, so this record's other
- * eight fields — `barHeight`, `markTop`, `stubGap` and the rest — are each rejected as unknown to that
- * interface. The intersection says the two things that are true and wanted: the record carries whatever
- * `RailMetrics` names, spelled the way that package spells it, and is otherwise a record of numbers. What
- * it does not check, and cannot, is that the other eight are *only* numbers of this file's own choosing —
- * a field added to `RailMetrics` that this record already has under the same name and a different meaning
- * would pass, which is a hazard the annotation shares with the assignment it replaced.
+ * The band is 44px against the first revision's 58, and the bar 22 against 18. A denser row with a
+ * fatter bar is what both reference tools do, and it is what makes a name fit inside the bar.
  */
 export const LAYOUT = {
-  chromeHeight: 46,
-  railHeight: 58,
-  barHeight: 18,
-  barTop: 16,
-  markHeight: 5,
-  markTop: 38,
-  labelBaseline: 12,
+  chromeHeight: 0,
+  railHeight: 44,
+  barHeight: 22,
+  barTop: 9,
+  markHeight: 4,
+  markTop: 35,
   labelInset: 6,
-  stubWidth: 22,
-  stubGap: 5,
 } as const satisfies ArcMetrics & RailMetrics & Record<string, number>
 
-
 /**
- * Everything every rail on one canvas shares, built once and threaded through.
+ * How a bar's name is measured, for {@link barLabels}.
  *
- * One object rather than five props on every rail, and built once rather than per rail, which is the
- * rule `treatmentsOf` states for itself: "Build this **once per layout and thread it through**,
- * exactly as `spansById` is threaded through `railLayout` and `itemsToMarks`" — calling `treatmentOf`
- * per mark is a scan of `unscheduled` per mark, and at the 2,000-item cap that is a scan of 2,200
- * done 2,200 times.
+ * `charWidth` is the average advance of the 11px system stack the labels are set in, near enough for
+ * a truncation budget. It is deliberately a slight over-estimate: budgeting a little short leaves a
+ * gap, and budgeting long overlaps the next bar.
  */
-export interface RailFrame {
-  /** Every placed item's mark, grouped by the feature it flows under. */
-  readonly marks: ReadonlyMap<string, readonly ItemMark[]>
-
-  /** Every **non-solid** treatment, by the id it belongs to. A missing id is `'solid'`. */
-  readonly treatments: ReadonlyMap<string, Treatment>
-
-  /**
-   * Which group each feature is in, by feature id. A feature in no group is simply absent.
-   *
-   * A map of the ids that **have** one, for the reason `treatments` above holds only the non-solid
-   * marks: most features are in no group, and an entry saying so for every one of 200 would state what
-   * the absence already states.
-   *
-   * Nothing on this canvas paints from it. It reaches the SVG as `data-label-id` on each bar and on each
-   * item mark under it, and what reads that back is the one CSS rule `labels/group-css.ts` generates per group —
-   * so selecting a group dims every bar that is not in it, on every rail at once, with no JavaScript and
-   * no second render. An item takes its **feature** ss group, since an item has none of its own: design
-   * §7 gives a group to the work a release is planned in, and an item is part of a feature rather than a
-   * thing a release contains directly.
-   */
-  readonly groups: ReadonlyMap<string, string>
-  /** What this canvas's rung draws. */
-  readonly draws: RungDrawing
-
-  /** Where a rail's own name is drawn, inside the label gutter. */
-  readonly labelX: number
-
-  /** The x of day `range.fromDay`: the axis's left edge, and the gutter's right. */
-  readonly axisX: number
+export const LABEL_METRICS: LabelMetrics = {
+  charWidth: 6.1,
+  inset: LAYOUT.labelInset,
+  minInside: 6,
+  overhang: 220,
 }
 
 /**
- * Which group each feature is in, by feature id, holding only the features that are in one.
+ * Everything one rail band needs that is not its own geometry: what to draw, what to call it, how to
+ * treat it, and where it opens.
  *
- * Built from the plan rather than threaded in as a prop, because a feature's `labelId` is already on the
- * plan every surface here is handed — and a second source for it would be a second thing to keep in step
- * with a regroup.
+ * Built once per canvas by {@link canvasLayout} and handed down whole, so a rail looks nothing up and
+ * every band is drawn from one pass over the plan rather than one per rail.
  */
+export interface RailFrame {
+  readonly marks: ReadonlyMap<string, readonly ItemMark[]>
+
+  readonly treatments: ReadonlyMap<string, Treatment>
+
+  readonly groups: ReadonlyMap<string, string>
+
+  readonly draws: RungDrawing
+
+  /** Where each bar's name goes, keyed by feature id. */
+  readonly labels: ReadonlyMap<string, BarLabel>
+
+  /** What each bar is called, keyed by feature id. */
+  readonly names: ReadonlyMap<string, string>
+
+  /**
+   * Where a bar opens, or `null` for a canvas nobody can open anything from.
+   *
+   * A bar is a link as well as a drag handle. Clicking one is how a person opens the thing they are
+   * looking at, and a chart whose marks do nothing when clicked is a picture of a plan rather than a
+   * way into one. The drag still works: `DragRoot` cancels the click the browser synthesises after a
+   * gesture that actually moved, so dropping a bar does not also navigate away from the plan.
+   *
+   * A function rather than a prebuilt map, because the two surfaces root their URLs differently and
+   * neither of them is knowable from the geometry.
+   */
+  readonly hrefOf: (featureId: string) => string | null
+}
+
+/** Which group each feature is in, keyed by feature id; a feature in no group is absent. */
 export const groupsOf = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
   new Map(
     plan.features.flatMap((each) => (each.labelId === null ? [] : [[each.id, each.labelId] as const])),
   )
 
-/** The y of one rail's own band, from its index in the order `railLayout` returned. */
+/** The y of a rail band's top, counting from the canvas origin. Band zero is the first rail. */
 export const railTop = (index: number): number => LAYOUT.chromeHeight + index * LAYOUT.railHeight
 
-const WITHIN_RAIL: Readonly<Record<'label' | 'bar' | 'mark', number>> = {
-  label: LAYOUT.labelBaseline,
+const WITHIN_RAIL: Readonly<Record<'bar' | 'mark', number>> = {
   bar: LAYOUT.barTop,
   mark: LAYOUT.markTop,
 }
 
 /**
- * The y of one part of a rail's band, from the band's own top.
+ * The y of one part inside a rail band, measured from that band's own top.
  *
- * The three offsets are one decision — where a name, a bar and an item strip sit inside a 58px band —
- * and four components were each adding their own `top + LAYOUT.<field>`. A record keyed on a closed
- * three-case union puts the decision in this file, where the rest of the geometry is, and makes a
- * fourth part a compile error rather than a fifth call site to find.
+ * A band is a stack of fixed offsets, so a second rail is the first one shifted by
+ * {@link LAYOUT}.railHeight and nothing about a part's place inside it is recomputed per rail.
  */
-export const insideRail = (top: number, part: 'label' | 'bar' | 'mark'): number =>
-  top + WITHIN_RAIL[part]
+export const insideRail = (top: number, part: 'bar' | 'mark'): number => top + WITHIN_RAIL[part]
 
 /**
- * The x of the nth off-axis stub, laid out leftward from the axis's own left edge.
+ * How tall the canvas is for a given number of rails.
  *
- * Here and not in the component that draws one, for the reason every other number on this canvas is
- * here: it is stacking arithmetic, and arithmetic in a render function is arithmetic `happy-dom`
- * cannot check — `getBBox` and `getBoundingClientRect` both answer a zero `DOMRect`, so a stub drawn
- * on top of its neighbour looks identical to one beside it from a test's side. As a function it is
- * asserted directly, next to {@link railTop}, {@link gutterX} and {@link labelX}, which exist for the
- * same reason.
- *
- * Leftward, so `index` 0 is nearest the axis and the overflow of a rail with more unplaced features
- * than the gutter holds falls off the `viewBox`'s left edge rather than across the timeline.
- * `UnplacedFeatures` argues why that is the right way for it to fail.
+ * Floored at one rail, so a plan with nothing on it draws a band rather than a zero-height SVG that
+ * collapses its own `viewBox`.
  */
-export const stubX = (frame: RailFrame, index: number): number =>
-  frame.axisX - LAYOUT.labelInset - (index + 1) * (LAYOUT.stubWidth + LAYOUT.stubGap)
-
-/** The height of a canvas holding `rails` rails, never shorter than one rail's band. */
 export const canvasHeight = (rails: number): number => railTop(Math.max(rails, 1))
 
-/** The width of a canvas showing one range at one scale, the label gutter included. */
+/** How wide the canvas is for a range at a scale. The gutter is zero, and is added for the arithmetic to stay honest if one ever returns. */
 export const canvasWidth = (scale: PlanScale, range: DayRange): number =>
   widthOfDays(range.toDay - range.fromDay, scale) + scale.gutter
 
 /**
- * The x of the label gutter's own left edge, which is also the `viewBox`'s.
- *
- * `dayToX` puts day 0 one gutter in from x 0, so the gutter of a viewport starting at day 0 runs
- * from 0 to 160 and the axis starts after it. A viewport scrolled to day 40 has its gutter at
- * `dayToX(40) - 160`, which is why this is arithmetic on the scale rather than the constant 0.
- */
-export const gutterX = (scale: PlanScale, range: DayRange): number =>
-  dayToX(range.fromDay, scale) - scale.gutter
-
-/**
- * The `viewBox` for one range at one scale: the gutter, the days, and every rail.
- *
- * The `viewBox` is what clips the canvas, which is why nothing in `@repo/canvas` clips geometry to
- * the range — a partly visible quarter band comes back whole, and this crops it. What it does
- * **not** clip is a `<text>`: see {@link labelX}.
+ * The SVG `viewBox`, which starts at the origin now that there is no gutter to the left of day zero.
  */
 export const viewBoxOf = (rails: number, scale: PlanScale, range: DayRange): string =>
-  `${String(gutterX(scale, range))} 0 ${String(canvasWidth(scale, range))} ${String(canvasHeight(rails))}`
+  `0 0 ${String(canvasWidth(scale, range))} ${String(canvasHeight(rails))}`
+
+/** What each feature is called, keyed by id, for the labels drawn on its bar. */
+export const featureNames = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
+  new Map(plan.features.map((feature) => [feature.id, feature.name]))
 
 /**
- * A chrome label's x, clamped into the viewport.
+ * What each rail is called, keyed by epic id.
  *
- * `quarterBands` says this in its own words: "A partly-visible band has an `x` left of the viewport,
- * so a `<text>` anchored at `band.x` renders off-screen and the visible half of the band reads as
- * unlabelled. A renderer must clamp the label's x into the viewport … rather than clamp the band's."
- * The band keeps its true x and its true width, because a band clipped in the geometry would report
- * a width that is not a quarter's; only the label moves.
- *
- * **No test can catch a missing clamp**, because catching it means measuring where a glyph landed
- * and `happy-dom` answers every measurement with a zero `DOMRect`. What the test beside this can
- * assert is that the clamp was applied — that the label's `x` is not the band's when the band starts
- * left of the viewport — and it does.
- */
-export const labelX = (x: number, scale: PlanScale, range: DayRange): number =>
-  Math.max(x, dayToX(range.fromDay, scale)) + LAYOUT.labelInset
-
-/**
- * Each epic's name by its id, because a `RailBox` carries an `epicId` and a colour and no name.
- *
- * `railLayout` identifies a rail by the `epicId` its first feature declares, and the plan is where
- * the name for that id lives — so a rail label is a join back to `plan.epics` and never something
- * the layout could have handed over. A rail whose `epicId` names no epic gets no entry here, which
- * is the same absence its `colour: null` states.
+ * A `RailBox` carries its `epicId` and not its name, because the geometry has no use for one. The
+ * table imports this rather than writing its own join, so the two cannot disagree about what to call
+ * a rail no epic claims.
  */
 export const railNames = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
   new Map(plan.epics.map((epic) => [epic.id, epic.name]))
 
-/**
- * Each rail's features the forward pass left off the axis, keyed on the epic id the rail is keyed on.
- *
- * Read off the boxes `railLayout` already answered, and off neither the plan nor `railsOf`. A
- * `RailBox` carries `featureIds` — every feature on the rail in the one order the layout derived, the
- * ones its bars omit included — so a rail's unplaced features are a filter over that array. This took
- * the plan and called `railsOf` a second time until `featureIds` landed, and `railLayout` names what
- * that risks: "a second total order written in this package could disagree with the first on any tie —
- * which is a bar drawn on the wrong rail, silently, at exactly the zoom level nobody tested."
- * `featureIds` is carried out of the layout for exactly this, in its own words: the paragraph on a rail
- * order derived twice "applies to a consumer re-deriving it just as much as to this module". One call,
- * one array, and a stub sits on the rail its bars are on because it came out of the same box they did.
- *
- * "Unplaced" is read as **present in `treatments`**, not as absent from `spans`. The forward pass puts
- * every feature it walked in exactly one of the two collections, so either decides the question, and
- * the map is already built once for the marks — where checking `spans` would mean a second lookup
- * structure over the same answer.
- */
-export const unplacedByRail = (
-  rails: readonly RailBox[],
-  treatments: ReadonlyMap<string, Treatment>,
-): ReadonlyMap<string, readonly string[]> =>
+/** Where every bar's name goes, across every rail, keyed by feature id. */
+export const labelsOf = (rails: readonly RailBox[]): ReadonlyMap<string, BarLabel> =>
   new Map(
-    rails.map((rail) => [rail.epicId, rail.featureIds.filter((id) => treatments.has(id))] as const),
+    rails.flatMap((rail) => barLabels(rail.bars, LABEL_METRICS).map((label) => [label.id, label] as const)),
   )
 
-/**
- * Item marks grouped by the feature they flow under, built once per canvas.
- *
- * `itemsToMarks` answers a flat array carrying `featureId` on each mark, and argues why: grouping in
- * the package "would have to invent a group for exactly the case above — an id that names no real
- * feature". A renderer does need the grouping, because it draws a bar and then the items inside it,
- * and at the 2,000-item cap doing that by filtering the flat array once per feature is 200 scans of
- * 2,000. This is one pass, and the absent group is simply a bar with no items under it.
- */
+/** The item ticks of each feature, keyed by feature id, so a rail reads its own without a scan. */
 export const marksByFeature = (
   marks: readonly ItemMark[],
 ): ReadonlyMap<string, readonly ItemMark[]> => {
@@ -306,42 +190,28 @@ export const marksByFeature = (
   return byFeature
 }
 
-/** What the bridge counted, keyed by item: the shape `PlanBridge['items']` already has. */
-export type Counted = readonly { readonly itemId: string; readonly progress: { readonly done: number; readonly total: number } }[]
-
 /**
- * Which of the two counted treatments one pair earns, or `null` for a pair that earns neither.
+ * The progress rows the bridge answers with: how many of an item's tasks are done, out of how many.
  *
- * Exported because it is the threshold pair written once: {@link withProgress} spends it, and a caller
- * asking about a single item — a drawer, a row — asks the same question here rather than restating either
- * comparison. `null` covers both "nothing counted" and "counted nothing yet".
+ * Structural rather than imported from `@repo/api-client`, so this module's shape is the shape it
+ * reads and a caller can hand it a narrower record than the wire type.
  */
+export type Counted = readonly {
+  readonly itemId: string
+  readonly progress: { readonly done: number; readonly total: number }
+}[]
+
+/** What a count of done-out-of-total makes an item look like, or `null` for nothing started. */
 export const countedTreatment = (counted: {
   readonly done: number
   readonly total: number
 }): Treatment | null => (countsAsDone(counted) ? 'done' : countsAsStarted(counted) ? 'started' : null)
+
 /**
- * The schedule's treatments with what a linked task counts overlaid: `'done'` finished, `'started'` begun.
+ * The schedule's own treatments, widened by what the bridge knows about each item's tasks.
  *
- * An overlay rather than two more cases inside `treatmentsOf`, because the answers come from different
- * places: the schedule treatments are facts about the forward pass, and these two are facts about another
- * product (design §7.2). `@repo/canvas` cannot produce either — nothing in a schedule knows what a Microtask
- * task counts — so the map is widened here, where both halves are in hand.
- *
- * **A mark the schedule already has an opinion about keeps it.** An item that is hollow was never sized and
- * an item that is contradicted sits in a cycle; either is a more urgent sentence than anything about how far
- * along its task is, and a plan that contradicts itself must not be able to hide that behind a tick. Only a
- * mark the schedule placed — absent from the map, so read as `'solid'` — can take either of these.
- *
- * The two thresholds are **mutually exclusive by construction**, not by the order they are asked in:
- * `countsAsStarted` requires `done` below `total` where `countsAsDone` requires it at or above, so no count
- * satisfies both and neither branch can shadow the other. That is why this reads as one `??` chain rather
- * than as a sequence of `if`s whose order would be load-bearing — and it is what stops a later edit from
- * drawing a finished task as merely begun.
- *
- * A count of `{ done: 0, total: 0 }` — a linked task with no checklist in it — satisfies neither, so the mark
- * stays `'solid'`: design §7.2's "a number on screen is always a counted number" applies to the canvas too,
- * and an empty task has counted nothing.
+ * The schedule wins where both speak: a feature the pass could not place is drawn as unplaced
+ * whatever its tasks say, because its position on the axis is the thing being explained.
  */
 export function withProgress(
   treatments: ReadonlyMap<string, Treatment>,
@@ -356,82 +226,75 @@ export function withProgress(
   return widened
 }
 
-/** One canvas's own `<svg>` box, its rails, and everything those rails need to draw themselves. */
-export interface CanvasLayout {
-  /** Every rail, in the one order `railLayout` derived. One `<g>` each, top to bottom. */
-  readonly rails: readonly RailBox[]
-
-  /** The `<svg>`'s `height`, which is also the height the chrome layers are drawn to. */
-  readonly height: number
-
-  /** The `<svg>`'s `width`, the label gutter included. */
-  readonly width: number
-
-  /** The `<svg>`'s `viewBox`, which is what crops the geometry to the range. */
-  readonly viewBox: string
-
-  /** Each epic's name by its id, for the rail label a `RailBox` carries no name for. */
-  readonly names: ReadonlyMap<string, string>
-
-  /** Each rail's off-axis features, keyed on the epic id the rail is keyed on. */
-  readonly unplaced: ReadonlyMap<string, readonly string[]>
+/**
+ * Everything {@link canvasLayout} reads. One object, because the rung joined the list and five
+ * positional parameters is one more than this repo allows.
+ */
+export interface CanvasQuery {
+  readonly plan: PlanScreenModel
+  readonly range: DayRange
+  readonly scale: PlanScale
 
   /**
-   * Every dependency edge as a curve, in one layer over every rail rather than inside one.
+   * Which rung is drawn — bars, or one node per feature.
    *
-   * Over and not inside, because an arc between two rails belongs to neither: a rail group owning it
-   * would have to be the tail or the head, and whichever were chosen the arc would be clipped, dimmed
-   * and ordered with the wrong rail half the time.
+   * Passed rather than read back off the range with `rungFor`. The range follows the plan's own span
+   * now, so a short plan viewed at Year zoom produces a range `rungFor` calls `item`, and the canvas
+   * would draw bars where the reader asked for a rollup.
    */
+  readonly rung: Rung
+
+  readonly progress: Counted
+
+  /** Where a bar opens. See {@link RailFrame.hrefOf}. */
+  readonly hrefOf: (featureId: string) => string | null
+}
+
+/** Everything a canvas draws, computed once from one pass over the plan. */
+export interface CanvasLayout {
+  readonly rails: readonly RailBox[]
+
+  readonly height: number
+
+  readonly width: number
+
+  readonly viewBox: string
+
   readonly arcs: readonly DependencyArc[]
 
-  /** What every rail on this canvas shares, built once. */
   readonly frame: RailFrame
 }
 
 /**
- * Everything one render of the canvas needs, derived in one place from the plan, the range and the
- * scale.
+ * One pass over the plan, answering everything the SVG needs.
  *
- * Here rather than in `PlanCanvas` for the reason the rest of this file is here: it is the deciding of
- * which pure function to call in what order, and it is asserted directly instead of through a rendered
- * `<svg>` that `happy-dom` cannot measure. What is left in the component is which of these to nest
- * inside which, and nothing that computes a number.
+ * ### Why it is one call
  *
- * `treatmentsOf` is called **once** and threaded into both the {@link RailFrame} and
- * {@link unplacedByRail}, which is the rule that function states for itself and the reason the two
- * cannot disagree about which features the forward pass left off the axis. `railLayout` is likewise
- * called once, and {@link railNames} and {@link unplacedByRail} read the boxes it answered rather than
- * re-deriving a rail order the layout already decided.
- *
- * It takes the range and the scale as arguments rather than reading {@link CANVAS_RANGE} and
- * {@link CANVAS_SCALE}, so that every rung stays reachable: `rungFor` reads the range, and a caller
- * passing a range wider than a quarter gets the epic rung's `draws` out of this and a canvas with no
- * bars on it — which is what `plan-canvas.test.tsx` renders to pin the rung.
+ * `railLayout`, `itemsToMarks`, `treatmentsOf` and `arcLayout` each walk the plan, and every one of
+ * them has to agree with the others about which feature is on which rail and where. Calling them
+ * together here from one set of arguments is what makes that agreement structural rather than a thing
+ * to keep true by hand in four components.
  */
-export function canvasLayout(
-  plan: PlanScreenModel,
-  range: DayRange,
-  scale: PlanScale,
-  progress: Counted = [],
-): CanvasLayout {
+export function canvasLayout(query: CanvasQuery): CanvasLayout {
+  const { plan, range, scale, rung, progress } = query
   const rails = railLayout(plan, plan.schedule, scale)
-  const treatments = withProgress(treatmentsOf(plan.schedule), progress)
   return {
     rails,
     arcs: canvasArcs(plan, rails, LAYOUT),
     height: canvasHeight(rails.length),
     width: canvasWidth(scale, range),
     viewBox: viewBoxOf(rails.length, scale, range),
-    names: railNames(plan),
-    unplaced: unplacedByRail(rails, treatments),
     frame: {
       marks: marksByFeature(itemsToMarks(plan, plan.schedule, scale)),
-      treatments,
+      treatments: withProgress(treatmentsOf(plan.schedule), progress),
       groups: groupsOf(plan),
-      draws: DRAWS[rungFor(range)],
-      labelX: gutterX(scale, range) + LAYOUT.labelInset,
-      axisX: dayToX(range.fromDay, scale),
+      draws: DRAWS[rung],
+      labels: labelsOf(rails),
+      names: featureNames(plan),
+      hrefOf: query.hrefOf,
     },
   }
 }
+
+/** The x of the first day on screen, which is where the axis begins and the drag stops refusing. */
+export const axisX = (scale: PlanScale, range: DayRange): number => dayToX(range.fromDay, scale)

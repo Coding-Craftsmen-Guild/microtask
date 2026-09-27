@@ -43,3 +43,11 @@ export { diamondPoints, isMilestone } from './milestones.js'
 export type { ZoomStop } from './zoom.js'
 
 export { ZOOM_STOPS, rungParam } from './zoom.js'
+
+export type { BarLabel, LabelMetrics } from './bar-labels.js'
+
+export { barLabels } from './bar-labels.js'
+
+export type { RangeQuery } from './window.js'
+
+export { bestFit, lastPlannedDay, rangeFor } from './window.js'

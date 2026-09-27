@@ -16,11 +16,13 @@ describe('@repo/canvas entry points', () => {
     expect(exports['.']).toEqual({ types: './dist/index.d.ts', default: './dist/index.js' })
   })
 
-  it('ships the scale, the rails, the marks, the chrome, the rungs, the treatments, the drop, the arcs, the milestones, the zoom and two bridge thresholds, and nothing else', () => {
+  it('ships the scale, the rails, the marks, the chrome, the rungs, the treatments, the drop, the arcs, the milestones, the zoom, the labels, the window and two bridge thresholds, and nothing else', () => {
     expect(Object.keys(main).sort()).toEqual([
       'SPRINTS_PER_QUARTER',
       'ZOOM_STOPS',
       'arcLayout',
+      'barLabels',
+      'bestFit',
       'countsAsDone',
       'countsAsStarted',
       'dayToX',
@@ -28,9 +30,11 @@ describe('@repo/canvas entry points', () => {
       'dropTargetFor',
       'isMilestone',
       'itemsToMarks',
+      'lastPlannedDay',
       'quarterBands',
       'railAtY',
       'railLayout',
+      'rangeFor',
       'rungFor',
       'rungParam',
       'scaleFor',

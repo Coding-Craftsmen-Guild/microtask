@@ -17,6 +17,7 @@ import {
   railedPlan,
 } from '../testing/plan-fixture'
 import { nothingDrawn, stubActions } from '../testing/plan-writes'
+import { MOVE_WORDS } from './move-target'
 import { PlaceControls } from './place-controls'
 import { drawerSubject } from './subject'
 import type { DrawerValues } from './values'
@@ -61,14 +62,35 @@ const labels = (): readonly string[] =>
 
 const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
 
+const picker = (name: string): HTMLSelectElement => {
+  const found = screen.getByLabelText(name)
+  if (!(found instanceof HTMLSelectElement)) throw new Error(`${name} is not a select`)
+  return found
+}
+
+const choose = (name: string, value: string) =>
+  fireEvent.change(picker(name), { target: { value } })
+
 const callsOf = (write: unknown): readonly unknown[][] => vi.mocked(write as () => void).mock.calls
 
 afterEach(cleanup)
 
 describe('the group a keyboard reorders a feature with', () => {
-  it('draws one step each way and one control per other rail, named by the rail', () => {
+  // It used to draw one button per destination, so a plan of a dozen rails put a dozen full-width
+  // "Move to …" buttons down the drawer. The destinations are one select now; up and down stay
+  // buttons because each is one click and each is the common case.
+  it('draws one step each way as buttons, and every other rail in one picker', () => {
     open()
-    expect(labels()).toEqual(['Move up', 'Move down', 'Move to Payments', 'Move to Growth'])
+    expect(labels()).toEqual(['Move up', 'Move down'])
+    const options = [...picker(MOVE_WORDS.feature.label).options].map((one) => one.textContent)
+    expect(options).toEqual([MOVE_WORDS.feature.here, 'Payments', 'Growth'])
+  })
+
+  // The resting option names where the subject is now, which the buttons could not: they said only
+  // where it could go.
+  it('rests on where the feature already is, rather than on a destination', () => {
+    open()
+    expect(picker(MOVE_WORDS.feature.label).value).toBe('mp-move-here')
   })
 
   it('names the group by what it does to the subject, so the controls are not loose buttons', () => {
@@ -93,7 +115,7 @@ describe('the group a keyboard reorders a feature with', () => {
 
   it('sends the feature route with an epicId, and never the item route', () => {
     const actions = open()
-    press('Move to Payments')
+    choose(MOVE_WORDS.feature.label, EPIC_2)
     expect(callsOf(actions.placeFeature)).toEqual([
       [PLAN_A, FEATURE_1, { epicId: EPIC_2, position: 0 }],
     ])
@@ -111,9 +133,11 @@ describe('the group a keyboard reorders a feature with', () => {
 })
 
 describe('the group a keyboard reorders an item with', () => {
-  it('draws the same two steps and one control per other feature of the plan', () => {
+  it('draws the same two steps as buttons, and every other feature in one picker', () => {
     open({ kind: 'item', id: ITEM_1, plan: ATLAS })
-    expect(labels()).toEqual(['Move up', 'Move down', 'Move to Billing'])
+    expect(labels()).toEqual(['Move up', 'Move down'])
+    const options = [...picker(MOVE_WORDS.item.label).options].map((one) => one.textContent)
+    expect(options).toEqual([MOVE_WORDS.item.here, 'Billing'])
   })
 
   it('names its group for the feature the item is in rather than for a rail', () => {
@@ -123,7 +147,7 @@ describe('the group a keyboard reorders an item with', () => {
 
   it('sends the item route with a featureId, and never the feature route', () => {
     const actions = open({ kind: 'item', id: ITEM_2, plan: ATLAS })
-    press('Move to Billing')
+    choose(MOVE_WORDS.item.label, '01MPFFFFFFFFFFFFFFFFFFFFF2')
     expect(callsOf(actions.placeItem)).toEqual([
       [PLAN_A, ITEM_2, { featureId: '01MPFFFFFFFFFFFFFFFFFFFFF2', position: 1 }],
     ])

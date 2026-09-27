@@ -10,7 +10,15 @@ export const ALL_RADIO_ID = 'mp-group-all'
 export const GROUP_RADIO_NAME = 'plan-group'
 
 /** How much of a feature is left visible when a different group is chosen. */
-export const DIMMED_OPACITY = '0.12'
+/**
+ * How faint the work that is *not* chosen goes.
+ *
+ * It was 0.12, and at twelve percent over a white card a coloured bar is indistinguishable from the
+ * page: choosing a group did not emphasise it, it blanked the plan. The point of the selection is to
+ * read one thread **against** the rest, so the rest has to stay legible — the reference tools quiet
+ * the unmatched to roughly a third rather than erasing them.
+ */
+export const DIMMED_OPACITY = '0.32'
 
 const ROOT = '[data-slot="plan-root"]'
 

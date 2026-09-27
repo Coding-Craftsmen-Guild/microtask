@@ -5,13 +5,15 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import { scaleFor } from '@repo/canvas'
 import type { DropTarget } from '@repo/canvas'
 import { useRef, useState } from 'react'
-import type { PointerEvent, ReactNode } from 'react'
+import type { MouseEvent, PointerEvent, ReactNode } from 'react'
 import type { ActionResult } from '../../../actions/result'
 import { DragGhost } from './drag-ghost'
 import { DragNotice, MOVED, type Said } from './drag-notice'
 import { heldFrom, originAt, settledAt, travelledBy, unchanged, type Held, type Origin, type Settled } from './selection'
 
 const FRAME = 'relative w-fit'
+
+const A_CLICK = 4
 
 const CANVAS = '[data-slot="plan-canvas"]'
 
@@ -141,6 +143,7 @@ export interface DragRootProps {
 export function DragRoot({ children, planId, axisX, gutter, pxPerDay, place }: DragRootProps) {
   const frame = useRef<HTMLDivElement>(null)
   const origin = useRef<Origin | null>(null)
+  const dragged = useRef(false)
   const [held, setHeld] = useState<Held | null>(null)
   const [said, setSaid] = useState<Said | null>(null)
   const settled: Settled | null = held === null ? null : settledAt(held, scaleFor({ pxPerDay, gutter }), axisX)
@@ -154,12 +157,20 @@ export function DragRoot({ children, planId, axisX, gutter, pxPerDay, place }: D
     const begun = canvas === null ? null : heldFrom(event.target, canvas)
     if (canvas === null || begun === null) return
     origin.current = originAt({ x: event.clientX, y: event.clientY }, begun.box, canvas.getBoundingClientRect().width)
+    dragged.current = false
     setHeld(begun)
   }
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const from = origin.current
     const at = { x: event.clientX, y: event.clientY }
+    if (from !== null && Math.abs(at.x - from.x) + Math.abs(at.y - from.y) > A_CLICK) dragged.current = true
     setHeld((was) => (was === null || from === null ? was : { ...was, travelled: travelledBy(from, at) }))
+  }
+  const swallowAfterDrag = (event: MouseEvent<HTMLDivElement>) => {
+    if (!dragged.current) return
+    event.preventDefault()
+    event.stopPropagation()
+    dragged.current = false
   }
   const finish = () => {
     setHeld(null)
@@ -167,7 +178,7 @@ export function DragRoot({ children, planId, axisX, gutter, pxPerDay, place }: D
     void send(held.grabbed.featureId, settled.to, settled.back)
   }
   return (
-    <div className={FRAME} data-drag={place !== null} data-slot="drag-root" onPointerDown={start} onPointerLeave={() => setHeld(null)} onPointerMove={move} onPointerUp={finish} ref={frame}>
+    <div className={FRAME} data-drag={place !== null} data-slot="drag-root" onClickCapture={swallowAfterDrag} onPointerDown={start} onPointerLeave={() => setHeld(null)} onPointerMove={move} onPointerUp={finish} ref={frame}>
       {children}
       {held === null || settled === null ? null : <DragGhost held={held} refused={settled.to === null} />}
       <DragNotice said={said} undo={(featureId, back) => void send(featureId, back, null)} />

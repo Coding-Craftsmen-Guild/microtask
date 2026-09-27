@@ -31,11 +31,17 @@ import {
   userScale,
   type Held,
 } from './selection'
-import { CANVAS_RANGE, CANVAS_SCALE, LAYOUT, railTop } from './view'
+import { axisX, CANVAS_RANGE, CANVAS_SCALE, LAYOUT, railTop } from './view'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
-const PANNED: DayRange = { fromDay: 40, toDay: 100 }
+/**
+ * A range whose first day is not day 0, which nothing in this app hands the canvas any more.
+ *
+ * `rangeFor` answers `fromDay: 0` for every plan at every zoom — the extent follows the plan's own
+ * span and the origin no longer moves — so this exists to pin what the canvas does with one anyway.
+ */
+const STARTING_LATE: DayRange = { fromDay: 40, toDay: 100 }
 
 const MODEL: PlanScreenModel = planScreenModel(railedPlan())
 
@@ -112,11 +118,18 @@ describe('the layout read back off the canvas that drew it', () => {
     expect(rail?.bars.map((bar) => bar.id)).toEqual([FEATURE_1])
   })
 
-  it('counts a gutter stub as no bar, though one grab resolves either', () => {
+  // The feature the forward pass could not place has **no mark on the canvas at all** now. It was a
+  // gutter stub carrying `data-placed="false"`, which `railsFrom` excluded from `bars` while one grab
+  // resolved either; `UnscheduledTray` gives it a row under the board instead, where there is room to
+  // say why it has no bar and to link to the drawer that would give it one. So the filter that used to
+  // separate stubs from bars now excludes nothing, and that is the thing worth pinning: every mark the
+  // canvas draws is a placed bar.
+  it('draws no mark whatever for the feature no bar was placed for, the tray listing it instead', () => {
     const canvas = canvasOf()
-    expect(barFor(FEATURE_2).getAttribute('data-placed')).toBe('false')
-    expect(railsFrom(canvas)[0]?.bars).toHaveLength(1)
-    expect(grabbedAt(barFor(FEATURE_2))?.featureId).toBe(FEATURE_2)
+    expect(canvas.querySelector(`[data-feature-id="${FEATURE_2}"]`)).toBeNull()
+    expect(canvas.querySelectorAll('[data-slot="feature-bar"]')).toHaveLength(
+      layoutOf().reduce((count, rail) => count + rail.bars.length, 0),
+    )
   })
 
   it('joins a rail’s ids with a separator no ULID can contain, so the split is the inverse', () => {
@@ -134,16 +147,33 @@ describe('what a pointer went down on', () => {
       featureId: FEATURE_3,
       epicId: EPIC_2,
       x: bar?.x,
-      y: LAYOUT.chromeHeight + LAYOUT.railHeight + LAYOUT.barTop,
+      y: railTop(railIndexOf(EPIC_2)) + LAYOUT.barTop,
       width: bar?.width,
     })
   })
 
-  it('answers null for the canvas itself, for a chrome layer and for nothing at all', () => {
+  // `[data-slot="sprint-grid"]` in place of the chrome band that used to be asked about: the quarter
+  // labels and the sprint ticks are an HTML row above the canvas now, and what is left inside the SVG
+  // behind the bars is the grid's bands and rules. It is the layer a pointer most often lands on, so it
+  // is the one that must resolve to no grab rather than to the bar nearest it.
+  it('answers null for the canvas itself, for the grid behind the bars, for a band and for nothing', () => {
     const canvas = canvasOf()
     expect(grabbedAt(canvas)).toBeNull()
+    expect(grabbedAt(only('[data-slot="sprint-grid"]'))).toBeNull()
     expect(grabbedAt(only('[data-slot="rail"]'))).toBeNull()
     expect(grabbedAt(null)).toBeNull()
+  })
+
+  // A bar carries its own name now, drawn inside it when it is wide enough. The `<text>` is a **sibling**
+  // of the mark rather than a child of it — a `<rect>` cannot contain a `<text>` — so `closest()` cannot
+  // reach a bar from it, and what makes that harmless is the `pointer-events-none` `bar-label.tsx` puts
+  // on every label so the browser hands the event to the bar underneath. Both halves are asserted,
+  // because either one alone leaves a hole in the drag target exactly where the bar is easiest to hit.
+  it('answers null for a bar’s own name, which passes the pointer through instead of being grabbed', () => {
+    canvasOf()
+    const label = only('[data-slot="bar-label"]')
+    expect(grabbedAt(label)).toBeNull()
+    expect(label.getAttribute('class')).toContain('pointer-events-none')
   })
 
   it('resolves the bar from a descendant of it too, which is what closest() buys', () => {
@@ -264,9 +294,15 @@ describe('railTop and railAtY are the two directions of one number', () => {
     }
   })
 
-  it('puts the first band directly under the chrome, and nothing above it on any rail', () => {
+  // The first band used to start `chromeHeight` down, under the quarter labels and the sprint ticks.
+  // Those are an HTML row above the canvas now, so `chromeHeight` is 0 and the first rail begins at the
+  // very top of the SVG — which makes "above the first rail" a negative y and nothing else. It stays in
+  // `LAYOUT` because `RailMetrics` declares it and `railAtY` measures every band from it, so a value
+  // that drifted from `railTop`'s would be a drop resolved against a band nobody drew.
+  it('starts the first band at the very top of the canvas, and puts no rail above it', () => {
     const rails = layoutOf()
-    expect(railTop(0)).toBe(LAYOUT.chromeHeight)
+    expect(LAYOUT.chromeHeight).toBe(0)
+    expect(railTop(0)).toBe(0)
     expect(railAtY(railTop(0) - 1, rails, LAYOUT)).toBeNull()
   })
 })
@@ -282,7 +318,8 @@ describe('the factor a client-pixel delta is converted by', () => {
   })
 
   // happy-dom measures every element as a zero `DOMRect`, and a browser measures this canvas as zero
-  // while the table view is chosen — `PlanScreen` hides it with `display:none`. Both want the same answer.
+  // while the table view is chosen — `VIEW_SWITCH_CSS` hides the timeline panel with `display:none`.
+  // Both want the same answer.
   it('is one rather than infinite for a canvas nothing can measure', () => {
     expect(userScale(1000, 0)).toBe(1)
     expect(userScale(1000, Number.NaN)).toBe(1)
@@ -303,18 +340,32 @@ describe('the factor a client-pixel delta is converted by', () => {
   })
 })
 
-describe('the gutter refusal, which is a precondition made into a check', () => {
+// The function keeps the gutter's name and the gutter is gone. It was the 160px strip of SVG left of day
+// zero that a rail's name was drawn into; the names are an HTML column beside the canvas now, so
+// `CANVAS_SCALE.gutter` is 0, `dayToX(0)` is the canvas's own left edge, and there is no strip left for a
+// drop to land in. What survives is the refusal itself, asked against **the axis the canvas was drawn
+// from** rather than against day 0 — the same pixel on every canvas this app draws, and still the check
+// that stops a placement being sent from a pointer that is off the axis.
+describe('inGutter, the refusal of everything left of the axis it is handed', () => {
   it('refuses everything left of the axis and accepts the axis’s own first pixel', () => {
-    const axisX = dayToX(CANVAS_RANGE.fromDay, CANVAS_SCALE)
-    expect(inGutter(axisX - 1, axisX)).toBe(true)
-    expect(inGutter(axisX, axisX)).toBe(false)
-    expect(inGutter(axisX + 1, axisX)).toBe(false)
+    const at = axisX(CANVAS_SCALE, CANVAS_RANGE)
+    expect(inGutter(at - 1, at)).toBe(true)
+    expect(inGutter(at, at)).toBe(false)
+    expect(inGutter(at + 1, at)).toBe(false)
   })
 
-  // On an unpanned canvas the two refusals coincide, which is why nothing had to ask this before.
-  it('agrees with dropTargetFor’s own day-0 refusal while the canvas starts at day 0', () => {
+  it('is asked about an axis that is the canvas’s own left edge, no gutter being drawn before it', () => {
+    expect(CANVAS_SCALE.gutter).toBe(0)
+    expect(axisX(CANVAS_SCALE, CANVAS_RANGE)).toBe(0)
+    expect(canvasOf().getAttribute('viewBox')?.startsWith('0 0 ')).toBe(true)
+  })
+
+  // The two refusals coincide on every canvas this app draws, `rangeFor` answering `fromDay: 0` for every
+  // plan at every zoom. That is why nothing had to ask this before, and it is still worth asserting: the
+  // coincidence is a property of the range, not of either function.
+  it('agrees with dropTargetFor’s own day-0 refusal, which on this axis is the same pixel', () => {
     const rails = layoutOf()
-    const axisX = dayToX(0, CANVAS_SCALE)
+    const at = axisX(CANVAS_SCALE, CANVAS_RANGE)
     const query = (x: number) => ({
       point: { x, y: railTop(0) + HALF },
       featureId: FEATURE_1,
@@ -322,33 +373,40 @@ describe('the gutter refusal, which is a precondition made into a check', () => 
       scale: CANVAS_SCALE,
       metrics: LAYOUT,
     })
-    expect(dropTargetFor(query(axisX - 1))).toBeNull()
-    expect(inGutter(axisX - 1, axisX)).toBe(true)
-    expect(dropTargetFor(query(axisX))).not.toBeNull()
+    expect(dropTargetFor(query(at - 1))).toBeNull()
+    expect(inGutter(at - 1, at)).toBe(true)
+    expect(dropTargetFor(query(at))).not.toBeNull()
   })
 
-  // And here is the case that made it worth asking: pan the canvas and the label gutter sits over
-  // positive days, so a drop on a rail's **name** is a day `dropTargetFor` accepts.
-  it('refuses a drop on a panned canvas’s rail label, which dropTargetFor alone would accept', () => {
-    const axisX = dayToX(PANNED.fromDay, CANVAS_SCALE)
-    const inTheLabel = axisX - 20
-    expect(xToDay(inTheLabel, CANVAS_SCALE)).toBeGreaterThan(0)
+  // And here is what asking it against the axis still buys, now that no rail label is in the way: hand it
+  // the axis of a range that starts later — which is exactly what `axisX` answers for one — and it refuses
+  // an x naming a positive day, which `dropTargetFor` alone accepts.
+  it('refuses an x naming a positive day when the axis it is handed starts later than day 0', () => {
+    const at = axisX(CANVAS_SCALE, STARTING_LATE)
+    const before = at - 20
+    expect(xToDay(before, CANVAS_SCALE)).toBeGreaterThan(0)
     expect(
       dropTargetFor({
-        point: { x: inTheLabel, y: railTop(0) + HALF },
+        point: { x: before, y: railTop(0) + HALF },
         featureId: FEATURE_1,
         rails: layoutOf(),
         scale: CANVAS_SCALE,
         metrics: LAYOUT,
       }),
     ).not.toBeNull()
-    expect(inGutter(inTheLabel, axisX)).toBe(true)
+    expect(inGutter(before, at)).toBe(true)
   })
 
-  it('is the axis the canvas was really drawn from, so a panned canvas moves the refusal with it', () => {
-    const panned = canvasOf(PANNED)
-    expect(panned.getAttribute('viewBox')?.startsWith(String(dayToX(40, CANVAS_SCALE) - 160))).toBe(true)
-    expect(inGutter(dayToX(40, CANVAS_SCALE) - 20, dayToX(40, CANVAS_SCALE))).toBe(true)
+  // The canvas itself no longer has a second axis to be drawn from. `gutterX` offset the `viewBox`'s own x
+  // so that a viewport scrolled to day 40 kept its gutter on screen; it is deleted, `viewBoxOf` starts
+  // every canvas at 0, and a range's `fromDay` now changes only how many days are drawn. So the axis
+  // `inGutter` is asked about is x 0 whatever range the canvas was handed.
+  it('has one axis to refuse against, a later range changing the canvas’s width and not its origin', () => {
+    const late = canvasOf(STARTING_LATE)
+    const days = STARTING_LATE.toDay - STARTING_LATE.fromDay
+    expect(late.getAttribute('viewBox')).toBe(
+      `0 0 ${String(days * CANVAS_SCALE.pxPerDay)} ${String(layoutOf().length * LAYOUT.railHeight)}`,
+    )
   })
 })
 
@@ -394,12 +452,18 @@ describe('what a drop settles on', () => {
     expect(settled.back?.epicId).toBe(EPIC_1)
   })
 
-  it('refuses a drag into the gutter and one above the first rail, rather than clamping either', () => {
+  // Both refusals moved with the chrome. A drag "into the gutter" was one of `CANVAS_SCALE.gutter` px
+  // leftward, which is now no drag at all — so what is refused is a drag off the axis's own left edge, and
+  // one pixel does it for a bar that starts on day 0. A drag "above the first rail" was one into the
+  // chrome band; with `chromeHeight` at 0 that band is an HTML row outside the SVG, so above the first
+  // rail is a negative y. Neither clamps to the nearest rail or to day 0: §6 has no packing algorithm.
+  it('refuses a drag off the left edge of the axis and one above the first rail, clamping neither', () => {
     const canvas = canvasOf()
     const held = heldOn(FEATURE_3, EPIC_2, canvas)
-    const axisX = dayToX(0, CANVAS_SCALE)
-    expect(settledAt(movedBy(held, -CANVAS_SCALE.gutter, 0), CANVAS_SCALE, axisX).to).toBeNull()
-    expect(settledAt(movedBy(held, 0, -LAYOUT.railHeight * 4), CANVAS_SCALE, axisX).to).toBeNull()
+    const at = axisX(CANVAS_SCALE, CANVAS_RANGE)
+    expect(held.grabbed.x).toBe(at)
+    expect(settledAt(movedBy(held, -1, 0), CANVAS_SCALE, at).to).toBeNull()
+    expect(settledAt(movedBy(held, 0, -LAYOUT.railHeight * 4), CANVAS_SCALE, at).to).toBeNull()
   })
 })
 

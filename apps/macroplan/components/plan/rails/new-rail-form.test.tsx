@@ -4,9 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { PLAN_A, atlasPlan } from '../testing/plan-fixture'
 import { NEW_RAIL_WORDS, NewRailForm } from './new-rail-form'
+import { RAIL_PALETTE } from './rail-palette'
 
 const setup = (create = vi.fn().mockResolvedValue({ ok: true, value: atlasPlan() })) => {
-  render(<NewRailForm create={create} planId={PLAN_A} />)
+  render(<NewRailForm colour={RAIL_PALETTE[1] ?? ""} create={create} planId={PLAN_A} />)
   return {
     create,
     user: userEvent.setup(),
@@ -16,11 +17,18 @@ const setup = (create = vi.fn().mockResolvedValue({ ok: true, value: atlasPlan()
 }
 
 describe('NewRailForm', () => {
-  it('sends the trimmed name and no colour, the hue being the service’s to pick', async () => {
+  // The hue used to be the service's to pick, and it picked the same blue every time — so a plan of
+  // five rails drew five rails of identical bars and the colour channel carried nothing. The domain
+  // still decides nothing about how a plan looks; it says "a caller that wants a hue sends one", and
+  // this is the caller doing that. `rail-palette.ts` carries the argument.
+  it('sends the trimmed name and the hue it was proposed, so two rails do not look alike', async () => {
     const { create, user, field, button } = setup()
     await user.type(field, '  Billing  ')
     await user.click(button)
-    expect(create).toHaveBeenCalledExactlyOnceWith(PLAN_A, { name: 'Billing' })
+    expect(create).toHaveBeenCalledExactlyOnceWith(PLAN_A, {
+      colour: RAIL_PALETTE[1],
+      name: 'Billing',
+    })
   })
 
   it('empties the box on success, the new rail being visible in the list instead', async () => {

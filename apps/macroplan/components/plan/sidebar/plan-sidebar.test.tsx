@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { featurePath, PLAN_DRAWERS, railPath } from '../../../lib/drawer-routes'
+import { ADMIN_DRAWER_ROUTES, featurePath, PLAN_DRAWERS, railPath, SEAT_DRAWER_ROUTES } from '../../../lib/drawer-routes'
 import { planScreenModel } from '../plan-screen-model'
 import {
   atlasPlan,
@@ -25,8 +25,18 @@ afterEach(cleanup)
 
 const RAILS = sidebarRails(planScreenModel(railedPlan()))
 
+const NOTHING_WRONG = new Map<string, never[]>()
+
 const show = (rails = RAILS) =>
-  render(<PlanSidebar actions={null} planId={PLAN_A} rails={rails} />)
+  render(
+    <PlanSidebar
+      actions={null}
+      found={NOTHING_WRONG}
+      rails={rails}
+      root={PLAN_A}
+      routes={ADMIN_DRAWER_ROUTES}
+    />,
+  )
 
 const rows = (): readonly HTMLElement[] => [
   ...document.querySelectorAll<HTMLElement>('[data-slot="sidebar-row"]'),
@@ -54,12 +64,22 @@ describe('the sidebar lists what the plan holds', () => {
     expect(hrefs).toContain(featurePath(PLAN_A, FEATURE_1))
   })
 
-  // Two gestures on one row, and deliberately different things: the name selects, which costs no
-  // navigation, and Open navigates. A row whose name were a link would make every glance a round trip.
-  it('wires each name to its own selection radio rather than to a link', () => {
+  // Two gestures on one row, and still deliberately different things — but the other way round from
+  // the first revision. The colour chip selects, which costs no navigation; the name opens the drawer.
+  // A separate 'Open' link beside the name is what overflowed the column and landed on the canvas.
+  it('wires each row’s colour chip to its own selection radio, and its name to its drawer', () => {
     show()
-    expect(screen.getByText('Platform').getAttribute('for')).toBe(railRadioId(EPIC_1))
-    expect(screen.getByText('Auth rewrite').getAttribute('for')).toBe(featureRadioId(FEATURE_1))
+    const forRail = screen.getByLabelText('Highlight Platform')
+    expect(forRail.getAttribute('for')).toBe(railRadioId(EPIC_1))
+    expect(screen.getByLabelText('Highlight Auth rewrite').getAttribute('for')).toBe(
+      featureRadioId(FEATURE_1),
+    )
+    expect(screen.getByText('Platform').getAttribute('href')).toBe(railPath(PLAN_A, EPIC_1))
+  })
+
+  it('draws no separate Open link, which is the thing that used to escape the column', () => {
+    show()
+    expect(screen.queryByText('Open')).toBeNull()
   })
 
   it('shares one radio name across rails and features, so there is one selection and not two', () => {
@@ -155,57 +175,120 @@ describe('the filter narrows the tree without navigating', () => {
   })
 })
 
-describe('the four plan-level links are drawn on four separate answers', () => {
-  it('offers all four to a reader who may do all four', () => {
+describe('the sidebar carries the tree’s own action and no other', () => {
+  it('offers adding a rail to a reader who may, since that is what the tree is a tree of', () => {
     render(
       <PlanSidebar
-        actions={<SidebarActions mayAddGroup mayAddRail mayShare maySettings planId={PLAN_A} />}
-        planId={PLAN_A}
+        actions={<SidebarActions mayAddRail planId={PLAN_A} railCount={RAILS.length} />}
+        found={NOTHING_WRONG}
         rails={RAILS}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
       />,
     )
     const hrefs = [...document.querySelectorAll('a')].map((one) => one.getAttribute('href'))
-    expect(hrefs).toContain(PLAN_DRAWERS.newRail(PLAN_A))
-    expect(hrefs).toContain(PLAN_DRAWERS.newGroup(PLAN_A))
-    expect(hrefs).toContain(PLAN_DRAWERS.settings(PLAN_A))
-    expect(hrefs).toContain(PLAN_DRAWERS.share(PLAN_A))
+    expect(hrefs).toContain(PLAN_DRAWERS.newRail(PLAN_A, RAILS.length))
   })
 
-  it('offers only the rail to a reader who may only make one, and never a link that would 404', () => {
+  // The other three moved to PlanManage, beside the plan's name. Crowded in over the tree they pushed
+  // it down and made the one action that is about rails compete with three that are not.
+  it('offers none of the whole-plan links, which live beside the plan’s name now', () => {
     render(
       <PlanSidebar
-        actions={
-          <SidebarActions
-            mayAddGroup={false}
-            mayAddRail
-            mayShare={false}
-            maySettings={false}
-            planId={PLAN_A}
-          />
-        }
-        planId={PLAN_A}
+        actions={<SidebarActions mayAddRail planId={PLAN_A} railCount={RAILS.length} />}
+        found={NOTHING_WRONG}
         rails={RAILS}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
       />,
     )
-    expect(screen.getByText(SIDEBAR_WORDS.newRail)).toBeTruthy()
-    expect(screen.queryByText(SIDEBAR_WORDS.newGroup)).toBeNull()
-    expect(screen.queryByText(SIDEBAR_WORDS.settings)).toBeNull()
-    expect(screen.queryByText(SIDEBAR_WORDS.share)).toBeNull()
+    const hrefs = [...document.querySelectorAll('a')].map((one) => one.getAttribute('href'))
+    expect(hrefs).not.toContain(PLAN_DRAWERS.newGroup(PLAN_A))
+    expect(hrefs).not.toContain(PLAN_DRAWERS.settings(PLAN_A))
+    expect(hrefs).not.toContain(PLAN_DRAWERS.share(PLAN_A))
   })
 
-  it('draws no action row at all where the page handed none', () => {
+  it('draws nothing at all for a reader who may not add a rail, and never a link that would 404', () => {
+    render(
+      <PlanSidebar
+        actions={<SidebarActions mayAddRail={false} planId={PLAN_A} railCount={RAILS.length} />}
+        found={NOTHING_WRONG}
+        rails={RAILS}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
+      />,
+    )
+    expect(screen.queryByText(SIDEBAR_WORDS.newRail)).toBeNull()
+    expect(document.querySelector('[data-slot="sidebar-actions"]')).toBeNull()
+  })
+
+  it('draws no action at all where the page handed none', () => {
     show()
     expect(document.querySelector('[data-slot="sidebar-actions"]')).toBeNull()
     expect(screen.getByText('Platform')).toBeTruthy()
   })
 
   // A feature reachable on the canvas and absent from the sidebar would be a feature nobody could open,
-  // which is the failure this whole sidebar exists to fix. `railsOf` gives such a rail one of its own.
+  // which is the failure this whole sidebar exists to fix. railsOf gives such a rail one of its own.
   it('still lists the rail no epic claims, so nothing on the canvas is unreachable', () => {
     show()
     const hrefs = [...document.querySelectorAll('a')].map((one) => one.getAttribute('href'))
     expect(hrefs).toContain(railPath(PLAN_A, EPIC_UNCLAIMED))
     expect(hrefs).toContain(featurePath(PLAN_A, FEATURE_5))
     expect(screen.getByText('(unnamed)')).toBeTruthy()
+  })
+})
+
+describe('the sidebar draws the links of whichever surface mounted it', () => {
+  // The tree used to import the admin builders, so a seat holder following a rail link would be sent
+  // to /plans/…, a surface that reads a cookie they have not got, and on to a sign-in with no password.
+  it('roots every feature link at the token when the seat surface mounts it', () => {
+    render(
+      <PlanSidebar
+        actions={null}
+        found={NOTHING_WRONG}
+        rails={RAILS}
+        root="tok3n"
+        routes={SEAT_DRAWER_ROUTES}
+      />,
+    )
+    const hrefs = [...document.querySelectorAll('a')].map((one) => one.getAttribute('href') ?? '')
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const href of hrefs) expect(href.startsWith('/s/tok3n/')).toBe(true)
+  })
+
+  it('renders a rail as plain text where the surface has no rail drawer to open', () => {
+    render(
+      <PlanSidebar
+        actions={null}
+        found={NOTHING_WRONG}
+        rails={RAILS}
+        root="tok3n"
+        routes={SEAT_DRAWER_ROUTES}
+      />,
+    )
+    expect(screen.getByText('Platform').tagName).toBe('SPAN')
+  })
+})
+
+describe('an entity that wants looking at is marked where it is listed', () => {
+  it('puts a dot on the row and says what is wrong in its title', () => {
+    render(
+      <PlanSidebar
+        actions={null}
+        found={new Map([[FEATURE_1, [{ kind: 'no-estimate' as const, detail: 'Needs an estimate' }]]])}
+        rails={RAILS}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
+      />,
+    )
+    const dots = [...document.querySelectorAll('[data-slot="attention-dot"]')]
+    expect(dots).toHaveLength(1)
+    expect(dots[0]?.getAttribute('title')).toBe('Needs an estimate')
+  })
+
+  it('marks nothing on a plan with nothing wrong, so the mark means something when it appears', () => {
+    show()
+    expect(document.querySelectorAll('[data-slot="attention-dot"]')).toHaveLength(0)
   })
 })

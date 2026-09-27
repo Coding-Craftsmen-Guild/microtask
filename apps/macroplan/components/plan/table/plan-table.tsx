@@ -5,7 +5,8 @@ import { PlanTableRow } from './table-row'
 
 const TABLE = 'w-full border-collapse text-left text-[13px]'
 
-const HEAD = 'px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase'
+const HEAD =
+  'sticky top-0 z-10 border-b border-border bg-background px-3 py-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase'
 
 const COLUMNS = ['Epic', 'Feature', 'Item', 'Group', 'Estimate', 'Sprint', 'Progress', 'Blocked by']
 

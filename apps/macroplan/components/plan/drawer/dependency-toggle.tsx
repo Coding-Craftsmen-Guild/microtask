@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { DependencyRow } from './dependency-row'
 import { forgetEdges, toggleEdge } from './edge-list'
 import { splitEdges, type SubjectWrite } from './field'
-import { FieldShell } from './field-shell'
-
-const BOX = 'size-4'
 
 const paint = (box: HTMLInputElement | null, ticked: boolean): void => {
   if (box !== null) box.checked = ticked
@@ -13,98 +11,38 @@ const paint = (box: HTMLInputElement | null, ticked: boolean): void => {
 
 /** Props for {@link DependencyToggle}. */
 export interface DependencyToggleProps {
-  /** The plan this write is addressed at. */
   readonly planId: string
 
-  /** The feature whose dependency list this row edits — the subject the drawer is open on. */
   readonly featureId: string
 
-  /** The candidate feature this row is about, which is also what makes this control's id unique. */
   readonly candidateId: string
 
-  /** The candidate's name, which is this control's accessible name and the only label it has. */
   readonly candidateName: string
 
-  /** The subject's whole list as this render found it, joined — `splitEdges` is what undoes it. */
   readonly storedIds: string
 
-  /** Why adding this candidate would be refused, worked out on the server, or `''`. */
   readonly addRefusal: string
 
-  /** Why removing it would be refused — a cycle the plan already holds refuses either — or `''`. */
   readonly removeRefusal: string
 
-  /** Replaces the subject's whole list and answers the plan, or why it was refused. */
   readonly setDependencies: SubjectWrite<readonly string[]>
 }
 
 /**
- * One feature this one could wait on, as a box that is ticked while the edge is stated.
+ * One candidate this feature could wait on, as a checkbox that writes the whole list.
  *
- * ### A row rather than a list, because a list cannot cross this boundary
+ * ### Still no gate
  *
- * The candidates are a **list of features** and a client component may be handed primitives, an
- * unbound function or `null` and nothing else (`../module-boundaries.test.tsx`), so the list never
- * crosses: `./dependency-editor.tsx` stays on the server, walks the graph twice per candidate, and
- * mounts one of these per row with that row's own strings. What arrives here is seven primitives and
- * one action, and this component cannot see another feature, another edge or the plan.
+ * A box whose click would close a cycle is **not** disabled. It carries the reason as its
+ * description and refuses the click locally when it comes. A disabled checkbox is skipped by
+ * keyboard navigation and announces nothing about why it cannot be used, so the reader who most
+ * needs the explanation is the one who never reaches it.
  *
- * `storedIds` is the one of them that is a list in disguise, and {@link splitEdges} is where the
- * reason lives: `PUT .../dependencies` replaces the whole set, so a click has to send the subject's
- * entire list, and the string is how the list a space-free id alphabet makes safe to join gets here.
- * It is the list **this render found**, not the list this click sends: which of the two writes a
- * click means, and what it adds it to, is `./edge-list.ts`'s answer.
+ * ### A row, not a stacked field
  *
- * ### Both refusals, and the click chooses
- *
- * A row is drawn once and may be clicked twice, so the write a box means is not fixed at render
- * time: a box ticked by the last click is a box whose next click removes an edge. Both refusals are
- * therefore carried, the one for adding and the one for removing, and {@link toggleEdge} picks
- * against what this browser has actually sent. That is also the immediate undo — a second click on
- * the same box takes the edge back rather than re-sending it and snapping the box to ticked again.
- *
- * ### The refusal is said before the click, and is still never a gate
- *
- * The refusal that applies to this box's next click is the row's **hint**: the local check worked it
- * out on the server and shipped it here, and withholding it until the user clicked a box that snapped
- * back was telling them something the row already knew, after the fact. `FieldShell` names the hint
- * and then the refusal in `aria-describedby`, so a reader tabbing onto the box hears why it would be
- * refused; the alert line stays for what the **write** came back with, and the hint stands down while
- * one is standing so the same sentence is never on screen twice.
- *
- * Showing it changes nothing about who decides. The box is not disabled and the click is not swallowed
- * — the write is still sent in every case the local check passes — so this is a message about the
- * click, not a gate on it, which is the same thing the alert line was.
- *
- * A refusal is the local check's answer, and the API is still the authority: the write is sent in
- * every case the local check passes, and whatever comes back — a 403 for a seat re-roled since the
- * render, a 422, a 409 — is rendered under this box. What the local check buys is the one refusal the
- * API cannot say in front of a user: a cycle is a 409, `lib/problem.ts` answers every refusal with
- * the audience's plain sentence for its status and never the API's `detail`, so a cycle sent to the
- * server would come back as "Someone else changed this at the same time. Reload the page and try
- * again." That sentence is now **true** whenever it appears here — after this control, a 409 on this
- * route can only mean the plan this page rendered is not the plan the server holds — which is why the
- * cycle is caught before the send rather than by carving an exception into that file's rule.
- *
- * ### Two renders of one feature lose a write, and nothing detects it
- *
- * The route takes no `If-Match`, so two **renders** of one feature's edges each send a complete list
- * built from the plan they found, the second silently overwrites the first, and nothing tells either
- * of them (`packages/api-client/src/operations/features.ts`). Two people is the visible case and not
- * the likeliest one: one person clicking two boxes on one screen was the same mechanism, and it is
- * `./edge-list.ts` that closes it by building every click on the list the last click sent. What is
- * left is what a single browser cannot see — another editor's write between this render and this
- * click — and nothing here can fix that; what it does instead is read the answer back.
- *
- * ### The box shows what the server stored
- *
- * The drawer's field idiom, as `./pin-field.tsx` argues it: the box is uncontrolled and written
- * through a ref, and a successful write re-reads this one edge out of the plan that write answered
- * with rather than assuming the list it sent. A refusal puts the box back where this browser's list
- * has it, so a tick that was not accepted is not left on screen. `adminWrite` also calls `refresh()`
- * on success, which re-renders the route and re-props every row from the plan the server now holds;
- * the read-back is what keeps this one box right in the meantime, and the effect is what lets that
- * re-render move a box React would otherwise leave alone — `defaultChecked` is read once.
+ * The name sits beside its box rather than above it, which is what a list of checkboxes is and what
+ * halves the height of an editor offering one per feature in the plan. `DependencyRow` is the
+ * markup; this is the write, and splitting them is what keeps each inside this repo's caps.
  */
 export function DependencyToggle(row: DependencyToggleProps) {
   const box = useRef<HTMLInputElement>(null)
@@ -129,22 +67,14 @@ export function DependencyToggle(row: DependencyToggleProps) {
     setProblem(answer.problem)
   }
   return (
-    <FieldShell
+    <DependencyRow
+      boxRef={box}
       fieldId={`plan-drawer-depends-${row.candidateId}`}
-      hint={problem === '' && refusal !== '' ? refusal : null}
-      label={row.candidateName}
+      name={row.candidateName}
+      onToggle={() => void commit()}
       problem={problem}
-    >
-      {(wiring) => (
-        <input
-          {...wiring}
-          className={BOX}
-          defaultChecked={waiting}
-          onChange={() => void commit()}
-          ref={box}
-          type="checkbox"
-        />
-      )}
-    </FieldShell>
+      refusal={problem === '' && refusal !== '' ? refusal : null}
+      ticked={waiting}
+    />
   )
 }

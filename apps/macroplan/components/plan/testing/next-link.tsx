@@ -6,7 +6,7 @@ export interface LinkDoubleProps {
   href: string
 
   /** The link's content. */
-  children: ReactNode
+  children?: ReactNode
 
   /** Passed through, so a test can read the variant a row asked for. */
   className?: string
@@ -19,6 +19,25 @@ export interface LinkDoubleProps {
    * failing for a reason that exists only in the double.
    */
   'data-testid'?: string
+
+  /**
+   * Passed through, and load-bearing for the same reason, found the hard way.
+   *
+   * The drawer's close control is a `✕` with `aria-label="Close"`, and `getByRole('link', { name:
+   * 'Close' })` could not find it: the double rendered the glyph and dropped the label, so the
+   * anchor's accessible name was the glyph. The assertion was right and the double was wrong, which
+   * is the one kind of test failure a double can manufacture on its own.
+   */
+  'aria-label'?: string
+
+  /** Passed through: the drawer's scrim is hidden from the accessibility tree. */
+  'aria-hidden'?: 'true' | 'false'
+
+  /** Passed through: the scrim is also out of the tab order, being a second way to do one thing. */
+  tabIndex?: number
+
+  /** Passed through, for a link whose visible text is truncated. */
+  title?: string
 }
 
 /**
@@ -28,10 +47,23 @@ export interface LinkDoubleProps {
  * `vi.mock('next/link', async () => ({ default: (await import('…/testing/next-link')).LinkDouble }))`.
  * The factory is `async` and imports lazily because `vi.mock` is hoisted above the file's own
  * imports, so a binding referenced eagerly inside it would not be initialised yet.
+ *
+ * Every prop is named rather than spread from a rest parameter, so that adding one is a deliberate
+ * act recorded here. The cost is that a prop nobody has added yet is silently dropped, which is what
+ * the two notes above are for.
  */
-export function LinkDouble({ href, children, className, 'data-testid': testId }: LinkDoubleProps) {
+export function LinkDouble(props: LinkDoubleProps) {
+  const { href, children, className, title, tabIndex } = props
   return (
-    <a className={className} data-testid={testId} href={href}>
+    <a
+      aria-hidden={props['aria-hidden']}
+      aria-label={props['aria-label']}
+      className={className}
+      data-testid={props['data-testid']}
+      href={href}
+      tabIndex={tabIndex}
+      title={title}
+    >
       {children}
     </a>
   )

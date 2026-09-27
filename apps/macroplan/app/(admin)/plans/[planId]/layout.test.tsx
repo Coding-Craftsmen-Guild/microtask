@@ -1,5 +1,5 @@
 import { seal } from '@repo/app-session/crypto'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { isValidElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -18,8 +18,9 @@ import { handedBy, tokensHandedBy } from '../../../../components/plan/testing/ha
 import {
   ADMIN_TOKEN,
   atlasPlan,
+  EPIC_1,
   FEATURE_1,
-  ITEM_3,
+  FEATURE_2,
   MANAGE_SEAT_TOKEN,
   PLAN_A,
   PLAN_B,
@@ -28,28 +29,31 @@ import {
   tangledPlan,
   WRITE_SEAT_TOKEN,
 } from '../../../../components/plan/testing/plan-fixture'
-import { featurePath, itemPath } from '../../../../lib/drawer-routes'
+import { ADMIN_DRAWER_ROUTES, featurePath, railPath } from '../../../../lib/drawer-routes'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
+import { ZOOM_COOKIE } from '../../../../lib/zoom'
 
-// Every action this layout hands over that is **not** a member of `PlanEditActions`, by the names
-// reflection can see — taken from the functions themselves so a rename cannot leave this list standing.
-// It is now **only** the two path builders, and what left it is the point. The four seat actions and the
-// three plan-own ones used to be handed from this layout, because the share manager and the settings panel
-// were collapsed disclosures in the plan heading. Design §4 moved both into drawer routes, so the layout
-// hands neither — and the guard moved with them rather than being dropped: `share/page.test.tsx` and
-// `settings/page.test.tsx` each assert their own route hands its actions by name with nothing bound, which
-// is where ADR 0040's check has to live once the action does.
-const OFF_INTERFACE = [
-  // The two drawer-path builders, which are functions this layout hands the conflict list — and the only
-  // members of this list that are **not** actions at all. They are here because the list takes its
-  // surface's routes rather than importing them, which is what let it be mounted on the seat surface: a
-  // list that imported the admin pair drew links a seat holder would follow into a login they have no
-  // password for (ADR 0032). Pure path builders, reaching no credential, and the second assertion below is
-  // what holds that: neither is a `bound ` closure, so neither can be carrying one.
-  featurePath,
-  itemPath,
-].map((action) => action.name)
+// Every function this layout hands over that is **not** a member of `PlanEditActions`, by the names
+// reflection can see — read off the record the layout actually hands over, so a rename cannot leave
+// this list standing and a fourth builder cannot be added without this set following it.
+//
+// It is the drawer-path builders and nothing else, and there are **three** of them now rather than
+// two: a rail has its own drawer since this revision, so `DrawerRoutes` carries `rail` beside
+// `feature` and `item`. They are the only members that are not actions at all, and they are handed
+// over as one record rather than imported by the components that draw links, which is what let the
+// tree and the tray be mounted on the seat surface too: a component that imported the admin pair drew
+// links a seat holder would follow into a login they have no password for (ADR 0032).
+//
+// What is *not* here is as much of the point. The four seat actions and the three plan-own ones used
+// to be handed from this layout, because the share manager and the settings panel were collapsed
+// disclosures in the plan heading. Both are drawer routes now, so the layout hands neither — and the
+// guard moved with them rather than being dropped: `share/page.test.tsx` and `settings/page.test.tsx`
+// each assert their own route hands its actions by name with nothing bound, which is where ADR 0040's
+// check has to live once the action does.
+const OFF_INTERFACE = Object.values(ADMIN_DRAWER_ROUTES)
+  .filter((builder): builder is (root: string, id: string) => string => builder !== null)
+  .map((builder) => builder.name)
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 
@@ -65,20 +69,33 @@ class NotFound extends Error {}
 
 let bearer: string | null = ADMIN_TOKEN
 
+// What `mp_zoom` holds, which is a separate question from who is reading: `readZoom` answers
+// `Rung | null` and the layout picks the plan's own fit for the null. The jar below answers **by
+// name** for that reason — one `get` that returned the session for every name handed `readZoom` a
+// sealed blob, so the fallback was being exercised by accident rather than because a test asked for
+// it, and a reader's stated rung could not be pinned at all.
+let chosenZoom: string | null = null
+
 vi.mock('next/headers', () => ({
   cookies: () =>
     Promise.resolve({
-      get: () =>
-        bearer === null
+      get: (name: string) => {
+        if (name === ZOOM_COOKIE) {
+          return chosenZoom === null ? undefined : { name, value: chosenZoom }
+        }
+        return bearer === null
           ? undefined
-          : { name: 'mp_admin', value: seal(SECRET, payloadOf({ kind: 'admin', token: bearer })) },
+          : { name, value: seal(SECRET, payloadOf({ kind: 'admin', token: bearer })) }
+      },
       set: () => undefined,
     }),
   headers: () => Promise.resolve(new Headers()),
 }))
-// The conflict list this layout fills its slot with closes every row with links, and Next's own `Link`
-// wants a router this render has none of. The shared double forwards `className` and `href` and is what
-// every other file in this app mocks with, so three copies of one anchor cannot drift.
+// Nearly everything this layout builds closes in a `Link` — the breadcrumb, the three manage buttons
+// beside the plan's name, every rail and feature in the tree, the rail names beside the canvas, and
+// every tray row under it — and Next's own `Link` wants a router this render has none of. The shared
+// double forwards `className` and `href` and is what every other file in this app mocks with, so the
+// copies of one anchor cannot drift.
 vi.mock('next/link', async () => ({
   default: (await import('../../../../components/plan/testing/next-link')).LinkDouble,
 }))
@@ -113,6 +130,7 @@ beforeEach(() => {
     return answer
   })
   bearer = ADMIN_TOKEN
+  chosenZoom = null
 })
 
 afterEach(() => {
@@ -127,6 +145,22 @@ const paramsOf = (planId: string) => ({ params: Promise.resolve({ planId }) })
 const propsOf = (planId: string) => ({ ...paramsOf(planId), children: DRAWER })
 
 const show = async (planId = PLAN_A) => render(await PlanLayout(propsOf(planId)))
+
+/** Every prop the layout hands `PlanScreen`, which is every slot it builds plus the plan itself. */
+const slotsOf = async (planId: string): Promise<Record<string, unknown>> => {
+  const element = await PlanLayout(propsOf(planId))
+  return isValidElement<Record<string, unknown>>(element) ? element.props : {}
+}
+
+/** What one filled slot was built with, for the slots that are a single element. */
+const propsIn = (slot: unknown): Record<string, unknown> =>
+  isValidElement<Record<string, unknown>>(slot) ? slot.props : {}
+
+const trayPanel = (): HTMLElement => {
+  const found = document.querySelector<HTMLElement>('[data-slot="unscheduled-tray"]')
+  if (found === null) throw new Error('the layout drew no tray under the board')
+  return found
+}
 
 const thrownBy = async (planId: string): Promise<unknown> => {
   try {
@@ -189,37 +223,61 @@ describe('the plan layout', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })).toBeTruthy()
   })
 
-  // The list is filled **here** and not inside `PlanScreen`, because every link in it addresses this
+  // The tray is filled **here** and not inside `PlanScreen`, because every link in it addresses this
   // surface's own drawer routes and `/s/<token>` renders the same screen. So this is the file that has
-  // to prove the slot is filled, and that the two builders in `lib/drawer-routes.ts` are what filled
-  // it — a feature and an item, which are two different pages.
-  it('draws the plan’s own contradictions, each linked to the drawer that would fix it', async () => {
+  // to prove the slot is filled and that `ADMIN_DRAWER_ROUTES` is what filled it.
+  //
+  // This case was the conflict panel's — "each linked to the drawer that would fix it", of which the
+  // linking survives and the panel does not. It listed every complaint the pass made, above the
+  // timeline, one row per unsized item included; the tray lists **features with no bar** and sits
+  // underneath, because a feature is the thing that has a bar and so the only thing whose absence from
+  // the chart is worth a row of its own.
+  it('lists the features the pass could not place under the board, each linked to its own drawer', async () => {
     holdingAdmin(api)
     api.plans = [tangledPlan()]
     await show()
-    const list = screen.getByRole('region', { name: 'How this plan contradicts itself' })
-    expect(list.querySelectorAll('[data-slot="conflict-row"]').length).toBeGreaterThan(2)
-    expect(screen.getAllByRole('link', { name: 'Auth rewrite' })[0]?.getAttribute('href')).toBe(
+    expect(trayPanel().querySelectorAll('[data-slot="tray-row"]')).toHaveLength(2)
+    const rows = within(trayPanel())
+    expect(rows.getByRole('link', { name: 'Auth rewrite' }).getAttribute('href')).toBe(
       featurePath(PLAN_A, FEATURE_1),
     )
-    expect(screen.getAllByRole('link', { name: 'Invoices' })[0]?.getAttribute('href')).toBe(
-      itemPath(PLAN_A, ITEM_3),
+    expect(rows.getByRole('link', { name: 'Billing' }).getAttribute('href')).toBe(
+      featurePath(PLAN_A, FEATURE_2),
     )
   })
 
-  it('draws no such list for a plan that contradicts itself in none of the three ways', async () => {
+  // `Invoices` is the one item the tangled plan drags off the axis, and the old panel gave it a row of
+  // its own beside the two features — which on the deployed plan is how thirty rows came to stand above
+  // the timeline. It is counted on the feature that owns it now, so a plan whose items are mostly
+  // unsized is four marks rather than thirty rows.
+  it('rolls an unplaced item up onto its feature rather than giving it a row of its own', async () => {
+    holdingAdmin(api)
+    api.plans = [tangledPlan()]
+    await show()
+    expect(within(trayPanel()).queryByText('Invoices')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Invoices' })).toBeNull()
+    const dot = document.querySelector('[data-search="billing"] [data-slot="attention-dot"]')
+    expect(dot?.getAttribute('title')).toContain('1 item needs an estimate')
+  })
+
+  it('lists nothing under the board for a plan whose every feature has a bar', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     await show()
-    expect(document.querySelector('[data-slot="conflict-list"]')).toBeNull()
+    expect(document.querySelector('[data-slot="unscheduled-tray"]')).toBeNull()
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
   })
 
+  // Three facts and three elements, the separators between them being `aria-hidden` middots rather
+  // than characters in a sentence: the line sits under the plan's name in the head now, so it is read
+  // once as three pieces of calendar and never as prose.
   it('says how the plan is timed, which is what its whole axis is derived from', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     await show()
-    expect(screen.getByText('starts 2026-09-28 · 14-day sprints · Europe/Belgrade')).toBeTruthy()
+    expect(screen.getByText('starts 2026-09-28')).toBeTruthy()
+    expect(screen.getByText('14-day sprints')).toBeTruthy()
+    expect(screen.getByText('Europe/Belgrade')).toBeTruthy()
   })
 
   it('titles the tab with the plan’s own name, through the same cached read it renders from', async () => {
@@ -288,7 +346,7 @@ describe('the plan layout', () => {
   })
 })
 
-describe('the drawer is a slot beside the canvas, and the canvas is the layout’s', () => {
+describe('the drawer is a slot beside the plan, and every other slot is the layout’s own', () => {
   it('draws whatever is routed into it beside the timeline and the table, not instead of them', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
@@ -298,83 +356,173 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layout�
     expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
   })
 
-  // Seven props now: the conflict list and the share manager are both built here rather than passed
-  // through, and for the same kind of reason — the seat surface renders the same screen, may not carry
-  // links into this one's drawer routes, and may not present this one's cookie. So filling either is this
-  // file's own decision and belongs in this file's assertions. The drawer stays identity-compared, being
-  // `children` and not built here.
+  // Fifteen props, and the shape of the list is the revision. `conflicts` is gone with the panel it
+  // filled. `rails`, `groups`, `settings` and `share` were four panel slots the plan heading rendered
+  // in a row, and the three whole-plan ones are one `manage` slot of links now while the group chips
+  // moved to the toolbar as `groups`. What is new beside those is what the frame needs to know that a
+  // document did not: `tray` for the features with no bar, `zoomControl` beside the rung itself, and
+  // `home`/`root`/`routes` so every link on the page is addressed for **this** surface — the seat
+  // surface renders the same screen, may not carry links into this one's drawer routes, and may not
+  // present this one's cookie. The drawer stays identity-compared, being `children` and not built here.
   it('hands the screen every slot it builds, the writes, and the bridge facts', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const element = await PlanLayout(propsOf(PLAN_A))
-    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    const handed = await slotsOf(PLAN_A)
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
-      'conflicts',
       'controls',
       'drawer',
       'groups',
+      'home',
+      'manage',
       'plan',
       'progress',
-      'rails',
-      'settings',
-      'share',
+      'root',
+      'routes',
       'sidebar',
+      'tray',
       'zoom',
+      'zoomControl',
     ])
     expect(handed['drawer']).toBe(DRAWER)
     expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)
-    expect(isValidElement<{ plan: unknown }>(handed['conflicts'])).toBe(true)
-    // The sidebar is built by `admin-slots.tsx` rather than inline, because this file's own layout was five
-    // lines from ADR 0027's cap. It is an element and not `null` here because `ADMIN_CONTROLS` draws every
-    // control; the four manager slots beside it are `null` now, which the case below asserts by name.
-    expect(isValidElement(handed['sidebar'])).toBe(true)
+    // Every slot is built by `admin-slots.tsx` rather than inline, because this file's own layout was
+    // five lines from ADR 0027's cap. Each is an element and not `null` because `ADMIN_CONTROLS` draws
+    // every control; what each was built with is asserted case by case below.
+    for (const slot of ['groups', 'manage', 'sidebar', 'tray', 'zoomControl']) {
+      expect(isValidElement(handed[slot])).toBe(true)
+    }
   })
 
-  // The sidebar is handed the plan's id and its rail tree, and never a seat, a count or a token — which is
-  // what the sweep further down asserts by shape. The id is the API's own rather than the URL's, so it is
+  // The sidebar is handed the plan's id as the **root** of this surface's URLs — `planId` was the prop
+  // until the same tree was mounted on `/s/<token>`, where the root is a token and not an id — along
+  // with the routes to spend it on and the rail tree. Never a seat, a count or a token, which is what
+  // the sweep further down asserts by shape. The id is the API's own rather than the URL's, so it is
   // the plan this screen is drawing.
-  //
-  // This case used to be the share manager's, and it is the sidebar's for the reason the whole revision
-  // exists: the four managers this layout built were collapsed disclosures in the plan heading, and every
-  // one of them is now a drawer route linked from the sidebar (design §§3–4). The share manager's own props
-  // are asserted by `share/page.test.tsx`, which is the thing that builds it now.
   it('builds the sidebar on the plan the API confirmed, and hands it the rail tree', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const element = await PlanLayout(propsOf(PLAN_A))
-    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    const sidebar = handed['sidebar']
-    const props = isValidElement<Record<string, unknown>>(sidebar) ? sidebar.props : {}
-    expect(props['planId']).toBe(PLAN_A)
+    const handed = await slotsOf(PLAN_A)
+    const props = propsIn(handed['sidebar'])
+    expect(props['root']).toBe(PLAN_A)
+    expect(props['root']).toBe((handed['plan'] as { readonly id: string }).id)
     expect(Array.isArray(props['rails'])).toBe(true)
     expect(props['rails']).toHaveLength(atlasPlan().epics.length)
   })
 
-  it('draws no manager in the heading any more, all four being routes the sidebar links to', async () => {
+  // This case used to say the heading drew no manager at all, all four being routes the sidebar linked
+  // to. Three of them are back in the heading — as **links** to those routes rather than as the
+  // disclosures they were — because they act on the whole plan and so belong beside its name; crowded
+  // into the sidebar they pushed the rail tree down and made the one action that is about rails compete
+  // with three that are not. So the split is the assertion: three in the head, one in the tree, and
+  // each answered by what this viewer may do rather than drawn unconditionally.
+  it('puts the three whole-plan actions in the head and leaves the tree the one action of its own', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const element = await PlanLayout(propsOf(PLAN_A))
-    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    for (const slot of ['share', 'rails', 'groups', 'settings']) expect(handed[slot]).toBeNull()
+    const handed = await slotsOf(PLAN_A)
+    expect(propsIn(handed['manage'])).toEqual({
+      mayAddGroup: true,
+      maySettings: true,
+      mayShare: true,
+      planId: PLAN_A,
+    })
+    expect(propsIn(propsIn(handed['sidebar'])['actions'])).toEqual({
+      mayAddRail: true,
+      planId: PLAN_A,
+      railCount: 1,
+    })
   })
 
-  it('builds that list from the very plan it hands the screen, never from a second read', async () => {
+  it('hands the group chips a row per group of the plan, the chips having left the plan heading', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const element = await PlanLayout(propsOf(PLAN_A))
-    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    const conflicts = handed['conflicts']
-    const list = isValidElement<{ plan: unknown }>(conflicts) ? conflicts.props.plan : null
-    expect(list).toBe(handed['plan'])
-    // The conflict list is built from the plan this layout already holds and never from a read of its
-    // own. The bridge request beside it is a read of something else — what the rails are bound to — and
-    // is the only other one there is.
+    const handed = await slotsOf(PLAN_A)
+    expect(propsIn(handed['groups'])['rows']).toHaveLength(atlasPlan().labels.length)
+  })
+
+  // What the conflict panel's "built from the very plan it hands the screen" case was for, and the
+  // property is stronger now that two renderings share it: `attentionOf` is called **once** here and
+  // the same map goes to the tree and to the tray, so a dot on a row and a row in the tray cannot
+  // disagree about what is wrong with a feature. Neither is a read of its own — the bridge request
+  // beside the plan is a read of something else, what the rails are bound to, and is the only other
+  // one there is.
+  it('marks the tree and the tray from one pass over the plan it hands over, never from a second read', async () => {
+    holdingAdmin(api)
+    api.plans = [tangledPlan()]
+    const handed = await slotsOf(PLAN_A)
+    const found = propsIn(handed['tray'])['found']
+    expect(found).toBe(propsIn(handed['sidebar'])['found'])
+    expect((found as ReadonlyMap<string, unknown>).size).toBeGreaterThan(0)
+    expect(propsIn(handed['tray'])['root']).toBe((handed['plan'] as { readonly id: string }).id)
     expect(trace(api)).toEqual([
       `${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
       `${bridgeReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
     ])
+  })
+
+  // One record, handed to the screen and to both slots that draw links. The seat surface hands its own
+  // pair, and a component that reached for the admin builders itself would send a link holder to a
+  // cookie surface they have no password for (ADR 0032) — so the surface deciding is the whole point,
+  // and the identity comparisons are what say the decision was made in one place.
+  it('roots every drawer link in the plan’s own id and in this surface’s own path builders', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    const handed = await slotsOf(PLAN_A)
+    expect(handed['root']).toBe(PLAN_A)
+    expect(handed['home']).toBe('/')
+    for (const slot of [handed, propsIn(handed['sidebar']), propsIn(handed['tray'])]) {
+      expect(slot['routes']).toBe(ADMIN_DRAWER_ROUTES)
+    }
+  })
+
+  // The rail's builder is the third one, and it is spent twice: the tree links a rail and so does the
+  // names column beside the canvas, the names having left the SVG to become HTML that can carry a link
+  // at all. Both to the same address, because both were handed the same record.
+  it('addresses one rail and one feature the same way wherever the page links to them', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    await show()
+    const rails = screen.getAllByRole('link', { name: 'Platform' })
+    expect(rails).toHaveLength(2)
+    for (const link of rails) expect(link.getAttribute('href')).toBe(railPath(PLAN_A, EPIC_1))
+    for (const link of screen.getAllByRole('link', { name: 'Auth rewrite' })) {
+      expect(link.getAttribute('href')).toBe(featurePath(PLAN_A, FEATURE_1))
+    }
+  })
+
+  // Atlas plans eight days on a fourteen-day sprint, which is 28 days of axis — 1176px at the finest
+  // stop's 42px a day, inside the pane the range is chosen against. So the finest of the three wins,
+  // and a bar is wide enough to carry its own name. A single constant default is what drew a sixteen-day
+  // plan into the first ninety pixels of eleven hundred, which is why `readZoom` answers `null` rather
+  // than a rung and why choosing one is this layout's job.
+  it('opens the plan at the finest zoom it fits into when the reader has never chosen one', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    expect((await slotsOf(PLAN_A))['zoom']).toBe('item')
+  })
+
+  it('draws at the rung the reader last chose in preference to the one the plan would fit', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    chosenZoom = 'epic'
+    expect((await slotsOf(PLAN_A))['zoom']).toBe('epic')
+  })
+
+  // The cookie is client-writable, so junk in it is a state the page has to render. It falls back to
+  // the fit rather than to a refusal or to a rung `ZOOM_VIEW` has no record for.
+  it('falls back to the fit when the cookie holds something that is not a rung at all', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    chosenZoom = 'quarterly'
+    expect((await slotsOf(PLAN_A))['zoom']).toBe('item')
+  })
+
+  it('hands the control the very rung it draws the axis at, so the two cannot disagree', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    const handed = await slotsOf(PLAN_A)
+    expect(propsIn(handed['zoomControl'])['zoom']).toBe(handed['zoom'])
   })
 
   it('draws no slot at all when it could not read the plan, so one refusal is said once', async () => {

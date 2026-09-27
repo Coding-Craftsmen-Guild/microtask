@@ -14,7 +14,15 @@ export const NOTHING_SELECTED_ID = 'mp-sel-none'
 export const SELECT_RADIO_NAME = 'plan-selection'
 
 /** How much of an unselected mark is left visible. */
-export const SELECT_DIMMED = '0.15'
+/**
+ * How faint the work that is *not* chosen goes.
+ *
+ * It was 0.12, and at twelve percent over a white card a coloured bar is indistinguishable from the
+ * page: choosing a rail did not emphasise it, it blanked the plan. The point of the selection is to
+ * read one thread **against** the rest, so the rest has to stay legible — the reference tools quiet
+ * the unmatched to roughly a third rather than erasing them.
+ */
+export const SELECT_DIMMED = '0.32'
 
 const ROOT = '[data-slot="plan-root"]'
 

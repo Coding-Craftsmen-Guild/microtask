@@ -70,4 +70,17 @@ describe('AppBar', () => {
     const { container } = render(<AppBar product="Microtask" />)
     expect(container.querySelector('header > div')?.className).toContain('max-w-[900px]')
   })
+it('runs its row to the viewport edges for width="wide", so the lockup is not mid-page', () => {
+    const { container } = render(<AppBar product="Macroplan" width="wide" />)
+    const classes = container.querySelector('header > div')?.className ?? ''
+    expect(classes).not.toContain('max-w-[900px]')
+    expect(classes).not.toContain('mx-auto')
+  })
+
+  it('keeps its own padding at either width, so the bar never runs flush to the glass', () => {
+    for (const width of ['column', 'wide'] as const) {
+      const { container } = render(<AppBar product="Macroplan" width={width} />)
+      expect(container.querySelector('header > div')?.className).toContain('px-5')
+    }
+  })
 })

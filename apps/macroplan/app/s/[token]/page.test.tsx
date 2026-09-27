@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   currentShareKey,
@@ -46,26 +46,26 @@ const seated = (token: string): void => {
 /**
  * `/s/<token>`: what is left of the page once the plan moved up to the layout.
  *
- * The screen — the plan, its timeline, its table and its five managers — is `./seat-plan.tsx`, called by
- * `layout.tsx`, and `seat-plan.test.tsx` is where every question about it lives. This file is about the two
- * things that stayed: the empty drawer state, and the tab title.
+ * The screen — the plan, its timeline, its table and its tree — is `./seat-plan.tsx`, called by
+ * `layout.tsx`, and `seat-plan.test.tsx` is where every question about it lives. This file is about what
+ * stayed: nothing to draw, and the tab title.
  */
 describe('the seat page is the drawer slot with nothing open', () => {
-  it('says what an address does rather than promising a click, and reads nothing to say it', () => {
+  // It used to render a paragraph explaining that a feature and an item each have their own address and
+  // that whatever is on screen can be linked to, reloaded and stepped back out of. That is a note about
+  // how the routing was built, and it was under the plan for every holder of every link. The admin
+  // surface's own page has always returned null here; this is the twin of it.
+  it('draws nothing at all, a reader who has opened nothing needing to be told nothing', () => {
+    const { container } = render(LinkPlanPage())
+    expect(container.innerHTML).toBe('')
+  })
+
+  it('reads nothing to draw nothing, the plan being the layout’s own read', () => {
     render(LinkPlanPage())
-    expect(screen.getByText(/Nothing is open beside the plan/)).toBeTruthy()
     expect(trace(api)).toEqual([])
   })
 
-  // The same hook the admin surface's empty state carries, so a test of either can find it by structure
-  // rather than by its sentence.
-  it('carries the drawer-empty hook, as the admin surface’s own empty state does', () => {
-    const { container } = render(LinkPlanPage())
-    expect(container.querySelector('[data-slot="drawer-empty"]')).toBeTruthy()
-  })
-
-  // It takes no params at all, which is what makes the empty state unable to differ from one plan to the
-  // next — and what keeps the surface's reads in the layout that draws the plan.
+  // It takes no params at all, which is what keeps the surface's reads in the layout that draws the plan.
   it('takes no argument, so nothing about it can depend on which plan is open', () => {
     expect(LinkPlanPage.length).toBe(0)
   })

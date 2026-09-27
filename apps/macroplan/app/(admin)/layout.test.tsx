@@ -35,11 +35,33 @@ describe('the admin frame', () => {
     expect(screen.getByRole('main').textContent).toContain('body text')
   })
 
-  it('takes the viewport rather than legacy’s column, because this surface’s page is a timeline', () => {
+  it('stands the bar and the page body in one column exactly one viewport tall, so a page can scroll inside its own panes', () => {
+    const { container } = render(<AdminLayout>body</AdminLayout>)
+    const frame = container.firstElementChild
+    expect(frame?.className).toContain('flex-col')
+    expect(frame?.className).toContain('h-dvh')
+    // `h-dvh`, never `min-h-dvh`: a floor would let the column grow with its content and hand the
+    // document the scrollbar back, which is the one thing the plan page's panes cannot share.
+    expect(frame?.className).not.toContain('min-h-dvh')
+    expect([...(frame?.children ?? [])].map((child) => child.tagName)).toEqual(['HEADER', 'MAIN'])
+  })
+
+  it('runs the bar to the viewport edges, so the lockup and Sign out sit at the ends of the bar rather than mid-page', () => {
+    const { container } = render(<AdminLayout>body</AdminLayout>)
+    const row = container.querySelector('header > div')
+    expect(row?.className).toContain('w-full')
+    expect(row?.className).not.toContain('max-w-[900px]')
+  })
+
+  it('gives the page body the whole width and no padding of its own, because this surface’s page is an application frame', () => {
     const { container } = render(<AdminLayout>body</AdminLayout>)
     const main = container.querySelector('main')
+    expect(main?.className).toContain('w-full')
     expect(main?.className).not.toContain('max-w-[900px]')
-    expect(main?.className).toContain('px-5')
-    expect(main?.className).toContain('pb-20')
+    // Legacy's 20px sides and 80px bottom are gone with the document shape: that bottom padding is
+    // what put a second scrollbar on a page already managing its own. A page that still wants
+    // legacy's column pads and caps itself — the plan list does, with `COLUMN`.
+    expect(main?.className).not.toContain('px-5')
+    expect(main?.className).not.toContain('pb-20')
   })
 })

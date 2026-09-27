@@ -43,7 +43,7 @@ describe('the zoom switch offers the two rungs the canvas is not at', () => {
   it('names every class as a whole literal, which is the only kind Tailwind emits CSS for', () => {
     render(<ZoomSwitch zoom="feature" />)
     const current = screen.getByText(ZOOM_WORDS.feature).getAttribute('class') ?? ''
-    expect(current).toContain('bg-card')
+    expect(current).toContain('bg-background')
     expect(buttons()[0]?.getAttribute('class')).toContain('text-muted-foreground')
   })
 })

@@ -1,74 +1,70 @@
 import type { PlanBridge } from '@repo/api-client'
+import { todayLine } from '@repo/canvas'
 import type { Rung } from '@repo/canvas'
-import { PlanCanvas } from './canvas/plan-canvas'
+import type { ReactNode } from 'react'
+import { PlanBoard } from './board/plan-board'
 import type { FeaturePlace } from './canvas/drag-root'
-import { ZoomSwitch } from './canvas/zoom-switch'
 import { ZOOM_VIEW } from './canvas/zoom-view'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
+import type { DrawerRoutes } from '../../lib/drawer-routes'
 import { VIEW_SWITCH } from './view-switch'
 
-/** Props for {@link PlanViews}: the two renderings of one plan, and the zoom they are drawn at. */
+/** Props for {@link PlanViews}. */
 export interface PlanViewsProps {
-  /** The plan, already reduced so its type cannot hold a share token (ADR 0033). */
   readonly plan: PlanScreenModel
 
-  /** The instant the today line is drawn at, read once by the page. */
   readonly at: Date
 
-  /** Which of §5's three rungs to draw at. */
   readonly zoom: Rung
 
-  /** What each linked item's task counts, from the bridge read. */
   readonly progress: PlanBridge['items']
 
-  /** The drop handler, or `null` where this reader may not place a feature. */
   readonly place: FeaturePlace | null
+
+  /** The unscheduled tray, shown under the board and not under the table. */
+  readonly tray: ReactNode
+
+  /** The plan id or the seat token, whichever roots this surface’s URLs. */
+  readonly root: string
+
+  readonly routes: DrawerRoutes
 }
 
 /**
- * The zoom control and the two renderings of a plan: the timeline, and the table beside it.
+ * The two renderings of the plan, both server-rendered, one hidden by CSS.
  *
- * ### It returns a fragment, and that is load-bearing
+ * Returns a **fragment**. Both panels are addressed by `[data-slot]` from a `:has()` rule on the
+ * shell, so they no longer have to be siblings of the radios — but they do have to be siblings of
+ * each other inside the one flex column that gives them their height, and a wrapper here would make
+ * that column contain a single child that contains both, so neither would stretch.
  *
- * `VIEW_SWITCH` is a two-radio switch with no JavaScript, and it works by `peer-*` — a **sibling**
- * selector. `view-switch.ts` is explicit that this rules out wrapping any part of it: "the markup of the
- * radios, their labels and both panels has to stay one flat list of siblings … a component drawn around
- * any part of it is the wrapper the paragraph above rules out."
- *
- * A fragment is not a wrapper. It renders no DOM node, so the scroller and the table panel arrive as
- * siblings of the two radios exactly as if they had been written in `PlanScreen` itself, and
- * `peer-checked/table:hidden` still selects them. **Anything here becoming a `<div>` breaks the switch
- * silently** — both panels would simply stop hiding, with nothing failing anywhere.
- *
- * ### Why this file exists
- *
- * `plan-screen.tsx` predicted it: "the next thing to give way, if a fifth slot ever arrives, is the grid
- * wrapper and the slot order — `./plan-body.tsx` taking the three `ReactNode`s and the two panels." A
- * fifth slot did arrive, and then the zoom switch put `PlanScreen` over ADR 0027's fifty-line function
- * cap. This is that split, made at the panels rather than at the grid, because the grid is three slots in
- * a row and the panels are the part with an argument attached.
- *
- * ### The range and the scale are looked up here, not passed in
- *
- * One rung crosses in and `ZOOM_VIEW` composes both from it, so nothing above can hand this a range that
- * lands on a different rung than the switch beside it displays. `zoom-view.ts` holds the three.
+ * The tray belongs to the timeline and is inside its panel: a table row for an unplaced feature is
+ * already in the table, with its empty dates showing, so repeating it underneath would be the
+ * duplication this revision set out to remove.
  */
-export function PlanViews({ plan, at, zoom, progress, place }: PlanViewsProps) {
+export function PlanViews(props: PlanViewsProps) {
+  const { plan, at, zoom, progress, place, tray, root, routes } = props
+  const view = ZOOM_VIEW[zoom]
+  const today = todayLine(plan, at, view.scale)
+  const reach = today === null ? plan : { ...plan, todayDay: today.day }
   return (
     <>
-      <ZoomSwitch zoom={zoom} />
-      <div className={VIEW_SWITCH.scroller}>
-        <PlanCanvas
+      <div className={VIEW_SWITCH.timelinePanel} data-slot="timeline-panel">
+        <PlanBoard
           at={at}
           place={place}
           plan={plan}
           progress={progress}
-          range={ZOOM_VIEW[zoom].range}
-          scale={ZOOM_VIEW[zoom].scale}
+          range={view.rangeFor(reach)}
+          root={root}
+          routes={routes}
+          rung={zoom}
+          scale={view.scale}
         />
+        {tray}
       </div>
-      <div className={VIEW_SWITCH.tablePanel}>
+      <div className={VIEW_SWITCH.tablePanel} data-slot="table-panel">
         <PlanTable plan={plan} progress={progress} />
       </div>
     </>

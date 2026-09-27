@@ -2,8 +2,7 @@ import { ALL_RADIO_ID, GROUP_RADIO_NAME, groupCss, groupRadioId } from './group-
 import type { LabelRow } from './label-rows'
 
 const CHIP =
-  'cursor-pointer rounded-full border px-2.5 py-1 text-[12px] peer-checked:border-foreground ' +
-  'peer-checked:font-semibold peer-focus-visible:ring-2 peer-focus-visible:ring-ring'
+  'cursor-pointer rounded-full border border-border px-2 py-0.5 text-[12px] text-muted-foreground hover:text-foreground peer-checked:border-foreground peer-checked:text-foreground peer-checked:font-medium peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-brand'
 
 const SWATCH = 'mr-1.5 inline-block size-2 rounded-full align-middle'
 
@@ -18,7 +17,7 @@ export interface GroupChipsProps {
 /** What the chip that clears the choice says, and what an empty group's count reads as. */
 export const GROUP_WORDS = {
   all: 'All work',
-  none: 'nothing in it yet',
+  none: 'empty',
 } as const
 
 /**

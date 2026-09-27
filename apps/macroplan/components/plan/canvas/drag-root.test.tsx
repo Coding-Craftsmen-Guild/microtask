@@ -73,11 +73,18 @@ const identity = (plan: PlanScreenModel): readonly string[] => [
 const shown = (actions: PlanEditActions) =>
   render(<PlanCanvas at={AT} place={actions.placeFeature} plan={MODEL} />)
 
+// A whole gesture, including the `click` a browser synthesises after the release. That last event is not
+// decoration: a bar is now a link to its drawer as well as a drag handle, so the frame cancels the click a
+// gesture that actually moved leaves behind — and cancelling it is also what clears the frame's "that was a
+// drag" flag. A helper stopping at `pointerup` would leave the frame in a state no browser can be in, with
+// a drag believed to be still unaccounted for, and the next click anywhere inside it — the notice's own Undo
+// button included — swallowed by the cancel meant for the bar.
 const drag = (id: string, dx: number, dy: number): void => {
   const root = only('[data-slot="drag-root"]')
   fireEvent.pointerDown(barFor(id), { clientX: 400, clientY: 300 })
   fireEvent.pointerMove(root, { clientX: 400 + dx, clientY: 300 + dy })
   fireEvent.pointerUp(root, { clientX: 400 + dx, clientY: 300 + dy })
+  fireEvent.click(barFor(id))
 }
 
 const callsOf = (actions: PlanEditActions): readonly unknown[][] =>
@@ -220,45 +227,58 @@ describe('a bar put back where it started', () => {
   })
 })
 
-// A gutter stub is not a bar — `railLayout` omits a feature with no span from `bars` — but it is a real
-// feature at a real place on a real rail, and dragging one onto the axis is how an unsized feature gets
-// ordered. `dropTargetFor` already answers for a dragged feature its rail draws no bar for.
-describe('the stub of a feature the forward pass could not place', () => {
-  it('can be grabbed, and is drawn off the axis where the gutter refusal starts', () => {
+// The gutter this rail's unsized sibling used to be stubbed into is gone, and so is the stub: the rail names
+// left the SVG for an HTML column, `CANVAS_SCALE.gutter` is 0, and a feature the forward pass could not place
+// now gets no mark on the canvas at all — it is a row in the tray under the board (`../attention/`), where it
+// can be sized rather than dragged into an order it has no dates for. What survives that deletion is the
+// thing the drag actually depends on: such a feature is still stored on its rail, so it still holds a place
+// in the order a drop is answered in, which is why "the trap" above is not the same number as a bar count.
+describe('a feature the forward pass could not place', () => {
+  it('is drawn nowhere on the canvas, so no gesture over the board can reach it', () => {
     const actions = stubActions()
     shown(actions)
-    expect(barFor(FEATURE_2).getAttribute('data-placed')).toBe('false')
-    expect(Number(barFor(FEATURE_2).getAttribute('x'))).toBeLessThan(CANVAS_SCALE.gutter)
+    expect(document.querySelector(`[data-feature-id="${FEATURE_2}"]`)).toBeNull()
+    expect(railOf(FEATURE_2).featureIds).toContain(FEATURE_2)
+    expect(railOf(FEATURE_2).bars.map((bar) => bar.id)).not.toContain(FEATURE_2)
   })
 
-  it('sends a placement once it is dragged onto the axis, ahead of the bar it landed before', () => {
+  it('cannot be grabbed off the band that stores it, a press on no bar being no grab', () => {
     const actions = stubActions()
     shown(actions)
-    const onto = CANVAS_SCALE.gutter - Number(barFor(FEATURE_2).getAttribute('x'))
-    drag(FEATURE_2, onto, 0)
-    expect(callsOf(actions)).toEqual([[PLAN_A, FEATURE_2, { epicId: EPIC_1, position: 0 }]])
-  })
-
-  it('sends nothing for one dropped where it already is, the gutter being no placement at all', () => {
-    const actions = stubActions()
-    shown(actions)
-    drag(FEATURE_2, 0, 0)
+    const root = only('[data-slot="drag-root"]')
+    fireEvent.pointerDown(only(`[data-slot="rail"][data-epic-id="${EPIC_1}"]`), {
+      clientX: 400,
+      clientY: 300,
+    })
+    expect(document.querySelector('[data-slot="drag-ghost"]')).toBeNull()
+    fireEvent.pointerMove(root, { clientX: 400 + 6 * DAY, clientY: 300 })
+    fireEvent.pointerUp(root, { clientX: 400 + 6 * DAY, clientY: 300 })
     expect(callsOf(actions)).toEqual([])
   })
 })
 
 describe('a drop that names no placement', () => {
-  it('sends nothing for a drag into the label gutter, and clamps to no rail', () => {
+  it('sends nothing for a drag left off the axis, there being no day before day zero', () => {
     const actions = stubActions()
     shown(actions)
-    drag(FEATURE_3, -CANVAS_SCALE.gutter - 4 * DAY, 0)
+    drag(FEATURE_3, -4 * DAY, 0)
     expect(callsOf(actions)).toEqual([])
   })
 
-  it('sends nothing for a drag up into the chrome above the first rail', () => {
+  it('sends nothing for a drag up off the top of the board, there being no rail above the first', () => {
     const actions = stubActions()
     shown(actions)
     drag(FEATURE_3, 0, -LAYOUT.railHeight * 4)
+    expect(callsOf(actions)).toEqual([])
+  })
+
+  // One band of travel up from the **first** rail leaves the drawing, which it did not when a chrome band
+  // held the quarter and week headings: `LAYOUT.chromeHeight` is 0 now that those are an HTML row above the
+  // canvas, so the first rail is flush with the top of the SVG and there is nothing above it to land on.
+  it('sends nothing for one band of travel up off the first rail, which now starts at y zero', () => {
+    const actions = stubActions()
+    shown(actions)
+    drag(FEATURE_1, 0, -LAYOUT.railHeight)
     expect(callsOf(actions)).toEqual([])
   })
 
@@ -327,6 +347,36 @@ describe('the ghost that follows the pointer', () => {
     fireEvent.pointerLeave(root)
     expect(document.querySelector('[data-slot="drag-ghost"]')).toBeNull()
     fireEvent.pointerUp(root, { clientX: 400 + 6 * DAY, clientY: 300 })
+    expect(callsOf(actions)).toEqual([])
+  })
+})
+
+// A bar is a link to its drawer as well as a drag handle, which is the one thing a press on it has to
+// disambiguate: the browser fires a `click` after every pointer gesture, so a bar dropped two rails down
+// would also navigate away from the plan it was just dropped on. The frame decides it on travel — under a
+// few pixels the gesture was a click and the link is left alone, over it the click is cancelled — and
+// `dispatchEvent` answering `false` is how a test reads a cancelled default.
+describe('the click a gesture leaves behind', () => {
+  it('is cancelled after a drag that moved, so a dropped bar does not also open its drawer', () => {
+    const actions = stubActions()
+    shown(actions)
+    const root = only('[data-slot="drag-root"]')
+    const bar = barFor(FEATURE_3)
+    fireEvent.pointerDown(bar, { clientX: 400, clientY: 300 })
+    fireEvent.pointerMove(root, { clientX: 400 + 6 * DAY, clientY: 300 })
+    fireEvent.pointerUp(root, { clientX: 400 + 6 * DAY, clientY: 300 })
+    expect(fireEvent.click(bar)).toBe(false)
+  })
+
+  it('is left alone after a press that barely moved, a bar still being the way into its drawer', () => {
+    const actions = stubActions()
+    shown(actions)
+    const root = only('[data-slot="drag-root"]')
+    const bar = barFor(FEATURE_3)
+    fireEvent.pointerDown(bar, { clientX: 400, clientY: 300 })
+    fireEvent.pointerMove(root, { clientX: 402, clientY: 300 })
+    fireEvent.pointerUp(root, { clientX: 402, clientY: 300 })
+    expect(fireEvent.click(bar)).toBe(true)
     expect(callsOf(actions)).toEqual([])
   })
 })

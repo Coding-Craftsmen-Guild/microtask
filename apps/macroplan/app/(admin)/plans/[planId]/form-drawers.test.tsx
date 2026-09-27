@@ -89,12 +89,26 @@ afterEach(() => {
 
 const planOnly = { params: Promise.resolve({ planId: PLAN_A }) }
 
+// The new-rail route also reads `?n=`, the count of rails the plan already holds, so the form can
+// propose a hue no other rail has. It is a search param and not a read precisely so that this route
+// stays request-free, which is what the group below asserts — `lib/drawer-routes.ts` carries why.
+const newRail = { ...planOnly, searchParams: Promise.resolve({ n: '2' }) }
+
 const railParams = (epicId: string) => ({ params: Promise.resolve({ planId: PLAN_A, epicId }) })
 
 const groupParams = (labelId: string) => ({ params: Promise.resolve({ planId: PLAN_A, labelId }) })
 
-const closeOf = (): string | null =>
-  screen.getByText('Close').getAttribute('href')
+// The way out is a `✕` with `aria-label="Close"` and no readable text of its own, so it is found the
+// way a reader finds it: by its accessible name, which is also the assertion that it has one.
+const closeLink = (): HTMLElement => screen.getByRole('link', { name: 'Close' })
+
+const closeOf = (): string | null => closeLink().getAttribute('href')
+
+const dockOf = (): Element | null => document.querySelector('[data-slot="drawer-shell"]')
+
+// The scrim is hidden from the accessibility tree on purpose, so no role query can reach it and its
+// place is what identifies it: the one element drawn immediately before the dock.
+const scrimOf = (): Element | null => dockOf()?.previousElementSibling ?? null
 
 const thrownBy = async (run: () => Promise<unknown>): Promise<unknown> => {
   try {
@@ -107,7 +121,7 @@ const thrownBy = async (run: () => Promise<unknown>): Promise<unknown> => {
 
 describe('every form is a drawer route, and every one of them closes back to the plan', () => {
   it.each([
-    ['a new rail', async () => NewRailPage(planOnly), 'Add a rail'],
+    ['a new rail', async () => NewRailPage(newRail), 'Add a rail'],
     ['a new group', async () => NewGroupPage(planOnly), 'Add a group'],
     ['plan settings', async () => PlanSettingsPage(planOnly), 'Plan settings'],
     ['sharing', async () => PlanSharePage(planOnly), 'Share this plan'],
@@ -116,16 +130,68 @@ describe('every form is a drawer route, and every one of them closes back to the
   ])('draws %s in a shell headed %s', async (_what, open, title) => {
     render(await open())
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(title)
-    expect(document.querySelector('[data-slot="drawer-shell"]')).toBeTruthy()
+    expect(dockOf()).toBeTruthy()
+    // Both ways out, on all six: the control in the title bar and the scrim over the page behind it
+    // address the same plan, so clicking away and clicking Close cannot end up meaning two things.
     expect(closeOf()).toBe(planPath(PLAN_A))
+    expect(scrimOf()?.getAttribute('href')).toBe(planPath(PLAN_A))
+  })
+})
+
+// ADR 0068 §6. Through phase 4 the dock was a bordered panel that scrolled as a whole, with a text link
+// reading `Close` at the very bottom — past however many fields the subject had, which on plan settings or
+// a rail's three forms meant the only way out was off screen until you scrolled to find it, and the plan
+// behind it stayed fully lit. The dock is a scrim, a title bar that keeps the way out in place, and a body
+// that scrolls under it. All six routes take all three from `drawer-dock.tsx` without asking for them, so
+// one route can stand for the rest here: what these check is the dock a route is handed, and the case above
+// is what checks that each of the six is handed it.
+describe('the dock they open in: a scrim, a bar that keeps the way out on screen, a body that scrolls', () => {
+  it('puts the way out in the title bar beside the name, and not under the fields', async () => {
+    render(await RailDrawerPage(railParams(EPIC_1)))
+    const bar = dockOf()?.firstElementChild
+    expect(bar?.contains(closeLink())).toBe(true)
+    expect(closeLink().textContent).toBe('✕')
+    expect(bar?.querySelector('h2')?.textContent).toBe('Platform')
+    expect(bar?.querySelector('input')).toBeNull()
+  })
+
+  it('scrolls the fields under that bar rather than the drawer, so a long form cannot push it away', async () => {
+    render(await RailDrawerPage(railParams(EPIC_1)))
+    const pane = dockOf()?.lastElementChild
+    expect(pane?.querySelector('input')).toBeTruthy()
+    expect(pane?.className).toContain('overflow-y-auto')
+    expect(dockOf()?.className).not.toContain('overflow-y-auto')
+  })
+
+  it('dims the plan behind with an anchor, so clicking away closes the drawer with no JavaScript', async () => {
+    render(await NewRailPage(newRail))
+    expect(scrimOf()?.tagName).toBe('A')
+    expect(scrimOf()?.getAttribute('href')).toBe(planPath(PLAN_A))
+  })
+
+  it('keeps that scrim out of the reading order, a second unnamed stop over the page being worse', async () => {
+    render(await NewRailPage(newRail))
+    expect(scrimOf()?.getAttribute('aria-hidden')).toBe('true')
+    expect(scrimOf()?.getAttribute('tabindex')).toBe('-1')
+    expect(screen.getAllByRole('link', { name: 'Close' })).toHaveLength(1)
+  })
+
+  // The chrome moved into a file `DrawerPanel` shares, so this is the invariant that could have been
+  // dropped in the move without a form route noticing: a drawer is a route, not an overlay.
+  it('is still an aside named by its own heading, and still claims no dialog role', async () => {
+    render(await PlanSettingsPage(planOnly))
+    const dock = dockOf()
+    expect(dock?.tagName).toBe('ASIDE')
+    expect(dock?.getAttribute('aria-labelledby')).toBe(dock?.querySelector('h2')?.id)
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
 
 describe('the two make-one routes ask the API nothing', () => {
-  // A new rail's form is a name and a colour, neither of which depends on what the plan holds, and
-  // `createEpic` appends after the last rail without being told where. So there is nothing to read.
+  // A new rail's form is a name and a colour, and the count that decides the colour rides in on the
+  // URL. So there is still nothing to read.
   it.each([
-    ['rail', async () => NewRailPage(planOnly)],
+    ['rail', async () => NewRailPage(newRail)],
     ['group', async () => NewGroupPage(planOnly)],
   ])('makes no request to draw the new %s form', async (_what, open) => {
     await open()
@@ -133,7 +199,7 @@ describe('the two make-one routes ask the API nothing', () => {
   })
 
   it('hands the new-rail form its create action by name, and nothing bound', async () => {
-    const handed = handedBy(await NewRailPage(planOnly))
+    const handed = handedBy(await NewRailPage(newRail))
     expect(handed.functions).toContain('createEpic')
     expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
     expect(handed.functions.filter((name) => name === '')).toEqual([])

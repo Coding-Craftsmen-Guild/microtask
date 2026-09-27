@@ -1,65 +1,112 @@
-import { ZOOM_STOPS, scaleFor } from '@repo/canvas'
-import type { DayRange, PlanScale, Rung } from '@repo/canvas'
+import { ZOOM_STOPS, bestFit, lastPlannedDay, rangeFor, scaleFor } from '@repo/canvas'
+import type { CanvasSchedule, DayRange, PlanScale, Rung } from '@repo/canvas'
 import { CANVAS_SCALE } from './view'
 
-/** One zoom level as this canvas draws it: the days on screen and the scale they are drawn at. */
-export interface ZoomView {
-  /** The working days visible, which is also what `rungFor` reads to decide the rung. */
-  readonly range: DayRange
+/** What {@link openingZoom} and {@link ZoomView.rangeFor} read off a plan, and nothing more. */
+export interface ZoomPlan {
+  readonly sprintLengthDays: number
+  readonly schedule: CanvasSchedule
 
-  /** The px per day of {@link ZoomView.range}, over this canvas's one label gutter. */
+  /**
+   * Which working day today falls on, so the axis reaches the marker rather than clipping it.
+   *
+   * Optional because it is the *page* that knows what time it is: a pure geometry helper must not
+   * read a clock, and every call here would otherwise answer differently one midnight to the next.
+   */
+  readonly todayDay?: number
+}
+
+const PANE_WIDTH = 1040
+
+/** One zoom stop as the canvas uses it: how wide a day is, and how many days this plan wants. */
+export interface ZoomView {
   readonly scale: PlanScale
+
+  /**
+   * The days to draw for one plan at this zoom.
+   *
+   * A function and not a value, because the extent follows the plan's own span now. `@repo/canvas`
+   * carries why in `rangeFor`: a fixed range is a fixed pixel width, and a twelve-day plan drawn on
+   * a fixed 120-day axis put every bar in the first tenth of the canvas and left the rest blank.
+   */
+  readonly rangeFor: (plan: ZoomPlan) => DayRange
 }
 
 /**
- * The rung a plan opens at when nobody has chosen one.
+ * The rung to fall back to when no better answer exists.
  *
- * `'feature'`, which is the middle rung and the one {@link CANVAS_RANGE} has always drawn — so a plan
- * with no cookie renders exactly what it rendered before this control existed, and the change is
- * additive rather than a new default nobody asked for. It is also the rung a plan is most often read
- * at: §5 sizes it at about a quarter, which is the horizon most planning conversations have.
+ * Reached only when there are no stops to choose between at all, which cannot happen with the three
+ * this module declares. {@link openingZoom} is what a plan actually opens at.
  */
 export const DEFAULT_ZOOM: Rung = 'feature'
 
+const FINEST_FIRST: readonly Rung[] = ['item', 'feature', 'epic']
+
 /**
- * Each rung's range and scale, composed once from `ZOOM_STOPS` and this canvas's own gutter.
+ * Which zoom to open a plan at when the reader has never chosen one.
  *
- * The gutter is **not** part of a stop, and `zoom.ts` in `@repo/canvas` says why: rail names are the
- * same length at every rung, so a per-stop gutter would be three chances to disagree about how wide the
- * name column is. It comes from {@link CANVAS_SCALE}, which is where this app's one gutter is decided,
- * so zooming changes `pxPerDay` and moves the axis's left edge nowhere.
+ * The finest scale the plan very nearly fits into, because the finer the scale the more a bar can
+ * say: at four pixels a day a feature is a smear, and at forty-two it is a bar wide enough to carry
+ * its own name. `bestFit` carries the rule and the reasoning.
  *
- * Built as a record at module scope rather than a function of a rung, so the three are one value a
- * reader compares against §5's table — and so a rung with no entry is a compile error rather than an
- * `undefined` scale a canvas would draw at zero px a day.
+ * This is why `readZoom` answers `null` rather than a default. A single default is wrong for most
+ * plans — it is how a sixteen-day plan came to be drawn across a quarter of axis, bars huddled in the
+ * first ninety pixels of eleven hundred — and it is wrong in a way no amount of choosing the right
+ * constant fixes, because the right constant depends on the plan.
+ *
+ * The rungs are tried finest first, which is what "finest that fits" means. The pane width they are
+ * measured against is a constant and deliberately a guess: the range is fixed on the server, where no
+ * viewport exists, and measuring in the browser would put the canvas's geometry behind hydration for
+ * a number that only decides whether a short plan is followed by spare axis or by a scrollbar.
  */
-export const ZOOM_VIEW: Readonly<Record<Rung, ZoomView>> = {
-  epic: {
-    range: ZOOM_STOPS.epic.range,
-    scale: scaleFor({ pxPerDay: ZOOM_STOPS.epic.pxPerDay, gutter: CANVAS_SCALE.gutter }),
-  },
-  feature: {
-    range: ZOOM_STOPS.feature.range,
-    scale: scaleFor({ pxPerDay: ZOOM_STOPS.feature.pxPerDay, gutter: CANVAS_SCALE.gutter }),
-  },
-  item: {
-    range: ZOOM_STOPS.item.range,
-    scale: scaleFor({ pxPerDay: ZOOM_STOPS.item.pxPerDay, gutter: CANVAS_SCALE.gutter }),
-  },
+export function openingZoom(plan: ZoomPlan): Rung {
+  const offers = FINEST_FIRST.map((rung) => ({ rung, pxPerDay: ZOOM_STOPS[rung].pxPerDay }))
+  const fit = bestFit(offers, {
+    lastDay: lastPlannedDay(plan.schedule),
+    sprintLengthDays: plan.sprintLengthDays,
+    paneWidth: PANE_WIDTH,
+    ...(plan.todayDay === undefined ? {} : { todayDay: plan.todayDay }),
+  })
+  return fit?.rung ?? DEFAULT_ZOOM
 }
 
-/** What each rung is called on the control, in the words §5's table uses for its three rows. */
+/**
+ * The rung to draw at: the reader's own choice where they have made one, and the plan's own fit
+ * where they have not.
+ */
+export const zoomFor = (chosen: Rung | null, plan: ZoomPlan): Rung => chosen ?? openingZoom(plan)
+
+const viewOf = (rung: Rung): ZoomView => ({
+  scale: scaleFor({ pxPerDay: ZOOM_STOPS[rung].pxPerDay, gutter: CANVAS_SCALE.gutter }),
+  rangeFor: (plan) =>
+    rangeFor({
+      lastDay: lastPlannedDay(plan.schedule),
+      sprintLengthDays: plan.sprintLengthDays,
+      pxPerDay: ZOOM_STOPS[rung].pxPerDay,
+      paneWidth: PANE_WIDTH,
+      ...(plan.todayDay === undefined ? {} : { todayDay: plan.todayDay }),
+    }),
+})
+
+/** The three stops, each with its scale and its own way of sizing a plan's axis. */
+export const ZOOM_VIEW: Readonly<Record<Rung, ZoomView>> = {
+  epic: viewOf('epic'),
+  feature: viewOf('feature'),
+  item: viewOf('item'),
+}
+
+/**
+ * What each rung is called on the control.
+ *
+ * Calendar words rather than the schema's own: a reader picking a zoom is asking how much time they
+ * want on screen, not which rung of the plan's hierarchy the renderer will switch to. The rungs are
+ * `epic`, `feature` and `item` everywhere else in the codebase and nowhere in the interface.
+ */
 export const ZOOM_WORDS: Readonly<Record<Rung, string>> = {
   epic: 'Year',
   feature: 'Quarter',
   item: 'Sprint',
 }
 
-/**
- * The three rungs in the order the control offers them: widest first, so zooming in reads left to right.
- *
- * Widest first and not narrowest, because the control sits above a timeline whose x axis already runs
- * left to right in time: a row of buttons that got *finer* leftward would put the two axes in
- * opposition. It is also the order §5's own table is written in.
- */
+/** The order the control offers them in: widest first, which is how a zoom control reads. */
 export const ZOOM_ORDER: readonly Rung[] = ['epic', 'feature', 'item']

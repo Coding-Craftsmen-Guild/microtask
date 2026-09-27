@@ -304,6 +304,7 @@ describe('the drawer hands no share token to a component either', () => {
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
+      'attention',
       'closeHref',
       'controls',
       'description',

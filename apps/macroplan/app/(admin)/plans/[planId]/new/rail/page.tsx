@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createEpic } from '../../../../../../actions/epics'
 import { DrawerShell } from '../../../../../../components/plan/drawer/drawer-shell'
 import { NewRailForm } from '../../../../../../components/plan/rails/new-rail-form'
+import { nextRailColour } from '../../../../../../components/plan/rails/rail-palette'
 import { ADMIN_CONTROLS } from '../../../../../../lib/admin-controls'
 import { planPath } from '../../../../../../lib/routes'
 
@@ -9,6 +10,19 @@ import { planPath } from '../../../../../../lib/routes'
 export interface NewRailPageProps {
   /** `planId` from `/plans/[planId]/new/rail`, untrusted and spent only in a path and a write. */
   readonly params: Promise<{ readonly planId: string }>
+
+  /**
+   * How many rails the plan already holds, as `?n=`, so the form can propose a distinguishable hue.
+   *
+   * A search param and not a read. The sidebar link that opens this route already knows the count —
+   * it is drawing the rails — and these drawer routes are deliberately request-free: each renders
+   * from what is in its URL, which is what keeps opening a form instant and what
+   * `form-drawers.test.tsx` pins. Reading the plan again for one integer would trade that away.
+   *
+   * Absent or junk means zero, which proposes the first colour of the palette. A hand-typed URL is
+   * the only way to get there, and a valid-but-unexpected hue is not worth refusing a page over.
+   */
+  readonly searchParams: Promise<{ readonly n?: string }>
 }
 
 const TITLE = 'Add a rail'
@@ -25,8 +39,10 @@ const TITLE = 'Add a rail'
  *
  * ### It reads the plan not at all
  *
- * There is nothing to read. A new rail's form is a name and a colour, neither of which depends on what
- * the plan already holds, and `createEpic` appends after the last rail without being told where. So this
+ * A new rail's form is a name and a colour. The colour is now *proposed* from how many rails there
+ * already are, so that two rails do not look alike — but the count rides in on `?n=` from the link
+ * that opened this route, so there is still nothing to read here. `createEpic` appends after the
+ * last rail without being told where. So this
  * is the second page under the segment that asks the API nothing — `page.tsx`, the empty drawer, is the
  * other — and the `planId` it takes is spent in exactly two places: the close link, and the write the
  * form sends.
@@ -38,12 +54,13 @@ const TITLE = 'Add a rail'
  * entire content is one refused form is a route that does not exist for that reader. The API is asked
  * again when the form is submitted, so this is not the gate — it is which pages this surface admits.
  */
-export default async function NewRailPage({ params }: NewRailPageProps) {
+export default async function NewRailPage({ params, searchParams }: NewRailPageProps) {
   const { planId } = await params
   if (!ADMIN_CONTROLS.content.createEpic) notFound()
+  const railCount = Number.parseInt((await searchParams).n ?? '', 10)
   return (
     <DrawerShell closeHref={planPath(planId)} title={TITLE}>
-      <NewRailForm create={createEpic} planId={planId} />
+      <NewRailForm colour={nextRailColour(Number.isNaN(railCount) ? 0 : railCount)} create={createEpic} planId={planId} />
     </DrawerShell>
   )
 }

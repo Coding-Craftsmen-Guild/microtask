@@ -19,6 +19,16 @@ const drawerPath = (root: string, segment: string, id: string): string =>
  * is the only thing that knows which surface is rendering.
  */
 export interface DrawerRoutes {
+  /**
+   * Where a rail opens, or `null` on a surface that has no rail drawer.
+   *
+   * The seat surface addresses features and items and nothing else, so a rail there is a heading
+   * rather than a link. Null and not a no-op function, because a caller has to render different
+   * markup — plain text against an anchor — and a function returning `#` would give a holder a link
+   * that looks live and goes nowhere.
+   */
+  readonly rail: ((root: string, epicId: string) => string) | null
+
   /** Where one feature is open on this surface. */
   readonly feature: (root: string, featureId: string) => string
 
@@ -97,15 +107,8 @@ const SEAT_ITEM = (token: string, itemId: string): string =>
  * the pair in is what let that list be mounted on both, and it is why the two surfaces each name their own
  * record rather than the component choosing.
  */
-export const SEAT_DRAWER_ROUTES: DrawerRoutes = { feature: SEAT_FEATURE, item: SEAT_ITEM }
+export const SEAT_DRAWER_ROUTES: DrawerRoutes = { feature: SEAT_FEATURE, item: SEAT_ITEM, rail: null }
 
-/**
- * The admin surface's own pair, which is {@link featurePath} and {@link itemPath} as a record.
- *
- * The same two functions, named together so a surface hands one value rather than two and cannot hand a
- * feature builder from one surface beside an item builder from the other.
- */
-export const ADMIN_DRAWER_ROUTES: DrawerRoutes = { feature: featurePath, item: itemPath }
 
 const RAIL_SEGMENT = 'r'
 
@@ -143,8 +146,17 @@ export const groupPath = (planId: string, labelId: string): string =>
  * and neither can shadow anything: every child of `[planId]` is static.
  */
 export const PLAN_DRAWERS = {
-  newRail: (planId: string): string => `${planPath(planId)}/new/rail`,
+  newRail: (planId: string, railCount = 0): string =>
+    `${planPath(planId)}/new/rail?n=${String(Math.max(0, Math.floor(railCount)))}`,
   newGroup: (planId: string): string => `${planPath(planId)}/new/group`,
   settings: (planId: string): string => `${planPath(planId)}/settings`,
   share: (planId: string): string => `${planPath(planId)}/share`,
 } as const
+
+/**
+ * The admin surface's own pair, which is {@link featurePath} and {@link itemPath} as a record.
+ *
+ * The same two functions, named together so a surface hands one value rather than two and cannot hand a
+ * feature builder from one surface beside an item builder from the other.
+ */
+export const ADMIN_DRAWER_ROUTES: DrawerRoutes = { feature: featurePath, item: itemPath, rail: railPath }

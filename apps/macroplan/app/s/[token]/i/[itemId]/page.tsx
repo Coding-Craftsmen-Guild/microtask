@@ -3,6 +3,8 @@ import { itemLink } from '../../../../../components/plan/bridge/item-link'
 import { DrawerPanel } from '../../../../../components/plan/drawer/drawer-panel'
 import { LinkField } from '../../../../../components/plan/drawer/link-field'
 import { drawerSubject } from '../../../../../components/plan/drawer/subject'
+import { attentionOf } from '../../../../../components/plan/attention/attention'
+import { AttentionCallout } from '../../../../../components/plan/attention/attention-mark'
 import { seatPlanActions } from '../../../../../components/plan/seat-actions'
 import { planCapabilities } from '../../../../../lib/plan-capabilities'
 import { linkPath } from '../../../../../lib/routes'
@@ -68,6 +70,7 @@ export default async function SeatItemDrawerPage({ params }: SeatItemDrawerPageP
   return (
     <DrawerPanel
       actions={writes}
+      attention={<AttentionCallout on={attentionOf(plan.value).get(subject.row.id)} />}
       closeHref={linkPath(token)}
       controls={controls.content}
       description={described.ok ? described.value : null}

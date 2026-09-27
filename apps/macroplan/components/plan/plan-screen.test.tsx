@@ -3,97 +3,71 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
+import { ADMIN_DRAWER_ROUTES } from '../../lib/drawer-routes'
 import { planCapabilities, type PlanControls } from '../../lib/plan-capabilities'
 import type { PlanEditActions } from './edit-actions'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
-import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from './testing/plan-fixture'
+import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
 import { stubActions } from './testing/plan-writes'
+import { VIEW_SWITCH_CSS } from './view-switch'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
 const SEAT: ScopeValue = { kind: 'plan', planId: PLAN_A }
 
-// A marker rather than a `DrawerPanel`: what is asserted below is where the slot puts whatever fills
-// it and whether it draws anything when nothing does, and a real panel would make those two facts
-// depend on a second component's markup.
+// Markers rather than the real components: what is asserted below is where the screen puts whatever
+// fills a slot and whether it draws anything when nothing does, and a real panel would make those
+// two facts depend on a second component's markup.
 const MARKER: ReactNode = <p data-testid="drawer-marker">whatever is open</p>
 
-// The conflict slot's marker, and a marker for the same reason: what is asserted below is where the
-// slot puts what fills it, and a real `ConflictList` would tie that to a second component's markup —
-// and to whether the fixture happens to contradict itself, which is `conflict-list.test.tsx`'s subject
-// and not this file's.
-const CONFLICTS: ReactNode = <p data-testid="conflicts-marker">what is wrong with the plan</p>
+const MANAGE: ReactNode = <p data-testid="manage-marker">who else may open this plan</p>
 
-// The share slot's marker, and a marker for the same reason the other two have one: what this file
-// asserts is where the screen puts whatever fills the slot, where a real `<ShareManager>` would tie that
-// to a client component's markup and to four booleans this screen never reads.
-const SHARE: ReactNode = <p data-testid="share-marker">who else may open this plan</p>
+const TRAY: ReactNode = <p data-testid="tray-marker">what has no bar</p>
 
-// The fixture is a `StoredPlan`, where `shareLinks` is required, and `PlanScreen.plan` is the type a
-// token cannot be represented in — so the fixture is reduced by the component's own reducer rather
-// than cast past it. That the unwrapped call no longer compiles is the narrowing working.
-//
-// Every slot defaults to `null` here because that is what a surface without the thing passes: all three
-// are required props, so each case below states which surface it is rendering. `actions` defaults to
-// `null` too, which is what `/s/<token>` passes and what every case about layout wants — the writes decide
-// whether the canvas's drag listens and nothing else about this screen.
-//
-// One options object rather than positional arguments, which the third slot forced: a fifth parameter
-// would fail `max-params`, which is 4 and is not relaxed for test files
-// (`packages/eslint-config/index.js`). Naming each also ends the `null, null, actions` spelling three of
-// these cases had.
 interface Shown {
   readonly controls?: PlanControls
   readonly drawer?: ReactNode
-  readonly conflicts?: ReactNode
+  readonly manage?: ReactNode
   readonly actions?: PlanEditActions | null
-  readonly share?: ReactNode
+  readonly tray?: ReactNode
 }
 
 const show = (over: Shown = {}) =>
   render(
     <PlanScreen
       actions={over.actions ?? null}
-      sidebar={null}
-      zoom="feature"
       at={AT}
-      groups={null}
-      rails={null}
-      settings={null}
-      progress={[]}
-      conflicts={over.conflicts ?? null}
       controls={over.controls ?? ADMIN_CONTROLS}
       drawer={over.drawer ?? null}
+      groups={null}
+      home="/"
+      manage={over.manage ?? null}
       plan={planScreenModel(atlasPlan())}
-      share={over.share ?? null}
+      progress={[]}
+      root={PLAN_A}
+      routes={ADMIN_DRAWER_ROUTES}
+      sidebar={null}
+      tray={over.tray ?? null}
+      zoom="feature"
+      zoomControl={null}
     />,
   )
 
 const dragging = (container: HTMLElement): string | null =>
   container.querySelector('[data-slot="drag-root"]')?.getAttribute('data-drag') ?? null
 
-const gridChildren = (container: HTMLElement): readonly Element[] => {
-  const grid = container.firstElementChild
-  if (grid === null) throw new Error('the screen rendered nothing at all')
-  return [...grid.children]
+const shell = (): Element => {
+  const found = document.querySelector('[data-slot="plan-shell"]')
+  if (found === null) throw new Error('the screen rendered no shell')
+  return found
 }
 
-// Every radio of the **view switch**, named by its own group rather than found by role.
-//
-// `getAllByRole('radio')` was what these asked, and the group chips broke it: they are radios too — a
-// native radio group is how a group is selected with no JavaScript (`labels/group-chips.tsx`) — and they
-// are drawn in the heading, so they come first in document order. A sweep over every radio on the screen
-// was therefore asserting facts about the switch against a chip. Naming `plan-view` is also the more
-// precise test: what these cases are about is that the two renderings are one group the browser owns.
+const slot = (name: string): Element | null => document.querySelector(`[data-slot="${name}"]`)
+
 const viewRadios = (): readonly HTMLInputElement[] => [
   ...document.querySelectorAll<HTMLInputElement>('input[name="plan-view"]'),
 ]
-const firstRadio = (): HTMLElement => {
-  const found = viewRadios()[0]
-  if (found === undefined) throw new Error('the view switch drew no radio')
-  return found
-}
 
 const radio = (name: string): HTMLInputElement => {
   const found = screen.getByRole('radio', { name })
@@ -101,13 +75,8 @@ const radio = (name: string): HTMLInputElement => {
   return found
 }
 
-const classesOf = (element: Element | null | undefined): string =>
-  element?.getAttribute('class') ?? ''
-
-const tablePanel = (): Element | null =>
-  screen.getByRole('table', { name: 'Table of Atlas rollout' }).parentElement
-
-const scroller = (): Element | null => document.querySelector('.overflow-x-auto')
+const before = (first: Element, second: Element): boolean =>
+  (first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING) !== 0
 
 describe('the two renderings one plan screen holds', () => {
   it('mounts the canvas and the table at once, so neither is a view to be switched to', () => {
@@ -139,8 +108,9 @@ describe('the switch between them', () => {
 
   it('describes the choice on both radios, rather than claiming a group the markup is not', () => {
     show()
-    const hint = document.getElementById('plan-view-hint')
-    expect(hint?.textContent).toContain('which rendering of this plan is on screen')
+    expect(document.getElementById('plan-view-hint')?.textContent).toContain(
+      'which rendering of this plan is on screen',
+    )
     for (const one of viewRadios()) {
       expect(one.getAttribute('aria-describedby')).toBe('plan-view-hint')
     }
@@ -153,34 +123,36 @@ describe('the switch between them', () => {
     expect(radio('Table').checked).toBe(false)
   })
 
-  it('keeps each radio a sibling of both panels, because a peer variant is a sibling selector', () => {
+  // The condition is on the shell, not on a sibling, which is what lets the tabs live in the toolbar
+  // strip and the panels two regions down. A `peer-` variant is a sibling selector and could not.
+  it('governs both panels from a rule anchored on the shell, not from a sibling selector', () => {
     show()
-    const parent = radio('Timeline').parentElement
-    expect(parent).toBe(radio('Table').parentElement)
-    expect(parent).toBe(scroller()?.parentElement)
-    expect(parent).toBe(tablePanel()?.parentElement)
+    expect(document.querySelector('style')?.textContent).toBe(VIEW_SWITCH_CSS)
+    expect(VIEW_SWITCH_CSS).toContain('[data-slot="plan-shell"]:has(#plan-view-table:checked)')
+    expect(slot('timeline-panel')).toBeTruthy()
+    expect(slot('table-panel')).toBeTruthy()
   })
 
-  it('hides the canvas when the table is chosen, which costs a reader one img label', () => {
+  it('puts the tabs in the toolbar and the panels outside it, which is the point of the rule', () => {
     show()
-    expect(classesOf(scroller())).toContain('peer-checked/table:hidden')
+    const tabs = slot('view-tabs')
+    expect(tabs?.contains(radio('Timeline'))).toBe(true)
+    expect(tabs?.contains(slot('timeline-panel'))).toBe(false)
   })
 
+  it('hides the unchosen canvas outright, which costs a reader one img label', () => {
+    expect(VIEW_SWITCH_CSS).toContain('[data-slot="timeline-panel"]{display:none}')
+  })
+
+  // The one thing about the first revision's switch that was right, and kept: the table is the
+  // accessible rendering of this plan, so it is taken off screen rather than removed.
   it('never hides the table, only takes it off screen, so it never leaves the accessibility tree', () => {
-    show()
-    expect(classesOf(tablePanel())).toContain('peer-checked/timeline:sr-only')
-    expect(classesOf(tablePanel()).split(' ').filter((one) => one.endsWith('hidden'))).toEqual([])
-  })
-
-  it('leaves the table outside the canvas’s own horizontal scroller', () => {
-    show()
-    expect(scroller()?.querySelector('table')).toBeNull()
-    expect(document.querySelectorAll('.overflow-x-auto')).toHaveLength(1)
+    expect(VIEW_SWITCH_CSS).toContain('position:absolute;width:1px;height:1px')
+    expect(VIEW_SWITCH_CSS).not.toContain('[data-slot="table-panel"]{display:none}')
   })
 
   it('carries the switch on inputs the browser owns, so nothing here needs a state hook', () => {
     show()
-    expect(radio('Timeline').getAttribute('type')).toBe('radio')
     expect(viewRadios().map((one) => one.getAttribute('id'))).toEqual([
       'plan-view-timeline',
       'plan-view-table',
@@ -188,115 +160,139 @@ describe('the switch between them', () => {
   })
 })
 
-// Two documented decisions, unguarded until the conflict list and the share manager were drawn into this
-// same file — markup order being what regresses silently when a third slot arrives.
+describe('the frame the regions sit in', () => {
+  it('fills its parent and lets each pane scroll, so the board is on screen without scrolling', () => {
+    show()
+    const classes = shell().getAttribute('class') ?? ''
+    expect(classes).toContain('h-full')
+    expect(classes).toContain('min-h-0')
+  })
+
+  it('draws the head, the toolbar and the body in that order, the plan’s name coming first', () => {
+    show()
+    const heading = screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })
+    expect(before(heading, radio('Timeline'))).toBe(true)
+    expect(before(radio('Timeline'), slot('plan-board') as Element)).toBe(true)
+  })
+
+  it('omits the sidebar pane entirely where a surface passes none, rather than an empty column', () => {
+    show()
+    expect(slot('plan-side')).toBeNull()
+    expect(slot('plan-main')).toBeTruthy()
+  })
+
+  // The defect this frame replaced, and the one no test could see. The split was
+  // `lg:grid-cols-[17rem_minmax(0,1fr)]` and the seat surface passed no sidebar; a null child renders
+  // nothing at all rather than an empty box, so the board became the FIRST grid item and drew itself
+  // into the 17rem names track — a 272px timeline on a 1545px page, with the wide column beside it
+  // empty. happy-dom computes no layout, so the only way to pin it is structurally: the board is in
+  // the main pane, and it is in the main pane whether or not there is a sidebar beside it.
+  it('draws the board in the main pane and never in the sidebar’s, with a sidebar beside it', () => {
+    render(
+      <PlanScreen
+        actions={null}
+        at={AT}
+        controls={ADMIN_CONTROLS}
+        drawer={null}
+        groups={null}
+        home="/"
+        manage={null}
+        plan={planScreenModel(atlasPlan())}
+        progress={[]}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
+        sidebar={<p data-testid="side-marker">the tree</p>}
+        tray={null}
+        zoom="feature"
+        zoomControl={null}
+      />,
+    )
+    const board = slot('plan-board')
+    expect(board).toBeTruthy()
+    expect(slot('plan-main')?.contains(board as Node)).toBe(true)
+    expect(slot('plan-side')?.contains(board as Node)).toBe(false)
+    expect(slot('plan-side')?.contains(screen.getByTestId('side-marker'))).toBe(true)
+  })
+
+  it('draws the board in the main pane with no sidebar at all, which is the seat surface', () => {
+    show()
+    expect(slot('plan-main')?.contains(slot('plan-board') as Node)).toBe(true)
+  })
+})
+
 describe('the slot whatever is open beside the plan fills', () => {
   it('adds nothing to the screen where there is no drawer, rather than an empty container', () => {
-    const empty = gridChildren(show().container)
-    const filled = gridChildren(show({ drawer: MARKER }).container)
-    expect(empty).toHaveLength(2)
-    expect(filled).toHaveLength(empty.length + 1)
-    expect(screen.getAllByTestId('drawer-marker')).toHaveLength(1)
+    show()
+    expect(screen.queryByTestId('drawer-marker')).toBeNull()
   })
 
-  it('puts it above the view switch, so a drawer never opens below 2,200 rows of table', () => {
+  it('draws it last and outside both scrolling panes, the drawer being positioned against the page', () => {
     show({ drawer: MARKER })
     const marker = screen.getByTestId('drawer-marker')
-    expect(marker.compareDocumentPosition(firstRadio()) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
-      marker.DOCUMENT_POSITION_FOLLOWING,
-    )
-  })
-
-  it('leaves it outside the flex parent the radios and the panels share, being no peer of them', () => {
-    show({ drawer: MARKER })
-    expect(screen.getByTestId('drawer-marker').parentElement).not.toBe(firstRadio().parentElement)
+    expect(marker.parentElement).toBe(shell())
+    expect(slot('plan-main')?.contains(marker)).toBe(false)
   })
 })
 
-// The second slot, and the three documented facts about it: it is empty on a surface that cannot link
-// to a drawer, it is above the drawer rather than below it, and it is no peer of the radios. The share
-// manager below is the third slot, and it is deliberately **not** a row of this grid — which is why the
-// counts here are unchanged by it.
-describe('the slot the plan’s own contradictions fill', () => {
-  it('adds nothing where a surface has none to draw, rather than an empty container', () => {
-    const empty = gridChildren(show().container)
-    const filled = gridChildren(show({ conflicts: CONFLICTS }).container)
-    expect(empty).toHaveLength(2)
-    expect(filled).toHaveLength(empty.length + 1)
-    expect(screen.getAllByTestId('conflicts-marker')).toHaveLength(1)
+describe('the slot the whole-plan actions fill', () => {
+  it('adds nothing where a surface offers none, rather than an empty row', () => {
+    show()
+    expect(screen.queryByTestId('manage-marker')).toBeNull()
   })
 
-  it('puts it above the view switch, so a conflict never sits below 2,200 rows of table', () => {
-    show({ conflicts: CONFLICTS })
-    const marker = screen.getByTestId('conflicts-marker')
-    expect(marker.compareDocumentPosition(firstRadio()) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
-      marker.DOCUMENT_POSITION_FOLLOWING,
-    )
-  })
-
-  it('puts it above the drawer, the plan’s own faults preceding whichever subject is open', () => {
-    show({ conflicts: CONFLICTS, drawer: MARKER })
-    const marker = screen.getByTestId('conflicts-marker')
-    const drawer = screen.getByTestId('drawer-marker')
-    expect(marker.compareDocumentPosition(drawer) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
-      marker.DOCUMENT_POSITION_FOLLOWING,
-    )
-  })
-
-  it('keeps it out of the flex parent the radios and the panels share, being no peer of them', () => {
-    show({ conflicts: CONFLICTS, drawer: MARKER })
-    expect(screen.getByTestId('conflicts-marker').parentElement).not.toBe(
-      firstRadio().parentElement,
-    )
-  })
-
-  it('draws four children with both slots filled: the heading, the two slots and the switch', () => {
-    const children = gridChildren(show({ conflicts: CONFLICTS, drawer: MARKER }).container)
-    expect(children).toHaveLength(4)
-    expect(children[1]).toBe(screen.getByTestId('conflicts-marker'))
-    expect(children[2]).toBe(screen.getByTestId('drawer-marker'))
+  it('puts them in the head beside the plan’s name, where sharing a plan belongs', () => {
+    show({ manage: MANAGE })
+    const marker = screen.getByTestId('manage-marker')
+    expect(slot('plan-head')?.contains(marker)).toBe(true)
   })
 })
 
-// The third slot, and the one that is **not** a row of the grid: sharing is a fact about the plan in the
-// way its name and its settings line are, so the manager sits in the heading row beside them. What these
-// cases pin is that placement, since a slot moved into the grid would leave every assertion above passing.
-describe('the slot the plan’s own seats fill', () => {
-  it('adds nothing where a surface administers no seats, rather than an empty container', () => {
-    const { container } = show()
-    expect(screen.queryByTestId('share-marker')).toBeNull()
-    expect(gridChildren(container)).toHaveLength(2)
+describe('the slot the features with no bar fill', () => {
+  it('adds nothing where everything is placed, rather than an empty panel', () => {
+    show()
+    expect(screen.queryByTestId('tray-marker')).toBeNull()
   })
 
-  it('puts it in the heading row beside the plan’s name, so it is no row of the grid', () => {
-    const { container } = show({ share: SHARE })
-    const marker = screen.getByTestId('share-marker')
-    const heading = screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })
-    expect(marker.parentElement).toBe(heading.parentElement?.parentElement)
-    expect(gridChildren(container)).toHaveLength(2)
+  // Under the board and inside its panel: a table row for an unplaced feature is already in the
+  // table with its dates empty, so repeating it under the table would be the duplication this
+  // revision set out to remove.
+  it('puts it under the board and inside the timeline panel, never under the table', () => {
+    show({ tray: TRAY })
+    const marker = screen.getByTestId('tray-marker')
+    expect(slot('timeline-panel')?.contains(marker)).toBe(true)
+    expect(slot('table-panel')?.contains(marker)).toBe(false)
+    expect(before(slot('plan-board') as Element, marker)).toBe(true)
+  })
+})
+
+describe('the count of what wants looking at', () => {
+  it('says nothing at all about a plan with nothing wrong', () => {
+    show()
+    expect(slot('attention-chip')).toBeNull()
   })
 
-  it('leaves the grid four children with every slot filled, the manager being part of the heading', () => {
-    const children = gridChildren(
-      show({ conflicts: CONFLICTS, drawer: MARKER, share: SHARE }).container,
+  it('counts the entities of a plan that has some, beside the plan’s calendar', () => {
+    render(
+      <PlanScreen
+        actions={null}
+        at={AT}
+        controls={ADMIN_CONTROLS}
+        drawer={null}
+        groups={null}
+        home="/"
+        manage={null}
+        plan={planScreenModel(unplacedPlan('no-estimate'))}
+        progress={[]}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
+        sidebar={null}
+        tray={null}
+        zoom="feature"
+        zoomControl={null}
+      />,
     )
-    expect(children).toHaveLength(4)
-    expect(children[0]?.contains(screen.getByTestId('share-marker'))).toBe(true)
-  })
-
-  it('puts it above both slots and the switch, the heading row coming first', () => {
-    show({ conflicts: CONFLICTS, drawer: MARKER, share: SHARE })
-    const marker = screen.getByTestId('share-marker')
-    for (const later of [screen.getByTestId('conflicts-marker'), screen.getByTestId('drawer-marker'), firstRadio()]) {
-      expect(marker.compareDocumentPosition(later) & marker.DOCUMENT_POSITION_FOLLOWING).toBe(
-        marker.DOCUMENT_POSITION_FOLLOWING,
-      )
-    }
-  })
-
-  it('keeps it out of the flex parent the radios and the panels share, being no peer of them', () => {
-    show({ share: SHARE })
-    expect(screen.getByTestId('share-marker').parentElement).not.toBe(firstRadio().parentElement)
+    const chip = slot('attention-chip')
+    expect(chip?.textContent).toMatch(/need(s)? attention/)
   })
 })
 
@@ -310,12 +306,6 @@ describe('the controls the screen is handed', () => {
     expect(screen.getByTestId(`row-${ITEM_1}`)).toBeTruthy()
   })
 
-  // This case was "renders alike for the admin and for a view seat, this phase drawing none of them",
-  // and its own comment asked the first task to draw a control to change it deliberately. The canvas's
-  // drag is that control, and it is drawn from two answers rather than one — the writes this screen was
-  // handed, and `controls.placeFeature` — so the claim splits in two. **Handed no writes**, the two
-  // audiences' markup is still identical, which is what keeps the old assertion worth having: a surface
-  // that hands over nothing draws the same screen whatever its seat may do.
   it('renders alike for the admin and for a view seat while it is handed no write at all', () => {
     const { container: admin } = show()
     const { container: seat } = show({ controls: planCapabilities('view', SEAT) })
