@@ -2,6 +2,10 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import { PlanScreen } from '../../../components/plan/plan-screen'
 import { planCapabilities } from '../../../lib/plan-capabilities'
+import { seatPlanActions } from '../../../components/plan/seat-actions'
+import { seatPlanOwnActions, seatSeatActions } from '../../../components/plan/seat-own-actions'
+import { seatSettingsSlot, seatShareSlot } from './seat-plan-slots'
+import { seatGroupsSlot, seatRailsSlot } from './seat-slots'
 import { readSeatPlan, readShare } from './read-share'
 
 const TITLE = 'Shared plan · CC Guild Macroplan'
@@ -68,27 +72,36 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
  * pages exist — and on the day they arrive this one line is a compile error rather than a seat screen
  * that goes on rendering without the panel it now has routes for.
  *
- * `share={null}` is the fourth, and it is the one that costs this surface something a seat may actually
- * do. `planCapabilities` answers a plan-scoped `manage` seat **`true` on all four `share:*` questions** —
+ * `share={null}` is the one remaining `null` that costs this surface something a seat may actually do.
+ * `planCapabilities` answers a plan-scoped `manage` seat **`true` on all four `share:*` questions** —
  * `share:read`, `share:update` and `share:revoke` through `mayReach` with `'plan'`, and `share:create` off
- * the record — so such a holder may legitimately administer this plan's other seats (ADR 0038, ADR 0053),
- * and the manager it would open is built and tested. What is missing is the credential: every one of its
- * four actions would have to carry **this** seat's token, which is the whole of its authority (ADR 0040),
- * and a token cannot cross into a client component as a prop while binding it into an action hides it from
- * the sweep below — `page.test.tsx` asserts this surface hands over no function at all for exactly that
- * reason, and `module-boundaries.test.tsx` refuses any `bound `-prefixed function on the other side. So
- * this `null` and `actions={null}` are the same unfinished sweep rather than two decisions, and they lift
- * together: the task that teaches either walker to read a bound function's arguments is the task that
- * mounts a seat's own writes and its own manager.
+ * the record — so such a holder may legitimately administer this plan’s other seats (ADR 0038, ADR 0053),
+ * and the manager it would open is built and tested. What is missing is now only the four **seat twins** of
+ * `actions/plan-share-links.ts`: the mechanism is settled, since the writes below are mounted and bound to
+ * this seat’s token. `settings={null}` is the same sentence about the three plan-level actions, which have
+ * no seat twin either although all three are `manage` — so a `manage` seat holding this plan cannot correct
+ * its start date.
  *
- * `actions={null}` is a third such sentence, and its reason is narrower than a tier. A seat holding
- * `manage` may place a feature, so the canvas's drag is a control this surface will eventually draw — but a
- * seat's writes are bound to its token (`components/plan/seat-actions.ts`), and this page's own leak sweep
- * cannot read a bound function's arguments: `page.test.tsx` records that as a KNOWN GAP and asserts
- * instead that this surface hands over **no function at all**. Mounting the seat's writes is therefore the
- * task that widens that sweep, and until then a seat holding `manage` reorders from the drawer's own
- * controls rather than by dragging. Required and not optional, for the reason `drawer` is: this line is
- * what makes that a decision somebody wrote down.
+ * ### The writes are mounted, and what makes that safe
+ *
+ * `actions` is `seatPlanActions(token)`: the same twenty-eight writes the admin surface hands over, each
+ * with **this** seat's token bound in as its first argument. That is the shape ADR 0040 describes, and it
+ * puts the token into this page’s Flight payload — which is admitted for one token only, the visitor’s own,
+ * already in the address bar they arrived by.
+ *
+ * For four phases these slots were `null` because the leak sweep could not read a bound function’s
+ * arguments and so asserted this surface handed over **no function at all**. That avoided the question
+ * rather than answering it, and it cost a `manage` seat every write on the plan it had been given.
+ * `page.test.tsx` now **calls** every action it is handed — `bind` keeps its arguments in a closure with no
+ * reflective access, so calling is the only way to read them — and asserts the token each one carries is
+ * this seat’s and no other, token by token against every one the API serves. Binding a different token in
+ * this function fails two of those cases, which is what makes the new sweep stronger than the ban it
+ * replaced rather than a relaxation of it.
+ *
+ * `rails` and `groups` are mounted from the same wiring (`./seat-slots.tsx`), each on the seat’s own
+ * controls rather than `ADMIN_CONTROLS`. Every rail and group action is `manage`, so a `view` or `write`
+ * seat draws neither panel; the chips that *select* a group are not in either and never were, being mounted
+ * by `PlanHeading` from the plan itself, because selecting writes nothing.
  *
  * ### What the bootstrap's answer is spent on, and what is not handed down
  *
@@ -120,20 +133,24 @@ export default async function LinkPlanPage({ params }: LinkPageProps) {
   const { role, scope } = share.value
   const plan = await readSeatPlan(token, scope.planId)
   if (!plan.ok) return refused(plan.detail)
+  const controls = planCapabilities(role, scope)
+  const writes = seatPlanActions(token)
+  const own = seatPlanOwnActions(token)
+  const seats = seatSeatActions(token)
   return (
     <PlanScreen
-      actions={null}
+      actions={writes}
       at={new Date()}
       bridge={null}
-      groups={null}
-      rails={null}
+      groups={seatGroupsSlot(plan.value, writes, controls)}
+      rails={seatRailsSlot(plan.value, writes, controls)}
       conflicts={null}
-      controls={planCapabilities(role, scope)}
+      controls={controls}
       drawer={null}
       plan={plan.value}
       progress={[]}
-      settings={null}
-      share={null}
+      settings={seatSettingsSlot(plan.value, own, controls)}
+      share={seatShareSlot(plan.value, seats, controls)}
     />
   )
 }

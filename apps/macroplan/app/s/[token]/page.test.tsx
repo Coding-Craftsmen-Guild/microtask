@@ -13,6 +13,8 @@ import {
 } from '../../../components/plan/testing/fake-plan-api'
 import {
   atlasPlan,
+  EPIC_1,
+  FEATURE_1,
   MANAGE_SEAT_TOKEN,
   PLAN_A,
   REVOKED_SEAT_TOKEN,
@@ -55,7 +57,64 @@ vi.mock('next/navigation', () => ({
   },
 }))
 
+// The two seat-action modules by export name, so the recorders below stand in for every one of them. A
+// name missing here is a missing export at import time rather than a silent pass-through, which is what
+// makes mocking the whole module safe.
+const SEAT_WRITE_NAMES = [
+  'seatCreateEpic',
+  'seatRenameEpic',
+  'seatRecolourEpic',
+  'seatReorderEpic',
+  'seatRemoveEpic',
+  'seatCreateFeature',
+  'seatRenameFeature',
+  'seatEstimateFeature',
+  'seatPinFeature',
+  'seatPlaceFeature',
+  'seatSetDependencies',
+  'seatRemoveFeature',
+  'seatCreateItem',
+  'seatRenameItem',
+  'seatEstimateItem',
+  'seatDescribeItem',
+  'seatPlaceItem',
+  'seatRemoveItem',
+]
+
+const SEAT_BRIDGE_NAMES = [
+  'seatBindEpic',
+  'seatUnbindEpic',
+  'seatLinkItem',
+  'seatUnlinkItem',
+  'seatCreateTask',
+  'seatCreateLabel',
+  'seatRenameLabel',
+  'seatRecolourLabel',
+  'seatRemoveLabel',
+  'seatLabelFeature',
+]
 const NOT_A_TOKEN = 'not-a-token'
+
+// Every export of the two seat-action modules, replaced by a recorder that keeps the arguments it was
+// called with. This is what lets the leak sweep read a **bound** action: `bind` hides its arguments in a
+// closure with no reflective access, so the only way to learn which token a handed action carries is to
+// call it and see what arrives. `components/plan/seat-actions.test.ts` mocks the same two modules for the
+// neighbouring question — which action each member is wired to — and this file asks only about the token.
+const bound: unknown[][] = []
+
+const recorder =
+  (name: string) =>
+  (...args: unknown[]): Promise<unknown> => {
+    bound.push(args)
+    return Promise.resolve({ ok: true, value: name })
+  }
+
+const recorders = (names: readonly string[]): Record<string, unknown> =>
+  Object.fromEntries(names.map((name) => [name, recorder(name)]))
+
+vi.mock('../../../actions/seat-writes', () => recorders(SEAT_WRITE_NAMES))
+
+vi.mock('../../../actions/seat-bridge', () => recorders(SEAT_BRIDGE_NAMES))
 
 const NOT_A_ULID = 'not-a-ulid'
 
@@ -138,21 +197,22 @@ const tokensServed = (): readonly string[] => {
 // serialised into the Flight payload, so `<div key={token}>` is a real leak the props-only version of
 // this sweep could not see.
 //
-// KNOWN GAP, for whoever extends this surface: functions are skipped, so a Server Action bound as
-// `action.bind(null, token)` is invisible to it — which is precisely how ADR 0040 says a page hands
-// its token to a component ("the page binds it into the actions it hands the tab strip"). Nothing on
-// this surface binds an action today. **Phase 3 will**, and must widen this to read a bound
-// function's arguments before it does.
+// **The gap this used to record is closed.** Functions are skipped by `stringsIn`, so a Server Action bound
+// as `action.bind(null, token)` is invisible to it — which is exactly how ADR 0040 says a page hands its
+// token to a component. For four phases nothing on this surface bound one and the sweep asserted there were
+// **no functions at all**, which avoided the question rather than answering it.
 //
-// The gap is unchanged and unrelaxed. What has changed is that it can no longer be walked into
-// unnoticed: `functionsIn` below is a second walk, over the same tree, that records every function
-// this page hands over, and the case named for it — second from last in the sweep, the reduction
-// assertion following it — asserts there are none. Phase 3's drawer
-// route — the task that was expected to bind the first one — binds nothing at all: it is a Server
-// Component reading its own route params, and it draws words a table row had already decided. So a
-// bound action still cannot reach this surface silently: it fails the zero-functions assertion first,
-// and whoever adds it widens `stringsIn` to read that function's arguments, having been sent here by
-// a red test rather than by this comment.
+// A bound function cannot be introspected: `Function.prototype.bind` keeps its arguments in a closure with
+// no reflective access, and `.name` answers only `"bound seatRenameFeature"`. So the sweep **calls** each
+// one. `actions/seat-writes` and `actions/seat-bridge` are mocked to recorders, so calling a handed member
+// reaches a recorder instead of the API and the arguments it was bound with arrive as the recorded call.
+// `boundTokensOf` below is that walk, and it is strictly stronger than the assertion it replaces: it proves
+// every bound action carries **the visitor's own token and no other**, where the old one proved only that
+// nobody had bound anything yet.
+//
+// What stays true is the rule the old comment was protecting. The one token an `/s/*` response may carry is
+// the visitor's own, already in their address bar; `tokensHandedBy` is what proves no *other* seat's token
+// is in the payload, and it is unchanged.
 const stringsIn = (value: unknown, visited = new WeakSet<object>()): string[] => {
   if (typeof value === 'string') return [value]
   if (typeof value === 'function' || typeof value !== 'object' || value === null) return []
@@ -168,12 +228,27 @@ const stringsIn = (value: unknown, visited = new WeakSet<object>()): string[] =>
 const tokensHandedBy = (element: ReactNode, served = tokensServed()): string[] =>
   stringsIn(element).filter((one) => served.some((token) => one.includes(token)))
 
-const functionsIn = (value: unknown, visited = new WeakSet<object>()): string[] => {
-  if (typeof value === 'function') return [value.name]
+// Every function this page hands over, collected as the callables themselves rather than as their names.
+//
+// Names were what the old sweep collected, and they answer nothing useful about a bound action: `bind` names
+// its result `"bound seatRenameFeature"` at best, and a mocked recorder gives `"bound "`. What the question
+// needs is the callable, so it can be invoked and the arguments it closed over read off the recorder.
+const callablesIn = (value: unknown, visited = new WeakSet<object>()): unknown[] => {
+  if (typeof value === 'function') return [value]
   if (typeof value !== 'object' || value === null || visited.has(value)) return []
   visited.add(value)
   const children = Object.values(isValidElement(value) ? (value.props as object) : value)
-  return children.flatMap((child: unknown) => functionsIn(child, visited))
+  return children.flatMap((child: unknown) => callablesIn(child, visited))
+}
+
+// The first argument every handed action was bound with. This is the answer to the question the old
+// zero-functions assertion sidestepped: a seat action takes its token first (`seat-writes.ts`), so the
+// first recorded argument of each call **is** the credential that action will present.
+const boundTokensOf = async (element: ReactNode): Promise<string[]> => {
+  bound.length = 0
+  const callables = callablesIn(element) as ((...args: unknown[]) => unknown)[]
+  for (const call of callables) await call(PLAN_A, EPIC_1, FEATURE_1)
+  return bound.map((one) => one[0]).filter((one): one is string => typeof one === 'string')
 }
 
 describe('a plan seat lands on the one plan its token opens', () => {
@@ -281,17 +356,43 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
     for (const token of served) expect(container.innerHTML).not.toContain(token)
   })
 
-  it('sees a function planted where a bound action would sit, so “none at all” is checkable', () => {
-    const write = async (token: string): Promise<void> => {
-      await Promise.resolve(token)
-    }
-    expect(functionsIn(<form action={write.bind(null, SEAT_TOKEN)} />)).toHaveLength(1)
-    expect(functionsIn(<p>Atlas rollout</p>)).toEqual([])
+  it('binds its own token into every action it hands over, and no other seat’s', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    const tokens = await boundTokensOf(await LinkPlanPage(props(MANAGE_SEAT_TOKEN)))
+    expect(tokens.length).toBeGreaterThan(0)
+    expect([...new Set(tokens)]).toEqual([MANAGE_SEAT_TOKEN])
   })
 
-  it('hands over no function at all, so no token is hiding in a bound action’s arguments', async () => {
+  // The half a set comparison would hide. Every *other* token the fake API serves must be absent from what
+  // any handed action carries, and a sweep that only checked the visitor own token was present would pass
+  // for an action bound with both.
+  it('binds no token the API happens to serve beside it, token by token', async () => {
     seated(MANAGE_SEAT_TOKEN)
-    expect(functionsIn(await LinkPlanPage(props(MANAGE_SEAT_TOKEN)))).toEqual([])
+    const tokens = await boundTokensOf(await LinkPlanPage(props(MANAGE_SEAT_TOKEN)))
+    for (const other of tokensServed().filter((one) => one !== MANAGE_SEAT_TOKEN)) {
+      expect(tokens).not.toContain(other)
+    }
+  })
+
+  // A write seat holds no rail or group action, so it is handed the drag and the drawer writes and no
+  // panel at all — which is a different number of bound actions, all carrying the same one token.
+  it('binds the write seat’s own token too, there being fewer actions rather than other tokens', async () => {
+    seated(WRITE_SEAT_TOKEN)
+    const tokens = await boundTokensOf(await LinkPlanPage(props(WRITE_SEAT_TOKEN)))
+    expect([...new Set(tokens)]).toEqual([WRITE_SEAT_TOKEN])
+  })
+
+  // The planted case, kept and inverted: it used to prove the walker could *see* a bound action, and now
+  // proves it can read what one was bound with. Without this the two cases above would pass against a
+  // walker that found nothing to call.
+  it('reads the argument a planted bound action carries, so the cases above can fail', async () => {
+    bound.length = 0
+    const write = async (token: string): Promise<void> => {
+      bound.push([token])
+      await Promise.resolve()
+    }
+    expect(await boundTokensOf(<form action={write.bind(null, SEAT_TOKEN)} />)).toEqual([SEAT_TOKEN])
+    expect(await boundTokensOf(<p>Atlas rollout</p>)).toEqual([])
   })
 
   it('renders from a plan whose seats were dropped on the server, not merely unrendered', async () => {
@@ -355,21 +456,15 @@ describe('which controls the seat’s own role draws', () => {
     ])
     expect(handed['drawer']).toBeNull()
     expect(handed['conflicts']).toBeNull()
-    // `share` is `null` although a plan-scoped `manage` seat holds all four `share:*` answers: its
-    // manager's actions would have to carry this seat's token, which cannot cross as a prop and is
-    // invisible to this file's walker once bound into one. It lifts with `actions` below, not before.
+    // The four manager slots are `null` **for this seat** and no longer for want of a mechanism. This case
+    // holds a `write` token, and every action behind all four is `manage` in the kernel: the share four, the
+    // five rail actions, the five group ones and the three plan ones. So each slot answers `null` because
+    // this seat may not use it — which is the API's own answer restated as a rendering one — and the case
+    // below proves a `manage` seat is handed all four. Both directions are needed: a surface that drew
+    // nothing for anybody would satisfy this one alone.
     expect(handed['share']).toBeNull()
-    // `groups` is `null` for the same unfinished reason and not by policy: a plan-scoped `manage` seat holds
-    // all five group actions, so this surface should draw them — what stops it is the same token binding.
     expect(handed['groups']).toBeNull()
-    // `rails` is `null` for the same reason again, and it is the one of the three that costs a seat the
-    // most: a `manage` seat holds every rail action and cannot reach one, so a seat cannot add a rail or
-    // put a feature on it — the admin surface is the only way into a plan. That is the token binding and
-    // not a grant, so it lifts with `actions` exactly as the other two do.
     expect(handed['rails']).toBeNull()
-    // `settings` is the fifth, and the one this gap costs most: `plan:rename`, `plan:retime` and
-    // `plan:delete` are all `manage`, so a plan-scoped `manage` seat holds every one of them and cannot
-    // reach any — a seat given a plan cannot correct its start date. It lifts with `actions`.
     expect(handed['settings']).toBeNull()
     expect((handed['controls'] as { seats: Record<string, boolean> }).seats).toEqual({
       read: false,
@@ -377,15 +472,41 @@ describe('which controls the seat’s own role draws', () => {
       update: false,
       revoke: false,
     })
-    // `actions` is `null` here on purpose, and the zero-functions case below is why it must be: a seat's
-    // writes are bound to its token, and this file's walker cannot read a bound function's arguments. The
-    // screen's own prop says so as a sentence rather than by omission, so the day that gap is closed is a
-    // line somebody edits rather than a surface that quietly gained a write.
-    expect(handed['actions']).toBeNull()
+    // `actions` is the seat's own wiring now, every member bound to the token in this page's URL. What
+    // makes that safe is the pair of cases above rather than this one: they call each handed action and
+    // assert the token it carries is the visitor's own and no other. Asserted here as a shape only — that
+    // it is an object of functions — because which functions is `seat-actions.test.ts`'s question.
+    const writes = handed['actions'] as Record<string, unknown>
+    expect(Object.values(writes).every((one) => typeof one === 'function')).toBe(true)
+    expect(Object.keys(writes).length).toBeGreaterThan(0)
     const groups = Object.values(handed['controls'] as Record<string, Record<string, unknown>>)
     expect(groups.flatMap((group) => Object.values(group)).every((one) => typeof one === 'boolean')).toBe(true)
   })
 
+
+  // The other direction, and the case that makes the four `null`s above a rule rather than a surface that
+  // draws nothing. Every action behind these slots is `manage`, so a `manage` seat is handed all four —
+  // which is what a plan shared at `manage` is for: the holder can add a rail, put a feature on it, group
+  // it, correct the plan’s calendar and hand on a seat of its own, without an admin cookie anywhere.
+  it('hands a manage seat all four manager slots, every action behind them being manage', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    const element: ReactNode = await LinkPlanPage(props(MANAGE_SEAT_TOKEN))
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    for (const slot of ['share', 'groups', 'rails', 'settings']) {
+      expect(handed[slot], slot).not.toBeNull()
+    }
+  })
+
+  // A view seat is the floor: it may select a group from the chips the heading draws and edit nothing, so
+  // every manager slot is refused it as well.
+  it('hands a view seat none of them, the chips it can use being the heading’s own', async () => {
+    seated(SEAT_TOKEN)
+    const element: ReactNode = await LinkPlanPage(props(SEAT_TOKEN))
+    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
+    for (const slot of ['share', 'groups', 'rails', 'settings']) {
+      expect(handed[slot], slot).toBeNull()
+    }
+  })
   it('draws no control for a view seat and every content one for a manage seat', async () => {
     const drawn = (element: ReactNode): readonly (readonly [string, boolean])[] =>
       isValidElement<{ controls: { content: Record<string, boolean> } }>(element)

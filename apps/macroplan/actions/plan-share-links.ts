@@ -1,16 +1,9 @@
 'use server'
 
-import type { Decoded, NewPlanSeat, PlanSeatChange } from '@repo/api-client'
-import type { PlanShareLink } from '@repo/contracts'
+import type { NewPlanSeat, PlanSeatChange } from '@repo/api-client'
 import { planPath } from '../lib/routes'
+import { changeOf, type Seat } from './share-parts'
 import { adminCall, type ActionResult } from './result'
-
-type Seat = Decoded<typeof PlanShareLink>
-
-const changeOf = (sent: PlanSeatChange): PlanSeatChange => ({
-  ...(sent.name !== undefined && { name: sent.name }),
-  ...(sent.role !== undefined && { role: sent.role }),
-})
 
 /**
  * Every seat on one plan, token and all — asked for when the share manager **opens**.
