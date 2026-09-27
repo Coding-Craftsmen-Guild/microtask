@@ -77,7 +77,6 @@ The new segments under `plans/[planId]` are:
 | --- | --- |
 | `new/rail` | create a rail |
 | `r/[epicId]` | rename, recolour, reorder, delete a rail; bind it (§5) |
-| `r/[epicId]/new/feature` | create a feature on that rail |
 | `new/group` | create a label |
 | `g/[labelId]` | rename, recolour, delete a label |
 | `settings` | plan name, calendar, delete |
@@ -112,7 +111,7 @@ So the new route adds **no authority whatsoever**. It is a composition of two ga
 exist, asked of one request principal:
 
 ```
-POST /macroplan/plans/{planId}/epics/{epicId}/bind-project   { projectId, role }
+POST /macroplan/plans/{planId}/epics/{epicId}/binding/project   { projectId, role }
 
   authorize(c, 'epic:bind',    { kind: 'epic',    planId    })   // may this caller bind this rail
   authorize(c, 'share:create', { kind: 'project', projectId })   // may it mint a seat over there
@@ -138,6 +137,13 @@ the route removes is the clipboard, not a check.
   re-rollable and revocable in that product's own share manager, under ADR 0010's cascade, with
   `PrincipalResolver` re-reading its live role on every bridge read. A seat minted here is
   indistinguishable from one minted by hand, which is the property that keeps it honest.
+
+There is no project **picker**, and the form asks for an id. A list of the projects this admin could bind
+needs a read from Macroplan into Microtask scoped to projects the caller may share, and the bridge today
+reads a *bound* project tasks and nothing wider — widening it is its own decision about what this product
+may learn about the other one, not one to make as a side effect of a form. The id is a value an admin can
+read off the Microtask URL they are already looking at. [ADR 0066](../../adr/0066-a-rail-binds-by-naming-its-project-the-api-minting-the-seat.md)
+records the gap.
 
 The paste-a-token form does not disappear; it stays in the rail drawer for the case the button cannot
 serve — binding to a project in a Microtask the admin does not have a session for. The button is the

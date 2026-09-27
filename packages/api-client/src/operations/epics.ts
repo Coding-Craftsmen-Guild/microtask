@@ -2,6 +2,7 @@ import {
   BoundTaskList,
   PlanView,
   type BindEpicPayload,
+  type BindProjectPayload,
   type CreateEpicPayload,
   type EpicPlacementPayload,
   type UpdateEpicPayload,
@@ -15,6 +16,15 @@ const epicsPath = (planId: string): string => `${planPath(planId)}/epics`
 
 const epicPath = (planId: string, epicId: string): string =>
   `${epicsPath(planId)}/${encodeURIComponent(epicId)}`
+
+/**
+ * The project to bind a rail to, and the role to bind it at — with no token in it.
+ *
+ * The other half of the pair: {@link NewBinding} names a token and the API derives the project from it,
+ * this names a project and the API mints the token itself. Exactly one of the two, never both, so neither
+ * payload can disagree with itself.
+ */
+export type BoundProject = Decoded<typeof BindProjectPayload>
 
 /** The rail to add: its name, and optionally the hue it is drawn in. */
 export type NewEpic = Decoded<typeof CreateEpicPayload>
@@ -95,6 +105,19 @@ export interface EpicsApi {
   bind(planId: string, epicId: string, binding: NewBinding): Promise<Plan>
 
   /**
+   * Binds one rail by naming the project, the API minting the seat itself. Admin-only (`epic:bind`).
+   *
+   * Nothing here holds a credential: the caller names a project it may already share, and the seat is
+   * created, sealed and stored server-side inside the one request. Prefer it to {@link EpicsApi.bind},
+   * which exists for binding a project in a Microtask this caller has no session for.
+   *
+   * **`POST` and not `PUT`, because it is not idempotent**: each call mints another seat over that project,
+   * of which the rail then holds the later. **403** unless the caller may both bind this rail and mint a
+   * seat over that project — two authorities, asked separately.
+   */
+  bindProject(planId: string, epicId: string, binding: BoundProject): Promise<Plan>
+
+  /**
    * Unbinds one rail. Idempotent, and it leaves every item's link in place.
    *
    * Those links go inert rather than away: the API reports nothing for an item whose rail did not
@@ -129,6 +152,11 @@ export function epicsApi(transport: Transport): EpicsApi {
     bind: (planId, epicId, binding) =>
       transport.json(
         { method: 'PUT', path: `${epicPath(planId, epicId)}/binding`, body: binding },
+        PlanView,
+      ),
+    bindProject: (planId, epicId, binding) =>
+      transport.json(
+        { method: 'POST', path: `${epicPath(planId, epicId)}/binding/project`, body: binding },
         PlanView,
       ),
     unbind: (planId, epicId) =>

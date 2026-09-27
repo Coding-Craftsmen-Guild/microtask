@@ -6,6 +6,7 @@ import { cleanup, render } from '@testing-library/react'
 import { isValidElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
+import type { ActionResult } from '../../actions/result'
 import type { PlanContentControls } from '../../lib/plan-capabilities'
 import type { DrawerValues } from './drawer/values'
 import { PlanCanvas } from './canvas/plan-canvas'
@@ -37,6 +38,7 @@ import { PlaceControl } from './drawer/place-control'
 import { DragRoot } from './canvas/drag-root'
 import { BindFields } from './bridge/bind-fields'
 import { BindForm } from './bridge/bind-form'
+import { BindProjectForm } from './bridge/bind-project-form'
 import { LinkField } from './drawer/link-field'
 import { TaskPicker } from './drawer/task-picker'
 import { LabelFields } from './labels/label-fields'
@@ -133,6 +135,14 @@ const declaresUseClient = (source: string) => {
 }
 
 const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
+
+// A double of its own rather than a member of STUB_ACTIONS, because binding by project is not on
+// PlanEditActions: the rail drawer imports that action directly, and widening the interface to give this
+// sweep a stub would put a member on it that nothing in the product reads off it. Named, and not bound,
+// which is the shape the walk below admits.
+async function bindProjectDouble(): Promise<ActionResult<Plan>> {
+  return { ok: true, value: atlasPlan() }
+}
 
 // Every `plan` prop under this subtree is `PlanScreenModel`, whose type cannot hold a share token,
 // and every fixture here is a `StoredPlan` that carries three. So each tree is handed its plan
@@ -277,6 +287,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [DragRoot, 'canvas/drag-root.tsx'],
   [BindForm, 'bridge/bind-form.tsx'],
   [BindFields, 'bridge/bind-fields.tsx'],
+  [BindProjectForm, 'bridge/bind-project-form.tsx'],
   [LinkField, 'drawer/link-field.tsx'],
   [TaskPicker, 'drawer/task-picker.tsx'],
   [LabelForm, 'labels/label-form.tsx'],
@@ -430,6 +441,9 @@ const TREES = [
   // forty of them (design §2). So it gets a tree of its own, and the sweep still walks it — its two
   // actions are unbound module functions, which is exactly the shape this file admits and the one a bound
   // action carrying a seat token would fail.
+  // The form that needs no token: an admin names a Microtask project and the API mints and seals the seat
+  // itself, so nothing secret is typed here. It is the recommended half of the pair beside it.
+  <BindProjectForm bind={bindProjectDouble} epicId="EP1" key="f2b" planId={atlasPlan().id} />,
   <BindForm
     bind={STUB_ACTIONS.bindEpic}
     bound={false}

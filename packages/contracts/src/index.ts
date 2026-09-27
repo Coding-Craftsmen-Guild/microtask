@@ -55,6 +55,7 @@ export {
 } from './plan.js'
 export {
   BindEpicPayload,
+  BindProjectPayload,
   BoundTaskList,
   BridgeBinding,
   BridgeEpicRow,

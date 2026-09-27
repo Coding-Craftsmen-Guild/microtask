@@ -35,6 +35,7 @@ export {
   taskPath,
 } from './paths.js'
 export type {
+  BoundProject,
   BoundTasks,
   EpicChange,
   EpicPlacement,

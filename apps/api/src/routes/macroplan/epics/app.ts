@@ -2,9 +2,18 @@ import { OpenAPIHono } from '@hono/zod-openapi'
 import type { EpicService } from '@repo/macroplan-domain'
 import type { ApiEnv } from '../../../auth/env.js'
 import type { Bindings } from '../../../bridge/bindings.js'
-import { bindEpic, createEpic, deleteEpic, placeEpic, unbindEpic, updateEpic } from './handlers.js'
+import {
+  bindEpic,
+  bindEpicProject,
+  createEpic,
+  deleteEpic,
+  placeEpic,
+  unbindEpic,
+  updateEpic,
+} from './handlers.js'
 import {
   bindEpicRoute,
+  bindProjectRoute,
   createEpicRoute,
   deleteEpicRoute,
   placeEpicRoute,
@@ -32,6 +41,7 @@ export function createEpics(epics: EpicService, bindings: Bindings): OpenAPIHono
   app.openapi(placeEpicRoute, placeEpic(epics))
   app.openapi(updateEpicRoute, updateEpic(epics))
   app.openapi(deleteEpicRoute, deleteEpic(epics))
+  app.openapi(bindProjectRoute, bindEpicProject(epics, bindings))
   app.openapi(bindEpicRoute, bindEpic(epics, bindings))
   app.openapi(unbindEpicRoute, unbindEpic(epics))
   return app

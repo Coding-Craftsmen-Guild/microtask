@@ -1,6 +1,6 @@
 'use server'
 
-import type { NewBinding, Plan } from '@repo/api-client'
+import type { BoundProject, NewBinding, Plan } from '@repo/api-client'
 import { adminWrite } from './plan-write'
 import type { ActionResult } from './result'
 
@@ -23,6 +23,35 @@ export async function bindEpic(
   binding: NewBinding,
 ): Promise<ActionResult<Plan>> {
   return adminWrite(planId, (api) => api.epics.bind(planId, epicId, binding))
+}
+
+/**
+ * Binds one rail to a named Microtask project, the API minting and sealing the seat itself.
+ *
+ * ### The action with no credential in it
+ *
+ * {@link bindEpic} beside this one carries a token in plaintext across the boundary, which is unavoidable
+ * there — it is what the admin typed, and only the API can seal it. This one carries a **project id**, which
+ * is not a secret: it is in the URL of every page of that project in Microtask. So the clear-text window that
+ * action documents does not exist on this path at all; the credential is created inside the API and never
+ * leaves it.
+ *
+ * That is what makes this the one to offer first. `bindEpic` stays for the case this cannot serve — binding a
+ * project in a Microtask the admin holds no session for — which is why neither replaces the other.
+ *
+ * ### It needs two authorities and asks the API for both
+ *
+ * `epic:bind` on the plan and `share:create` on the project. The second is the one worth naming here: this
+ * action can only bind a project the caller could already have shared by hand, so it is a shortcut and not a
+ * permission. A caller who could not mint there is refused, with the API answering rather than this file
+ * deciding.
+ */
+export async function bindEpicProject(
+  planId: string,
+  epicId: string,
+  binding: BoundProject,
+): Promise<ActionResult<Plan>> {
+  return adminWrite(planId, (api) => api.epics.bindProject(planId, epicId, binding))
 }
 
 /**

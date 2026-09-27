@@ -81,6 +81,8 @@ in the working tree.
 | [0063](0063-the-bounded-write-cannot-roll-back.md) | The bounded write cannot roll back, so it may leak a task and never delete one | Accepted |
 | [0064](0064-a-group-is-a-plan-level-label-a-feature-points-at.md) | A group is a plan-level label a feature points at, and selecting one is CSS | Accepted |
 | [0065](0065-a-plan-is-usable-end-to-end-on-both-surfaces.md) | A plan is usable end to end, on both surfaces — and what six closed gaps were each defended by | Accepted |
+| [0066](0066-a-rail-binds-by-naming-its-project-the-api-minting-the-seat.md) | A rail binds by naming its project, the API minting the seat — correcting a premise in 0052 | Accepted |
+| [0067](0067-the-plan-page-is-a-sidebar-a-graph-and-a-docked-drawer.md) | The plan page is a sidebar, a graph and a docked drawer, and the canvas draws all three rungs | Accepted |
 
 **0052 was reserved for three phases and is now written.** It belongs to the bridge — an epic binding
 to a Microtask project by a sealed share token — and phase 1 reserved the fields for it while deciding

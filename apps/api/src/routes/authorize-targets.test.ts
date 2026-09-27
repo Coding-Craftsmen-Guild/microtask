@@ -89,9 +89,10 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
     expect(ACTION_DECISIONS['project:read'].alsoGatedOn).toEqual(['folder'])
   })
 
-  it('names the three gates whose target is a variable, which are the special cases', () => {
+  it('names the four gates whose target is a variable, which are the special cases', () => {
     const computed = gates().filter((gate) => gate.target.startsWith('<'))
     expect(computed).toEqual([
+      { action: 'share:create', target: '<scope>' },
       { action: 'share:create', target: '<scope>' },
       { action: '<action>', target: '<target>' },
       { action: 'share:create', target: '<scope>' },
@@ -102,9 +103,12 @@ describe('the target column of ACTION_DECISIONS is the target the API actually g
     expect(ACTION_DECISIONS['share:create'].target).toBe('own-scope')
   })
 
-  it('finds one minting gate per product, both passing the scope being minted rather than a kind', () => {
+  // Three now, not two: the third is the rail-binding route, which mints a Microtask seat on the admin’s own
+  // authority so that no token ever reaches a browser. It passes a scope like the other two, and for the same
+  // reason — the value the policy is asked about is the value that gets minted, never a second derivation.
+  it('finds every minting gate passing the scope being minted rather than a kind', () => {
     const minting = gates().filter((gate) => gate.action === 'share:create')
-    expect(minting.map((gate) => gate.target)).toEqual(['<scope>', '<scope>'])
+    expect(minting.map((gate) => gate.target)).toEqual(['<scope>', '<scope>', '<scope>'])
   })
 
   it('finds the two seat actions gated on a plan, which is the target their rows also record', () => {

@@ -205,6 +205,18 @@ describe('the rail drawer, which is where a binding lives now', () => {
     expect(handed.functions).toContain('unbindEpic')
   })
 
+  // Two ways in, and the order is the recommendation: naming a project needs no credential in a browser at
+  // all, and pasting a token stays below it for a Microtask this admin has no session for.
+  it('offers naming the project first, which is the path on which no token is ever typed', async () => {
+    render(await RailDrawerPage(railParams(EPIC_1)))
+    const labels = [...document.querySelectorAll('p')].map((one) => one.textContent ?? '')
+    expect(labels.findIndex((one) => one.startsWith('Bind to a project'))).toBeGreaterThan(-1)
+    expect(labels.findIndex((one) => one.startsWith('Bind to a project'))).toBeLessThan(
+      labels.findIndex((one) => one.startsWith('Or paste a token')),
+    )
+    expect(handedBy(await RailDrawerPage(railParams(EPIC_1))).functions).toContain('bindEpicProject')
+  })
+
   it('hands no token down, the sealed binding never leaving the server', async () => {
     const tokens = atlasPlan().shareLinks.map((seat) => seat.token)
     expect(tokensHandedBy(await RailDrawerPage(railParams(EPIC_1)), tokens)).toEqual([])

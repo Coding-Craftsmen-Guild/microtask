@@ -4,10 +4,12 @@ import type { EpicService } from '@repo/macroplan-domain'
 import { planView } from '@repo/macroplan-domain'
 import { authorize } from '../../../auth/authorize.js'
 import type { ApiEnv } from '../../../auth/env.js'
-import type { Bindings, BindingRefusal } from '../../../bridge/bindings.js'
+import type { Bindings, BindingRefusal, SeatScope } from '../../../bridge/bindings.js'
+import { PRODUCT as MICROTASK } from '../../microtask/product.js'
 import { PRODUCT } from '../product.js'
 import type {
   bindEpicRoute,
+  bindProjectRoute,
   createEpicRoute,
   deleteEpicRoute,
   placeEpicRoute,
@@ -24,6 +26,20 @@ import type {
 export const BIND_REFUSALS: Readonly<Record<BindingRefusal, string>> = {
   unknown: 'That token names no Microtask project. Paste the token of a project share link.',
   weaker: 'That token holds less in Microtask than the role asked for here.',
+}
+
+/**
+ * The sentence each refusal is reported with when the API minted the seat itself.
+ *
+ * Different words from {@link BIND_REFUSALS} for the same two cases, because the fix is different: nobody
+ * pasted anything here, so "paste the token of a project share link" would be advice about a field that is
+ * not on screen. Both are close to unreachable on this path — a project that does not exist answers 404 from
+ * the store before a seat is minted, and a seat minted at a role cannot hold less than that role — and they
+ * are worded rather than collapsed into one because a reader meeting either needs to know which happened.
+ */
+export const MINT_REFUSALS: Readonly<Record<BindingRefusal, string>> = {
+  unknown: 'That project could not be reached after its seat was minted. Try binding it again.',
+  weaker: 'The seat minted for that project holds less than the role asked for.',
 }
 
 /**
@@ -107,6 +123,53 @@ export const bindEpic =
     const principal = authorize(c, 'epic:bind', { kind: 'epic', planId })
     const prepared = await bindings.prepare(token, role)
     if (!prepared.ok) throw new Invalid(BIND_REFUSALS[prepared.reason])
+    const updated = await epics.bind({ product: PRODUCT, planId }, epicId, prepared.binding)
+    return c.json(planView(updated, principal), 200)
+  }
+
+
+/**
+ * Binds one rail to a named Microtask project, minting and sealing its seat in this one request.
+ *
+ * ### Two gates, in this order, and both are load-bearing
+ *
+ * `epic:bind` on the plan first, because a caller with no authority over this plan must not be able to make
+ * the API go and **write** to the other product on the strength of a string it supplied — the same reason
+ * {@link bindEpic} gates before resolving a pasted token, one step stronger because this one creates rather
+ * than reads.
+ *
+ * `share:create` on the scope second, and it is the **same value** that is then minted rather than a second
+ * derivation of it — the property `createShareLink` states for itself one product over: "the question the
+ * policy answered and the scope that gets stored are the same value". A gate built from one expression and a
+ * mint built from another could drift, and the drift would be a seat minted over something the policy was
+ * never asked about.
+ *
+ * It is second rather than first because `epic:bind` is in `ADMIN_ONLY_ACTIONS`, so in practice only
+ * admins reach the second line and they always clear it — which is exactly why it is written. It is the check
+ * that refuses the day `epic:bind` stops being admin-only, and ADR 0052 leaves an epic-scoped seat open as an
+ * additive change. A route that relied on the first gate implying the second would grant minting to whoever
+ * that change admitted, silently.
+ *
+ * ### The seat is minted in Microtask and the plan is written in Macroplan
+ *
+ * Two product tags in one handler, which is why both are imported under names that cannot be confused:
+ * `MICROTASK` is where the credential is created and `PRODUCT` is where the binding is stored. A single
+ * `PRODUCT` here would mint against a Macroplan project that does not exist.
+ *
+ * The response is `planView(updated, principal)`, exactly as the pasted path answers, so nothing about this
+ * route is visible to a client beyond the rail now reading as bound: no body here carries the token, and
+ * `EpicBindingView` has no field for one to go in.
+ */
+export const bindEpicProject =
+  (epics: EpicService, bindings: Bindings): RouteHandler<typeof bindProjectRoute, ApiEnv> =>
+  async (c) => {
+    const { planId, epicId } = c.req.valid('param')
+    const { projectId, role } = c.req.valid('json')
+    const principal = authorize(c, 'epic:bind', { kind: 'epic', planId })
+    const scope: SeatScope = { kind: 'project', projectId }
+    authorize(c, 'share:create', scope)
+    const prepared = await bindings.mint(scope, role, MICROTASK)
+    if (!prepared.ok) throw new Invalid(MINT_REFUSALS[prepared.reason])
     const updated = await epics.bind({ product: PRODUCT, planId }, epicId, prepared.binding)
     return c.json(planView(updated, principal), 200)
   }

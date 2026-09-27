@@ -1,6 +1,15 @@
 # ADR 0052 — An epic binds to a Microtask project by a sealed share token, pasted by hand
 
-**Status:** Accepted · 2026-09-25
+**Status:** Accepted · 2026-09-25 · **one premise corrected by [ADR 0066](0066-a-rail-binds-by-naming-its-project-the-api-minting-the-seat.md)**
+
+> **Read the Consequences section below with ADR 0066 beside it.** Everything here about sealing, about
+> deriving the project from the token, about checking the token's live role at bind time and about
+> `BRIDGE_SECRET` stands unchanged. What does not is the clause under "Minting from Macroplan is refused
+> because of what it would need" that reads *"since a Macroplan admin holds no Microtask seat"*. They need
+> no seat: there is **one admin across both products** (ADR 0014), which is the very reason this ADR could
+> tell that admin to go and mint the seat by hand. ADR 0066 adds a route that spends the caller's own
+> authority to mint server-side, so no credential reaches a browser; the pasted flow decided here remains,
+> for binding a project in a Microtask the caller holds no session for.
 
 ## Context
 

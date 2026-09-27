@@ -122,3 +122,36 @@ export const PlanBridgeView = z
 export const BoundTaskList = z
   .object({ tasks: z.array(z.object({ id: EntityId, name: EntityName })).readonly() })
   .meta({ id: 'BoundTaskList', description: 'The tasks of a bound project, id and name only' })
+
+/**
+ * The body of the route that binds a rail by **naming the project**, the API minting the seat itself.
+ *
+ * ### Exactly one of a project and a token, never both
+ *
+ * {@link BindEpicPayload} above names a token and derives the project from it; this names a project and
+ * derives the token by minting one. The rule both obey is the same, and it is that schema's own: a payload
+ * carrying both would let the two disagree and force the route to pick a side — trusting the caller lets a
+ * rail claim a project whose token it does not hold, and trusting the token makes the supplied field
+ * decoration. Each of these payloads names one thing, so neither can disagree with itself.
+ *
+ * ### Why a route may mint at all, when ADR 0052 said it may not
+ *
+ * ADR 0052 refused minting from Macroplan, and its consequence section rests on one premise: that a call
+ * creating a share link needs "an admin credential, **since a Macroplan admin holds no Microtask seat**".
+ * True of seats, and beside the point — there is **one admin across both products**, signing in through the
+ * product-agnostic `/v1/auth/login` (ADR 0014), which is the very reason 0052 could tell that admin to go
+ * and mint the seat by hand in Microtask's own share manager. An admin who could not mint there could not
+ * have followed 0052's flow.
+ *
+ * So the route that takes this adds **no authority**. It asks `epic:bind` on the plan and `share:create` on
+ * the named project — the two gates `bindEpic` and `createShareLink` already ask, unchanged and in that
+ * order — and what it removes is the clipboard, not a check. The minted token is sealed and stored inside
+ * that one request and reaches no response, exactly as a pasted one does.
+ *
+ * `role` admits `'view'` and `'manage'` for {@link BindEpicPayload}'s reason: they are the two a bridge
+ * means anything at, and the seat is minted at the role asked for and then attenuated on every read like
+ * any other (ADR 0062).
+ */
+export const BindProjectPayload = z
+  .object({ projectId: EntityId, role: bridgeRole })
+  .meta({ id: 'BindProjectPayload', description: 'A Microtask project and the bridge role to bind it at' })

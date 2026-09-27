@@ -219,9 +219,14 @@ describe('every macroplan handler is gated, because authorize throws rather than
   // is a `write` action, so a create naming a sprint asks both — the gap that let a `write` seat mint a
   // feature already pinned (ADR 0057, spec §7.1). The other three choose between actions the same body
   // could carry; this one adds a second gate to a body that was only ever asked one question.
+  // `bindEpicProject` is the fifth and the only one that is not about a body's shape at all. It asks
+  // `epic:bind` on the plan and then `share:create` on the Microtask project it is about to mint a seat over,
+  // which are two questions about two different subjects in two different products — so a second gate here is
+  // the whole point of the route rather than a consequence of what the body happens to carry.
   it('names the handlers that gate more than once, which are the ones choosing on the body', () => {
     const branching = handlers().filter((one) => gatesIn(one) > 1).map((one) => one.name)
     expect([...branching].sort()).toEqual([
+      'bindEpicProject',
       'createFeature',
       'updateFeature',
       'updateItem',

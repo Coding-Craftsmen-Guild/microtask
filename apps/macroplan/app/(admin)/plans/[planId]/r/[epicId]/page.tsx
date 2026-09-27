@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { bindEpic, unbindEpic } from '../../../../../../actions/bridge'
+import { bindEpic, bindEpicProject, unbindEpic } from '../../../../../../actions/bridge'
 import { recolourEpic, removeEpic, renameEpic, reorderEpic } from '../../../../../../actions/epics'
 import { createFeature } from '../../../../../../actions/features'
 import { bindingRows } from '../../../../../../components/plan/bridge/binding-rows'
@@ -88,6 +88,7 @@ export default async function RailDrawerPage({ params }: RailDrawerPageProps) {
       {content.bindEpic && binding !== undefined ? (
         <RailBinding
           bind={bindEpic}
+          bindProject={bindEpicProject}
           mayUnbind={content.unbindEpic}
           planId={planId}
           row={binding}

@@ -1,6 +1,7 @@
 import { createRoute } from '@hono/zod-openapi'
 import {
   BindEpicPayload,
+  BindProjectPayload,
   CreateEpicPayload,
   EpicPlacementPayload,
   UpdateEpicPayload,
@@ -136,5 +137,45 @@ export const unbindEpicRoute = createRoute({
   summary: 'Unbind one rail, leaving its items’ links in place',
   security: GUARDED_SECURITY,
   request: { params: epicParams },
+  responses: { 200: PLAN_RESPONSE, ...problemResponses() },
+})
+
+/**
+ * Bind one rail by **naming the project**, the API minting the seat itself. Answers the plan.
+ *
+ * ### Why this exists beside the route above it
+ *
+ * That one asks an admin to go to Microtask, mint a share link, copy its token, come back and paste it.
+ * This one asks for the project and does the middle three steps on the server, so the credential is created,
+ * sealed and stored inside one request and never enters a browser or a paste buffer.
+ *
+ * ### It adds no authority, and the two gates are why
+ *
+ * The handler asks `epic:bind` on the plan and then `share:create` on the named project — the same two calls
+ * `bindEpic` and `createShareLink` already make, unchanged and in that order. ADR 0052 refused minting from
+ * Macroplan on the premise that a Macroplan admin holds no Microtask seat; that is true of *seats* and beside
+ * the point, because there is one admin across both products (ADR 0014) and that is exactly why 0052 could
+ * tell the admin to mint the seat by hand. An admin who cannot mint there is refused here by the second gate.
+ *
+ * ### `POST`, where binding by token is `PUT`
+ *
+ * The difference is honest rather than stylistic: that route replaces a binding with the one the body
+ * describes and is idempotent, where this one **creates a credential** in the other product on every call.
+ * Two calls leave two seats over that project, of which the rail holds the later. That is a real consequence
+ * and the method is what says so.
+ *
+ * **422** carries the same two refusals the pasted path answers, from the same comparison: the minted token is
+ * resolved and role-checked like any other, so the stored project is derived rather than echoed back.
+ */
+export const bindProjectRoute = createRoute({
+  method: 'post',
+  path: '/{epicId}/binding/project',
+  tags: ['epics'],
+  summary: 'Bind one rail to a Microtask project, minting its seat server-side',
+  security: GUARDED_SECURITY,
+  request: {
+    params: epicParams,
+    body: { required: true, content: { 'application/json': { schema: BindProjectPayload } } },
+  },
   responses: { 200: PLAN_RESPONSE, ...problemResponses() },
 })

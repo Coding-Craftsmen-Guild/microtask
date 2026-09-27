@@ -194,7 +194,7 @@ const handlerCount = async (): Promise<number> =>
 /**
  * Gates beyond one per guarded operation, counted rather than allowed for.
  *
- * **Four** routes carry more than one authority in one body. Two of them carry two and cost **two**
+ * **Five** routes ask more than one question, and four of them ask it of one body. Two of them carry two and cost **two**
  * extra textual `authorize(` calls each: the branch that asks a single action, and the second
  * gate a body doing both runs into. `PATCH /v1/macroplan/plans/{planId}` is one — a `name` needs
  * `plan:rename` and a calendar field needs `plan:retime` — and `PATCH .../items/{itemId}` the
@@ -212,14 +212,21 @@ const handlerCount = async (): Promise<number> =>
  * stops a `write` seat minting a feature already pinned to a sprint (ADR 0057, spec §7.1). It was one
  * gate until phase 3, and this number going from eight to nine is the arithmetic of that fix.
  *
+ * The fifth is **`POST .../epics/{epicId}/binding/project`**, and it costs **one**. It is the only one of the
+ * five whose second question is not about its body's shape: it asks `epic:bind` on the plan and then
+ * `share:create` on the Microtask project it is about to mint a seat over, which are two subjects in two
+ * products. `epic:bind` is admin-only, so in practice the second gate always clears — and it is written because
+ * it is the check that refuses the day that stops being true (ADR 0052 leaves an epic-scoped seat open as an
+ * additive change).
+ *
  * Counted here rather than turned into a `>=`, because the equality is the whole guard: a handler
  * that forgot its gate makes the total fall **short** of this sum, and a `>=` would let one
  * handler's second gate pay for another handler's missing first.
  */
-const EXTRA_GATES = 9
+const EXTRA_GATES = 10
 
 describe('guard (3): one authorize( per handler, and one can() in the app', () => {
-  it('counts one authorize( per guarded operation, plus the nine the branching bodies add', async () => {
+  it('counts one authorize( per guarded operation, plus the ten the branching handlers add', async () => {
     expect(await matchesIn(await under('./routes/'), GATE())).toBe(
       (await handlerCount()) + EXTRA_GATES,
     )

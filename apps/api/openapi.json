@@ -2169,6 +2169,26 @@
         },
         "description": "A new name, a new colour, or both"
       },
+      "BindProjectPayload": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "$ref": "#/components/schemas/EntityId"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "view",
+              "manage"
+            ]
+          }
+        },
+        "required": [
+          "projectId",
+          "role"
+        ],
+        "description": "A Microtask project and the bridge role to bind it at"
+      },
       "BindEpicPayload": {
         "type": "object",
         "properties": {
@@ -6842,6 +6862,112 @@
             "in": "path"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "The plan as it now stands, with the schedule derived from it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/macroplan/plans/{planId}/epics/{epicId}/binding/project": {
+      "post": {
+        "tags": [
+          "epics"
+        ],
+        "summary": "Bind one rail to a Microtask project, minting its seat server-side",
+        "security": [
+          {
+            "serviceKey": [],
+            "principalToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "planId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "$ref": "#/components/schemas/EntityId"
+            },
+            "required": true,
+            "description": "A ULID-shaped identifier",
+            "name": "epicId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindProjectPayload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "The plan as it now stands, with the schedule derived from it",

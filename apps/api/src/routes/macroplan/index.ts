@@ -8,7 +8,7 @@ import {
   PlanShareLinkService,
   type PlanContext,
 } from '@repo/macroplan-domain'
-import { TaskService } from '@repo/microtask-domain'
+import { ShareLinkService, TaskService } from '@repo/microtask-domain'
 import { AdminVerifier } from '../../auth/admin-verifier.js'
 import type { ApiEnv } from '../../auth/env.js'
 import { linkDirectories } from '../../auth/link-directory.js'
@@ -56,7 +56,11 @@ export const bridgeFor = (deps: ApiDeps, resolver: PrincipalResolver): Pick<Plan
     store: deps.store,
     tasks: new TaskService(deps),
   }),
-  bindings: new Bindings({ secret: deps.config.bridgeSecret, bearers: resolver }),
+  bindings: new Bindings({
+    secret: deps.config.bridgeSecret,
+    bearers: resolver,
+    seats: new ShareLinkService(deps),
+  }),
 })
 
 const servicesFor = (ctx: PlanContext, bridge: Pick<PlanServices, 'bridge' | 'bindings'>): PlanServices => ({

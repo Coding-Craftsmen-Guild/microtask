@@ -235,6 +235,12 @@ const SAMPLES: Readonly<Record<string, Sample>> = {
   },
   [`GET ${PLANS}`]: { path: PLANS, headers: admin() },
   [`POST ${PLANS}`]: { path: PLANS, headers: adminJson(), body: DRAFT_PLAN },
+  [`POST ${PLAN}/epics/{epicId}/binding/project`]: {
+    path: `${EPIC_PATH}/binding/project`,
+    headers: adminJson(),
+    body: JSON.stringify({ projectId: IDS.p1, role: 'manage' }),
+    setup: ON_A_RAIL,
+  },
   [`PUT ${PLAN}/epics/{epicId}/binding`]: {
     path: `${EPIC_PATH}/binding`,
     headers: adminJson(),
