@@ -16,10 +16,11 @@ describe('@repo/canvas entry points', () => {
     expect(exports['.']).toEqual({ types: './dist/index.d.ts', default: './dist/index.js' })
   })
 
-  it('ships the scale, the rails, the marks, the chrome, the rungs, the treatments, the drop and one bridge threshold, and nothing else', () => {
+  it('ships the scale, the rails, the marks, the chrome, the rungs, the treatments, the drop and two bridge thresholds, and nothing else', () => {
     expect(Object.keys(main).sort()).toEqual([
       'SPRINTS_PER_QUARTER',
       'countsAsDone',
+      'countsAsStarted',
       'dayToX',
       'dropTargetFor',
       'itemsToMarks',

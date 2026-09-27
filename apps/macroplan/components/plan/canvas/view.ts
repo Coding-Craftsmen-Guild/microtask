@@ -5,6 +5,7 @@ import {
   rungFor,
   scaleFor,
   countsAsDone,
+  countsAsStarted,
   treatmentsOf,
   widthOfDays,
 } from '@repo/canvas'
@@ -333,25 +334,48 @@ export const marksByFeature = (
 export type Counted = readonly { readonly itemId: string; readonly progress: { readonly done: number; readonly total: number } }[]
 
 /**
- * The schedule's treatments with `'done'` overlaid for every item a linked task reports finished.
+ * Which of the two counted treatments one pair earns, or `null` for a pair that earns neither.
  *
- * An overlay rather than a fourth case inside `treatmentsOf`, because the two answers come from
- * different places: the first three are facts about the forward pass, and this one is a fact about
- * another product (design §7.2). `@repo/canvas` cannot produce it — nothing in a schedule knows what a
- * Microtask task counts — so the map is widened here, where both halves are in hand.
- *
- * **A mark the schedule already has an opinion about keeps it.** An item that is hollow was never sized
- * and an item that is contradicted sits in a cycle; either is a more urgent sentence than "its task is
- * finished", and a plan that contradicts itself must not be able to hide that behind a tick. Only a mark
- * the schedule placed — absent from the map, so read as `'solid'` — can become `'done'`.
+ * Exported because it is the threshold pair written once: {@link withProgress} spends it, and a caller
+ * asking about a single item — a drawer, a row — asks the same question here rather than restating either
+ * comparison. `null` covers both "nothing counted" and "counted nothing yet".
  */
-export function withDone(
+export const countedTreatment = (counted: {
+  readonly done: number
+  readonly total: number
+}): Treatment | null => (countsAsDone(counted) ? 'done' : countsAsStarted(counted) ? 'started' : null)
+/**
+ * The schedule's treatments with what a linked task counts overlaid: `'done'` finished, `'started'` begun.
+ *
+ * An overlay rather than two more cases inside `treatmentsOf`, because the answers come from different
+ * places: the schedule treatments are facts about the forward pass, and these two are facts about another
+ * product (design §7.2). `@repo/canvas` cannot produce either — nothing in a schedule knows what a Microtask
+ * task counts — so the map is widened here, where both halves are in hand.
+ *
+ * **A mark the schedule already has an opinion about keeps it.** An item that is hollow was never sized and
+ * an item that is contradicted sits in a cycle; either is a more urgent sentence than anything about how far
+ * along its task is, and a plan that contradicts itself must not be able to hide that behind a tick. Only a
+ * mark the schedule placed — absent from the map, so read as `'solid'` — can take either of these.
+ *
+ * The two thresholds are **mutually exclusive by construction**, not by the order they are asked in:
+ * `countsAsStarted` requires `done` below `total` where `countsAsDone` requires it at or above, so no count
+ * satisfies both and neither branch can shadow the other. That is why this reads as one `??` chain rather
+ * than as a sequence of `if`s whose order would be load-bearing — and it is what stops a later edit from
+ * drawing a finished task as merely begun.
+ *
+ * A count of `{ done: 0, total: 0 }` — a linked task with no checklist in it — satisfies neither, so the mark
+ * stays `'solid'`: design §7.2's "a number on screen is always a counted number" applies to the canvas too,
+ * and an empty task has counted nothing.
+ */
+export function withProgress(
   treatments: ReadonlyMap<string, Treatment>,
   progress: Counted,
 ): ReadonlyMap<string, Treatment> {
   const widened = new Map(treatments)
   for (const row of progress) {
-    if (!widened.has(row.itemId) && countsAsDone(row.progress)) widened.set(row.itemId, 'done')
+    if (widened.has(row.itemId)) continue
+    const counted = countedTreatment(row.progress)
+    if (counted !== null) widened.set(row.itemId, counted)
   }
   return widened
 }
@@ -407,7 +431,7 @@ export function canvasLayout(
   progress: Counted = [],
 ): CanvasLayout {
   const rails = railLayout(plan, plan.schedule, scale)
-  const treatments = withDone(treatmentsOf(plan.schedule), progress)
+  const treatments = withProgress(treatmentsOf(plan.schedule), progress)
   return {
     rails,
     height: canvasHeight(rails.length),

@@ -20,10 +20,23 @@ import type { CanvasSchedule } from './plan.js'
  * every reading of the first three is still true. Re-pointing `'solid'` at *done* would have turned
  * every placed bar in the product into a claim that work had finished.
  *
- * `'done'` is the only one of the four that is **not** a fact about the schedule: the other three come
- * out of `unscheduled`, and this one comes from a linked Microtask task's own count (design §7.2). So it
- * is not produced by {@link treatmentsOf} and cannot be — nothing in a schedule knows it — and a
- * renderer overlays it onto that map from the bridge's answer. {@link countsAsDone} is the threshold.
+ * `'started'` is the fifth, and it is what lets the canvas draw a **degree** of progress rather than only
+ * finished-or-not. That was a recorded gap for a real reason: `item-mark.tsx` holds the canvas to exactly
+ * one element per item so a plan at the 2 000-item cap stays 2 000 nodes, and a partial fill wants either a
+ * second element per item or a gradient definition per (hue, fraction) pair — forty rails by ten buckets is
+ * four hundred definitions, which is worse than the thing it replaces. A third *discrete* state costs
+ * neither: it is one more key in the two records `treatments.ts` already keys by this union.
+ *
+ * So the canvas answers **not started, in progress, finished** and no more precisely than that. The number
+ * itself stays in the table, which is the rendering a reader can actually read, and design §7.2 is what
+ * makes three levels honest: "a number on screen is always a counted number", and each of the three is a
+ * statement the count supports without interpolation.
+ *
+ * Two of the five are now **not** facts about the schedule: `'done'` and `'started'` come from a linked
+ * Microtask task's own count (design §7.2). So neither is produced by {@link treatmentsOf} and neither can
+ * be — nothing in a schedule knows either — and a renderer overlays them onto that map from the bridge’s
+ * answer. {@link countsAsDone} and {@link countsAsStarted} are the two thresholds, and they are written so
+ * that no count satisfies both.
  *
  * **Carry-over is still not here, and that is deliberate rather than pending.** It needs a
  * schedule-versus-today reading as well as progress — a feature still open past the sprint it was
@@ -39,7 +52,7 @@ import type { CanvasSchedule } from './plan.js'
  * dashed would show the wrong sentence — it was placed, and what is wrong with it is a dependency,
  * not its dates. It belongs to the conflict list, which is phase 3's.
  */
-export type Treatment = 'solid' | 'hollow' | 'contradicted' | 'done'
+export type Treatment = 'solid' | 'hollow' | 'contradicted' | 'done' | 'started'
 
 /**
  * Whether a counted task says this mark's work is finished.
@@ -54,6 +67,22 @@ export type Treatment = 'solid' | 'hollow' | 'contradicted' | 'done'
  */
 export const countsAsDone = (counted: { readonly done: number; readonly total: number }): boolean =>
   counted.total > 0 && counted.done >= counted.total
+
+/**
+ * Whether a counted task says this mark's work has begun and is not finished.
+ *
+ * The fifth member’s question, and it is deliberately **exclusive of {@link countsAsDone}**: `done` must be
+ * above zero *and* below `total`, so no count satisfies both and the overlay order cannot decide which of
+ * the two a mark gets. A renderer that had to know which to ask first would be one refactor away from
+ * drawing a finished task as merely started.
+ *
+ * `total` must be above zero for the reason {@link countsAsDone} records: a linked task with no checklist
+ * counts `{ done: 0, total: 0 }`, and a threshold that read `done < total` alone would call that started.
+ */
+export const countsAsStarted = (counted: {
+  readonly done: number
+  readonly total: number
+}): boolean => counted.total > 0 && counted.done > 0 && counted.done < counted.total
 
 /**
  * The schedule widened with the one collection a treatment is read from.

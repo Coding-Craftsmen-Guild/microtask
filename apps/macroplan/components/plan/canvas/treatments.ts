@@ -4,6 +4,20 @@ import type { CSSProperties } from 'react'
 const CONTRADICTED_FILL_OPACITY = 0.15
 
 /**
+ * How much of the hue a mark whose work has begun is filled with.
+ *
+ * Between the faint wash a contradicted mark gets and the full fill of an untouched one, which is the
+ * ordering that makes the three progress levels readable at a glance: lighter means less of the hue, and
+ * `'started'` is the only one of the three that is partly filled. It is a **fixed** fraction and not the
+ * task's own percentage — the note on {@link TREATMENT_CLASS} records why a continuous fill is unavailable
+ * at one element per item.
+ *
+ * Exported because it is documented: `local/tsdoc-comments-only` admits TSDoc on an exported declaration
+ * only, and `treatments.test.ts` reads it rather than repeating the number.
+ */
+export const STARTED_FILL_OPACITY = 0.45
+
+/**
  * How each of the three schedule states is drawn, as whole literal class strings.
  *
  * Spec §5: "**Epic owns hue. Status owns treatment.** Both point 6 (per-epic colours) and point 10
@@ -21,14 +35,29 @@ const CONTRADICTED_FILL_OPACITY = 0.15
  * names no epic — `RailBox.colour` is `null` there, and there is no hue to carry — draws grey rather
  * than invisible.
  *
+ * ### The three progress levels, and what tells them apart
+ *
+ * `solid`, `started` and `done` are what the canvas says about work: untouched, begun, finished. All three
+ * keep the epic's hue in the fill, so §5's "an item is always its epic's colour" holds throughout, and they
+ * are told apart by **how much** of that hue is filled and by what the outline is drawn in — which survives
+ * greyscale, the three differing in lightness as well as in outline.
+ *
+ * `started` is a partial fill at {@link STARTED_FILL_OPACITY} outlined in the hue itself; `done` is a full
+ * fill outlined in the **foreground** colour. That is what keeps the two distinct at a glance rather than
+ * only on inspection: a begun mark is quieter than its neighbours, and a finished one is the only mark on
+ * the canvas outlined in something that is not its own colour.
+ *
  * `done` is a solid bar with an outline in the foreground colour, which is the one drawing available
  * here that survives greyscale without taking a channel the split has already spent: the fill stays the
  * epic's hue, so §5's "an item is always its epic's colour" holds, and the outline is what says finished.
  * It is deliberately **not** a second element — no nested fill, no tick — because `item-mark.tsx` holds
  * the canvas to exactly one element per item so a plan at the 2,000-item cap stays 2,000 nodes, and a
- * partial fill for work half done would have doubled that for every linked item. The consequence,
- * recorded rather than hidden: this canvas distinguishes **finished** from unfinished and draws no
- * *degree* of progress. The number itself is in the table, which is the rendering a reader can read.
+ * partial fill tracking a task's own count wants either a second element per item or a gradient definition
+ * per hue-and-fraction pair — forty rails by ten buckets is four hundred definitions, worse than the thing
+ * it replaces. What that rules out is a **continuous** fill, and `started` is what it does not rule out: a
+ * third discrete level costs one more key in each of the two records here and no element at all. So the
+ * canvas answers untouched, begun, finished, and the **number** stays in the table, which is the rendering
+ * a reader can actually read.
  *
  * `contradicted` is §5's "dashed red outline", and its outline is **red rather than the epic's hue**
  * because that is the one case where the treatment owns the stroke: the plan contradicts itself, and
@@ -40,6 +69,7 @@ export const TREATMENT_CLASS: Readonly<Record<Treatment, string>> = {
   hollow: 'fill-none stroke-muted-foreground stroke-2',
   contradicted: 'fill-destructive/15 stroke-destructive stroke-2 [stroke-dasharray:5_3]',
   done: 'fill-muted-foreground stroke-foreground stroke-[1.5]',
+  started: 'fill-muted-foreground stroke-muted-foreground stroke-1',
 }
 
 const HUE_CHANNEL: Readonly<Record<Treatment, (colour: string) => CSSProperties>> = {
@@ -47,6 +77,7 @@ const HUE_CHANNEL: Readonly<Record<Treatment, (colour: string) => CSSProperties>
   hollow: (colour) => ({ stroke: colour }),
   contradicted: (colour) => ({ fill: colour, fillOpacity: CONTRADICTED_FILL_OPACITY }),
   done: (colour) => ({ fill: colour }),
+  started: (colour) => ({ fill: colour, fillOpacity: STARTED_FILL_OPACITY, stroke: colour }),
 }
 
 /**

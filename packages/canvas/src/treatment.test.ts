@@ -5,7 +5,7 @@ import type { CanvasPlan } from './plan.js'
 import { railLayout } from './rails.js'
 import { scaleFor } from './scale.js'
 import type { CanvasScheduleWithStatus, Treatment } from './treatment.js'
-import { treatmentOf, treatmentsOf } from './treatment.js'
+import { countsAsDone, countsAsStarted, treatmentOf, treatmentsOf } from './treatment.js'
 
 const E1 = 'epic-1'
 const E2 = 'epic-2'
@@ -187,5 +187,44 @@ describe('treatmentsOf builds the treatment lookup once per layout, as spansById
     const treatments = treatmentsOf(clean)
     expect(treatments.size).toBe(0)
     expect(WIRE.spans.map((span) => treatments.get(span.id) ?? 'solid')).not.toContain('hollow')
+  })
+})
+
+describe('countsAsStarted, the fifth treatment’s threshold', () => {
+  it('is true for work begun and not finished, which is the whole of what it claims', () => {
+    expect(countsAsStarted({ done: 1, total: 4 })).toBe(true)
+    expect(countsAsStarted({ done: 3, total: 4 })).toBe(true)
+  })
+
+  it('is false for nothing done, so an untouched task stays solid rather than looking begun', () => {
+    expect(countsAsStarted({ done: 0, total: 4 })).toBe(false)
+  })
+
+  // The empty-task trap `countsAsDone` records, from the other side: a linked task with no checklist counts
+  // `{ done: 0, total: 0 }`, and a threshold reading `done < total` alone would call that begun.
+  it('is false for a task that counts nothing at all', () => {
+    expect(countsAsStarted({ done: 0, total: 0 })).toBe(false)
+  })
+
+  it('is false once finished, and false past it, so it never overlaps countsAsDone', () => {
+    expect(countsAsStarted({ done: 4, total: 4 })).toBe(false)
+    expect(countsAsStarted({ done: 5, total: 4 })).toBe(false)
+  })
+
+  // The property a renderer depends on, asserted rather than assumed: the two thresholds are exclusive by
+  // construction, so the order they are asked in cannot decide which treatment a mark gets. Without this a
+  // later edit could reorder the two and draw a finished task as merely begun.
+  it('never agrees with countsAsDone, for any pair within this product’s own bounds', () => {
+    for (let total = 0; total <= 12; total += 1) {
+      for (let done = 0; done <= 12; done += 1) {
+        const pair = { done, total }
+        expect({ pair, both: countsAsDone(pair) && countsAsStarted(pair) }).toEqual({ pair, both: false })
+      }
+    }
+  })
+
+  it('is true for at least one pair in that sweep, so the sweep is not vacuous', () => {
+    expect(countsAsStarted({ done: 2, total: 5 })).toBe(true)
+    expect(countsAsDone({ done: 5, total: 5 })).toBe(true)
   })
 })
