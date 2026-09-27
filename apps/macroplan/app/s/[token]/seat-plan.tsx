@@ -4,6 +4,7 @@ import { PlanScreen } from '../../../components/plan/plan-screen'
 import { seatPlanActions } from '../../../components/plan/seat-actions'
 import { seatPlanOwnActions, seatSeatActions } from '../../../components/plan/seat-own-actions'
 import { SEAT_DRAWER_ROUTES } from '../../../lib/drawer-routes'
+import { DEFAULT_ZOOM } from '../../../components/plan/canvas/zoom-view'
 import { planCapabilities } from '../../../lib/plan-capabilities'
 import { seatSettingsSlot, seatShareSlot } from './seat-plan-slots'
 import { seatGroupsSlot, seatRailsSlot } from './seat-slots'
@@ -40,13 +41,28 @@ const refused = (detail: string): ReactNode => (
  * `new Date()`, which is what `PlanScreen.at` takes — and threaded down as the instant the today line
  * is drawn at, as the admin page does.
  *
- * ### Every slot is filled now but one, and that one is policy
+ * ### Every slot is filled, and the one that never could be is gone
  *
- * `bridge={null}` is the only `null` left, and it is `null` **for ever** rather than for want of work: no
- * seat of any role holds `epic:bind`, an epic’s binding being the ceiling on everything a seat reaches in
- * Microtask through the bridge (design §7.3), so there is nothing here for a seat to draw. That is worth
- * stating because the other four were each `null` for an unfinished reason and are not any more — whoever
- * fills the last one should find out it cannot be filled from here rather than discovering a 403.
+ * There was a `bridge={null}` here, and it was `null` **for ever** rather than for want of work: no seat of
+ * any role holds `epic:bind`, an epic's binding being the ceiling on everything a seat reaches in Microtask
+ * through the bridge (design §7.3). The slot itself has since gone from `PlanScreen` — a rail's binding is
+ * one rail's concern and belongs in that rail's drawer rather than in a plan-wide panel over forty of them
+ * (design §2) — so the question of what a seat would draw there no longer arises on either surface.
+ *
+ * ### The zoom is the default here, and a cookie is why
+ *
+ * `zoom={DEFAULT_ZOOM}` rather than `readZoom()`. The admin surface keeps the chosen rung in `mp_zoom` and
+ * reads it in its layout, and **this surface may not read a cookie at all**: `seat-plan.test.tsx` mocks
+ * `next/headers` to throw, and that is the assertion rather than a convenience — a `/s/*` page
+ * authenticates from its own URL, so a cookie read anywhere under it must fail the suite rather than pass
+ * quietly, which is what stops `mp_admin` on the same browser from lending a holder's page anything
+ * (ADR 0040). A zoom cookie is not a credential, but the guard is deliberately blanket so that nobody has
+ * to decide case by case which cookie is safe to read here.
+ *
+ * So a holder reads a plan at the quarter rung and cannot change it. That is a real gap and not a
+ * decision that it should not be possible: giving this surface a zoom needs a mechanism that reads no
+ * cookie, and the two that would work — a rung in the path above the drawer, or three pre-rendered
+ * canvases switched with CSS — are the same two the design weighs and defers in §6.3.
  *
  * `conflicts`, `drawer`, `settings` and `share` were all `null` and all for reasons that have since been
  * settled, which is worth recording because each looked like a tier and was not:
@@ -120,7 +136,6 @@ export async function seatPlanScreen(token: string, drawer: ReactNode) {
     <PlanScreen
       actions={writes}
       at={new Date()}
-      bridge={null}
       groups={seatGroupsSlot(plan.value, writes, controls)}
       rails={seatRailsSlot(plan.value, writes, controls)}
       conflicts={<ConflictList plan={plan.value} root={token} routes={SEAT_DRAWER_ROUTES} />}
@@ -130,6 +145,7 @@ export async function seatPlanScreen(token: string, drawer: ReactNode) {
       progress={bridge?.items ?? []}
       settings={seatSettingsSlot(plan.value, own, controls)}
       share={seatShareSlot(plan.value, seats, controls)}
+      zoom={DEFAULT_ZOOM}
     />
   )
 }

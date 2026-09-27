@@ -326,7 +326,6 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layoutâ€
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
-      'bridge',
       'conflicts',
       'controls',
       'drawer',
@@ -336,6 +335,7 @@ describe('the drawer is a slot beside the canvas, and the canvas is the layoutâ€
       'rails',
       'settings',
       'share',
+      'zoom',
     ])
     expect(handed['drawer']).toBe(DRAWER)
     expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)

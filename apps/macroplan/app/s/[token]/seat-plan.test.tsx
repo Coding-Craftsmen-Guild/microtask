@@ -532,7 +532,6 @@ describe('which controls the seat’s own role draws', () => {
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
-      'bridge',
       'conflicts',
       'controls',
       'drawer',
@@ -542,6 +541,7 @@ describe('which controls the seat’s own role draws', () => {
       'rails',
       'settings',
       'share',
+      'zoom',
     ])
     expect(handed['drawer']).toBeNull()
     // `conflicts` is an element now, not `null`: the list takes its surface's own drawer routes, so its links

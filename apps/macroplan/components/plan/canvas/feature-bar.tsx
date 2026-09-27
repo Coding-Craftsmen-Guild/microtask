@@ -1,4 +1,5 @@
 import type { FeatureBar, Treatment } from '@repo/canvas'
+import { diamondPoints, isMilestone } from '@repo/canvas'
 import { hueStyle, TREATMENT_CLASS } from './treatments'
 import { insideRail, LAYOUT } from './view'
 
@@ -30,17 +31,29 @@ export interface FeatureBarMarkProps {
 }
 
 /**
- * One feature as a bar: a single `<rect>`, at the x and width `railLayout` already computed.
+ * One feature as a bar — or, when it takes no time, as a milestone diamond.
  *
  * **No arithmetic on days happens here.** `bar.x` and `bar.width` came from `dayToX` and
  * `widthOfDays` in `@repo/canvas`, which is the whole reason that package exists and was tested
  * without a DOM; a width recomputed here as `endDay - startDay + 1` is the classic off-by-one, and
  * `endDay` is exclusive precisely so nobody has to remember not to add the one.
  *
- * A **zero-width** bar is a real bar and is drawn as one: `startDay === endDay` is a placed
- * milestone that takes no time, which is a different statement from a feature the pass could not
- * place — that one has no span, so `railLayout` omits it from `bars` altogether and the sentence it
- * needs is a `'hollow'` treatment rather than a rect of zero width.
+ * ### A milestone is a diamond, and which shape is drawn is not this file's decision
+ *
+ * `isMilestone` reads the **zero width the layout already computed**, so the question is answered where
+ * the answer exists and not from `estimateDays` — an effective estimate may have been derived from a
+ * feature's items rather than authored on it (ADR 0051), and a component testing the authored field
+ * would miss a feature whose children all came to zero and would need a plan in hand to do it.
+ *
+ * `startDay === endDay` is a placed milestone that takes no time, which is a different statement from a
+ * feature the pass could not place — that one has no span at all, so `railLayout` omits it from `bars`
+ * and the sentence it needs is `UnplacedFeatures`' stub rather than a mark of no size. Through phase 4
+ * a milestone drew as a `<rect>` of zero width, which is to say it drew as nothing; §5 asks for a
+ * diamond and `diamondPoints` is where its four corners are computed.
+ *
+ * It is centred on `bar.x` — the day itself — and vertically on the middle of the band a bar would have
+ * filled, which is exactly the y `arcLayout` sends an arc to. So an arc into a milestone lands on the
+ * diamond's point rather than near it, with neither file told about the other.
  *
  * **A bar names no date on hover, and that is a scope decision rather than an oversight.** §5 puts
  * the dates on the quarter bands' sprint ticks, which `SprintTickLayer` draws, and a bar would need
@@ -50,37 +63,51 @@ export interface FeatureBarMarkProps {
  * cheaper to say: a `<title>` per bar and per mark is one extra node per bar and per mark, which at
  * this product's 2 000-item cap is the doubling `ItemMarkShape` exists to refuse.
  *
- * **So hovering a placed bar reveals nothing, and no other layer covers for it.** The sprint's
- * hover target sits *behind* this rect, and an SVG tooltip resolves by walking the DOM ancestors of
- * the element the pointer hit rather than by paint order — a painted fill absorbs the pointer and
- * the rect beneath is never consulted. Measured in Chromium: the sprint sentence appears over a
- * `'hollow'` bar's interior, whose `fill-none` lets the pointer through, and not over a `'solid'`
- * one. Evening that out means moving the target above the rails, which phase 3 must not inherit —
- * it is the editing phase, and a transparent sheet over every bar would swallow the drag and the
- * click it adds. A bar's own hover is phase 3's work, with the layer order it revisits anyway.
- *
  * The hue is an inline `style` and the treatment is a class, and {@link TREATMENT_CLASS} is where that
  * split is argued: a `#rrggbb` from the API is one of an unbounded set and no Tailwind class can be
- * chosen by a runtime value, while a treatment is a closed three-case union whose every class is
+ * chosen by a runtime value, while a treatment is a closed five-case union whose every class is
  * written out as a literal the scanner can read.
  *
- * ### The two days are carried as attributes, and that is what a drop is resolved against
+ * ### The geometry is carried as data attributes, and that is what a drop is resolved against
  *
- * `data-start-day` and `data-end-day` are this bar's own `startDay` and `endDay`, written out beside
- * the geometry they were turned into. Nothing on this canvas reads them; `./selection.ts` does, and it
- * is what a drag needs: a client component may be handed primitives, an unbound function or `null` and
- * nothing else (`../module-boundaries.test.tsx`), so the layout cannot cross into a drag as a prop, and
- * the drag rebuilds the `RailBox[]` it hands `dropTargetFor` out of the markup the server drew. Those
- * two numbers are the only members of a `FeatureBar` the geometry does not leave in the SVG.
+ * `data-x`, `data-y`, `data-width`, `data-start-day` and `data-end-day` are written out beside the
+ * geometry they became. Nothing on this canvas reads them; `./selection.ts` does, and it is what a drag
+ * needs: a client component may be handed primitives, an unbound function or `null` and nothing else
+ * (`../module-boundaries.test.tsx`), so the layout cannot cross into a drag as a prop, and the drag
+ * rebuilds the `RailBox[]` it hands `dropTargetFor` out of the markup the server drew.
  *
- * They are **carried** rather than derived from `x` and `width` on the way back, which would be the
- * obvious saving. `xToDay` is the documented inverse of `dayToX` and would answer `startDay` exactly,
- * but a width has no exported inverse at all, so the app would be dividing by `pxPerDay` itself — the
- * one thing ADR 0055 puts in `@repo/canvas` rather than in a component. Two attributes on at most
- * `LIMITS.featuresPerPlan` rects is the cheaper half of that trade, and `item-mark.tsx`'s budget is
- * about **elements** rather than attributes, so nothing there is touched.
+ * The three px numbers are **duplicated** out of the presentation attributes deliberately, and that is
+ * what makes a milestone draggable: a `<polygon>` has no `x`, no `y` and no `width`, so a reader going
+ * to the presentation attributes would get `NaN` for every milestone on the canvas and silently place a
+ * drag at the gutter. Reading `data-` instead makes the drag independent of which shape was drawn,
+ * which is the property that matters — the reader must not have to know.
+ *
+ * They are carried rather than inverted on the way back for the same reason the two days are. `xToDay`
+ * is the documented inverse of `dayToX` and would answer `startDay` exactly, but a width has no
+ * exported inverse at all, so the app would be dividing by `pxPerDay` itself — the one thing ADR 0055
+ * puts in `@repo/canvas` rather than in a component.
  */
 export function FeatureBarMark({ bar, colour, treatment, top, labelId }: FeatureBarMarkProps) {
+  const y = insideRail(top, 'bar')
+  if (isMilestone(bar)) {
+    return (
+      <polygon
+        className={TREATMENT_CLASS[treatment]}
+        data-end-day={bar.endDay}
+        data-feature-id={bar.id}
+        data-label-id={labelId ?? undefined}
+        data-milestone="true"
+        data-slot="feature-bar"
+        data-start-day={bar.startDay}
+        data-treatment={treatment}
+        data-width={bar.width}
+        data-x={bar.x}
+        data-y={y}
+        points={diamondPoints(bar.x, y + LAYOUT.barHeight / 2)}
+        style={hueStyle(treatment, colour)}
+      />
+    )
+  }
   return (
     <rect
       className={TREATMENT_CLASS[treatment]}
@@ -90,12 +117,15 @@ export function FeatureBarMark({ bar, colour, treatment, top, labelId }: Feature
       data-slot="feature-bar"
       data-start-day={bar.startDay}
       data-treatment={treatment}
+      data-width={bar.width}
+      data-x={bar.x}
+      data-y={y}
       height={LAYOUT.barHeight}
       rx={BAR_RADIUS}
       style={hueStyle(treatment, colour)}
       width={bar.width}
       x={bar.x}
-      y={insideRail(top, 'bar')}
+      y={y}
     />
   )
 }

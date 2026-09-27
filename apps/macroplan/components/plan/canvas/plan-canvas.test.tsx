@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan, EPIC_1, FEATURE_1, FEATURE_2, ITEM_1, ITEM_2, ITEM_3 } from '../testing/plan-fixture'
 import { PlanCanvas } from './plan-canvas'
-import { CANVAS_RANGE, CANVAS_SCALE, DRAWS, insideRail, LAYOUT, stubX, type RailFrame } from './view'
+import { CANVAS_RANGE, CANVAS_SCALE, insideRail, LAYOUT, stubX, type RailFrame } from './view'
+import { DRAWS } from './rung-view'
 
 const ORANGE = '#ff8833'
 
@@ -119,7 +120,7 @@ describe('the range the admin canvas draws', () => {
   it('is one quarter, and is the feature rung — an epic-rung canvas draws no bars at all', () => {
     expect(CANVAS_RANGE.toDay - CANVAS_RANGE.fromDay).toBe(60)
     expect(rungFor(CANVAS_RANGE)).toBe('feature')
-    expect(DRAWS[rungFor(CANVAS_RANGE)]).toEqual({ bars: true, items: true })
+    expect(DRAWS[rungFor(CANVAS_RANGE)]).toEqual({ bars: true, items: true, nodes: false })
   })
 
   it('is a constant and never a measurement, because a server component has no viewport', () => {
@@ -328,13 +329,26 @@ describe('the chrome the canvas draws around its rails', () => {
 })
 
 describe('the rung the canvas is drawing at', () => {
-  it('draws rails and their names at the epic rung, and no bars — §5 puts nodes and arcs there', () => {
+  it('draws each feature as a node at the epic rung, and no bars and no item marks — §5 row one', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} range={{ fromDay: 0, toDay: 61 }} />)
     expect(rungFor({ fromDay: 0, toDay: 61 })).toBe('epic')
     expect(slot('rail')).toHaveLength(1)
     expect(screen.getByText('Platform')).toBeTruthy()
-    expect(slot('feature-bar')).toHaveLength(0)
     expect(slot('item-mark')).toHaveLength(0)
+    // The nodes keep `data-slot="feature-bar"`, so `selection.ts` rebuilds a layout from the epic rung's
+    // markup without being told which rung drew it. What changes is the element: never a `<rect>`.
+    expect(slot('feature-bar')).toHaveLength(2)
+    expect(slot('feature-bar').map((mark) => mark.tagName)).toEqual(['circle', 'circle'])
+  })
+
+  it('carries the same drag geometry on a node as on a bar, so a drag works at every rung', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} range={{ fromDay: 0, toDay: 61 }} />)
+    for (const node of slot('feature-bar')) {
+      expect(node.getAttribute('data-x')).not.toBeNull()
+      expect(node.getAttribute('data-y')).not.toBeNull()
+      expect(node.getAttribute('data-width')).not.toBeNull()
+      expect(Number(node.getAttribute('data-x'))).not.toBeNaN()
+    }
   })
 
   it('draws bars and marks at the item rung, as it does at the feature rung', () => {

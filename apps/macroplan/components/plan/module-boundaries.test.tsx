@@ -38,7 +38,6 @@ import { BindFields } from './bridge/bind-fields'
 import { BindForm } from './bridge/bind-form'
 import { LinkField } from './drawer/link-field'
 import { TaskPicker } from './drawer/task-picker'
-import { BindingsPanel } from './bridge/bindings-panel'
 import { LabelFields } from './labels/label-fields'
 import { NewRailForm } from './rails/new-rail-form'
 import { DeletePlan } from './settings/delete-plan'
@@ -350,8 +349,8 @@ const clientProps = (node: unknown): readonly HandedToClient[] => {
 const TREES = [
   <PlanScreen
     actions={STUB_ACTIONS}
+    zoom="feature"
     at={AT}
-    bridge={null}
     groups={null}
     rails={null}
     settings={null}
@@ -365,8 +364,8 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    zoom="feature"
     at={AT}
-    bridge={null}
     groups={null}
     rails={null}
     settings={null}
@@ -380,8 +379,8 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    zoom="feature"
     at={AT}
-    bridge={null}
     groups={null}
     rails={null}
     settings={null}
@@ -395,8 +394,8 @@ const TREES = [
   />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    zoom="feature"
     at={AT}
-    bridge={null}
     groups={null}
     rails={null}
     settings={null}
@@ -416,9 +415,20 @@ const TREES = [
     range={{ fromDay: 0, toDay: 61 }}
   />,
   <PlanTable key="f" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
-  // The bindings panel, so the client form inside it is walked like every other boundary here. Its
-  // rows are plain data and its two actions are unbound module functions, which is exactly the shape
-  // this file admits — and the one a bound action carrying a seat token would fail.
+  // The bind form on its own. It used to be reached through the bindings panel, which is gone: a rail's
+  // binding is one rail's concern and belongs in that rail's drawer rather than in a plan-wide panel over
+  // forty of them (design §2). So it gets a tree of its own, and the sweep still walks it — its two
+  // actions are unbound module functions, which is exactly the shape this file admits and the one a bound
+  // action carrying a seat token would fail.
+  <BindForm
+    bind={STUB_ACTIONS.bindEpic}
+    bound={false}
+    epicId="EP1"
+    key="f2"
+    mayUnbind
+    planId={atlasPlan().id}
+    unbind={STUB_ACTIONS.unbindEpic}
+  />,
   // BindFields is rendered inside BindForm, and the walk stops at a client boundary rather than going
   // through it — so it needs a tree of its own here or the allowlist would admit a file nothing checks.
   <BindFields key="f3" onRole={() => undefined} onToken={() => undefined} role="view" token="" />,
@@ -486,18 +496,10 @@ const TREES = [
     startDate='2026-01-05'
     timezone='UTC'
   />,
-  <BindingsPanel
-    bind={STUB_ACTIONS.bindEpic}
-    mayUnbind
-    key="f2"
-    planId={atlasPlan().id}
-    rows={[{ epicId: 'EP1', name: 'Checkout', projectId: null, role: null, stored: false }]}
-    unbind={STUB_ACTIONS.unbindEpic}
-  />,
   <PlanScreen
     actions={STUB_ACTIONS}
+    zoom="feature"
     at={AT}
-    bridge={null}
     groups={null}
     rails={null}
     settings={null}
@@ -518,8 +520,8 @@ const TREES = [
   panel({ controls: NOTHING_DRAWN, key: 'i' }),
   <PlanScreen
     actions={STUB_ACTIONS}
+    zoom="feature"
     at={AT}
-    bridge={null}
     groups={null}
     rails={null}
     settings={null}

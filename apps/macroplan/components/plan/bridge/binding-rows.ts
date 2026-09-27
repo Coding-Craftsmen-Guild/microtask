@@ -1,6 +1,28 @@
 import type { PlanBridge } from '@repo/api-client'
 import type { PlanScreenModel } from '../plan-screen-model'
-import type { BindingRow } from './bindings-panel'
+/**
+ * One rail as the bridge reports it: its name, and what it is bound to right now.
+ *
+ * Declared here, where it is built, rather than in whatever renders it. It was the bindings panel's type
+ * while that panel was the only reader; the panel is gone (design §2) and the rows are not, because the
+ * rail drawer needs exactly this answer for one rail.
+ */
+export interface BindingRow {
+  /** The rail. */
+  readonly epicId: string
+
+  /** The rail's own name, so an admin binds the one they meant. */
+  readonly name: string
+
+  /** The bound project, or `null` for a rail bound to nothing or whose token no longer resolves. */
+  readonly projectId: string | null
+
+  /** What the binding is worth **today** — already attenuated — or `null` when it is not live. */
+  readonly role: string | null
+
+  /** Whether a binding is **stored**, which is not the same as its being live. */
+  readonly stored: boolean
+}
 
 /**
  * One row per rail, in rail order, built from the two reads that each know half of the answer.

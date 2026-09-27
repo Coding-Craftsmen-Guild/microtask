@@ -11,10 +11,8 @@ import { ConflictList } from '../../../../components/plan/conflicts/conflict-lis
 import { PlanScreen } from '../../../../components/plan/plan-screen'
 import { ShareManager } from '../../../../components/plan/share/share-manager'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
-import { bindEpic, unbindEpic } from '../../../../actions/bridge'
-import { BindingsPanel } from '../../../../components/plan/bridge/bindings-panel'
-import { bindingRows } from '../../../../components/plan/bridge/binding-rows'
 import { ADMIN_DRAWER_ROUTES } from '../../../../lib/drawer-routes'
+import { readZoom } from '../../../../lib/zoom'
 import { groupsSlot, railsSlot, settingsSlot } from './admin-slots'
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
@@ -150,7 +148,7 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
  */
 export default async function PlanLayout({ params, children }: PlanLayoutProps) {
   const planId = (await params).planId
-  const [loaded, bridge] = await Promise.all([readPlan(planId), readBridge(planId)])
+  const [loaded, bridge, zoom] = await Promise.all([readPlan(planId), readBridge(planId), readZoom()])
   if (!loaded.ok) {
     return (
       <p className="py-16 text-center text-muted-foreground" role="alert">
@@ -164,23 +162,13 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       at={new Date()}
       conflicts={<ConflictList plan={loaded.value} root={planId} routes={ADMIN_DRAWER_ROUTES} />}
       controls={ADMIN_CONTROLS}
-      bridge={
-        ADMIN_CONTROLS.content.bindEpic ? (
-          <BindingsPanel
-            bind={bindEpic}
-            mayUnbind={ADMIN_CONTROLS.content.unbindEpic}
-            planId={loaded.value.id}
-            rows={bindingRows(loaded.value, bridge)}
-            unbind={unbindEpic}
-          />
-        ) : null
-      }
       drawer={children}
       groups={groupsSlot(loaded.value)}
       rails={railsSlot(loaded.value)}
       plan={loaded.value}
       progress={bridge?.items ?? []}
       settings={settingsSlot(loaded.value)}
+      zoom={zoom}
       share={
         <ShareManager
           editSeat={updatePlanSeat}

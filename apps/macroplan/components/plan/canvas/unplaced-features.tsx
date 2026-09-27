@@ -59,6 +59,9 @@ export function UnplacedFeatures({ featureIds, colour, frame, top }: UnplacedFea
             data-placed="false"
             data-slot="feature-bar"
             data-treatment={treatment}
+            data-width={LAYOUT.stubWidth}
+            data-x={stubX(frame, index)}
+            data-y={insideRail(top, 'bar')}
             height={LAYOUT.barHeight}
             key={id}
             rx={STUB_RADIUS}

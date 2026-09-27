@@ -81,7 +81,10 @@ describe('the canvas draws the three progress levels and stays one element per i
     expect(marks.length).toBeGreaterThan(0)
     for (const mark of marks) expect(mark.children).toHaveLength(0)
     expect(container.querySelectorAll('linearGradient')).toHaveLength(0)
-    expect(container.querySelectorAll('defs')).toHaveLength(0)
+    // The one `<defs>` on this canvas is the arc layer's three arrowheads, which is a constant and not a
+    // per-mark cost: it holds markers only, and the same three whether the plan has one mark or 2,000.
+    const defs = [...container.querySelectorAll('defs > *')]
+    expect(defs.map((node) => node.tagName)).toEqual(['marker', 'marker', 'marker'])
   })
 
   // Painted so the three differ in lightness as well as in outline, which is what makes them readable in

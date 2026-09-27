@@ -1,6 +1,7 @@
 import type { DayRange, PlanScale } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { DragRoot, type FeaturePlace } from './drag-root'
+import { ArcLayer } from './arc-layer'
 import { QuarterBandLayer } from './quarter-bands'
 import { Rail } from './rail'
 import { SprintTickLayer } from './sprint-ticks'
@@ -118,7 +119,7 @@ export function PlanCanvas({
   range = CANVAS_RANGE,
   scale = CANVAS_SCALE,
 }: PlanCanvasProps) {
-  const { rails, height, width, viewBox, names, unplaced, frame } = canvasLayout(
+  const { rails, arcs, height, width, viewBox, names, unplaced, frame } = canvasLayout(
     plan,
     range,
     scale,
@@ -143,6 +144,7 @@ export function PlanCanvas({
       >
         <QuarterBandLayer height={height} plan={plan} range={range} scale={scale} />
         <SprintTickLayer height={height} plan={plan} range={range} scale={scale} />
+        <ArcLayer arcs={arcs} />
         {rails.map((rail, index) => (
           <Rail
             frame={frame}

@@ -169,20 +169,33 @@ A feature with an effective estimate of zero has `startDay === endDay` and a bar
 position taking no time, which `rails.ts` already documents and already returns. It draws as a
 diamond centred on that day. This is a rendering change only; no geometry is added.
 
-### 6.3 Zoom is a search param, not state
+### 6.3 Zoom is a cookie the layout reads, not a search param and not client state
 
-The scale becomes a **URL search param** rather than client state: `?z=epic|feature|item` picks the
-range, `rungFor` derives the rung from it exactly as it does now, and the canvas re-renders server
-side at the chosen scale. Three links, no client component, back button works, and a zoom level is
-shareable — a person reporting a problem can send the view they were looking at.
+The obvious answer is a URL search param — `?z=epic|feature|item` — and it does not work here. **ADR
+0057 put the canvas in the plan's `layout.tsx`**, so that opening a drawer re-renders a forty-element
+panel instead of 2,000 SVG nodes, and a Next layout is not given `searchParams`; that is the documented
+reason it is not, since a layout does not re-render when only a search param changes. The ADR is
+emphatic that this is not incidental — "the layout is not an implementation detail of this decision — it
+is the decision" — and it separately rejects moving the canvas back onto `page.tsx`.
 
-This is the same argument ADR 0057 made for the drawer, applied to the other axis. Client state would
-put the whole canvas behind a `'use client'` boundary and hand it a `pxPerDay` to re-layout on every
-frame, which is the "bar that jumps when you let go of it" §4 already refused.
+So the zoom is a **cookie**, read by the layout and set by a Server Action: three submit buttons, one
+per rung, each writing `mp_zoom` and revalidating. The canvas stays a Server Component, one set of
+elements is rendered, and all three rungs become reachable for the first time.
 
 `rungFor` needs no change. It answers `'item'` at or below 20 working days, `'feature'` up to 60, and
-`'epic'` beyond — so the three stops are a range each, and the epic rung becomes reachable for the
-first time.
+`'epic'` beyond, and `ZOOM_STOPS` gives one range per rung derived from those boundaries.
+
+**What this costs, stated plainly:** a zoom level is not in the URL, so it cannot be sent to a
+colleague and the browser's Back does not step out of it — both of which a search param would have
+given, and both of which ADR 0057 bought for the *selection* by making it a path segment. The
+alternative that keeps them is to make the rung a path segment above the drawer
+(`/plans/{planId}/z/{rung}/f/{featureId}`), which preserves ADR 0057's mechanism exactly and costs a
+move of every file under the segment plus every path builder in `lib/drawer-routes.ts`. That is the
+right change if zoom links turn out to be worth sending; it is not worth the churn before anyone has
+asked to send one. Rendering all three scales and switching with CSS — the trick the view switch and
+the group chips both use — is the third option, and it is refused on the element budget: the table and
+the canvas are already both always mounted (ADR 0056), and two more canvases is the doubling
+`item-mark.tsx` exists to refuse.
 
 ## 7. What this does not change
 

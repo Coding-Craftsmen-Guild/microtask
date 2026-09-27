@@ -1,11 +1,11 @@
 import type { PlanBridge } from '@repo/api-client'
+import type { Rung } from '@repo/canvas'
 import type { ReactNode } from 'react'
 import type { PlanControls } from '../../lib/plan-capabilities'
-import { PlanCanvas } from './canvas/plan-canvas'
+import { PlanViews } from './plan-views'
 import { PlanHeading } from './plan-heading'
 import type { PlanEditActions } from './edit-actions'
 import type { PlanScreenModel } from './plan-screen-model'
-import { PlanTable } from './table/plan-table'
 import { VIEW_SWITCH } from './view-switch'
 
 const HINT = 'Choose which rendering of this plan is on screen. The table stays readable either way.'
@@ -20,6 +20,15 @@ export interface PlanScreenProps {
 
   /** The instant the page was rendered, threaded down so the whole screen dates itself alike. */
   readonly at: Date
+
+  /**
+   * Which of §5's three rungs to draw at, already read from the cookie by the page.
+   *
+   * A {@link Rung} and not a range or a scale: those are `ZOOM_VIEW`'s to compose, in one place, so no
+   * surface can hand this screen a range that lands on a different rung than the control beside it says.
+   * It is a primitive, so it crosses into the switch — which is a form over a Server Action — unchanged.
+   */
+  readonly zoom: Rung
 
   /**
    * Which controls this surface may draw, already decided by the page that read the credential.
@@ -159,25 +168,6 @@ export interface PlanScreenProps {
    */
   readonly share: ReactNode
 
-  /**
-   * What this plan's rails are bound to in Microtask: the bindings panel, or `null`.
-   *
-   * The inward half of §7's two links, beside the outward one. That section opens by warning that "two
-   * different things in this product are called a link, they point in opposite directions, and confusing
-   * them is the fastest way to build a credential leak" — {@link PlanScreenProps.share} hands a link
-   * **out** so somebody can see this plan, and this holds the credentials held **inward** so this plan
-   * can read Microtask. They sit beside each other because both are plan-wide administration rather
-   * than anything about a selection, and because putting them together is what makes the distinction
-   * visible to whoever is doing it.
-   *
-   * A **slot** for the reason the other three are: `epic:bind` is admin-only, so what fills this is a
-   * decision only the page that read the credential can make. `null` on `/s/<token>` — and there, unlike
-   * the other two, it is `null` **by policy rather than by an unfinished sweep**: no seat of any role
-   * holds `epic:bind`, so a seat surface has nothing to draw here and never will until that grant
-   * changes. That is worth stating, because the day somebody mounts the seat surface's share manager
-   * they must not reach for this one as well.
-   */
-  readonly bridge: ReactNode
 
   /**
    * The forms that name this plan's groups, recolour them and delete them — or `null`.
@@ -333,8 +323,8 @@ export interface PlanScreenProps {
  *
  * ### Where this file divides next
  *
- * The heading row has **been** lifted, into `./plan-heading.tsx`, which is what made room for the fourth
- * slot {@link PlanScreenProps.bridge} adds — the split this paragraph used to ask for. **Measure the
+ * The heading row has **been** lifted, into `./plan-heading.tsx`, which is what made room for the slots
+ * that followed it — the split this paragraph used to ask for. **Measure the
  * count rather than trusting a number written here**: the figure in this block has been stale twice, once
  * by three lines and once by a whole split, and `npx eslint components/plan/plan-screen.tsx` from inside
  * the app is the only reading that is not a guess.
@@ -354,12 +344,12 @@ export interface PlanScreenProps {
  * the slot order** — and not another piece of the switch.
  */
 export function PlanScreen(props: PlanScreenProps) {
-  const { plan, at, actions, bridge, controls, conflicts, drawer, groups, progress, share } = props
-  const { rails, settings } = props
+  const { plan, at, actions, controls, conflicts, drawer, groups, progress, share } = props
+  const { rails, settings, zoom } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   return (
     <div className="grid gap-4 pt-6" data-slot="plan-root">
-      <PlanHeading managers={<>{share}{bridge}{rails}{groups}{settings}</>} plan={plan} />
+      <PlanHeading managers={<>{share}{rails}{groups}{settings}</>} plan={plan} />
       {conflicts}
       {drawer}
       <div className={VIEW_SWITCH.views}>
@@ -387,12 +377,7 @@ export function PlanScreen(props: PlanScreenProps) {
         <label className={VIEW_SWITCH.tableTab} htmlFor={VIEW_SWITCH.tableId}>
           Table
         </label>
-        <div className={VIEW_SWITCH.scroller}>
-          <PlanCanvas at={at} place={place} plan={plan} progress={progress} />
-        </div>
-        <div className={VIEW_SWITCH.tablePanel}>
-          <PlanTable plan={plan} progress={progress} />
-        </div>
+        <PlanViews at={at} place={place} plan={plan} progress={progress} zoom={zoom} />
       </div>
     </div>
   )

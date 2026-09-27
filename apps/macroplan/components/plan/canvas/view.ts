@@ -10,14 +10,18 @@ import {
   widthOfDays,
 } from '@repo/canvas'
 import type {
+  ArcMetrics,
   DayRange,
+  DependencyArc,
   ItemMark,
   PlanScale,
   RailBox,
   RailMetrics,
-  Rung,
   Treatment,
 } from '@repo/canvas'
+import { canvasArcs } from './arc-view'
+import { DRAWS } from './rung-view'
+import type { RungDrawing } from './rung-view'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
@@ -107,36 +111,8 @@ export const LAYOUT = {
   labelInset: 6,
   stubWidth: 22,
   stubGap: 5,
-} as const satisfies RailMetrics & Record<string, number>
+} as const satisfies ArcMetrics & RailMetrics & Record<string, number>
 
-/**
- * What each of §5's three rungs draws, as of phase 2.
- *
- * §5's own three rows are epic rails with feature nodes, dependency arcs and milestone diamonds;
- * feature bars sized by estimate with items inside where they fit; and item bars with labels and the
- * linked Microtask task. Phase 2 draws the middle row. **The epic rung therefore draws its rails and
- * their names and nothing else** — nodes, arcs and diamonds are not built yet, and a rail with no
- * mark on it is the honest rendering of that rather than a bar drawn at a rung §5 does not put bars
- * at. The item rung draws what the feature rung draws; its labels and its linked task are phase 4's,
- * since no progress and no `linkedTaskId` behaviour exists on the wire yet.
- *
- * A record rather than two `rung !== 'epic'` tests at the two call sites, so the table above is one
- * value a reader can check against §5 and a widening cannot land in one branch and miss the other.
- */
-export const DRAWS: Readonly<Record<Rung, RungDrawing>> = {
-  epic: { bars: false, items: false },
-  feature: { bars: true, items: true },
-  item: { bars: true, items: true },
-}
-
-/** Which marks one rung puts on a rail. */
-export interface RungDrawing {
-  /** Whether feature bars are drawn. */
-  readonly bars: boolean
-
-  /** Whether item marks are drawn under them. */
-  readonly items: boolean
-}
 
 /**
  * Everything every rail on one canvas shares, built once and threaded through.
@@ -400,6 +376,15 @@ export interface CanvasLayout {
   /** Each rail's off-axis features, keyed on the epic id the rail is keyed on. */
   readonly unplaced: ReadonlyMap<string, readonly string[]>
 
+  /**
+   * Every dependency edge as a curve, in one layer over every rail rather than inside one.
+   *
+   * Over and not inside, because an arc between two rails belongs to neither: a rail group owning it
+   * would have to be the tail or the head, and whichever were chosen the arc would be clipped, dimmed
+   * and ordered with the wrong rail half the time.
+   */
+  readonly arcs: readonly DependencyArc[]
+
   /** What every rail on this canvas shares, built once. */
   readonly frame: RailFrame
 }
@@ -434,6 +419,7 @@ export function canvasLayout(
   const treatments = withProgress(treatmentsOf(plan.schedule), progress)
   return {
     rails,
+    arcs: canvasArcs(plan, rails, LAYOUT),
     height: canvasHeight(rails.length),
     width: canvasWidth(scale, range),
     viewBox: viewBoxOf(rails.length, scale, range),

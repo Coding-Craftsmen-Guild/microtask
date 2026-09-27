@@ -19,8 +19,8 @@ const barOf = (bar: Element): FeatureBar => ({
   id: bar.getAttribute('data-feature-id') ?? '',
   startDay: numberAt(bar, 'data-start-day'),
   endDay: numberAt(bar, 'data-end-day'),
-  x: numberAt(bar, 'x'),
-  width: numberAt(bar, 'width'),
+  x: numberAt(bar, 'data-x'),
+  width: numberAt(bar, 'data-width'),
 })
 
 const railBoxOf = (rail: Element): RailBox => ({
@@ -97,7 +97,14 @@ export interface Grabbed {
   /** The epic naming the rail it was drawn on, which is how a rail is keyed. */
   readonly epicId: string
 
-  /** Its own left edge in user units, straight off the `x` attribute. */
+  /**
+   * Its own left edge in user units, off the `data-x` attribute the mark carried.
+   *
+   * `data-x` and not `x`, and the same for `y` and `width`: a milestone draws as a `<polygon>`, which has
+   * none of the three as presentation attributes, so a reader going to those would answer `NaN` for
+   * every milestone on the canvas and place its drag at the gutter. `feature-bar.tsx` argues the trade
+   * where it writes them.
+   */
   readonly x: number
 
   /** Its own top in user units, which is where a ghost of it starts. */
@@ -132,9 +139,9 @@ export function grabbedAt(target: EventTarget | null): Grabbed | null {
   return {
     featureId,
     epicId,
-    x: numberAt(bar, 'x'),
-    y: numberAt(bar, 'y'),
-    width: numberAt(bar, 'width'),
+    x: numberAt(bar, 'data-x'),
+    y: numberAt(bar, 'data-y'),
+    width: numberAt(bar, 'data-width'),
   }
 }
 

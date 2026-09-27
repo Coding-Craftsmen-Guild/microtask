@@ -1,5 +1,5 @@
 import type { RailBox } from '@repo/canvas'
-import { FeatureBarMark } from './feature-bar'
+import { RailFeatures } from './rail-features'
 import { ItemMarkShape } from './item-mark'
 import { joinRailIds } from './selection'
 import { UnplacedFeatures } from './unplaced-features'
@@ -41,9 +41,11 @@ export interface RailProps {
  * `treatmentsOf` documents: the map holds only the non-solid marks, and a map with a `'solid'` entry
  * for all 2,000 placed items would be 2,000 entries saying what the default already says.
  *
- * What the rung decides is what goes on the rail, never the rail itself. `DRAWS` is that table, and
- * an epic-rung canvas draws every rail with its name and nothing on it — §5 puts feature nodes,
- * dependency arcs and milestone diamonds there, and none of the three is built yet.
+ * What the rung decides is what goes on the rail, never the rail itself. `DRAWS` in `./rung-view.ts` is
+ * that table: below the epic rung a feature is a bar with its items under it, and at the epic rung it is
+ * a {@link FeatureNode} instead — §5's own two rows. Arcs are in neither branch, because they are drawn
+ * once over every rail rather than into one; `./arc-layer.tsx` says why a cross-rail arc can belong to
+ * no rail group.
  *
  * ### The two attributes nothing on this canvas reads
  *
@@ -69,18 +71,7 @@ export function Rail({ rail, name, unplaced, frame, top }: RailProps) {
       {frame.draws.bars ? (
         <UnplacedFeatures colour={rail.colour} featureIds={unplaced} frame={frame} top={top} />
       ) : null}
-      {frame.draws.bars
-        ? rail.bars.map((bar) => (
-            <FeatureBarMark
-              bar={bar}
-              colour={rail.colour}
-              key={bar.id}
-              labelId={frame.groups.get(bar.id) ?? null}
-              top={top}
-              treatment={frame.treatments.get(bar.id) ?? 'solid'}
-            />
-          ))
-        : null}
+      <RailFeatures frame={frame} rail={rail} top={top} />
       {frame.draws.items
         ? rail.bars.flatMap((bar) =>
             (frame.marks.get(bar.id) ?? []).map((mark) => (
