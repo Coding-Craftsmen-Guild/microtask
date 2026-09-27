@@ -56,6 +56,14 @@ const OFF_INTERFACE = [
   renamePlan,
   retimePlan,
   deletePlan,
+  // The two drawer-path builders, which are functions this layout hands the conflict list — and the only
+  // members of this list that are **not** actions at all. They are here because the list takes its
+  // surface's routes rather than importing them, which is what let it be mounted on the seat surface: a
+  // list that imported the admin pair drew links a seat holder would follow into a login they have no
+  // password for (ADR 0032). Pure path builders, reaching no credential, and the second assertion below is
+  // what holds that: neither is a `bound ` closure, so neither can be carrying one.
+  featurePath,
+  itemPath,
 ].map((action) => action.name)
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'

@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from 'node:fs'
+import { ADMIN_DRAWER_ROUTES, SEAT_DRAWER_ROUTES } from '../../lib/drawer-routes'
 import { join, relative, resolve } from 'node:path'
 import type { Plan } from '@repo/api-client'
 import { cleanup, render } from '@testing-library/react'
@@ -18,6 +19,7 @@ import {
   FEATURE_1,
   ITEM_1,
   PLAN_A,
+  SEAT_TOKEN,
   tangledPlan,
   unplacedPlan,
 } from './testing/plan-fixture'
@@ -522,7 +524,7 @@ const TREES = [
     rails={null}
     settings={null}
     progress={[]}
-    conflicts={<ConflictList plan={TANGLED} />}
+    conflicts={<ConflictList root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} plan={TANGLED} />}
     controls={ADMIN_CONTROLS}
     drawer={null}
     share={MANAGER}
@@ -572,7 +574,11 @@ const TREES = [
     planId={atlasPlan().id}
     railName="Platform"
   />,
-  <ConflictList key="k" plan={TANGLED} />,
+  <ConflictList key="k" plan={TANGLED} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} />,
+  // The same list addressed as the **seat** surface addresses it, because the two records produce different
+  // hrefs from the same plan and only one of them is reachable without a cookie. Walked here so the seat
+  // pairing is checked by the same sweep rather than only by the page that mounts it.
+  <ConflictList key="k2" plan={TANGLED} root={SEAT_TOKEN} routes={SEAT_DRAWER_ROUTES} />,
   MANAGER,
 ]
 

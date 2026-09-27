@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FEATURE_1, ITEM_1, PLAN_A } from '../components/plan/testing/plan-fixture'
-import { featurePath, itemPath } from './drawer-routes'
+import { FEATURE_1, ITEM_1, PLAN_A, SEAT_TOKEN } from '../components/plan/testing/plan-fixture'
+import { ADMIN_DRAWER_ROUTES, SEAT_DRAWER_ROUTES, featurePath, itemPath } from './drawer-routes'
 import { isLinkSurface, planPath } from './routes'
 
 describe('the two segments a selection is spelled with', () => {
@@ -49,16 +49,57 @@ describe('an id that arrived from somewhere unexpected', () => {
   })
 })
 
-describe('neither builder can leave the admin surface', () => {
+describe('each surface addresses its own drawer, and neither can address the other', () => {
   it.each([featurePath(PLAN_A, FEATURE_1), itemPath(PLAN_A, ITEM_1)])(
-    'builds %s, which the link surface does not claim',
+    "builds %s, which the link surface does not claim",
     (path) => {
       expect(isLinkSurface(path)).toBe(false)
     },
   )
 
-  it('exports no builder for the seat twins, which have no page to answer them yet', async () => {
+  // The seat twins, which this module said belonged here "when the pages that answer them exist". They do.
+  it.each([
+    SEAT_DRAWER_ROUTES.feature(SEAT_TOKEN, FEATURE_1),
+    SEAT_DRAWER_ROUTES.item(SEAT_TOKEN, ITEM_1),
+  ])(
+    "builds %s, which the link surface does claim",
+    (path) => {
+      expect(isLinkSurface(path)).toBe(true)
+    },
+  )
+
+  // The two records are what `ConflictList` is handed, and this is the reason it is handed one at all: the
+  // same plan and the same subject produce two different paths, and only one of them is reachable by the
+  // surface that is rendering. A list importing the admin pair — which it did — drew links a seat holder
+  // would follow into a login with no password behind it (ADR 0032).
+  it('answers a different path per surface for one and the same subject', () => {
+    expect(ADMIN_DRAWER_ROUTES.feature(PLAN_A, FEATURE_1)).toBe(featurePath(PLAN_A, FEATURE_1))
+    expect(SEAT_DRAWER_ROUTES.feature(SEAT_TOKEN, FEATURE_1)).not.toBe(
+      ADMIN_DRAWER_ROUTES.feature(SEAT_TOKEN, FEATURE_1),
+    )
+  })
+
+  // The spelling of the two segments is written once each, which is what the module kept them for, so the
+  // seat paths differ from the admin ones in their **root** and in nothing else.
+  it('uses the same two segments on both surfaces, differing only in the root', () => {
+    expect(SEAT_DRAWER_ROUTES.feature(SEAT_TOKEN, FEATURE_1)).toBe(`/s/${SEAT_TOKEN}/f/${FEATURE_1}`)
+    expect(SEAT_DRAWER_ROUTES.item(SEAT_TOKEN, ITEM_1)).toBe(`/s/${SEAT_TOKEN}/i/${ITEM_1}`)
+    expect(ADMIN_DRAWER_ROUTES.item(PLAN_A, ITEM_1)).toBe(`/plans/${PLAN_A}/i/${ITEM_1}`)
+  })
+
+  it('encodes an id that would otherwise escape its segment, on the seat surface as on the admin one', () => {
+    expect(SEAT_DRAWER_ROUTES.feature(SEAT_TOKEN, '../elsewhere')).toBe(
+      `/s/${SEAT_TOKEN}/f/..%2Felsewhere`,
+    )
+  })
+
+  it('exports the two builders and the two records, and nothing else', async () => {
     const drawerRoutes: Record<string, unknown> = await import('./drawer-routes')
-    expect(Object.keys(drawerRoutes).sort()).toEqual(['featurePath', 'itemPath'])
+    expect(Object.keys(drawerRoutes).sort()).toEqual([
+      'ADMIN_DRAWER_ROUTES',
+      'SEAT_DRAWER_ROUTES',
+      'featurePath',
+      'itemPath',
+    ])
   })
 })

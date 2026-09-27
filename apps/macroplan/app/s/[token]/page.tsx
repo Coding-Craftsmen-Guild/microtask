@@ -1,33 +1,26 @@
 import type { Metadata } from 'next'
-import type { ReactNode } from 'react'
-import { PlanScreen } from '../../../components/plan/plan-screen'
-import { planCapabilities } from '../../../lib/plan-capabilities'
-import { seatPlanActions } from '../../../components/plan/seat-actions'
-import { seatPlanOwnActions, seatSeatActions } from '../../../components/plan/seat-own-actions'
-import { seatSettingsSlot, seatShareSlot } from './seat-plan-slots'
-import { seatGroupsSlot, seatRailsSlot } from './seat-slots'
-import { readSeatPlan, readShare } from './read-share'
+import { readShare } from './read-share'
 
 const TITLE = 'Shared plan · CC Guild Macroplan'
 
+const EMPTY =
+  'Nothing is open beside the plan. A feature or an item has its own address here, so whatever is on screen can be linked to, reloaded and stepped back out of.'
+
 /** The route's own parameters, which Next hands a page as a promise. */
 export interface LinkPageProps {
-  /** The share token, which is this page's whole credential (ADR 0040). */
+  /** The share token, which is this page’s whole credential (ADR 0040). */
   readonly params: Promise<{ readonly token: string }>
 }
-
-const refused = (detail: string): ReactNode => (
-  <p className="py-16 text-center text-muted-foreground" role="alert">
-    {detail}
-  </p>
-)
 
 /**
  * The tab title: the plan's own name, which the bootstrap already carries.
  *
- * One call and not two — `PlanShareView.plan` is `{ id, name }`, so the name is in the answer the
- * page needs anyway, and no plan is read to title a tab. A refused bootstrap titles the tab without
- * a name rather than inventing one.
+ * One call and not two — `PlanShareView.plan` is `{ id, name }`, so the name is in the answer the screen
+ * needs anyway, and no plan is read to title a tab. A refused bootstrap titles the tab without a name
+ * rather than inventing one. `readShare` is `cache()`d on the token, so this shares the layout’s own call.
+ *
+ * It stays on the **page** rather than moving to the layout with the screen: a layout’s metadata is fixed
+ * for every route beneath it, and a drawer segment should be able to title itself after what is open.
  */
 export async function generateMetadata({ params }: LinkPageProps): Promise<Metadata> {
   const share = await readShare((await params).token)
@@ -35,122 +28,29 @@ export async function generateMetadata({ params }: LinkPageProps): Promise<Metad
 }
 
 /**
- * `/s/<token>`: the one plan this token opens, read by whoever holds the URL.
+ * `/s/<token>`: the drawer slot with nothing selected.
  *
- * There is **one page and no dispatch**, where `apps/microtask`'s branches on its share's scope kind:
- * `PlanShareView.scope.kind` is the literal `'plan'` in the contract, a plan is shared at plan scope
- * and nothing narrower exists, and ADR 0053 defers an epic scope rather than foreclosing one. So
- * there is no list page, no `/t/<id>` equivalent, and nothing here to get wrong about which of two
- * things a token names.
+ * ### The plan moved up, and this is what is left
  *
- * It makes **two** reads: `shares/current` to learn which plan this seat is rooted in, then that
- * plan. The bootstrap stops at the plan's `{ id, name }` on purpose (`read-share.ts`).
+ * The plan itself — its name, its timeline, its table and its five managers — is now `layout.tsx`'s,
+ * through `./seat-plan.tsx`. This is only what fills the slot beside them until a feature or an item is
+ * open, and it is the exact shape `(admin)/plans/[planId]/page.tsx` already had.
  *
- * The token is taken from `params` and is the only authority presented: **no cookie is read**, so an
- * admin signed in on the same browser sees exactly what the seat sees, and a page on this surface
- * cannot be elevated by one (ADR 0040). A link that no longer resolves has already been sent to
- * `/s/unavailable` by the read, never to `/login` — a seat holder has no password (ADR 0032).
+ * **Why the move was necessary rather than tidy.** A drawer is a route, so that opening a feature is one
+ * soft navigation that re-renders the panel and leaves the canvas and the table alone — a layout does not
+ * re-render when navigation moves between its children (ADR 0057). While this surface rendered the whole
+ * screen from its `page.tsx`, there was nowhere for a drawer segment to sit that did not rebuild 2,200
+ * table rows and 2,000 SVG nodes to open one panel. The admin surface was built that way from the start;
+ * this one had no drawer at all until its writes were mounted, so it had never needed to be.
  *
- * What it renders is the **same `PlanScreen` the admin plan page renders**, with no seat-facing
- * variant: the timeline and its table are what a plan is, and a second rendering of one would be a
- * second place for a span to be drawn wrong. What differs between the two audiences is which controls
- * are drawn, and that is one prop rather than a second component. The clock is read once, here —
- * `new Date()`, which is what `PlanScreen.at` takes — and threaded down as the instant the today line
- * is drawn at, as the admin page does.
- *
- * `conflicts={null}` is the same sentence about the other slot, and it is the same missing pages that
- * make it true. A conflict row's whole point is a link to the control that fixes it, and every builder
- * in `lib/drawer-routes.ts` addresses `/plans/<planId>/…` — so drawing the list here would hand a seat
- * holder links to a surface that answers a cookie they cannot have and would redirect them to a login
- * with no password behind it (ADR 0032). The two `null`s therefore arrive and leave together: whoever
- * adds `/s/<token>/f/<featureId>` gains both a drawer to open and a list that can link to it, and both
- * lines here are compile errors that day rather than a screen quietly missing two things.
- *
- * `drawer={null}` is this page **saying** it has no drawer, rather than leaving the prop off. The slot
- * is required on `PlanScreen` for that reason: `/s/<token>/f/<featureId>` and `/s/<token>/i/<itemId>`
- * are a later task — their builders are deliberately absent from `lib/drawer-routes.ts` until the
- * pages exist — and on the day they arrive this one line is a compile error rather than a seat screen
- * that goes on rendering without the panel it now has routes for.
- *
- * `share={null}` is the one remaining `null` that costs this surface something a seat may actually do.
- * `planCapabilities` answers a plan-scoped `manage` seat **`true` on all four `share:*` questions** —
- * `share:read`, `share:update` and `share:revoke` through `mayReach` with `'plan'`, and `share:create` off
- * the record — so such a holder may legitimately administer this plan’s other seats (ADR 0038, ADR 0053),
- * and the manager it would open is built and tested. What is missing is now only the four **seat twins** of
- * `actions/plan-share-links.ts`: the mechanism is settled, since the writes below are mounted and bound to
- * this seat’s token. `settings={null}` is the same sentence about the three plan-level actions, which have
- * no seat twin either although all three are `manage` — so a `manage` seat holding this plan cannot correct
- * its start date.
- *
- * ### The writes are mounted, and what makes that safe
- *
- * `actions` is `seatPlanActions(token)`: the same twenty-eight writes the admin surface hands over, each
- * with **this** seat's token bound in as its first argument. That is the shape ADR 0040 describes, and it
- * puts the token into this page’s Flight payload — which is admitted for one token only, the visitor’s own,
- * already in the address bar they arrived by.
- *
- * For four phases these slots were `null` because the leak sweep could not read a bound function’s
- * arguments and so asserted this surface handed over **no function at all**. That avoided the question
- * rather than answering it, and it cost a `manage` seat every write on the plan it had been given.
- * `page.test.tsx` now **calls** every action it is handed — `bind` keeps its arguments in a closure with no
- * reflective access, so calling is the only way to read them — and asserts the token each one carries is
- * this seat’s and no other, token by token against every one the API serves. Binding a different token in
- * this function fails two of those cases, which is what makes the new sweep stronger than the ban it
- * replaced rather than a relaxation of it.
- *
- * `rails` and `groups` are mounted from the same wiring (`./seat-slots.tsx`), each on the seat’s own
- * controls rather than `ADMIN_CONTROLS`. Every rail and group action is `manage`, so a `view` or `write`
- * seat draws neither panel; the chips that *select* a group are not in either and never were, being mounted
- * by `PlanHeading` from the plan itself, because selecting writes nothing.
- *
- * ### What the bootstrap's answer is spent on, and what is not handed down
- *
- * `PlanShareView` carries three things — `role`, `scope` and `plan: { id, name }` — and all three are
- * used here: the scope's `planId` says which plan to read, the name titles the tab, and the role and
- * the scope together are what `planCapabilities` needs. The scope is passed rather than rebuilt from
- * the id because a `ScopeValue` carries the id the kernel compares, and the answers are for the
- * plan the *API* said this seat is rooted in (ADR 0038, ADR 0053).
- *
- * **The controls go down; the role, the scope and the view itself do not.** A boolean set is a
- * decision already made, so nothing under the screen can re-derive a permission from a
- * credential-shaped value, and a component added later cannot ask a second question of a role it was
- * never given. None of the three could leak the token either — the bootstrap answers no token at all,
- * and the plan read's `shareLinks` block is dropped on the server by `read-share.ts` before this
- * function sees it — but a role in the Flight payload is a permission restated where nothing
- * authorises it. That is this file's own argument by analogy rather than a claim ADR 0033 makes: 0033
- * is about share **tokens** end to end, and what carries over is the shape of its rejected
- * alternative — relying on a page never passing the value to a client component is "a convention,
- * enforced by nobody". The leak sweep in `page.test.tsx` is what proves the token half of that, token by token.
- *
- * A refusal of either read is said in place of the timeline, in this surface's own words rather than
- * the API's; a plan the API no longer holds is `not-found.tsx`; and anything actually thrown is
- * `error.tsx`, which is therefore a fault boundary rather than a refusal one.
+ * It **takes no params and makes no call**: the empty state cannot differ from one plan to the next, and
+ * the reads belong to the layout that draws the plan. `readShare` above is the one exception, and it is
+ * `cache()`d on the token, so titling the tab costs no second request.
  */
-export default async function LinkPlanPage({ params }: LinkPageProps) {
-  const { token } = await params
-  const share = await readShare(token)
-  if (!share.ok) return refused(share.detail)
-  const { role, scope } = share.value
-  const plan = await readSeatPlan(token, scope.planId)
-  if (!plan.ok) return refused(plan.detail)
-  const controls = planCapabilities(role, scope)
-  const writes = seatPlanActions(token)
-  const own = seatPlanOwnActions(token)
-  const seats = seatSeatActions(token)
+export default function LinkPlanPage() {
   return (
-    <PlanScreen
-      actions={writes}
-      at={new Date()}
-      bridge={null}
-      groups={seatGroupsSlot(plan.value, writes, controls)}
-      rails={seatRailsSlot(plan.value, writes, controls)}
-      conflicts={null}
-      controls={controls}
-      drawer={null}
-      plan={plan.value}
-      progress={[]}
-      settings={seatSettingsSlot(plan.value, own, controls)}
-      share={seatShareSlot(plan.value, seats, controls)}
-    />
+    <p className="text-[13px] text-muted-foreground" data-slot="drawer-empty">
+      {EMPTY}
+    </p>
   )
 }

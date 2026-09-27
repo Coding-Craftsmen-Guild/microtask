@@ -14,6 +14,7 @@ import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { bindEpic, unbindEpic } from '../../../../actions/bridge'
 import { BindingsPanel } from '../../../../components/plan/bridge/bindings-panel'
 import { bindingRows } from '../../../../components/plan/bridge/binding-rows'
+import { ADMIN_DRAWER_ROUTES } from '../../../../lib/drawer-routes'
 import { groupsSlot, railsSlot, settingsSlot } from './admin-slots'
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
@@ -161,7 +162,7 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
     <PlanScreen
       actions={ADMIN_PLAN_ACTIONS}
       at={new Date()}
-      conflicts={<ConflictList plan={loaded.value} />}
+      conflicts={<ConflictList plan={loaded.value} root={planId} routes={ADMIN_DRAWER_ROUTES} />}
       controls={ADMIN_CONTROLS}
       bridge={
         ADMIN_CONTROLS.content.bindEpic ? (

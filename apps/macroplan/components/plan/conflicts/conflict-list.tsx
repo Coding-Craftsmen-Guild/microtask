@@ -1,8 +1,8 @@
-import Link from 'next/link'
-import { featurePath, itemPath } from '../../../lib/drawer-routes'
+import type { DrawerRoutes } from '../../../lib/drawer-routes'
+import { rowOf, type Addressing } from './conflict-links'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { conflictRows } from './conflict-rows'
-import type { ConflictRow, ConflictSection, ConflictSubject } from './conflict-rows'
+import type { ConflictRow, ConflictSection } from './conflict-rows'
 
 const PANEL = 'grid gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10'
 
@@ -16,17 +16,11 @@ const SUBHEADING = 'text-[11px] font-semibold tracking-wide text-muted-foregroun
 
 const ROWS = 'grid list-none gap-2 p-0'
 
-const ROW = 'grid gap-1'
 
-const SENTENCE = 'text-[13px]'
 
-const NOTE = 'text-[12.5px] text-destructive'
 
-const SUBJECTS = 'flex list-none flex-wrap gap-3 p-0'
 
-const SUBJECT_LINK = 'text-[13px] text-brand'
 
-const UNLINKED = 'text-[13px] text-muted-foreground'
 
 const SECTION_HEADING: Readonly<Record<ConflictSection, string>> = {
   cycle: 'Dependency cycles: these features wait on each other',
@@ -44,31 +38,6 @@ const sectionsOf = (rows: readonly ConflictRow[]): readonly ConflictSection[] =>
   ...new Set(rows.map((row) => row.section)),
 ]
 
-const hrefOf = (subject: ConflictSubject, planId: string, items: ReadonlySet<string>): string =>
-  items.has(subject.id) ? itemPath(planId, subject.id) : featurePath(planId, subject.id)
-
-const subjectOf = (subject: ConflictSubject, planId: string, items: ReadonlySet<string>) => (
-  <li data-slot="conflict-subject" key={subject.id}>
-    {subject.known ? (
-      <Link className={SUBJECT_LINK} href={hrefOf(subject, planId, items)}>
-        {subject.name}
-      </Link>
-    ) : (
-      <span className={UNLINKED}>{subject.name}</span>
-    )}
-  </li>
-)
-
-const rowOf = (row: ConflictRow, planId: string, items: ReadonlySet<string>) => (
-  <li className={ROW} data-slot="conflict-row" data-testid={`conflict-${row.id}`} key={row.id}>
-    <p className={SENTENCE}>{row.sentence}</p>
-    {row.note === null ? null : <p className={NOTE}>{row.note}</p>}
-    <ul className={SUBJECTS}>
-      {row.subjects.map((subject) => subjectOf(subject, planId, items))}
-    </ul>
-  </li>
-)
-
 /** Props for {@link ConflictList}. */
 export interface ConflictListProps {
   /**
@@ -84,6 +53,31 @@ export interface ConflictListProps {
    * taking them also keeps `conflictRows` the only thing that words a conflict.
    */
   readonly plan: PlanScreenModel
+
+  /**
+   * How the surface mounting this list addresses its drawer, and the root every link hangs off.
+   *
+   * **Handed in rather than imported, and that is what let this list be mounted on the seat surface at
+   * all.** It used to import the admin builders directly, so every link it drew was a `/plans/…` path —
+   * and a seat holder following one would be sent to a surface that reads a cookie they have not got, and
+   * on to a login with no password behind it (ADR 0032). That is why the seat page drew no conflict list
+   * for four phases: not because a seat has nothing to fix, but because the list could only point at the
+   * wrong surface.
+   *
+   * The page decides, because the page is the only thing that knows which surface is rendering.
+   * `ADMIN_DRAWER_ROUTES` and `SEAT_DRAWER_ROUTES` are the two records, in `lib/drawer-routes.ts`.
+   */
+  readonly routes: DrawerRoutes
+
+  /**
+   * The first argument each builder takes: the **plan id** on the admin surface, the **share token** on
+   * the seat’s.
+   *
+   * Taken separately rather than read off `plan.id`, which is what it was. A seat’s drawer hangs off its
+   * token and not off the plan, so a list that derived the root from the plan could only ever address one
+   * of the two surfaces — and it would do so silently, since both are strings.
+   */
+  readonly root: string
 }
 
 /**
@@ -161,10 +155,10 @@ export interface ConflictListProps {
  * `<li>` inside the `<ul>` inside the section its heading names, and a component drawn around any of
  * those three would be a wrapper between a list and its own items.
  */
-export function ConflictList({ plan }: ConflictListProps) {
+export function ConflictList({ plan, routes, root }: ConflictListProps) {
   const rows = conflictRows(plan)
   if (rows.length === 0) return null
-  const items = new Set(plan.items.map((item) => item.id))
+  const at: Addressing = { root, routes, items: new Set(plan.items.map((item) => item.id)) }
   return (
     <section aria-labelledby={TITLE_ID} className={PANEL} data-slot="conflict-list">
       <h2 className={TITLE} id={TITLE_ID}>
@@ -176,7 +170,7 @@ export function ConflictList({ plan }: ConflictListProps) {
           <ul className={ROWS}>
             {rows
               .filter((row) => row.section === section)
-              .map((row) => rowOf(row, plan.id, items))}
+              .map((row) => rowOf(row, at))}
           </ul>
         </div>
       ))}

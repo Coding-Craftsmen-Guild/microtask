@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react'
+import { ADMIN_DRAWER_ROUTES } from '../../../lib/drawer-routes'
 import { describe, expect, it, vi } from 'vitest'
 import { featurePath, itemPath } from '../../../lib/drawer-routes'
 import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
@@ -28,7 +29,7 @@ const TITLE = 'How this plan contradicts itself'
 // The reduced model and never the stored plan, because that is what a page hands anything under
 // `components/plan` — and `conflictRows` is asserted elsewhere to answer the same rows for both.
 const show = (plan: PlanScreenModel = planScreenModel(tangledPlan())) =>
-  render(<ConflictList plan={plan} />)
+  render(<ConflictList root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} plan={plan} />)
 
 const sectionOf = (section: string): Element => {
   const found = document.querySelector(`[data-section="${section}"]`)

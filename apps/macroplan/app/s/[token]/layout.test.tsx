@@ -1,4 +1,5 @@
 import { render } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { SEAT_TOKEN } from '../../../components/plan/testing/plan-fixture'
 import { linkPath } from '../../../lib/routes'
@@ -11,6 +12,20 @@ vi.mock('next/headers', () => ({
   headers: () => {
     throw new Error('a seat layout must not read a header')
   },
+}))
+
+// The plan screen is stubbed, and that is what keeps this file about the **frame**. The layout now draws
+// the plan as well as the brand bar (`./seat-plan.tsx`), which reads the API and would need a fake and a
+// cookie secret here to render at all — and none of the cases below is a question about a plan. The stub
+// also makes the one thing this file must still prove visible: the drawer slot reaches the screen, since
+// the children this layout is handed are what a drawer segment fills, and `seat-plan.test.tsx` is where
+// the screen itself is examined.
+vi.mock('./seat-plan', () => ({
+  seatPlanScreen: (token: string, drawer: ReactNode) => (
+    <div data-slot="seat-plan" data-token={token}>
+      {drawer}
+    </div>
+  ),
 }))
 
 const { default: LinkLayout } = await import('./layout')
