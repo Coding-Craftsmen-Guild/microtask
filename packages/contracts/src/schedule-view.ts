@@ -2,17 +2,47 @@ import { z } from 'zod'
 import { EntityId } from './document.js'
 
 /**
- * One feature's or item's placement on the axis, in working-day offsets from a plan's first
- * working day.
+ * A point on the working-day axis, counted from a plan's first working day.
+ *
+ * ### Why it is not a whole number
+ *
+ * They were, and that was correct while `EstimateDays` was. It is halves now, and the forward pass
+ * is arithmetic on these offsets — `endDay = startDay + estimate` — so a half-day feature ends half
+ * a day in and everything queued behind it is offset by the same half. Keeping `int()` here did not
+ * prevent that; it only meant the API served a schedule that failed its own contract, and the client
+ * refused to decode the response as unreachable. The grain of a *span* is whatever the grain of an
+ * estimate is, so it is stated once, there, and followed here.
+ *
+ * The offsets stay `multipleOf(0.5)` rather than becoming a free `number` because a span is a sum of
+ * estimates and nothing else: an offset that is not a multiple of a half is a schedule arrived at by
+ * some route the domain does not have, and worth refusing at the boundary.
+ *
+ * {@link DayOffset} is a named schema rather than an inline `z.number()` so that the grain lands on
+ * the **number** in the published document. `@hono/zod-openapi` carries a known subset of keywords
+ * through and drops `multipleOf`, so it is restated in `.meta()` — and `.meta()` applies to whatever
+ * node it is written on, so stating it on the span object would have hung a numeric keyword off an
+ * object, where it means nothing at all.
+ */
+export const DayOffset = z
+  .number()
+  .multipleOf(0.5)
+  .meta({
+    id: 'DayOffset',
+    description: 'A working-day offset from the plan start, in halves',
+    multipleOf: 0.5,
+  })
+
+/**
+ * One feature's or item's placement on the axis, as two {@link DayOffset}s.
  *
  * `id` is carried here rather than left as a map key, because `@repo/schedule`'s
- * `ScheduleResult.days` is a `Map` and a `Map` does not survive `JSON.stringify` — the wire form
- * has to be an array, and an array of spans needs to say which feature or item each one belongs
- * to. `endDay` stays exclusive, matching the forward pass, so a client computing a bar's width
- * never has to remember to add one.
+ * `ScheduleResult.days` is a `Map` and a `Map` does not survive `JSON.stringify` — the wire form has
+ * to be an array, and an array of spans needs to say which feature or item each one belongs to.
+ * `endDay` stays exclusive, matching the forward pass, so a client computing a bar's width never has
+ * to remember to add one.
  */
 export const ScheduleSpan = z
-  .object({ id: EntityId, startDay: z.number().int(), endDay: z.number().int() })
+  .object({ id: EntityId, startDay: DayOffset, endDay: DayOffset })
   .meta({ id: 'ScheduleSpan', description: 'One feature or item, placed at a working-day offset' })
 
 /** Feature ids caught in a mutual `dependsOn` cycle, none of them placed on the axis. */

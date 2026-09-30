@@ -250,14 +250,16 @@ describe('the plan layout', () => {
   // its own beside the two features — which on the deployed plan is how thirty rows came to stand above
   // the timeline. It is counted on the feature that owns it now, so a plan whose items are mostly
   // unsized is four marks rather than thirty rows.
-  it('rolls an unplaced item up onto its feature rather than giving it a row of its own', async () => {
+  // An item takes its timing from the feature it is under, so an item nobody sized is the ordinary
+  // case and not a thing left undone. It gets no tray row, and it puts no mark on its feature either.
+  it('says nothing at all about an unplaced item, which is the feature’s estimate to carry', async () => {
     holdingAdmin(api)
     api.plans = [tangledPlan()]
     await show()
     expect(within(trayPanel()).queryByText('Invoices')).toBeNull()
     expect(screen.queryByRole('link', { name: 'Invoices' })).toBeNull()
     const dot = document.querySelector('[data-search="billing"] [data-slot="attention-dot"]')
-    expect(dot?.getAttribute('title')).toContain('1 item needs an estimate')
+    expect(dot?.getAttribute('title') ?? '').not.toContain('item')
   })
 
   it('lists nothing under the board for a plan whose every feature has a bar', async () => {

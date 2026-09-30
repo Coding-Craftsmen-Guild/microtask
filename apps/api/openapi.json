@@ -1819,12 +1819,13 @@
       },
       "EstimateDays": {
         "type": [
-          "integer",
+          "number",
           "null"
         ],
         "minimum": 0,
         "maximum": 1000,
-        "description": "A non-negative whole number of working days"
+        "description": "Working days, in halves; 0 is a milestone",
+        "multipleOf": 0.5
       },
       "SprintIndex": {
         "type": [
@@ -1975,10 +1976,10 @@
             "$ref": "#/components/schemas/EntityId"
           },
           "startDay": {
-            "type": "integer"
+            "$ref": "#/components/schemas/DayOffset"
           },
           "endDay": {
-            "type": "integer"
+            "$ref": "#/components/schemas/DayOffset"
           }
         },
         "required": [
@@ -1987,6 +1988,11 @@
           "endDay"
         ],
         "description": "One feature or item, placed at a working-day offset"
+      },
+      "DayOffset": {
+        "type": "number",
+        "description": "A working-day offset from the plan start, in halves",
+        "multipleOf": 0.5
       },
       "ScheduleCycle": {
         "type": "object",

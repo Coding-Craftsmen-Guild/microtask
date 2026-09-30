@@ -11,7 +11,6 @@ export const ATTENTION_WORDS = {
   noEstimate: 'Needs an estimate',
   inCycle: 'In a dependency cycle',
   edgeIgnored: 'Dependency set aside',
-  itemsUnsized: 'Items need an estimate',
 } as const
 
 /**
@@ -25,14 +24,7 @@ export const ATTENTION_WHY: Readonly<Record<string, string>> = {
   'no-estimate': 'Give it an estimate and it will take a place on the timeline.',
   'in-cycle': 'These features wait on each other, so none of them could be placed.',
   'edge-ignored': 'It was placed anyway, in rail order, as though the dependency were not there.',
-  'items-unsized': 'The feature is placed on its own estimate; its items add nothing to it yet.',
 }
-
-/**
- * The plural of an item count, for the rolled-up badge a feature carries for its unsized items.
- */
-export const unsizedItems = (count: number): string =>
-  count === 1 ? '1 item needs an estimate' : `${String(count)} items need an estimate`
 
 /**
  * How many things want looking at, for the sidebar header and the tray heading.

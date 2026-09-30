@@ -40,13 +40,44 @@ export const Timezone = z
   }, 'must be a time zone this runtime can resolve')
   .meta({ id: 'Timezone', description: 'An IANA time-zone name this runtime can resolve' })
 
-/** A non-negative whole number of working days. Zero is a milestone: reached, but taking no time. */
+/**
+ * A non-negative number of working days, in halves. Zero is a milestone: reached, taking no time.
+ *
+ * ### Why halves and not whole days
+ *
+ * Half a day is a real unit of estimation and the smallest one anybody uses: a great deal of work is
+ * "a morning", and forcing it to 1 inflates every small feature on the timeline by up to a day. The
+ * bound is on the *grain* rather than on the precision, because an estimate of 0.37 days is not a
+ * finer measurement — it is a number nobody arrived at and a bar nobody can read.
+ *
+ * ### Why a fraction is safe to schedule
+ *
+ * The forward pass is arithmetic on day offsets — `endDay = startDay + estimate` — and carries a
+ * fraction through untouched. Nothing turns a *feature's* offset back into a calendar date: the only
+ * caller of `dayToDate` is `rangeOfSprint`, which is handed sprint boundaries, and those are whole
+ * multiples of the sprint length however the work inside them is sized. `sprintOf` floors, so a
+ * feature ending mid-day still lands in the sprint that day belongs to.
+ *
+ * Halves are also exact in binary, so summing them in `effectiveEstimate` cannot drift the way
+ * thirds or tenths would.
+ *
+ * ### Why the grain is stated twice
+ *
+ * `multipleOf` appears in the validator **and** in `.meta()`. That is not a copy for its own sake:
+ * `@hono/zod-openapi`'s document builder maps a known subset of keywords — it carries `minimum` and
+ * `maximum` through and drops this one — so without the second spelling the published contract would
+ * say a plain `number` where the server refuses 0.25. `openapi.json` is what a generated client is
+ * built from, and a client that sends what the document allows and gets a 422 has been misled by us.
+ *
+ * The two cannot drift silently: `emit-openapi.test.ts` regenerates the document and compares it to
+ * the committed one, so a change to either spelling that is not made to both fails the gate.
+ */
 export const EstimateDays = z
   .number()
-  .int()
+  .multipleOf(0.5)
   .min(0)
   .max(MAX_ESTIMATE_DAYS)
-  .meta({ id: 'EstimateDays', description: 'A non-negative whole number of working days' })
+  .meta({ id: 'EstimateDays', description: 'Working days, in halves; 0 is a milestone', multipleOf: 0.5 })
 
 /**
  * Which sprint a feature is pinned to, 0-based, as a lower bound and nothing else.

@@ -66,7 +66,7 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
         const mark = (
           <>
             {frame.draws.nodes ? <FeatureNode {...shared} /> : <FeatureBarMark {...shared} />}
-            {label === undefined || frame.draws.nodes ? null : (
+            {label === undefined ? null : (
               <BarLabelText label={label} name={frame.names.get(bar.id) ?? ''} top={top} />
             )}
           </>

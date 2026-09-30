@@ -20,7 +20,7 @@ const EVERY_LEVEL: Counted = [
 ]
 
 const canvasOf = (progress: Counted, plan: StoredPlan = atlasPlan()): HTMLElement =>
-  render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} progress={progress} />).container
+  render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} progress={progress} rung="item" />).container
 
 const markFor = (container: HTMLElement, itemId: string): Element | null =>
   container.querySelector(`[data-item-id="${itemId}"]`)
@@ -112,10 +112,15 @@ describe('the canvas draws the three progress levels and stays one element per i
 
   // Painted so the three differ in lightness as well as in outline, which is what makes them readable in
   // greyscale: `started` is the only one of the three whose hue is laid down at part opacity.
-  it('paints a started mark at a partial fill and a done one at a full one', () => {
+  // Every level carries a fill opacity now, because a bar is a wash inside an outline rather than a
+  // slab: the fill is what says how far along the work is, so "planned" is a weight of it and not
+  // its absence. The levels are still told apart by that weight, which is what this reads.
+  it('paints each level at its own weight, planned lightest and done nearly solid', () => {
     const container = canvasOf(EVERY_LEVEL)
-    expect(styleOf(container, ITEM_1)).toContain('fill-opacity')
-    expect(styleOf(container, ITEM_2)).not.toContain('fill-opacity')
+    const weight = (id: string): number =>
+      Number(/fill-opacity:\s*([0-9.]+)/.exec(styleOf(container, id))?.[1] ?? '1')
+    expect(weight(ITEM_3)).toBeLessThan(weight(ITEM_1))
+    expect(weight(ITEM_1)).toBeLessThan(weight(ITEM_2))
   })
 
   // The paint is split in two: the class fixes the treatment and an inline style carries the rail's hue. A
@@ -129,7 +134,7 @@ describe('the canvas draws the three progress levels and stays one element per i
     expect(classOf(container, ITEM_3)).toContain('fill-chart-3')
     expect(classOf(container, ITEM_1)).toContain('fill-chart-3')
     expect(classOf(container, ITEM_2)).toContain('fill-chart-4')
-    expect(classOf(container, ITEM_3)).toContain('stroke-none')
+    expect(classOf(container, ITEM_3)).toContain('stroke-chart-3')
     expect(classOf(container, ITEM_1)).toContain('stroke-chart-3')
     expect(new Set([ITEM_1, ITEM_2, ITEM_3].map((id) => classOf(container, id))).size).toBe(3)
   })

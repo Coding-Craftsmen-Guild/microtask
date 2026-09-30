@@ -10,22 +10,26 @@ import {
   widthOfDays,
 } from '@repo/canvas'
 import type {
-  ArcMetrics,
   BarLabel,
   DayRange,
   DependencyArc,
   ItemMark,
-  LabelMetrics,
   PlanScale,
   RailBox,
-  RailMetrics,
   Rung,
   Treatment,
 } from '@repo/canvas'
 import { canvasArcs } from './arc-view'
+import { LABEL_METRICS, LAYOUT, NODE_LABEL_METRICS } from './mark-metrics'
 import { DRAWS } from './rung-view'
 import type { RungDrawing } from './rung-view'
 import type { PlanScreenModel } from '../plan-screen-model'
+
+/**
+ * The numbers every mark is placed from, re-exported so a component reaches one module for the
+ * geometry and the metrics together rather than importing from two that are always used as one.
+ */
+export { BAR_GAP, LABEL_METRICS, LAYOUT, NODE_LABEL_METRICS, NODE_RADIUS } from './mark-metrics'
 
 /**
  * The fallback window a canvas draws when a caller names none: one quarter of working days.
@@ -45,41 +49,6 @@ export const CANVAS_RANGE: DayRange = { fromDay: 0, toDay: 60 }
  * push the first bar away from the header cell above it.
  */
 export const CANVAS_SCALE: PlanScale = scaleFor({ pxPerDay: 14, gutter: 0 })
-
-/**
- * The vertical geometry of one rail band, and the horizontal insets inside it.
- *
- * `chromeHeight` is zero: the quarter and week headings are an HTML row above the canvas, so the
- * first rail starts at the top of the SVG. It stays in the record because `ArcMetrics` and
- * `RailMetrics` both declare it, and an arc's y and a drop target's rail are still measured from the
- * same origin the bars are.
- *
- * The band is 44px against the first revision's 58, and the bar 22 against 18. A denser row with a
- * fatter bar is what both reference tools do, and it is what makes a name fit inside the bar.
- */
-export const LAYOUT = {
-  chromeHeight: 0,
-  railHeight: 44,
-  barHeight: 22,
-  barTop: 9,
-  markHeight: 4,
-  markTop: 35,
-  labelInset: 6,
-} as const satisfies ArcMetrics & RailMetrics & Record<string, number>
-
-/**
- * How a bar's name is measured, for {@link barLabels}.
- *
- * `charWidth` is the average advance of the 11px system stack the labels are set in, near enough for
- * a truncation budget. It is deliberately a slight over-estimate: budgeting a little short leaves a
- * gap, and budgeting long overlaps the next bar.
- */
-export const LABEL_METRICS: LabelMetrics = {
-  charWidth: 6.1,
-  inset: LAYOUT.labelInset,
-  minInside: 6,
-  overhang: 220,
-}
 
 /**
  * Everything one rail band needs that is not its own geometry: what to draw, what to call it, how to
@@ -172,9 +141,28 @@ export const railNames = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
   new Map(plan.epics.map((epic) => [epic.id, epic.name]))
 
 /** Where every bar's name goes, across every rail, keyed by feature id. */
-export const labelsOf = (rails: readonly RailBox[]): ReadonlyMap<string, BarLabel> =>
+/**
+ * Where every mark's name goes, across every rail, keyed by feature id.
+ *
+ * ### A point is measured as a zero-width mark
+ *
+ * At the node rungs each bar is handed to `barLabels` with its width flattened to zero. That is not
+ * a trick: a point *is* a zero-width mark — it is drawn at the day the feature starts and says
+ * nothing about how long it runs — so measuring it as one gives exactly the right answer. Every
+ * label lands outside, and each is bounded by the x of the next feature on its rail, which is the
+ * gap that has to hold the text.
+ *
+ * The bars' own widths are left alone at the Sprint rung, where a name goes inside a bar wide enough
+ * to hold it.
+ */
+export const labelsOf = (rails: readonly RailBox[], nodes: boolean): ReadonlyMap<string, BarLabel> =>
   new Map(
-    rails.flatMap((rail) => barLabels(rail.bars, LABEL_METRICS).map((label) => [label.id, label] as const)),
+    rails.flatMap((rail) =>
+      barLabels(
+        nodes ? rail.bars.map((bar) => ({ ...bar, width: 0 })) : rail.bars,
+        nodes ? NODE_LABEL_METRICS : LABEL_METRICS,
+      ).map((label) => [label.id, label] as const),
+    ),
   )
 
 /** The item ticks of each feature, keyed by feature id, so a rail reads its own without a scan. */
@@ -289,7 +277,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
       treatments: withProgress(treatmentsOf(plan.schedule), progress),
       groups: groupsOf(plan),
       draws: DRAWS[rung],
-      labels: labelsOf(rails),
+      labels: labelsOf(rails, DRAWS[rung].nodes),
       names: featureNames(plan),
       hrefOf: query.hrefOf,
     },

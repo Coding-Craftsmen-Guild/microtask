@@ -110,7 +110,7 @@ describe('the parity that makes the table a second rendering of the same data', 
 
   it('names every id the canvas actually emits an element for, bars and item marks alike', () => {
     for (const plan of [atlasPlan(), unplacedPlan('no-estimate'), unplacedPlan('in-cycle')]) {
-      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />)
+      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />)
       const drawn = drawnIds()
       cleanup()
       expect(drawn.length).toBeGreaterThan(2)
@@ -127,7 +127,7 @@ describe('the parity that makes the table a second rendering of the same data', 
   it('names the features the tray lists, the canvas drawing no mark whatever for them now', () => {
     for (const reason of ['no-estimate', 'in-cycle'] as const) {
       const plan = planScreenModel(unplacedPlan(reason))
-      render(<PlanCanvas at={AT} place={null} plan={plan} />)
+      render(<PlanCanvas at={AT} place={null} plan={plan} rung="item" />)
       expect(all(`[data-feature-id="${FEATURE_2}"]`), reason).toHaveLength(0)
       expect(all('[data-placed]'), reason).toHaveLength(0)
       cleanup()
@@ -141,7 +141,7 @@ describe('the parity that makes the table a second rendering of the same data', 
 
   it('names an unplaced feature’s own items too, which the canvas draws nothing whatever for', () => {
     const plan = unplacedPlan('no-estimate')
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />)
     expect(all(`[data-item-id="${ITEM_3}"]`)).toHaveLength(0)
     cleanup()
     render(<PlanTable plan={planScreenModel(plan)} />)
@@ -164,7 +164,7 @@ describe('the table as a screen reader meets it', () => {
   it('is named for what it is, against the canvas’s own name for the same plan', () => {
     render(
       <div>
-        <PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />
+        <PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />
         <PlanTable plan={planScreenModel(atlasPlan())} />
       </div>,
     )

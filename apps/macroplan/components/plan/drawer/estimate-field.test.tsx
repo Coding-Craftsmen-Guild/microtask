@@ -113,12 +113,19 @@ describe('the three states an estimate can be left in', () => {
 })
 
 describe('what the field refuses itself, rather than letting the API answer 422', () => {
-  it('refuses a fraction and sends nothing, keeping what was typed so it can be fixed', async () => {
+  // Half a day is the grain the contract takes, so a half goes through like a whole.
+  it('sends a half day, which is the smallest unit anybody estimates in', async () => {
     const { onEstimate, user } = setup(5)
     await retype(user, '2.5')
+    expect(onEstimate).toHaveBeenCalledExactlyOnceWith(PLAN_A, FEATURE_1, 2.5)
+  })
+
+  it('refuses a finer grain and sends nothing, keeping what was typed so it can be fixed', async () => {
+    const { onEstimate, user } = setup(5)
+    await retype(user, '2.25')
     expect(onEstimate).not.toHaveBeenCalled()
     expect(screen.getByRole('alert').textContent).toBe(WHOLE_DAYS)
-    expect(field().value).toBe('2.5')
+    expect(field().value).toBe('2.25')
   })
 
   it('refuses a negative, which the contract’s min(0) would have answered as a generic 422', async () => {
@@ -243,7 +250,7 @@ describe('what a reader is told about the rule and about a refusal', () => {
 
   it('describes it by the hint and then the refusal, which is reading order', async () => {
     const { user } = setup(5)
-    await retype(user, '2.5')
+    await retype(user, '2.25')
     expect(described(field())).toBe(`${ESTIMATE_HINT} | ${WHOLE_DAYS}`)
     expect(field().getAttribute('aria-invalid')).toBe('true')
   })

@@ -1,53 +1,40 @@
 import type { Rung } from '@repo/canvas'
 
-/** Which marks one rung puts on a rail. */
+/** What one rung of the canvas draws for each feature on a rail. */
 export interface RungDrawing {
-  /** Whether feature bars sized by estimate are drawn. */
+  /** A bar spanning the days the feature takes. */
   readonly bars: boolean
 
-  /** Whether item marks are drawn under them. */
+  /** A tick per item under each bar, which only means anything beside a bar. */
   readonly items: boolean
 
-  /**
-   * Whether each feature is drawn as a **node** instead of a bar.
-   *
-   * The epic rung's own mark. At a year on screen a four-day feature is sixteen px of bar, which is
-   * narrower than the stroke around it, so §5 puts nodes there rather than bars that have shrunk into
-   * ticks. A node is placed by the same span a bar would have been — it is the bar's start, not its
-   * middle — so a rail reads left to right at the epic rung exactly as it does at the feature rung, and
-   * an arc into a node lands where an arc into a bar would.
-   *
-   * Never true at the same time as {@link bars}. Nothing enforces that, because the two are one
-   * decision made once in {@link DRAWS} and a canvas drawing both would be a table entry a reader can
-   * see is wrong.
-   */
+  /** One point per feature, at the day it starts. */
   readonly nodes: boolean
 }
 
 /**
- * What each of §5's three rungs draws.
+ * Which of the three each rung draws.
  *
- * §5's own three rows are epic rails with feature nodes, dependency arcs and milestone diamonds;
- * feature bars sized by estimate with items inside where they fit; and item bars with labels and the
- * linked Microtask task. All three rows now draw, which is what this revision changed: through phase 4
- * the epic rung drew its rails and their names and **nothing else**, because nodes, arcs and diamonds
- * were not built — a state the comments in this directory recorded rather than hid.
+ * ### Points above, bars at the bottom
  *
- * Arcs are not in this table, and deliberately. They are drawn at **every** rung, into one layer over
- * the whole canvas rather than into a rail, because a dependency is the one thing that couples two
- * rails (§3.1) and the coupling does not stop being true at a narrower view. What changes with the rung
- * is what the arcs connect — nodes at the epic rung, bars below it — and both are placed by the same
- * span, so `arcLayout` needs no rung and is told none.
+ * Year and Quarter draw **points**; only Sprint draws bars. A bar is a claim about duration, and a
+ * claim about duration is only worth making at a scale where the duration is legible: at four pixels
+ * a day a week-long feature and a fortnight-long one are a smear and a slightly wider smear, and the
+ * eye reads the *position* either way. So the wider two rungs say the one thing they can say
+ * honestly — when each piece of work starts, and what waits on what — and the graph they make of it
+ * is the shape somebody actually reads a plan by.
  *
- * Diamonds are not in this table either, for a different reason: a milestone is not a rung's decision
- * but a feature's. `isMilestone` reads the zero width `railLayout` already computed, so a milestone
- * draws as a diamond wherever a bar would have been drawn, at every rung that draws bars.
+ * Quarter used to draw bars. At fourteen pixels a day most features came out under sixty pixels
+ * wide, too narrow to hold their own name and too similar to each other to compare, so the rung cost
+ * the clarity of a point and bought nothing with it.
  *
- * A record rather than two `rung !== 'epic'` tests at the call sites, so the table above is one value a
- * reader can check against §5 and a widening cannot land in one branch and miss the other.
+ * ### Why items follow bars
+ *
+ * An item tick sits under its feature's bar and divides it. With no bar there is nothing to divide,
+ * and a row of ticks under a point is a claim about a span the rung is deliberately not making.
  */
 export const DRAWS: Readonly<Record<Rung, RungDrawing>> = {
   epic: { bars: false, items: false, nodes: true },
-  feature: { bars: true, items: true, nodes: false },
+  feature: { bars: false, items: false, nodes: true },
   item: { bars: true, items: true, nodes: false },
 }

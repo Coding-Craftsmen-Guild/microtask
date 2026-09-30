@@ -20,7 +20,7 @@ const AT = new Date('2026-10-05T09:00:00.000Z')
 afterEach(cleanup)
 
 const draw = (plan: ReturnType<typeof atlasPlan>): HTMLElement =>
-  render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />).container
+  render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />).container
 
 const arcs = (container: HTMLElement): readonly Element[] => [
   ...container.querySelectorAll('[data-slot="arc"]'),

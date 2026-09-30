@@ -16,7 +16,7 @@ import {
   unplacedPlan,
 } from '../testing/plan-fixture'
 import { PlanCanvas } from './plan-canvas'
-import { CANVAS_RANGE, CANVAS_SCALE, insideRail, LABEL_METRICS, LAYOUT } from './view'
+import { BAR_GAP, CANVAS_RANGE, CANVAS_SCALE, insideRail, LABEL_METRICS, LAYOUT } from './view'
 import { DRAWS } from './rung-view'
 
 const ORANGE = '#ff8833'
@@ -29,7 +29,7 @@ const UNRESOLVABLE_ZONE = 'Mars/Phobos'
 const PLATFORM_BLUE = '#3b82f6'
 
 /** What a placed feature nothing has started is drawn as, spelled out so a widening is visible. */
-const SOLID = 'fill-chart-3 stroke-none'
+const SOLID = 'fill-chart-3/20 stroke-chart-3 stroke-[1.25]'
 
 /** Only the even quarters carry a wash, so a 60-day view of a 14-day-sprint plan has exactly one. */
 const ONE_QUARTER_BAND = 1
@@ -146,10 +146,14 @@ const planAtCap = (): Plan => {
 }
 
 describe('the range the admin canvas draws', () => {
-  it('is one quarter, and is the feature rung — an epic-rung canvas draws nodes and no bars', () => {
+  // Bars are the Sprint rung's alone now. A bar is a claim about duration, and at fourteen pixels a
+  // day most features come out under sixty pixels wide — too narrow to hold a name and too alike to
+  // compare — so Quarter says the one thing it can say honestly and draws each feature as a point.
+  it('is one quarter, and is the feature rung — which draws points and leaves bars to Sprint', () => {
     expect(CANVAS_RANGE.toDay - CANVAS_RANGE.fromDay).toBe(60)
     expect(rungFor(CANVAS_RANGE)).toBe('feature')
-    expect(DRAWS[rungFor(CANVAS_RANGE)]).toEqual({ bars: true, items: true, nodes: false })
+    expect(DRAWS[rungFor(CANVAS_RANGE)]).toEqual({ bars: false, items: false, nodes: true })
+    expect(DRAWS.item).toEqual({ bars: true, items: true, nodes: false })
   })
 
   it('carries no gutter, because the rail names are HTML beside the canvas and not text inside it', () => {
@@ -175,21 +179,23 @@ describe('the geometry the components are kept thin by', () => {
     }
   })
 
-  it('budgets a label against the same inset the bars are drawn with, so one number moves both', () => {
-    expect(LABEL_METRICS.inset).toBe(LAYOUT.labelInset)
+  // The budget clears the gap as well as the inset, because the gap is taken off the bar's drawn
+  // width: a label measured against the full span would overrun the edge it is written inside.
+  it('budgets a label against the inset and the gap the bars are drawn with, so one number moves both', () => {
+    expect(LABEL_METRICS.inset).toBe(LAYOUT.labelInset + BAR_GAP)
     expect(LABEL_METRICS.charWidth).toBeGreaterThan(0)
   })
 })
 
 describe('PlanCanvas', () => {
   it('is one img-role graphic named for its plan, which is all a screen reader is told', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
     expect(slot('plan-canvas')).toHaveLength(1)
   })
 
   it('sizes its viewBox from the range and its rails alone, not from anything measured', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
     expect(canvas.getAttribute('viewBox')).toBe('0 0 840 44')
     expect(numberOf(canvas, 'width')).toBe(dayToX(CANVAS_RANGE.toDay, CANVAS_SCALE))
@@ -198,14 +204,14 @@ describe('PlanCanvas', () => {
 
   it('draws one rail group per rail, in the order railLayout gave them', () => {
     const plan = atlasPlan()
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />)
     const drawn = slot('rail').map((rail) => rail.getAttribute('data-epic-id'))
     expect(drawn).toEqual(railLayout(plan, plan.schedule, CANVAS_SCALE).map((rail) => rail.epicId))
     expect(drawn).toEqual([EPIC_1])
   })
 
   it('names no rail inside the SVG, and carries the id and hue the HTML column joins by', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     // `RailNames` draws `Platform` beside the canvas; the rail group here is geometry and two keys.
     expect(screen.queryByText('Platform')).toBeNull()
     expect(all('[data-slot="plan-canvas"] text')).toHaveLength(slot('bar-label').length)
@@ -215,7 +221,7 @@ describe('PlanCanvas', () => {
 
   it('leaves a rail whose epicId names no epic unhued, rather than guessing a colour for it', () => {
     const plan = atlasPlan()
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel({ ...plan, epics: [] })} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel({ ...plan, epics: [] })} rung="item" />)
     // `Unclaimed rail` is the names column's sentence now. The canvas answers by painting nothing.
     expect(screen.queryByText('Unclaimed rail')).toBeNull()
     expect(only('[data-slot="rail"]').getAttribute('data-colour')).toBeNull()
@@ -224,34 +230,54 @@ describe('PlanCanvas', () => {
   })
 
   it('takes each bar hue from its epic colour, which the API validated and the canvas never chooses', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="item" />)
     expect(barFor(FEATURE_1).getAttribute('style')).toContain(ORANGE)
     expect(barFor(FEATURE_2).getAttribute('style')).toContain(ORANGE)
     expect(markFor(ITEM_1).getAttribute('style')).toContain(ORANGE)
   })
 
-  it('puts the hue in a style and the treatment in a class, because only one of them is a closed set', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} />)
+  // A bar is a wash inside an outline now, and both are the rail's hue — so the style carries the
+  // stroke as well as the fill. What has not changed is the split: every *colour* is inline, because
+  // it comes from the plan and Tailwind emits nothing for a class assembled at runtime, and every
+  // *treatment* is a class, because those are a closed set.
+  it('puts every hue in a style and the treatment in a class, only one of them being a closed set', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="item" />)
     expect(styleOf(barFor(FEATURE_1))).toContain('fill')
-    expect(styleOf(barFor(FEATURE_1))).not.toContain('stroke')
+    expect(styleOf(barFor(FEATURE_1))).toContain('stroke')
+    expect(styleOf(barFor(FEATURE_1))).toContain('fill-opacity')
     expect(barFor(FEATURE_1).getAttribute('class')).toBe(SOLID)
     expect(barFor(FEATURE_1).getAttribute('class')).not.toContain(ORANGE)
   })
 
-  it('places every bar at the x and width railLayout computed, and recomputes neither', () => {
+  // The drawn edge is pulled in by a pixel at each end so a run of back-to-back features does not
+  // paint as one block. The *geometry* is untouched: `data-x` and `data-width` still carry exactly
+  // what `railLayout` computed, because that is what `selection.ts` measures a drag against — a drag
+  // answered against the drawn edge would be off by the gap on every drop.
+  it('carries the x and width railLayout computed on the data, and recomputes neither', () => {
     const plan = atlasPlan()
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />)
     for (const rail of railLayout(plan, plan.schedule, CANVAS_SCALE)) {
       for (const bar of rail.bars) {
-        expect(numberOf(barFor(bar.id), 'x'), bar.id).toBe(bar.x)
-        expect(numberOf(barFor(bar.id), 'width'), bar.id).toBe(bar.width)
+        expect(numberOf(barFor(bar.id), 'data-x'), bar.id).toBe(bar.x)
+        expect(numberOf(barFor(bar.id), 'data-width'), bar.id).toBe(bar.width)
       }
     }
-    expect(numberOf(barFor(FEATURE_2), 'x')).toBe(dayToX(5, CANVAS_SCALE))
+    expect(numberOf(barFor(FEATURE_2), 'data-x')).toBe(dayToX(5, CANVAS_SCALE))
+  })
+
+  it('insets the drawn edge by the gap at both ends, so two neighbours never share a boundary', () => {
+    const plan = atlasPlan()
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />)
+    for (const rail of railLayout(plan, plan.schedule, CANVAS_SCALE)) {
+      for (const bar of rail.bars) {
+        expect(numberOf(barFor(bar.id), 'x'), bar.id).toBe(bar.x + BAR_GAP)
+        expect(numberOf(barFor(bar.id), 'width'), bar.id).toBe(bar.width - BAR_GAP * 2)
+      }
+    }
   })
 
   it('draws every placed item as one mark under its own feature bar', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     expect(slot('item-mark').map((mark) => mark.getAttribute('data-item-id'))).toEqual([
       ITEM_1,
       ITEM_2,
@@ -264,14 +290,14 @@ describe('PlanCanvas', () => {
   // boundary exactly and at their true widths they abut: a feature's four items rendered as one
   // unbroken strip. Each tick is pulled in by a fraction of a pixel at both ends so four read as four.
   it('insets each tick inside its own span, so consecutive items do not read as one strip', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const at = numberOf(markFor(ITEM_2), 'x')
     expect(at).toBeGreaterThan(dayToX(3, CANVAS_SCALE))
     expect(at).toBeLessThan(dayToX(4, CANVAS_SCALE))
   })
 
   it('leaves real air between one tick and the next, which is what makes them countable', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const placed = slot('item-mark')
       .map((mark) => ({ x: numberOf(mark, 'x'), width: numberOf(mark, 'width') }))
       .sort((left, right) => left.x - right.x)
@@ -287,7 +313,7 @@ describe('PlanCanvas', () => {
 describe('a feature the forward pass left off the axis', () => {
   it('gets no mark whatever, for either reason, because its sentence is the tray under the board', () => {
     for (const reason of ['no-estimate', 'in-cycle'] as const) {
-      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan(reason))} />)
+      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan(reason))} rung="item" />)
       expect(document.querySelector(`[data-feature-id="${FEATURE_2}"]`), reason).toBeNull()
       expect(slot('feature-bar'), reason).toHaveLength(1)
       expect(barFor(FEATURE_1), reason).toBeTruthy()
@@ -296,7 +322,7 @@ describe('a feature the forward pass left off the axis', () => {
   })
 
   it('is not stacked off-axis either, there being no gutter left of day zero to stack it in', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan('no-estimate'))} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan('no-estimate'))} rung="item" />)
     expect(all('[data-placed]')).toHaveLength(0)
     expect(slot('unplaced-features')).toHaveLength(0)
     for (const bar of slot('feature-bar')) {
@@ -305,7 +331,7 @@ describe('a feature the forward pass left off the axis', () => {
   })
 
   it('leaves no hollow and no dashed mark on the canvas, the two treatments having no bar to land on', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan('in-cycle'))} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan('in-cycle'))} rung="item" />)
     const drawn = [...slot('feature-bar'), ...slot('item-mark')].map((one) =>
       one.getAttribute('data-treatment'),
     )
@@ -313,7 +339,7 @@ describe('a feature the forward pass left off the axis', () => {
   })
 
   it('drags its own items off with it, so an unplaced item draws no mark either', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan('no-estimate'))} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(unplacedPlan('no-estimate'))} rung="item" />)
     expect(document.querySelector(`[data-item-id="${ITEM_3}"]`)).toBeNull()
     expect(slot('item-mark')).toHaveLength(2)
   })
@@ -321,48 +347,65 @@ describe('a feature the forward pass left off the axis', () => {
 
 describe('the name each bar carries', () => {
   it('sets a wide bar’s name on the bar itself, one label inset in from its own left edge', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const label = labelFor(FEATURE_1)
-    expect(numberOf(label, 'x')).toBe(numberOf(barFor(FEATURE_1), 'x') + LABEL_METRICS.inset)
+    expect(numberOf(label, 'x')).toBe(numberOf(barFor(FEATURE_1), 'x') + LAYOUT.labelInset)
     expect(numberOf(label, 'y')).toBe(insideRail(0, 'bar') + LAYOUT.barHeight / 2)
-    expect(label.getAttribute('class')).toContain('fill-white')
+    // Dark and not white: a bar is a translucent wash inside an outline now, so white text on one is
+    // white text on the page.
+    expect(label.getAttribute('class')).toContain('fill-foreground')
   })
 
   it('cuts a name that outruns its own bar to an ellipsis, since SVG has no text-overflow', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     expect(labelFor(FEATURE_1).textContent).toBe('Auth rew…')
     expect(screen.queryByText('Auth rewrite')).toBeNull()
   })
 
   it('puts a narrow bar’s name after it in the canvas ink, where the whole name still fits', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const bar = barFor(FEATURE_2)
     const label = labelFor(FEATURE_2)
     expect(numberOf(label, 'x')).toBe(
-      numberOf(bar, 'x') + numberOf(bar, 'width') + LABEL_METRICS.inset,
+      numberOf(bar, 'data-x') + numberOf(bar, 'data-width') + LABEL_METRICS.inset,
     )
     expect(label.textContent).toBe('Billing')
     expect(label.getAttribute('class')).toContain('fill-foreground')
   })
 
   it('takes no pointer on either, so a name is never a hole in the bar it is drawn over', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     expect(slot('bar-label')).toHaveLength(2)
     for (const label of slot('bar-label')) {
       expect(label.getAttribute('class')).toContain('pointer-events-none')
     }
   })
 
-  it('names no node at the epic rung, where a dot has no inside and its neighbour no gap', () => {
+  // A point has no inside to write in, so every name at the node rungs sits after its dot and is
+  // bounded by the next one on that rail — which is the gap that has to hold the text.
+  it('names a node beside it, never on it, the point having no inside to write in', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
     expect(slot('feature-bar')).toHaveLength(2)
-    expect(slot('bar-label')).toHaveLength(0)
+    const labels = slot('bar-label')
+    expect(labels.length).toBeGreaterThan(0)
+    for (const label of labels) {
+      expect(label.getAttribute('class')).not.toContain('fill-foreground text-[11px] font-medium')
+    }
+  })
+
+  // Below four characters `cut` has nothing left to keep and returns a letter and an ellipsis, which
+  // names nothing and sits in front of the point it was meant to label.
+  it('draws no name at all where the gap cannot hold a readable one', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
+    for (const label of slot('bar-label')) {
+      expect((label.textContent ?? '').replace('…', '').length).toBeGreaterThanOrEqual(3)
+    }
   })
 })
 
 describe('the chrome the canvas draws around its rails', () => {
   it('washes a quarter band and labels none, the ordinals being an HTML row above the canvas', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const bands = slot('quarter-band')
     expect(bands).toHaveLength(ONE_QUARTER_BAND)
     expect(nth(bands, 0).tagName).toBe('rect')
@@ -386,7 +429,7 @@ describe('the chrome the canvas draws around its rails', () => {
 
   it('rules each sprint boundary the full height of the canvas, with no week label and no hover target', () => {
     const plan = atlasPlan()
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />)
     const ticks = slot('sprint-tick')
     expect(ticks.length).toBeGreaterThan(1)
     expect(ticks.map((tick) => tick.tagName)).toEqual(ticks.map(() => 'line'))
@@ -400,7 +443,7 @@ describe('the chrome the canvas draws around its rails', () => {
   })
 
   it('writes no calendar date into the permanent chrome, which is what §5 reserves a hover for', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const drawn = all('[data-slot="plan-canvas"] text')
     expect(drawn.map((text) => text.getAttribute('data-slot'))).toEqual(['bar-label', 'bar-label'])
     for (const text of drawn) expect(text.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/)
@@ -410,7 +453,7 @@ describe('the chrome the canvas draws around its rails', () => {
   })
 
   it('draws today in the plan’s own zone, at the instant it was handed', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const today = only('[data-slot="today"]')
     expect(today.getAttribute('data-date')).toBe('2026-10-05')
     expect(today.getAttribute('data-day')).toBe('5')
@@ -435,7 +478,7 @@ describe('the chrome the canvas draws around its rails', () => {
   })
 
   it('draws the plan and no today line at all when this runtime cannot resolve its zone', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan({ timezone: UNRESOLVABLE_ZONE }))} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan({ timezone: UNRESOLVABLE_ZONE }))} rung="item" />)
     expect(slot('today')).toHaveLength(0)
     expect(slot('rail')).toHaveLength(1)
     expect(slot('feature-bar')).toHaveLength(2)
@@ -490,7 +533,7 @@ const CAP_RENDER_MS = 60_000
 
 describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, () => {
   it('renders at the 2 000-item cap without exceeding one element per item', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const marks = slot('item-mark')
     expect(marks).toHaveLength(LIMITS.itemsPerPlan)
     for (const mark of marks) expect(mark.children).toHaveLength(0)
@@ -498,7 +541,7 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   })
 
   it('draws no wrapper around a mark either, which a count of marks alone would not notice', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
     expect(canvas.querySelectorAll('rect')).toHaveLength(
       LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + ONE_QUARTER_BAND + ONE_RAIL_BAND,
@@ -509,7 +552,7 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   })
 
   it('names all 200 bars, and pays one text per bar and none at all per item', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
     expect(slot('bar-label')).toHaveLength(LIMITS.featuresPerPlan)
     expect(canvas.querySelectorAll('text')).toHaveLength(LIMITS.featuresPerPlan)
@@ -517,7 +560,7 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   })
 
   it('rules every sprint once and nothing else per sprint, the hover rects having gone with the labels', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
     const rules = sprintTicks(planAtCap(), CANVAS_SCALE, CANVAS_RANGE).length
     expect(rules).toBeGreaterThan(1)
@@ -525,7 +568,7 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   })
 
   it('still draws one rail, because 2 000 items on one rail are still one rail', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} />)
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     expect(slot('rail')).toHaveLength(1)
     expect(only('[data-slot="plan-canvas"]').getAttribute('viewBox')).toBe('0 0 840 44')
   })

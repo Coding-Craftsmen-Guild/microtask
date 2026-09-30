@@ -44,41 +44,43 @@ describe('attentionOf files an unplaced feature under the feature', () => {
   })
 })
 
-describe('attentionOf rolls unsized items up onto their feature', () => {
-  it('marks the item itself, so its own row can carry the badge', () => {
+describe('attentionOf files nothing under an item', () => {
+  // An item takes its timing from the feature it is under, so an item nobody sized is not a thing
+  // left undone — it is the ordinary case, and a plan is allowed to be broken down only as far as
+  // anyone found useful.
+  it('says nothing about an item with no estimate, which is not a problem but the ordinary case', () => {
     const plan = planOf({ unscheduled: [{ id: 'i1', reason: 'no-estimate' }] })
-    expect(kinds(plan, 'i1')).toEqual(['no-estimate'])
+    expect(attentionOf(plan).has('i1')).toBe(false)
   })
 
-  it('marks the feature that owns it, so the timeline row shows there is something under it', () => {
+  it('says nothing about its feature either, the feature having an estimate of its own', () => {
     const plan = planOf({ unscheduled: [{ id: 'i1', reason: 'no-estimate' }] })
-    expect(kinds(plan, 'f1')).toEqual(['items-unsized'])
+    expect(attentionOf(plan).has('f1')).toBe(false)
   })
 
-  it('counts the items of one feature into a single badge, which is what empties the old wall', () => {
+  it('stays silent however many of a feature’s items are unsized', () => {
     const plan = planOf({
       unscheduled: [
         { id: 'i1', reason: 'no-estimate' },
         { id: 'i2', reason: 'no-estimate' },
-      ],
-    })
-    expect(attentionOf(plan).get('f1')?.[0]?.detail).toBe('2 items need an estimate')
-  })
-
-  it('writes the singular for one item rather than "1 items"', () => {
-    const plan = planOf({ unscheduled: [{ id: 'i3', reason: 'no-estimate' }] })
-    expect(attentionOf(plan).get('f2')?.[0]?.detail).toBe('1 item needs an estimate')
-  })
-
-  it('keeps one feature’s items off another feature’s badge', () => {
-    const plan = planOf({
-      unscheduled: [
-        { id: 'i1', reason: 'no-estimate' },
         { id: 'i3', reason: 'no-estimate' },
       ],
     })
-    expect(attentionOf(plan).get('f1')?.[0]?.detail).toBe('1 item needs an estimate')
-    expect(attentionOf(plan).get('f2')?.[0]?.detail).toBe('1 item needs an estimate')
+    expect(attentionOf(plan).size).toBe(0)
+  })
+
+  // An item is reported in-cycle because its *feature* is, and that feature carries the badge.
+  // Repeating it on each item would multiply one fact by however finely somebody broke the work down.
+  it('leaves an item its feature’s cycle stranded unmarked, the feature already saying so', () => {
+    const plan = planOf({
+      unscheduled: [
+        { id: 'f1', reason: 'in-cycle' },
+        { id: 'i1', reason: 'in-cycle' },
+        { id: 'i2', reason: 'in-cycle' },
+      ],
+    })
+    expect(kinds(plan, 'f1')).toEqual(['in-cycle'])
+    expect(attentionOf(plan).has('i1')).toBe(false)
   })
 })
 
@@ -121,7 +123,7 @@ describe('attentionOf gathers several kinds on one entity', () => {
       unscheduled: [{ id: 'f1', reason: 'no-estimate' }, { id: 'i1', reason: 'no-estimate' }],
       ignoredEdges: [{ featureId: 'f1', dependsOnId: 'f2' }],
     })
-    expect(kinds(plan, 'f1').sort()).toEqual(['edge-ignored', 'items-unsized', 'no-estimate'])
+    expect(kinds(plan, 'f1').sort()).toEqual(['edge-ignored', 'no-estimate'])
   })
 })
 
@@ -130,26 +132,22 @@ describe('attentionCount counts the features a reader can act on', () => {
     expect(attentionCount(planOf({}), attentionOf(planOf({})))).toBe(0)
   })
 
-  it('counts a feature with three problems once, so the header agrees with the page', () => {
+  it('counts a feature with two problems once, so the header agrees with the page', () => {
     const plan = planOf({
-      unscheduled: [{ id: 'f1', reason: 'no-estimate' }, { id: 'i1', reason: 'no-estimate' }],
+      unscheduled: [{ id: 'f1', reason: 'no-estimate' }],
       ignoredEdges: [{ featureId: 'f1', dependsOnId: 'f2' }],
     })
     expect(attentionCount(plan, attentionOf(plan))).toBe(1)
   })
 
-  // Counting items too made the header say 19 over a page showing four marks: every unsized item
-  // counted on its own account and again inside its feature's rollup.
-  it('leaves rolled-up items out, so the number matches the marks on screen', () => {
+  it('counts nothing for a plan whose only unsized things are items', () => {
     const plan = planOf({
       unscheduled: [
         { id: 'i1', reason: 'no-estimate' },
-        { id: 'i2', reason: 'no-estimate' },
         { id: 'i3', reason: 'no-estimate' },
       ],
     })
-    expect(attentionOf(plan).size).toBe(5)
-    expect(attentionCount(plan, attentionOf(plan))).toBe(2)
+    expect(attentionCount(plan, attentionOf(plan))).toBe(0)
   })
 
   it('counts every distinct feature, not just the first', () => {

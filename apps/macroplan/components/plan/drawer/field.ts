@@ -5,9 +5,9 @@ import type { KeyboardEvent } from 'react'
 
 const ENCODER = new TextEncoder()
 
-/** Why an estimate that is not a whole number of days is refused, in the field's own words. */
+/** Why an estimate that is not a whole or half day is refused, in the field's own words. */
 export const WHOLE_DAYS =
-  'An estimate is a whole number of days, 0 or more — or empty for work nobody has sized yet.'
+  'An estimate is days in halves — 0.5, 1, 1.5 and so on — or empty for work nobody has sized yet.'
 
 /** Why an estimate past the contract's maximum is refused, naming the maximum. */
 export const TOO_MANY_DAYS = `An estimate cannot be more than ${String(MAX_ESTIMATE_DAYS)} days.`
@@ -105,7 +105,7 @@ export const EDITS = 'grid gap-3 border-t border-foreground/10 pt-3 empty:hidden
 
 /** What an estimate field says about its own three states, before anything has been refused. */
 export const ESTIMATE_HINT =
-  'Days of work. Empty means nobody has sized it; 0 is a milestone that takes no time.'
+  'Days of work, in halves — 0.5, 1, 1.5. Empty means nobody has sized it; 0 is a milestone that takes no time.'
 
 /**
  * What a pin field says about the rule, whenever there is no sprint in the box to date.
@@ -145,11 +145,16 @@ export const BUDGET = 'text-[12px] text-muted-foreground'
  * this function is required to treat as a **clear**. A field built that way would delete a real
  * estimate for a typo and report success. Here the text survives, so it can be refused.
  *
- * What it refuses, it refuses because the contract does: `EstimateDays` is `int().min(0).max(1000)`,
- * so a fraction, a negative and a thousand-and-one are each a 422 whose detail is the API's generic
- * one. Refusing in the field is what puts a sentence in front of the user that names the field's own
- * rule. The regex admits digits only, which is also what keeps `0x10`, `1e3` and `  -0 ` out — every
- * spelling `Number()` would have accepted and no user meant.
+ * What it refuses, it refuses because the contract does: `EstimateDays` is
+ * `multipleOf(0.5).min(0).max(1000)`, so a quarter day, a negative and a thousand-and-one are each a
+ * 422 whose detail is the API's generic one. Refusing in the field is what puts a sentence in front
+ * of the user that names the field's own rule.
+ *
+ * The regex admits digits and **one optional `.0` or `.5`**, which is the grain the contract takes.
+ * Spelling the two endings out rather than allowing any decimal is what keeps the refusal in the
+ * field rather than at the API: `1.25` is rejected here, with a sentence, instead of being sent and
+ * coming back as a generic 422. It also still keeps `0x10`, `1e3` and `  -0 ` out — every spelling
+ * `Number()` would have accepted and no user meant.
  *
  * @param typed - Exactly what the field holds, untrimmed.
  * @returns The value to send — `null` included — or the refusal to show instead.
@@ -157,7 +162,7 @@ export const BUDGET = 'text-[12px] text-muted-foreground'
 export function estimateEntry(typed: string): EstimateEntry {
   const trimmed = typed.trim()
   if (trimmed === '') return { kind: 'days', days: null }
-  if (!/^[0-9]+$/.test(trimmed)) return { kind: 'refused', detail: WHOLE_DAYS }
+  if (!/^[0-9]+(\.[05])?$/.test(trimmed)) return { kind: 'refused', detail: WHOLE_DAYS }
   const days = Number(trimmed)
   if (days > MAX_ESTIMATE_DAYS) return { kind: 'refused', detail: TOO_MANY_DAYS }
   return { kind: 'days', days }

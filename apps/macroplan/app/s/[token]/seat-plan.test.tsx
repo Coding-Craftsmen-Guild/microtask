@@ -428,15 +428,19 @@ describe('a plan seat lands on the one plan its token opens', () => {
   // cycle here drags `Invoices` off the axis with `Billing`, and `Billing` carries both facts on one dot —
   // which is the difference between the three marks this plan draws and one row per complaint, the shape
   // that reached thirty rows on the deployed plan.
-  it('rolls the item the cycle also stranded into its feature’s own mark, not a row beside it', async () => {
+  // The item the cycle also stranded is not a row and not a mark. It is reported unplaced because its
+  // *feature* is in the cycle, and that feature already carries the badge; repeating it on each of
+  // its items would multiply one fact by however finely somebody broke the work down.
+  it('leaves the item the cycle also stranded unmarked, its feature already saying so', async () => {
     seated(SEAT_TOKEN)
     api.plans = [tangledPlan()]
     await show()
     expect(slots('tray-row')).toHaveLength(2)
     expect(slot('unscheduled-tray')?.textContent).not.toContain('Invoices')
     const titles = slots('attention-dot').map((dot) => dot.getAttribute('title'))
-    expect(titles).toContain('In a dependency cycle · 1 item needs an estimate')
+    expect(titles).toContain('In a dependency cycle')
     expect(titles).toContain('Dependency on Reporting set aside')
+    for (const title of titles) expect(title ?? '').not.toContain('item')
   })
 
   // The head counts **features**, and the count is what tells a reader there is anything to look for at

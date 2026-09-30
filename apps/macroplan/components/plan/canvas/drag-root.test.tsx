@@ -71,7 +71,7 @@ const identity = (plan: PlanScreenModel): readonly string[] => [
 ]
 
 const shown = (actions: PlanEditActions) =>
-  render(<PlanCanvas at={AT} place={actions.placeFeature} plan={MODEL} />)
+  render(<PlanCanvas at={AT} place={actions.placeFeature} plan={MODEL} rung="item" />)
 
 // A whole gesture, including the `click` a browser synthesises after the release. That last event is not
 // decoration: a bar is now a link to its drawer as well as a drag handle, so the frame cancels the click a
@@ -113,12 +113,12 @@ describe('the frame the canvas is wrapped in', () => {
     shown(actions)
     expect(only('[data-slot="drag-root"]').getAttribute('data-drag')).toBe('true')
     cleanup()
-    render(<PlanCanvas at={AT} place={null} plan={MODEL} />)
+    render(<PlanCanvas at={AT} place={null} plan={MODEL} rung="item" />)
     expect(only('[data-slot="drag-root"]').getAttribute('data-drag')).toBe('false')
   })
 
   it('sends nothing at all on a surface that may not place, however the pointer is driven', () => {
-    render(<PlanCanvas at={AT} place={null} plan={MODEL} />)
+    render(<PlanCanvas at={AT} place={null} plan={MODEL} rung="item" />)
     drag(FEATURE_3, 6 * DAY, 0)
     expect(document.querySelector('[data-slot="drag-ghost"]')).toBeNull()
   })
@@ -318,9 +318,12 @@ describe('the ghost that follows the pointer', () => {
     fireEvent.pointerDown(bar, { clientX: 400, clientY: 300 })
     fireEvent.pointerMove(only('[data-slot="drag-root"]'), { clientX: 400 + 3 * DAY, clientY: 290 })
     const rect = only('[data-slot="drag-ghost"] rect')
-    expect(Number(rect.getAttribute('x'))).toBe(Number(bar.getAttribute('x')) + 3 * DAY)
-    expect(Number(rect.getAttribute('y'))).toBe(Number(bar.getAttribute('y')) - 10)
-    expect(Number(rect.getAttribute('width'))).toBe(Number(bar.getAttribute('width')))
+    // Against `data-x`, not the drawn `x`: a bar's edge is pulled in by a pixel so a run of them does
+    // not paint as one block, and the drag is answered against the true geometry — a ghost measured
+    // from the drawn edge would sit a pixel off the bar it is standing in for.
+    expect(Number(rect.getAttribute('x'))).toBe(Number(bar.getAttribute('data-x')) + 3 * DAY)
+    expect(Number(rect.getAttribute('y'))).toBe(Number(bar.getAttribute('data-y')) - 10)
+    expect(Number(rect.getAttribute('width'))).toBe(Number(bar.getAttribute('data-width')))
   })
 
   it('says so when the point under it names no placement, rather than showing a move that will not happen', () => {

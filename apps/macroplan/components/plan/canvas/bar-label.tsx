@@ -1,11 +1,13 @@
 import type { BarLabel } from '@repo/canvas'
 import { insideRail, LAYOUT } from './view'
 
-const INSIDE = 'pointer-events-none fill-white text-[11px] font-medium'
+const INSIDE = 'pointer-events-none fill-foreground text-[11px] font-medium'
 
 const OUTSIDE = 'pointer-events-none fill-foreground text-[11px]'
 
 const ELLIPSIS = '…'
+
+const MIN_READABLE = 4
 
 /**
  * A name cut to the budget {@link BarLabel.maxChars} allows, with an ellipsis when it was cut.
@@ -36,9 +38,22 @@ export interface BarLabelTextProps {
  *
  * `pointer-events-none` on both: the text sits over the bar, and a label that swallowed the
  * pointer would be a hole in the drag target exactly where the bar is easiest to hit.
+ *
+ * ### Nothing, rather than a stub
+ *
+ * Under four characters `cut` has nothing left to keep and returns a letter and an ellipsis, which
+ * names no feature and reads as a rendering fault — four crowded features on one rail drew as two
+ * dots, a bare "…", a dot, and one readable name. Silence is the better answer: the name is one
+ * hover away, it is in the tree on the left, and it is in the table, and a stub is in the way of the
+ * very mark it was meant to label.
+ *
+ * ### Dark text inside, not white
+ *
+ * A bar is a translucent wash inside an outline rather than a slab of colour, so white text on one
+ * is white text on the page — invisible on every rail whatever hue it carries.
  */
 export function BarLabelText({ label, name, top }: BarLabelTextProps) {
-  if (label.maxChars <= 0 || name === '') return null
+  if (label.maxChars < MIN_READABLE || name === '') return null
   return (
     <text
       className={label.inside ? INSIDE : OUTSIDE}

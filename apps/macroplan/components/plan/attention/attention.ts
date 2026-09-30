@@ -1,15 +1,12 @@
 import type { CanvasScheduleWithConflicts } from '@repo/canvas'
-import { ATTENTION_WORDS, unsizedItems } from './attention-words'
+import { ATTENTION_WORDS } from './attention-words'
 
 /**
  * The kinds of trouble an entity can be in, each one a thing the schedule already reported.
  *
- * `items-unsized` is the only one with no counterpart in `ScheduleResult`. It is a **rollup**: the
- * pass reports every unsized item separately, and a plan whose items are mostly unsized reports
- * dozens of them. Carried up to the feature they belong to, those dozens become one badge per
- * feature, which is the difference between a page with four marks on it and a page with thirty.
+ * All three are about a **feature**. An item is never in trouble: see {@link attentionOf}.
  */
-export type AttentionKind = 'no-estimate' | 'in-cycle' | 'edge-ignored' | 'items-unsized'
+export type AttentionKind = 'no-estimate' | 'in-cycle' | 'edge-ignored'
 
 /** One thing wrong with one entity: what kind, and what to call it where it is shown. */
 export interface Attention {
@@ -27,7 +24,7 @@ export interface Attention {
  */
 export type AttentionMap = ReadonlyMap<string, readonly Attention[]>
 
-/** What {@link attentionOf} reads: names to quote, items to roll up, and the schedule's own report. */
+/** What {@link attentionOf} reads: names to quote, items to tell apart, and the schedule's report. */
 export interface AttentionPlan {
   readonly features: readonly { readonly id: string; readonly name: string }[]
   readonly items: readonly { readonly id: string; readonly featureId: string }[]
@@ -59,19 +56,13 @@ const WORD: Readonly<Record<AttentionKind, string>> = {
   'no-estimate': ATTENTION_WORDS.noEstimate,
   'in-cycle': ATTENTION_WORDS.inCycle,
   'edge-ignored': ATTENTION_WORDS.edgeIgnored,
-  'items-unsized': ATTENTION_WORDS.itemsUnsized,
 }
 
 const unscheduled = (plan: AttentionPlan, gathering: Gathering): void => {
-  const unsized = new Map<string, number>()
   for (const entry of plan.schedule.unscheduled) {
+    if (gathering.owner.has(entry.id)) continue
     const kind = REASONS[entry.reason] ?? 'no-estimate'
     add(gathering, entry.id, { kind, detail: WORD[kind] })
-    const feature = gathering.owner.get(entry.id)
-    if (feature !== undefined) unsized.set(feature, (unsized.get(feature) ?? 0) + 1)
-  }
-  for (const [feature, count] of unsized) {
-    add(gathering, feature, { kind: 'items-unsized', detail: unsizedItems(count) })
   }
 }
 
@@ -105,13 +96,24 @@ const edges = (plan: AttentionPlan, gathering: Gathering): void => {
  * ### What is not lost
  *
  * Every field of `ScheduleResult` names at least one entity id, so every fact finds a home:
- * `unscheduled[].id` is a feature or an item, `cycles[].featureIds` are features, and an
- * `ignoredEdges[]` entry is filed on the feature that was placed in spite of it — the one whose
- * position on the timeline is the thing being explained.
+ * `cycles[].featureIds` are features, and an `ignoredEdges[]` entry is filed on the feature that was
+ * placed in spite of it — the one whose position on the timeline is the thing being explained.
  *
  * An id the plan does not hold still gets an entry. Nothing renders it, because nothing draws a row
  * for an entity it cannot find, and that is the honest outcome: the old panel printed "The schedule
  * names an id this plan does not hold" at a reader who could do nothing with it.
+ *
+ * ### An item is never in trouble
+ *
+ * `unscheduled` holds items as well as features, and every item in it is skipped. An item takes its
+ * timing from the feature it is under, so an item nobody sized is not a thing left undone — it is
+ * the ordinary case, and a plan is allowed to be broken down only as far as anyone found useful.
+ *
+ * Both of an item's reasons are already said elsewhere, about the thing they are actually about. An
+ * item with no estimate sits under a feature that has one, and nothing is wrong: it simply draws no
+ * tick of its own. An item reported `in-cycle` is there because its *feature* is in a cycle, and
+ * that feature carries the badge; repeating it on each of its items would multiply one fact by
+ * however finely somebody broke the work down.
  *
  * ### Kinds are unique per entity
  *
@@ -138,15 +140,12 @@ export function attentionOf(plan: AttentionPlan): AttentionMap {
  * A feature that is both unsized and in a cycle is one row a reader has to open, and counting it
  * twice would make the header disagree with the page under it.
  *
- * ### Not how many entities are marked either
+ * ### Features, because only a feature can be in trouble
  *
- * The map holds items too, and counting them made the header say "19 need attention" over a page
- * showing four marks — every unsized item counted once on its own account and again inside its
- * feature's rollup. A reader cannot reconcile that, and the number they can act on is the number of
- * features: that is what the tree marks, what the tray lists, and what a drawer opens.
- *
- * The items are not lost by being uncounted. Each is marked on its own row in its feature's drawer,
- * which is the one place a person is in a position to size it.
+ * {@link attentionOf} files nothing under an item, so counting features is counting the whole map.
+ * It is still written as a filter rather than as `found.size`, because the two agreeing is a
+ * property of that function and not of this one — and this is the number on screen beside the plan's
+ * calendar, which has to match the marks a reader can count.
  */
 export const attentionCount = (plan: AttentionPlan, found: AttentionMap): number =>
   plan.features.filter((feature) => found.has(feature.id)).length

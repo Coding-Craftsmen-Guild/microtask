@@ -98,7 +98,19 @@ describe('EstimateDays', () => {
     expect(EstimateDays.safeParse(MAX_ESTIMATE_DAYS).success).toBe(true)
   })
 
-  it.each([-1, 1.5, MAX_ESTIMATE_DAYS + 1])('rejects %s', (value) => {
+  // Half a day is the smallest unit anybody estimates in, and forcing it to 1 inflates every small
+  // feature on the timeline by up to a day.
+  it.each([0.5, 1.5, 2.5, MAX_ESTIMATE_DAYS - 0.5])('accepts the half day %s', (value) => {
+    expect(EstimateDays.safeParse(value).success).toBe(true)
+  })
+
+  // The bound is on the grain, not the precision: 0.37 days is not a finer measurement, it is a
+  // number nobody arrived at and a bar nobody can read.
+  it.each([0.25, 0.1, 1.333, 2.75])('rejects the finer grain %s', (value) => {
+    expect(EstimateDays.safeParse(value).success).toBe(false)
+  })
+
+  it.each([-1, -0.5, MAX_ESTIMATE_DAYS + 0.5])('rejects %s', (value) => {
     expect(EstimateDays.safeParse(value).success).toBe(false)
   })
 })

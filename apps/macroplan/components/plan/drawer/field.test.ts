@@ -43,8 +43,19 @@ describe('the three states an estimate field can be in', () => {
     expect(days('')).not.toBe(0)
   })
 
-  it('refuses a fraction, a negative and a word with one sentence naming the field’s own rule', () => {
-    for (const typed of ['2.5', '-3', 'abc', '5d', '-0']) {
+  // Half a day is the smallest unit anybody estimates in; forcing it to 1 inflates every small
+  // feature on the timeline by up to a day.
+  it('sends a half day, which is the grain the contract takes', () => {
+    expect(days('0.5')).toBe(0.5)
+    expect(days('1.5')).toBe(1.5)
+    expect(days(' 2.0 ')).toBe(2)
+  })
+
+  // The grain is the bound, not the precision: 1.25 days is not a finer measurement, it is a number
+  // nobody arrived at. Refusing it here is what puts a sentence in front of the user instead of the
+  // API's generic 422.
+  it('refuses a finer grain, a negative and a word with one sentence naming the field’s own rule', () => {
+    for (const typed of ['2.25', '0.1', '1.333', '-3', 'abc', '5d', '-0', '.5', '1.']) {
       expect(days(typed), typed).toBe(WHOLE_DAYS)
     }
   })
