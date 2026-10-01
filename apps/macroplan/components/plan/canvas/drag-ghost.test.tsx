@@ -8,7 +8,7 @@ const HELD: Held = {
   grabbed: { featureId: 'feature-1', epicId: 'epic-1', x: 300, y: 62, width: 70 },
   rails: [],
   railTop: 46,
-  box: { viewBox: '0 0 1000 220', width: 1000, height: 220 },
+  box: { width: 1000, height: 220 },
   travelled: { x: 28, y: -12 },
 }
 
@@ -29,11 +29,15 @@ const ghostOf = (refused: boolean) => {
 afterEach(cleanup)
 
 describe('the moving rect a drag draws', () => {
-  it('takes the canvas’s own box, so one user unit is the same distance in both', () => {
+  it('takes the canvas’s own height and floor, neither carrying a viewBox to match up', () => {
     const { svg } = ghostOf(false)
-    expect(svg.getAttribute('viewBox')).toBe('0 0 1000 220')
-    expect(numberAt(svg, 'width')).toBe(1000)
+    expect(svg.getAttribute('viewBox')).toBeNull()
+    expect((svg as SVGElement).style.minWidth).toBe('1000px')
     expect(numberAt(svg, 'height')).toBe(220)
+  })
+
+  it('fills the pane as the canvas under it does, so a ghost dragged right is not cut off', () => {
+    expect(ghostOf(false).svg.getAttribute('class')).toContain('w-full')
   })
 
   it('draws the dragged bar’s own top left plus the travel, and never a measured position', () => {

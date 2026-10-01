@@ -28,7 +28,6 @@ import {
   settledAt,
   travelledBy,
   unchanged,
-  userScale,
   type Held,
 } from './selection'
 import { axisX, CANVAS_RANGE, CANVAS_SCALE, LAYOUT, railTop } from './view'
@@ -193,7 +192,6 @@ describe('the drag a pointerdown begins', () => {
     const canvas = canvasOf()
     const held = heldOn(FEATURE_1, EPIC_1, canvas)
     expect(held.rails).toEqual(layoutOf())
-    expect(held.box.viewBox).toBe(canvas.getAttribute('viewBox'))
     expect(held.box.width).toBe(Number(canvas.getAttribute('width')))
     expect(held.box.height).toBe(Number(canvas.getAttribute('height')))
   })
@@ -307,36 +305,15 @@ describe('railTop and railAtY are the two directions of one number', () => {
   })
 })
 
-describe('the factor a client-pixel delta is converted by', () => {
-  it('is one for a canvas drawn at its own user units, which is what this canvas is', () => {
-    expect(userScale(1000, 1000)).toBe(1)
-  })
-
-  it('is the ratio for a canvas the layout squeezed, so a bar moves the distance the pointer did', () => {
-    expect(userScale(1000, 500)).toBe(2)
-    expect(userScale(1000, 2000)).toBe(0.5)
-  })
-
-  // happy-dom measures every element as a zero `DOMRect`, and a browser measures this canvas as zero
-  // while the table view is chosen — `VIEW_SWITCH_CSS` hides the timeline panel with `display:none`.
-  // Both want the same answer.
-  it('is one rather than infinite for a canvas nothing can measure', () => {
-    expect(userScale(1000, 0)).toBe(1)
-    expect(userScale(1000, Number.NaN)).toBe(1)
-  })
-
-  it('converts a travel by that factor, and answers nothing for a pointer that has not moved', () => {
-    const origin = originAt({ x: 100, y: 50 }, { viewBox: '', width: 1000, height: 10 }, 500)
-    expect(origin.factor).toBe(2)
+describe('the travel a client-pixel delta becomes, now that there is no factor at all', () => {
+  it('travels the distance the pointer did, a client pixel being a user unit on a canvas with no viewBox', () => {
+    const origin = originAt({ x: 100, y: 50 })
     expect(travelledBy(origin, { x: 100, y: 50 })).toEqual({ x: 0, y: 0 })
-    expect(travelledBy(origin, { x: 110, y: 45 })).toEqual({ x: 20, y: -10 })
+    expect(travelledBy(origin, { x: 110, y: 45 })).toEqual({ x: 10, y: -5 })
   })
 
-  it('takes the measurement the test world gives it and is therefore one here', () => {
-    const canvas = canvasOf()
-    const box = { viewBox: '', width: Number(canvas.getAttribute('width')), height: 0 }
-    expect(canvas.getBoundingClientRect().width).toBe(0)
-    expect(originAt({ x: 0, y: 0 }, box, canvas.getBoundingClientRect().width).factor).toBe(1)
+  it('needs no measurement at all, which is what dropping the viewBox bought', () => {
+    expect(Object.keys(originAt({ x: 7, y: 9 })).sort()).toEqual(['x', 'y'])
   })
 })
 
@@ -357,7 +334,7 @@ describe('inGutter, the refusal of everything left of the axis it is handed', ()
   it('is asked about an axis that is the canvas’s own left edge, no gutter being drawn before it', () => {
     expect(CANVAS_SCALE.gutter).toBe(0)
     expect(axisX(CANVAS_SCALE, CANVAS_RANGE)).toBe(0)
-    expect(canvasOf().getAttribute('viewBox')?.startsWith('0 0 ')).toBe(true)
+    expect(canvasOf().getAttribute('viewBox')).toBeNull()
   })
 
   // The two refusals coincide on every canvas this app draws, `rangeFor` answering `fromDay: 0` for every
@@ -397,16 +374,16 @@ describe('inGutter, the refusal of everything left of the axis it is handed', ()
     expect(inGutter(before, at)).toBe(true)
   })
 
-  // The canvas itself no longer has a second axis to be drawn from. `gutterX` offset the `viewBox`'s own x
-  // so that a viewport scrolled to day 40 kept its gutter on screen; it is deleted, `viewBoxOf` starts
-  // every canvas at 0, and a range's `fromDay` now changes only how many days are drawn. So the axis
+  // The canvas itself no longer has a second axis to be drawn from. `gutterX` offset the old `viewBox`'s
+  // own x so that a viewport scrolled to day 40 kept its gutter on screen; it is deleted, there is no
+  // `viewBox` left at all, and a range's `fromDay` now changes only how many days are drawn. So the axis
   // `inGutter` is asked about is x 0 whatever range the canvas was handed.
   it('has one axis to refuse against, a later range changing the canvas’s width and not its origin', () => {
     const late = canvasOf(STARTING_LATE)
     const days = STARTING_LATE.toDay - STARTING_LATE.fromDay
-    expect(late.getAttribute('viewBox')).toBe(
-      `0 0 ${String(days * CANVAS_SCALE.pxPerDay)} ${String(layoutOf().length * LAYOUT.railHeight)}`,
-    )
+    expect(late.getAttribute('viewBox')).toBeNull()
+    expect(Number(late.getAttribute('width'))).toBe(days * CANVAS_SCALE.pxPerDay)
+    expect(Number(late.getAttribute('height'))).toBe(layoutOf().length * LAYOUT.railHeight)
   })
 })
 

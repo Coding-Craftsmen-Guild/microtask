@@ -1,7 +1,7 @@
 import { ghostAt, type Held } from './selection'
 import { LAYOUT } from './view'
 
-const OVERLAY = 'pointer-events-none absolute top-0 left-0 block'
+const OVERLAY = 'pointer-events-none absolute top-0 left-0 block w-full'
 
 const GHOST = 'fill-none stroke-foreground stroke-2 [stroke-dasharray:4_3]'
 
@@ -29,14 +29,20 @@ export interface DragGhostProps {
 /**
  * The bar being dragged, as one outlined rect over the canvas it came from.
  *
- * ### A second `<svg>` at the same `viewBox`, which is what places it without measuring
+ * ### A second `<svg>` over the first, which is what places it without measuring
  *
  * The canvas is server-rendered and this cannot be a rect inside it: `./drag-root.tsx` is handed that
  * markup as `children` and may not reach into it. So the ghost is its own `<svg>`, absolutely positioned
- * at the canvas's top left and given the canvas's **own** `viewBox`, `width` and `height` — read off the
- * element itself rather than passed alongside, so the two cannot disagree. Under one `viewBox` a user unit
- * is the same distance in both, and this rect's `x` and `y` are the dragged bar's own coordinates plus the
- * pointer's travel. No `getBoundingClientRect` and no `getCTM` is involved in placing it, which is what
+ * at the canvas's top left. Neither carries a `viewBox`, so both measure in CSS pixels and a user unit is
+ * the same distance in each with nothing to match up; this rect's `x` and `y` are the dragged bar's own
+ * coordinates plus the pointer's travel.
+ *
+ * It takes `w-full` rather than the canvas's `width` attribute, because the canvas itself is `w-full`
+ * over a `minWidth` and fills whatever pane it was laid out in. Sizing the overlay to the attribute
+ * instead would leave a bar dragged into the bled region under an overlay that stopped short of it, and
+ * the ghost would vanish at exactly the edge a reader was dragging towards.
+ *
+ * No `getBoundingClientRect` and no `getCTM` is involved in placing it, which is what
  * lets a test assert where it landed: `happy-dom` answers the first with a zero `DOMRect` and the second
  * with an identity matrix, so a ghost positioned by measurement would be asserted against zeroes that
  * always agree (ADR 0055).
@@ -75,8 +81,7 @@ export function DragGhost({ held, refused }: DragGhostProps) {
       data-slot="drag-ghost"
       focusable="false"
       height={held.box.height}
-      viewBox={held.box.viewBox}
-      width={held.box.width}
+      style={{ minWidth: held.box.width }}
     >
       <rect
         className={refused ? REFUSED : GHOST}

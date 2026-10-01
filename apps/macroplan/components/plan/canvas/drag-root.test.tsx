@@ -306,7 +306,7 @@ describe('the ghost that follows the pointer', () => {
     const ghost = only('[data-slot="drag-ghost"]')
     const canvas = only('[data-slot="plan-canvas"]')
     expect(ghost.getAttribute('viewBox')).toBe(canvas.getAttribute('viewBox'))
-    expect(ghost.getAttribute('width')).toBe(canvas.getAttribute('width'))
+    expect(ghost.getAttribute('height')).toBe(canvas.getAttribute('height'))
     fireEvent.pointerUp(only('[data-slot="drag-root"]'), { clientX: 400, clientY: 300 })
     expect(document.querySelector('[data-slot="drag-ghost"]')).toBeNull()
   })

@@ -205,27 +205,6 @@ export const dragPoint = (from: Anchor, by: Travelled): DragPoint => ({
 })
 
 /**
- * User units per client pixel, for a canvas rendered at `renderedWidth` client pixels.
- *
- * The canvas sets `width` in px to the same number its `viewBox` is wide, and `PlanScreen` puts it in a
- * `shrink-0` horizontal scroller, so in a browser this is 1 and a pointer pixel is a user unit. It is
- * still arithmetic rather than the constant 1, because a canvas the layout did squeeze — a future zoom
- * control, a print stylesheet — would otherwise move a bar by the wrong distance with nothing failing.
- *
- * A `renderedWidth` of 0 answers 1 rather than dividing by it, and that case is not hypothetical twice
- * over: `happy-dom` measures every element as a zero `DOMRect`, and a browser measures the canvas as
- * zero while the table view is chosen, `PlanScreen` hiding it with `display:none`. Both want the same
- * answer — assume the canvas is at its own scale — and `Infinity` in a coordinate would put a ghost
- * nowhere and send a placement off the axis.
- *
- * @param viewBoxWidth - The canvas's own width in user units, which is its `viewBox`'s third number.
- * @param renderedWidth - What it measures on screen, or 0 where nothing can be measured.
- * @returns The factor a client-pixel delta is multiplied by, never 0 and never infinite.
- */
-export const userScale = (viewBoxWidth: number, renderedWidth: number): number =>
-  renderedWidth > 0 ? viewBoxWidth / renderedWidth : 1
-
-/**
  * Whether a dragged bar's left edge landed in the label gutter rather than on the axis.
  *
  * `dropTargetFor` refuses a point whose x names a day before **day 0**, and on a canvas starting at day
@@ -248,11 +227,15 @@ export const inGutter = (x: number, axisX: number): boolean => x < axisX
 
 const NOWHERE: Travelled = { x: 0, y: 0 }
 
-/** One `<svg>`'s own box, off the three attributes it was drawn with. */
+/**
+ * One `<svg>`'s own box, off the two attributes it was drawn with.
+ *
+ * It carried its `viewBox` too, so that an overlay could be given the same one and map user units
+ * the same way. The canvas has no `viewBox` now — `plan-canvas.tsx` says why, and the short of it is
+ * that a stretched `viewBox` scales the y axis and distorts every circle and label — so a user unit
+ * *is* a CSS pixel and there is nothing left for an overlay to match.
+ */
 export interface CanvasBox {
-  /** Its `viewBox` verbatim, so an overlay drawn with it maps user units the same way. */
-  readonly viewBox: string
-
   /** Its `width` in px, which on this canvas is also its width in user units. */
   readonly width: number
 
@@ -261,7 +244,6 @@ export interface CanvasBox {
 }
 
 const boxOf = (canvas: Element): CanvasBox => ({
-  viewBox: canvas.getAttribute('viewBox') ?? '',
   width: numberAt(canvas, 'width'),
   height: numberAt(canvas, 'height'),
 })
@@ -284,46 +266,45 @@ export interface Held {
   readonly travelled: Travelled
 }
 
-/** Where one pointer went down, in client px, and the factor its travel is converted by. */
+/** Where one pointer went down, in client px — which on this canvas are also its user units. */
 export interface Origin {
   /** The `clientX` of the `pointerdown`. */
   readonly x: number
 
   /** Its `clientY`. */
   readonly y: number
-
-  /** User units per client px, from {@link userScale}. */
-  readonly factor: number
 }
 
 /**
- * The origin to hold for a drag that began at `at` on a canvas measuring `renderedWidth` px.
+ * The origin to hold for a drag that began at `at`.
  *
- * The one caller of {@link userScale}, and the reason it is a function rather than two fields written at
- * the call site: `renderedWidth` is the single measurement in this whole affordance, and having the
- * arithmetic over it live here means the untestable line at the call site is the measurement alone.
+ * ### It used to carry a conversion factor, and does not because the `viewBox` went
+ *
+ * A `viewBox` makes an SVG's user units independent of its CSS size, so a client-pixel delta had to
+ * be multiplied by `viewBoxWidth / renderedWidth` before it could be added to a bar's `x`. That ratio
+ * was a **measurement** — `canvas.getBoundingClientRect().width` — and ADR 0058 records it as the one
+ * line no test in this repository can cover, `happy-dom` answering every `getBoundingClientRect` with
+ * a zero `DOMRect`.
+ *
+ * The canvas carries no `viewBox` now, so it has no scaling transform and a CSS pixel **is** a user
+ * unit, at any width the pane turns out to be. The factor is therefore not 1 by assumption but 1 by
+ * construction, there being nothing to convert, and the measurement is gone rather than stubbed.
  *
  * @param at - The `pointerdown`'s client coordinates.
- * @param box - The canvas's own box, whose width is its width in user units.
- * @param renderedWidth - What the canvas measures on screen, or 0 where nothing can be measured.
  * @returns The origin every later pointer position is read against.
  */
-export const originAt = (at: Travelled, box: CanvasBox, renderedWidth: number): Origin => ({
-  x: at.x,
-  y: at.y,
-  factor: userScale(box.width, renderedWidth),
-})
+export const originAt = (at: Travelled): Origin => ({ x: at.x, y: at.y })
 
 /**
  * How far a pointer now at `at` has travelled from `origin`, in the canvas's own user units.
  *
- * @param origin - Where the drag began and the factor it converts by.
+ * @param origin - Where the drag began.
  * @param at - The pointer's client coordinates now.
  * @returns The displacement {@link dragPoint} and {@link ghostAt} both add.
  */
 export const travelledBy = (origin: Origin, at: Travelled): Travelled => ({
-  x: (at.x - origin.x) * origin.factor,
-  y: (at.y - origin.y) * origin.factor,
+  x: at.x - origin.x,
+  y: at.y - origin.y,
 })
 
 /**

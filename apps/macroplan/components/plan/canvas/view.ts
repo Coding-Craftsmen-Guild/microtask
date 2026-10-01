@@ -111,8 +111,8 @@ export const insideRail = (top: number, part: 'bar' | 'mark'): number => top + W
 /**
  * How tall the canvas is for a given number of rails.
  *
- * Floored at one rail, so a plan with nothing on it draws a band rather than a zero-height SVG that
- * collapses its own `viewBox`.
+ * Floored at one rail, so a plan with nothing on it draws a band rather than an SVG of zero height,
+ * which would clip every pixel of its own chrome.
  */
 export const canvasHeight = (rails: number): number => railTop(Math.max(rails, 1))
 
@@ -121,10 +121,44 @@ export const canvasWidth = (scale: PlanScale, range: DayRange): number =>
   widthOfDays(range.toDay - range.fromDay, scale) + scale.gutter
 
 /**
- * The SVG `viewBox`, which starts at the origin now that there is no gutter to the left of day zero.
+ * How many working days of grid are drawn past the end of the range, so the chrome reaches the
+ * right edge of a pane nobody measured.
+ *
+ * ### Why there is a bleed at all
+ *
+ * The canvas is as wide as its range, and its range is floored at `PANE_WIDTH` — a constant, because
+ * a Server Component cannot measure the pane it will be laid out in. On a wider screen the axis
+ * therefore ended short of the pane's edge and left bare background beside it, which read as a
+ * broken chart rather than as a short plan.
+ *
+ * The canvas now fills its pane with CSS (`w-full` over a `minWidth`), and with no `viewBox` that
+ * costs no scaling at all — but filling a pane with nothing drawn in it only moves the bare strip
+ * inside the element. So the bands and the ticks are generated past the range and the SVG viewport
+ * clips whatever it does not reach. The marks are **not** bled: a bar past the range is a bar the
+ * plan does not have.
+ *
+ * ### Why 120 and why a count of days
+ *
+ * It is a quarter of overrun at the Item stop's 42px a day — five thousand pixels — and half a year
+ * at the Epic stop's 4px, so it covers any pane a browser can present at every zoom. A count of days
+ * rather than of pixels because that is the unit both `calendarBands` and `sprintTicks` take, and
+ * converting one to the other here would need the scale and answer a fractional day.
+ *
+ * It costs a dozen extra `<line>`s and a handful of `<rect>`s, all of them clipped.
  */
-export const viewBoxOf = (rails: number, scale: PlanScale, range: DayRange): string =>
-  `0 0 ${String(canvasWidth(scale, range))} ${String(canvasHeight(rails))}`
+export const BLEED_DAYS = 120
+
+/**
+ * The range the **chrome** is drawn for: the range the marks use, bled to the right.
+ *
+ * Only to the right. Day zero is the plan's own first working day and there is no axis before it,
+ * so a bleed leftwards would draw grid for days the plan does not have and push the first bar away
+ * from the header cell above it.
+ */
+export const chromeRange = (range: DayRange): DayRange => ({
+  fromDay: range.fromDay,
+  toDay: range.toDay + BLEED_DAYS,
+})
 
 /** What each feature is called, keyed by id, for the labels drawn on its bar. */
 export const featureNames = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
@@ -246,8 +280,6 @@ export interface CanvasLayout {
 
   readonly width: number
 
-  readonly viewBox: string
-
   readonly arcs: readonly DependencyArc[]
 
   readonly frame: RailFrame
@@ -271,7 +303,6 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
     arcs: canvasArcs(plan, rails, LAYOUT),
     height: canvasHeight(rails.length),
     width: canvasWidth(scale, range),
-    viewBox: viewBoxOf(rails.length, scale, range),
     frame: {
       marks: marksByFeature(itemsToMarks(plan, plan.schedule, scale)),
       treatments: withProgress(treatmentsOf(plan.schedule), progress),

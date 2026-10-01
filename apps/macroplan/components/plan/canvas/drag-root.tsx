@@ -87,14 +87,16 @@ export interface DragRootProps {
  * rather than passed, which is what `RailMetrics` asks for: "hand over the record that is rendered from,
  * rather than a fresh literal at the call site".
  *
- * ### The one line no test in this repository can check
+ * ### There is no longer a line no test can check
  *
- * `canvas.getBoundingClientRect().width`, in `start` below. `happy-dom` answers every
- * `getBoundingClientRect` with a zero `DOMRect` and every `getCTM` with an identity matrix, so a
- * measurement is a number a test is handed as 0 and can only assert against 0 (ADR 0055). It is one line,
- * it is the **only** measurement in this component, and `originAt` is the arithmetic around it — a pure
- * function of two numbers, tested directly, answering a factor of 1 for the zero this measurement has under
- * test. Everything else here is `anchor + delta`, which needs no CTM.
+ * There was one: `canvas.getBoundingClientRect().width`, read in `start` to convert a client-pixel
+ * delta into the user units a `viewBox` defines. ADR 0055 records why no test here could cover it —
+ * `happy-dom` answers every `getBoundingClientRect` with a zero `DOMRect` and every `getCTM` with an
+ * identity matrix, so a measurement is a number a test is handed as 0 and can only assert against 0.
+ *
+ * The canvas carries no `viewBox` now (`./plan-canvas.tsx` argues it), so it has no scaling transform
+ * and a client pixel **is** a user unit however wide the pane is. The conversion is gone rather than
+ * stubbed, this component measures nothing at all, and every position here is `anchor + delta`.
  *
  * **This is the browser-verification item this task hands forward:** open a plan, drag a bar, and check
  * that the ghost tracks the pointer at 1:1 and that the bar lands where the ghost was. A wrong factor is
@@ -156,7 +158,7 @@ export function DragRoot({ children, planId, axisX, gutter, pxPerDay, place }: D
     const canvas = place === null ? null : (frame.current?.querySelector(CANVAS) ?? null)
     const begun = canvas === null ? null : heldFrom(event.target, canvas)
     if (canvas === null || begun === null) return
-    origin.current = originAt({ x: event.clientX, y: event.clientY }, begun.box, canvas.getBoundingClientRect().width)
+    origin.current = originAt({ x: event.clientX, y: event.clientY })
     dragged.current = false
     setHeld(begun)
   }

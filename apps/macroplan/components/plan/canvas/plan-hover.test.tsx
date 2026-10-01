@@ -8,7 +8,7 @@ import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan } from '../testing/plan-fixture'
 import { todayHover } from './hover'
 import { PlanCanvas } from './plan-canvas'
-import { canvasWidth, CANVAS_RANGE, CANVAS_SCALE } from './view'
+import { canvasWidth, CANVAS_RANGE, CANVAS_SCALE, chromeRange } from './view'
 
 // The reveal itself — a browser painting a tooltip after a pointer rests on something — is not
 // something happy-dom does, and nothing here pretends otherwise: every assertion below is about
@@ -69,7 +69,7 @@ const nth = <T,>(list: readonly T[], index: number): T => {
   return found
 }
 
-const ticksOf = () => sprintTicks(atlasPlan(), CANVAS_SCALE, CANVAS_RANGE)
+const ticksOf = () => sprintTicks(atlasPlan(), CANVAS_SCALE, chromeRange(CANVAS_RANGE))
 
 const todayAt = (date: string) => {
   render(<PlanCanvas at={new Date(`${date}T09:00:00.000Z`)} place={null} plan={planScreenModel(atlasPlan())} />)

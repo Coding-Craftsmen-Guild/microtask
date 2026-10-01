@@ -1,6 +1,17 @@
-import { quarterBands, sprintTicks } from '@repo/canvas'
-import type { DayRange, PlanScale } from '@repo/canvas'
+import { calendarBands, sprintTicks } from '@repo/canvas'
+import type { CalendarBand, DayRange, PlanScale } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
+import { chromeRange } from './view'
+
+/**
+ * Whether a band takes the shaded half of the alternation.
+ *
+ * Counted on `year * 4 + quarter` and not on the quarter alone, so the stripe keeps alternating
+ * across a year boundary. Q4 and the Q1 after it are consecutive bands; keying on the quarter would
+ * make both of them odd and put two unshaded bands side by side at every new year, exactly where a
+ * reader most wants the edge to be visible.
+ */
+export const shaded = (band: CalendarBand): boolean => (band.year * 4 + band.quarter) % 2 === 0
 
 const EVEN_BAND = 'fill-foreground/[0.02]'
 
@@ -32,21 +43,21 @@ export interface SprintGridProps {
 export function SprintGrid({ plan, scale, range, height }: SprintGridProps) {
   return (
     <g data-slot="sprint-grid">
-      {quarterBands(plan, scale, range).map((band) =>
-        band.quarter % 2 === 0 ? (
+      {calendarBands(plan, scale, chromeRange(range)).map((band) =>
+        shaded(band) ? (
           <rect
             className={EVEN_BAND}
-            data-quarter={band.quarter}
+            data-quarter={`${String(band.year)}-${String(band.quarter)}`}
             data-slot="quarter-band"
             height={height}
-            key={band.quarter}
+            key={`${String(band.year)}-${String(band.quarter)}`}
             width={band.width}
             x={band.x}
             y={0}
           />
         ) : null,
       )}
-      {sprintTicks(plan, scale, range).map((tick) => (
+      {sprintTicks(plan, scale, chromeRange(range)).map((tick) => (
         <line
           className={TICK_LINE}
           data-slot="sprint-tick"

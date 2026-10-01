@@ -1,5 +1,5 @@
 import type { Plan } from '@repo/api-client'
-import { dayToX, quarterBands, railLayout, rungFor, sprintTicks } from '@repo/canvas'
+import { calendarBands, dayToX, railLayout, rungFor, sprintTicks } from '@repo/canvas'
 import type { DayRange } from '@repo/canvas'
 import { LIMITS } from '@repo/contracts'
 import { cleanup, render, screen } from '@testing-library/react'
@@ -16,7 +16,16 @@ import {
   unplacedPlan,
 } from '../testing/plan-fixture'
 import { PlanCanvas } from './plan-canvas'
-import { BAR_GAP, CANVAS_RANGE, CANVAS_SCALE, insideRail, LABEL_METRICS, LAYOUT } from './view'
+import {
+  BAR_GAP,
+  CANVAS_RANGE,
+  CANVAS_SCALE,
+  canvasWidth,
+  chromeRange,
+  insideRail,
+  LABEL_METRICS,
+  LAYOUT,
+} from './view'
 import { DRAWS } from './rung-view'
 
 const ORANGE = '#ff8833'
@@ -194,12 +203,37 @@ describe('PlanCanvas', () => {
     expect(slot('plan-canvas')).toHaveLength(1)
   })
 
-  it('sizes its viewBox from the range and its rails alone, not from anything measured', () => {
+  it('sizes itself from the range and its rails alone, not from anything measured', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
-    expect(canvas.getAttribute('viewBox')).toBe('0 0 840 44')
     expect(numberOf(canvas, 'width')).toBe(dayToX(CANVAS_RANGE.toDay, CANVAS_SCALE))
     expect(numberOf(canvas, 'height')).toBe(LAYOUT.railHeight)
+  })
+
+  it('carries no viewBox, so a user unit is a CSS pixel and nothing it draws is ever scaled', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    expect(only('[data-slot="plan-canvas"]').getAttribute('viewBox')).toBeNull()
+  })
+
+  it('fills the pane it is laid out in, floored at the width its own range needs', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const canvas = only('[data-slot="plan-canvas"]') as SVGElement
+    expect(canvas.getAttribute('class')).toContain('w-full')
+    expect(canvas.style.minWidth).toBe(`${String(canvasWidth(CANVAS_SCALE, CANVAS_RANGE))}px`)
+  })
+
+  it('bleeds its grid past the range, so the chrome reaches the edge of a pane nobody measured', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const drawn = sprintTicks(planScreenModel(atlasPlan()), CANVAS_SCALE, CANVAS_RANGE).length
+    expect(slot('sprint-tick').length).toBeGreaterThan(drawn)
+  })
+
+  it('bleeds no mark, a bar past the range being a bar the plan does not have', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const past = slot('feature-bar').filter(
+      (bar) => Number(bar.getAttribute('data-x')) >= canvasWidth(CANVAS_SCALE, CANVAS_RANGE),
+    )
+    expect(past).toHaveLength(0)
   })
 
   it('draws one rail group per rail, in the order railLayout gave them', () => {
@@ -407,24 +441,29 @@ describe('the chrome the canvas draws around its rails', () => {
   it('washes a quarter band and labels none, the ordinals being an HTML row above the canvas', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     const bands = slot('quarter-band')
-    expect(bands).toHaveLength(ONE_QUARTER_BAND)
+    expect(bands.length).toBeGreaterThanOrEqual(ONE_QUARTER_BAND)
     expect(nth(bands, 0).tagName).toBe('rect')
-    expect(nth(bands, 0).getAttribute('data-quarter')).toBe('0')
+    expect(nth(bands, 0).getAttribute('data-quarter')).toBe('2026-4')
     expect(nth(bands, 0).textContent).toBe('')
     expect(numberOf(nth(bands, 0), 'height')).toBe(
       numberOf(only('[data-slot="plan-canvas"]'), 'height'),
     )
   })
 
-  it('washes only every other quarter, which is what marks a boundary now nothing is written on it', () => {
-    const twoQuarters: DayRange = { fromDay: 0, toDay: 120 }
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} range={twoQuarters} />)
-    expect(quarterBands(atlasPlan(), CANVAS_SCALE, twoQuarters).map((band) => band.quarter)).toEqual([
-      0, 1,
-    ])
-    const washed = slot('quarter-band')
-    expect(washed.map((band) => band.getAttribute('data-quarter'))).toEqual(['0'])
-    expect(numberOf(nth(washed, 0), 'x')).toBe(dayToX(0, CANVAS_SCALE))
+  it('washes only every other quarter, so a band edge is visible where nothing is written', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const drawn = calendarBands(atlasPlan(), CANVAS_SCALE, chromeRange(CANVAS_RANGE))
+    const keys = drawn.map((band) => `${String(band.year)}-${String(band.quarter)}`)
+    const washed = slot('quarter-band').map((band) => band.getAttribute('data-quarter'))
+    expect(keys.length).toBeGreaterThan(washed.length)
+    expect(keys.filter((_key, index) => index % 2 === 0)).not.toEqual(washed)
+    expect(keys.filter((_key, index) => index % 2 === 1)).toEqual(washed)
+  })
+
+  it('keeps the wash alternating across a new year, Q4 and the Q1 after it being consecutive', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const washed = slot('quarter-band').map((band) => band.getAttribute('data-quarter'))
+    expect(washed).toEqual(['2026-4', '2027-2'])
   })
 
   it('rules each sprint boundary the full height of the canvas, with no week label and no hover target', () => {
@@ -543,8 +582,9 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   it('draws no wrapper around a mark either, which a count of marks alone would not notice', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
+    const washed = slot('quarter-band').length
     expect(canvas.querySelectorAll('rect')).toHaveLength(
-      LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + ONE_QUARTER_BAND + ONE_RAIL_BAND,
+      LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + washed + ONE_RAIL_BAND,
     )
     expect(canvas.querySelectorAll('*').length).toBeLessThan(
       LIMITS.itemsPerPlan + LIMITS.featuresPerPlan * ELEMENTS_PER_BAR + CHROME_ALLOWANCE,
@@ -562,7 +602,7 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   it('rules every sprint once and nothing else per sprint, the hover rects having gone with the labels', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
-    const rules = sprintTicks(planAtCap(), CANVAS_SCALE, CANVAS_RANGE).length
+    const rules = sprintTicks(planAtCap(), CANVAS_SCALE, chromeRange(CANVAS_RANGE)).length
     expect(rules).toBeGreaterThan(1)
     expect(canvas.querySelectorAll('line')).toHaveLength(rules + ONE_RAIL_RULE + ONE_TODAY_LINE)
   })
@@ -570,6 +610,6 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   it('still draws one rail, because 2 000 items on one rail are still one rail', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     expect(slot('rail')).toHaveLength(1)
-    expect(only('[data-slot="plan-canvas"]').getAttribute('viewBox')).toBe('0 0 840 44')
+    expect(numberOf(only('[data-slot="plan-canvas"]'), 'width')).toBe(840)
   })
 })
