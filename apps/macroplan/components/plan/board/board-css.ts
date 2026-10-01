@@ -44,11 +44,32 @@ export const HEADER_HEIGHT = 44
 /** The quarter row and the week row, splitting {@link HEADER_HEIGHT} between them. */
 export const QUARTER_HEIGHT = 22
 
-/** The time header's two rows, and the absolutely positioned cells inside them. */
+/**
+ * The time header's two rows, and the absolutely positioned cells inside them.
+ *
+ * ### Why `w-full` and not a width
+ *
+ * The header had a fixed `width` — the canvas's own — and the canvas beside it is `w-full` over a
+ * `minWidth`. On a pane wider than the plan those are two different numbers, and the difference showed
+ * twice: the header's box ended before the pane did, and the bled cells painting past it extended the
+ * scroller's scrollable area, so a plan that fitted on screen grew a horizontal scrollbar anyway.
+ *
+ * Both say the same thing now — fill the pane, never be narrower than the plan's own days — which
+ * resolves to one number, because `min-width` wins over a percentage that came out smaller. The two
+ * cannot scroll apart, since neither was told a width that the other was not.
+ *
+ * ### Why the rows clip
+ *
+ * The cells are bled past the range on purpose, so that nothing stops short of a pane nobody measured
+ * (`canvas/view.ts`'s `BLEED_DAYS`). A bleed is meant to be **clipped**, not scrolled to: without
+ * `overflow-hidden` the absolutely positioned overflow of a `relative` row is scrollable area, which
+ * is the scrollbar above. The row is their containing block, so hiding its overflow is what clips
+ * them, and the first cell is unaffected because `cellOf` already clamps it to the axis origin.
+ */
 export const TIME = {
-  header: 'sticky top-0 z-10 bg-background',
-  quarterRow: 'relative border-b border-border/60',
-  weekRow: 'relative border-b border-border',
+  header: 'sticky top-0 z-10 w-full bg-background',
+  quarterRow: 'relative w-full overflow-hidden border-b border-border/60',
+  weekRow: 'relative w-full overflow-hidden border-b border-border',
   quarter:
     'absolute top-0 flex h-full items-center overflow-hidden border-l border-border/60 px-2 text-[11px] font-semibold whitespace-nowrap text-foreground',
   week: 'absolute top-0 flex h-full items-center overflow-hidden border-l border-border/40 px-2 text-[11px] text-muted-foreground tabular-nums',

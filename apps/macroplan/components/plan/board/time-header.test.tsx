@@ -189,3 +189,30 @@ describe('the row under the quarters, which is a month at Year and a sprint ever
     expect(keys[0]).toMatch(/^\d{4}-\d{1,2}$/)
   })
 })
+
+// The header and the canvas have to be exactly the same width or the two scroll apart, and neither
+// can be told what that width is: a Server Component cannot measure the pane. Both say the same thing
+// in CSS instead — fill the pane, and never be narrower than the plan's own days — which resolves to
+// one number because `min-width` beats a percentage that came out smaller. `happy-dom` lays nothing
+// out, so what is asserted here is that both say it, not what a browser then does with it.
+describe('how wide the header is, which has to be exactly how wide the canvas is', () => {
+  const header = (): HTMLElement => {
+    draw()
+    const found = document.querySelector<HTMLElement>('[data-slot="time-header"]')
+    if (found === null) throw new Error('no header')
+    return found
+  }
+
+  it('floors itself at the plan width and fills a wider pane, rather than fixing its own width', () => {
+    expect(header().style.minWidth).toBe(`${String(canvasWidth(CANVAS_SCALE, RANGE))}px`)
+    expect(header().style.width).toBe('')
+    expect(header().className).toContain('w-full')
+  })
+
+  it('clips both rows, so the bled cells cannot scroll a pane the plan already fits in', () => {
+    for (const slot of ['quarter-head', 'week-head']) {
+      const row = cells(slot)[0]?.parentElement
+      expect(row?.className).toContain('overflow-hidden')
+    }
+  })
+})

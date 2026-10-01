@@ -16,7 +16,14 @@ export interface RailProps {
 
   readonly top: number
 
-  /** How wide the canvas is, for the band's own hairline. */
+  /**
+   * How far across to draw the band and its hairline: the **bled** width, not the range's own.
+   *
+   * The canvas has to reach the right edge of a pane a Server Component cannot measure, which is what
+   * `view.ts`'s `BLEED_DAYS` is for. The grid was bled from the start and this was not, so every row's
+   * hairline stopped at the plan's last day while the wash behind it ran on — a timeline that visibly
+   * gave up partway across the pane. `CanvasLayout.drawnWidth` is the one number both now take.
+   */
   readonly width: number
 }
 

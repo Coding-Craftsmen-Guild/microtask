@@ -284,7 +284,26 @@ export interface CanvasLayout {
 
   readonly height: number
 
+  /**
+   * How wide the plan's own days are, which is what the element is floored at.
+   *
+   * A short plan scrolls no further than it runs, so this is the `minWidth` and not what anything is
+   * drawn to. {@link CanvasLayout.drawnWidth} is that.
+   */
   readonly width: number
+
+  /**
+   * How wide every layer inside the canvas is drawn: the width of the **bled** range.
+   *
+   * The grid was bled from the start and the rail bands were not, which is what left each row's
+   * structure ending at the plan's own last day while the chrome carried on past it — a canvas that
+   * visibly stops a few hundred pixels short of the pane it is in. One number reaching both layers is
+   * the whole fix, and it is on the layout rather than computed twice so the two cannot drift apart.
+   *
+   * It is deliberately **not** the `minWidth`: flooring the element at the bled width would give every
+   * plan 120 working days of empty axis to scroll through.
+   */
+  readonly drawnWidth: number
 
   readonly arcs: readonly CanvasArc[]
 
@@ -309,6 +328,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
     arcs: canvasArcs(plan, rails, LAYOUT),
     height: canvasHeight(rails.length),
     width: canvasWidth(scale, range),
+    drawnWidth: canvasWidth(scale, chromeRange(range)),
     frame: {
       marks: marksByFeature(itemsToMarks(plan, plan.schedule, scale)),
       treatments: withProgress(treatmentsOf(plan.schedule), progress),

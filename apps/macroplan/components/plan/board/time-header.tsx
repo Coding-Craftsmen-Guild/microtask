@@ -78,13 +78,13 @@ export interface TimeHeaderProps {
 export function TimeHeader({ plan, scale, range, rung, width }: TimeHeaderProps) {
   const drawn = chromeRange(range)
   return (
-    <div className={TIME.header} data-slot="time-header" style={{ width }}>
-      <div className={TIME.quarterRow} style={{ height: QUARTER_HEIGHT, width }}>
+    <div className={TIME.header} data-slot="time-header" style={{ minWidth: width }}>
+      <div className={TIME.quarterRow} style={{ height: QUARTER_HEIGHT }}>
         {calendarBands(plan, scale, drawn).map((band) => (
           <QuarterCell band={band} key={`${String(band.year)}-${String(band.quarter)}`} />
         ))}
       </div>
-      <div className={TIME.weekRow} style={{ height: WEEK_HEIGHT, width }}>
+      <div className={TIME.weekRow} style={{ height: WEEK_HEIGHT }}>
         {rung === MONTHLY
           ? monthBands(plan, scale, drawn).map((band) => (
               <MonthCell band={band} key={`${String(band.year)}-${String(band.month)}`} />

@@ -637,3 +637,32 @@ describe('what the canvas draws, now that it draws no words at all', () => {
     expect(slot('feature-bar').length).toBeGreaterThan(0)
   })
 })
+
+// The canvas must reach the right edge of a pane it was never told the width of, and so must every
+// layer in it. The grid was already bled; the rail bands and the hairlines under them were not, so
+// each row's structure stopped at the plan's own last day and left the chrome running on past it.
+// None of this is about what a browser lays out — `happy-dom` has no layout at all — it is about one
+// number reaching every layer, which is what these read.
+describe('how far across the pane each layer is drawn', () => {
+  it('draws a rail band and its hairline to the bled width, as the grid beside them is drawn', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const bled = canvasWidth(CANVAS_SCALE, chromeRange(CANVAS_RANGE))
+    const band = only('[data-slot="rail"] rect')
+    const rule = only('[data-slot="rail"] line')
+    expect(numberOf(band, 'width')).toBe(bled)
+    expect(numberOf(rule, 'x2')).toBe(bled)
+  })
+
+  it('bleeds that width past the range, so it is wider than the days the marks use', () => {
+    expect(canvasWidth(CANVAS_SCALE, chromeRange(CANVAS_RANGE))).toBeGreaterThan(
+      canvasWidth(CANVAS_SCALE, CANVAS_RANGE),
+    )
+  })
+
+  it('still floors the element at the unbled width, a short plan scrolling no further than it runs', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const canvas = only('[data-slot="plan-canvas"]') as unknown as SVGElement
+    expect(canvas.style.minWidth).toBe(`${String(canvasWidth(CANVAS_SCALE, CANVAS_RANGE))}px`)
+    expect(canvas.getAttribute('class')).toContain('w-full')
+  })
+})

@@ -75,7 +75,7 @@ export function PlanCanvas({
   rung = 'feature',
   hrefOf = NOTHING_OPENS,
 }: PlanCanvasProps) {
-  const { rails, arcs, height, width, frame } = canvasLayout({
+  const { rails, arcs, height, width, drawnWidth, frame } = canvasLayout({
     plan,
     range,
     scale,
@@ -103,7 +103,7 @@ export function PlanCanvas({
         <TimeGrid height={height} plan={plan} range={range} rung={rung} scale={scale} />
         <ArcLayer arcs={arcs} />
         {rails.map((rail, index) => (
-          <Rail frame={frame} key={rail.epicId} rail={rail} top={railTop(index)} width={width} />
+          <Rail frame={frame} key={rail.epicId} rail={rail} top={railTop(index)} width={drawnWidth} />
         ))}
         <TodayMark at={at} height={height} plan={plan} scale={scale} />
       </svg>
