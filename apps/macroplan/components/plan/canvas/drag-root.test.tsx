@@ -425,3 +425,18 @@ describe('the undo a drop offers', () => {
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 })
+
+// Measured in a browser, because `happy-dom` lays nothing out: the frame was `w-fit`, which shrinks to
+// the canvas's own `minWidth` — so the SVG's `w-full` resolved against 1040px rather than against the
+// 1412px pane it was in, and the canvas stopped a third of the way short of the right edge with bare
+// ground beside it. `min-w-fit` keeps a plan wider than the pane from being squashed, and `w-full` is
+// what reaches the edge of one wider than the plan.
+describe('how wide the frame around the canvas is', () => {
+  it('fills a pane wider than the plan and never shrinks below the plan itself', () => {
+    shown(stubActions())
+    const root = only('[data-slot="drag-root"]')
+    expect(root?.className).toContain('w-full')
+    expect(root?.className).toContain('min-w-fit')
+    expect(root?.className.split(' ')).not.toContain('w-fit')
+  })
+})

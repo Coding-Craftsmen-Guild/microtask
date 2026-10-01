@@ -11,7 +11,7 @@ import { DragGhost } from './drag-ghost'
 import { DragNotice, MOVED, type Said } from './drag-notice'
 import { heldFrom, originAt, settledAt, travelledBy, unchanged, type Held, type Origin, type Settled } from './selection'
 
-const FRAME = 'relative w-fit'
+const FRAME = 'relative w-full min-w-fit'
 
 const A_CLICK = 4
 
@@ -62,6 +62,22 @@ export interface DragRootProps {
 
 /**
  * The one client component on the canvas: it listens for a drag over the server-rendered SVG it wraps.
+ *
+ * ### Why the frame is `w-full min-w-fit`
+ *
+ * It was `w-fit`, and that is what kept the canvas from reaching the right edge of a wide pane — a fault
+ * that read as the grid giving up partway across the page. `fit-content` shrinks to the SVG's own
+ * `minWidth`, so a 1040px canvas in a 1412px pane got a 1040px frame, and the SVG's `w-full` then
+ * resolved against the frame rather than against the pane. Everything inside was drawn correctly and
+ * clipped at 1040.
+ *
+ * So the frame says what the SVG and `../board/time-header.tsx` both say: fill the pane, and never be
+ * narrower than the plan's own days. `min-w-fit` is the second half and is not optional — without it a
+ * plan too long for the pane would be squashed rather than scrolled.
+ *
+ * It changes nothing about the drag. This is the ghost's containing block and the frame only ever grows
+ * **rightwards**: its left edge is still the canvas's left edge, which is the only part of it the
+ * geometry reads.
  *
  * ### One delegation root, and no client component per bar
  *
