@@ -334,21 +334,19 @@ describe('a plan seat lands on the one plan its token opens', () => {
     expect(screen.getByRole('radio', { name: 'Table' })).toBeTruthy()
   })
 
-  // **The bug this page shipped with, stated as a test.** The screen's split is a flex row of a
-  // sidebar pane and a main pane, and it was a two-column grid when this surface passed `null` for
-  // the sidebar: a null child is no grid item at all, so the board became the *first* item and drew
-  // itself into the 17rem names track — a 272px timeline on a 1545px page, with the wide column
-  // beside it empty. It is asserted as containment rather than as a class, because what went wrong
-  // was which box the board was in.
-  it('gives the rail tree a pane of its own and draws the board in the pane beside it', async () => {
+  // **The bug this page shipped with, and the shape that makes it impossible.** The screen's split was
+  // a two-column grid and this surface passed `null` for the sidebar; a null child is no grid item at
+  // all, so the board became the *first* item and drew itself into the 17rem names track — a 272px
+  // timeline on a 1545px page, with the wide column beside it empty. There is no second pane now: the
+  // rails are a column inside the board's own scroller, so the board is the only thing in the frame
+  // and there is nowhere else for it to be put.
+  it('draws the board in the one pane the frame has, with the rails inside it', async () => {
     seated(SEAT_TOKEN)
     await show()
-    const side = slot('plan-side')
-    const board = slot('plan-board')
-    expect(side?.querySelector('[data-slot="plan-sidebar"]')).not.toBeNull()
-    expect(board).not.toBeNull()
-    expect(side?.contains(board as Node)).toBe(false)
-    expect(slot('plan-main')?.contains(board as Node)).toBe(true)
+    expect(slot('plan-side')).toBeNull()
+    expect(slot('plan-board')).not.toBeNull()
+    expect(slot('plan-main')?.contains(slot('plan-board') as Node)).toBe(true)
+    expect(slot('plan-board')?.contains(slot('rail-names') as Node)).toBe(true)
   })
 
   // The tree lists every rail and every feature, so this surface draws links where it used to draw
@@ -372,17 +370,16 @@ describe('a plan seat lands on the one plan its token opens', () => {
   // was the `<text>` drawn on it, and the canvas draws no text now. Nothing is lost that a reader had
   // — the canvas is `role="img"`, which prunes its whole subtree from the accessibility tree, and the
   // anchor carries `tabIndex={-1}`, so this link was never a stop a keyboard reached or a screen
-  // reader announced. The named way in is the tree row, which is what `rail-features.tsx` says.
-  it('offers a feature by name from its tree row, and aims its bar at the same address', async () => {
+  // reader announced. The named way in **was** the tree row and is the table, which is the accessible
+  // rendering of this plan (ADR 0056) and names every feature in a row header.
+  it('aims a feature’s bar at this surface’s own address, and names it in the table', async () => {
     seated(SEAT_TOKEN)
     await show()
-    const named = screen.getAllByRole('link', { name: 'Auth rewrite' })
-    expect(named).toHaveLength(1)
-    expect(named[0]?.getAttribute('href')).toBe(`/s/${SEAT_TOKEN}/f/${FEATURE_1}`)
     const bar = document.querySelector(`[data-slot="feature-bar"][data-feature-id="${FEATURE_1}"]`)
     expect(bar?.closest('[data-slot="feature-link"]')?.getAttribute('href')).toBe(
       `/s/${SEAT_TOKEN}/f/${FEATURE_1}`,
     )
+    expect(screen.getAllByRole('rowheader', { name: 'Auth rewrite' }).length).toBeGreaterThan(0)
   })
 
   // Zoom is a cookie on the admin surface — `readZoom` reads one and the control's form writes one,
@@ -442,16 +439,30 @@ describe('a plan seat lands on the one plan its token opens', () => {
   // The item the cycle also stranded is not a row and not a mark. It is reported unplaced because its
   // *feature* is in the cycle, and that feature already carries the badge; repeating it on each of
   // its items would multiply one fact by however finely somebody broke the work down.
-  it('leaves the item the cycle also stranded unmarked, its feature already saying so', async () => {
+  // The dot was on a feature's own row in the rail tree. There is no such row — the column is one row
+  // per **rail** — so the dot summarises its lane, one entry per distinct kind, and the per-feature
+  // sentences are in the tray under the board and in the drawer each row opens.
+  it('rolls each rail’s troubles into one dot, and still names none of them after an item', async () => {
     seated(SEAT_TOKEN)
     api.plans = [tangledPlan()]
     await show()
     expect(slots('tray-row')).toHaveLength(2)
     expect(slot('unscheduled-tray')?.textContent).not.toContain('Invoices')
-    const titles = slots('attention-dot').map((dot) => dot.getAttribute('title'))
-    expect(titles).toContain('In a dependency cycle')
-    expect(titles).toContain('Dependency on Reporting set aside')
-    for (const title of titles) expect(title ?? '').not.toContain('item')
+    const titles = slots('attention-dot').map((dot) => dot.getAttribute('title') ?? '')
+    expect(titles.length).toBeGreaterThan(0)
+    expect(titles.join(' · ')).toContain('In a dependency cycle')
+    expect(titles.join(' · ')).toContain('Dependency on Reporting set aside')
+    for (const title of titles) expect(title).not.toContain('item')
+  })
+
+  it('says each kind once on a rail, however many of its features are in that trouble', async () => {
+    seated(SEAT_TOKEN)
+    api.plans = [tangledPlan()]
+    await show()
+    for (const dot of slots('attention-dot')) {
+      const kinds = (dot.getAttribute('title') ?? '').split(' · ')
+      expect(new Set(kinds).size).toBe(kinds.length)
+    }
   })
 
   // The head counts **features**, and the count is what tells a reader there is anything to look for at
@@ -657,7 +668,7 @@ describe('which controls the seat’s own role draws', () => {
 
   // The role and the scope are what `planCapabilities` is asked with, and neither goes down: a
   // permission restated below this point is one nothing authorises, and a component added later
-  // could ask a second question of it. What the screen takes is now fourteen props rather than
+  // could ask a second question of it. What the screen takes is now thirteen props rather than
   // thirteen, and the four slots it used to be handed — `conflicts`, `rails`, `settings`, `share` —
   // are gone from the list: the panel is deleted outright and the other three are one `manage` slot
   // on the screen, which this surface now fills from the head row like the admin's. `root`, `routes`,
@@ -667,7 +678,7 @@ describe('which controls the seat’s own role draws', () => {
   // `null` because it holds one plan and has no index above it. The crumb is the brand bar's now, and
   // this surface's bar (`components/link/link-frame.tsx`) draws none — so the absence is still stated,
   // one layer out, by there being no slot to fill.
-  it('hands the screen fourteen props, the four panel slots it used to take being gone', async () => {
+  it('hands the screen thirteen props, the four panel slots it used to take being gone', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
     expect(isValidElement(element)).toBe(true)
@@ -684,7 +695,6 @@ describe('which controls the seat’s own role draws', () => {
       'progress',
       'root',
       'routes',
-      'sidebar',
       'tray',
       'zoom',
       'zoomControl',
@@ -764,24 +774,23 @@ describe('which controls the seat’s own role draws', () => {
   // surface draws, which is what this surface could not do while they were drawer routes it has no
   // address for. Which is what a plan shared at `manage` is for: the holder adds a rail, groups a
   // feature, corrects the calendar and hands on a seat of their own, with no admin cookie anywhere.
-  it('puts the content editors under the rail tree for a manage seat, every action behind them being manage', async () => {
-    seated(MANAGE_SEAT_TOKEN)
-    await show(MANAGE_SEAT_TOKEN)
-    const panel = slot('seat-manage')
-    expect(panel).not.toBeNull()
-    for (const each of ['rails-panel', 'labels-panel']) {
-      expect(panel?.querySelector(`[data-slot="${each}"]`), each).not.toBeNull()
-    }
-    expect(slot('plan-side')?.contains(panel as Node)).toBe(true)
-  })
-
-  it('puts the plan’s own settings and its seats in the head row, where the admin’s are', async () => {
+  it('puts all four editors in the head row for a manage seat, every action behind them being manage', async () => {
     seated(MANAGE_SEAT_TOKEN)
     await show(MANAGE_SEAT_TOKEN)
     const head = slot('plan-head')
-    expect(head?.querySelector('[data-slot="plan-settings-menu"]')).not.toBeNull()
+    expect(head).not.toBeNull()
+    for (const each of ['seat-rails-menu', 'seat-groups-menu', 'plan-settings-menu']) {
+      expect(head?.querySelector(`[data-slot="${each}"]`), each).not.toBeNull()
+    }
     expect(head?.contains(screen.getByRole('button', { name: 'Share' }))).toBe(true)
-    expect(slot('seat-manage')?.querySelector('[data-slot="plan-settings-menu"]')).toBeFalsy()
+  })
+
+  it('fills each of those menus with the panel it is about, rather than a button onto nothing', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    await show(MANAGE_SEAT_TOKEN)
+    expect(slot('seat-rails-menu')?.querySelector('[data-slot="rails-panel"]')).not.toBeNull()
+    expect(slot('seat-groups-menu')?.querySelector('[data-slot="labels-panel"]')).not.toBeNull()
+    expect(slot('plan-settings-menu')?.textContent).toContain('Calendar')
   })
 
   // The other direction, and what makes the case above a rule rather than a page that draws everything for

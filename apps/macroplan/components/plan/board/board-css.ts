@@ -1,76 +1,137 @@
 /**
- * The board's two columns: names that stay put, and a timeline that scrolls under them.
+ * How wide the rail column is, in px, and the one number the scroller's two halves agree on.
  *
- * ### Why the names left the SVG
+ * A constant because the box inside the scroller is `264 + the canvas`, the corner over the column is
+ * the same width, and the column itself is the third — three boxes that have to be one width, in a
+ * layout where `happy-dom` measures nothing. It is wider than the 208px the names column was: the
+ * rows carry a grip, a swatch, a name and a count now, and a name truncated at eight characters is a
+ * column that cannot do the one job it has.
+ */
+export const RAIL_WIDTH = 264
+
+/** The three tiers of the time header, in px, and their total. */
+export const TIER = { year: 20, quarter: 22, sprint: 30 } as const
+
+/** How tall the whole header row is, which is what the corner beside it must match. */
+export const HEADER_HEIGHT = TIER.year + TIER.quarter + TIER.sprint
+
+/**
+ * The board: one scroller, a sticky header row, and a sticky rail column inside the body.
  *
- * The first revision drew rail names into a 160px gutter inside the `viewBox`, to the left of day
- * zero. Three things followed from that and all three were wrong. The names scrolled away sideways
- * with the bars, so a reader scrolled into the plan and lost track of which rail they were on. They
- * were `<text>`, so they could not be links, could not truncate, and could not carry a badge. And
- * the gutter was dead width on every canvas whether or not a name needed it.
+ * ### Why there is one scroller and not three
  *
- * As HTML in a column beside the scroller they stay put, take a link and a count and a warning dot,
- * and truncate properly. The SVG is left holding only geometry, which is what it is good at.
+ * There were three. The rail tree was a pane of its own scrolling beside the board; inside the board
+ * the names column and the timeline were two more, the names scrolling vertically with the plan and
+ * the timeline scrolling horizontally under a header. A reader scrolling down the plan scrolled the
+ * tree with it — two columns showing the same rails, in the same order, at two different offsets —
+ * and a reader scrolling right lost the names nothing had pinned.
  *
- * ### How the two columns stay in step
+ * One scroller with `position: sticky` inside it is what every data grid does, and it is why the
+ * alignment is no longer a thing to keep true: the rail row and its band are in the **same** flex
+ * row, so they are at the same y because they are the same row, rather than because two panes were
+ * laid out from the same constant.
  *
- * They do not synchronise anything. Both are laid out from the same numbers — `LAYOUT.railHeight`
- * for a band and `HEADER_HEIGHT` for the strip above it — so row *n* is at the same y in each by
- * construction. Vertical scrolling is shared because both sit inside one scroller; only the right
- * column scrolls horizontally.
+ * The header row sticks to the top and the corner and the rail column stick to the left. Sticky
+ * nests, so the corner — which has to hold both edges at once — is a sticky box inside a sticky row.
+ * The `z` order is the one that falls out of that: the corner is over the header row, which is over
+ * the rail column, which is over the canvas.
+ *
+ * ### Why the box inside is `min-w-max`
+ *
+ * The scroller's child has to be as wide as the rail column plus the plan's own days, or the canvas
+ * cannot scroll past the pane. `max-content` is exactly that sum and needs no arithmetic here —
+ * `w-full` over it is what makes a short plan fill a wide pane rather than ending in bare page.
+ *
+ * Nothing in the canvas half carries `min-w-0`, deliberately: a flex item's minimum is its content,
+ * and the content here is a canvas with a `minWidth` of the plan's own width. Opting out of that
+ * would let a long plan be squashed rather than scrolled, which is the one thing the floor is for.
  */
 export const BOARD = {
-  scroller: 'flex min-h-0 flex-1 items-stretch overflow-y-auto',
-  names: 'sticky left-0 z-10 flex w-52 shrink-0 flex-col border-r border-border bg-background',
-  timeline: 'min-w-0 flex-1 overflow-x-auto',
-  railRow:
-    'flex items-center gap-2 border-b border-border/60 px-3 text-[13px] hover:bg-muted/60',
-  railName: 'min-w-0 flex-1 truncate font-medium hover:underline',
-  railStatic: 'min-w-0 flex-1 truncate font-medium',
-  railSwatch: 'size-2.5 shrink-0 rounded-[3px] bg-muted-foreground',
-  railCount: 'shrink-0 text-[11px] tabular-nums text-muted-foreground',
-  headerCell: 'shrink-0 border-b border-border bg-background',
+  scroller: 'min-h-[120px] min-w-0 flex-1 overflow-auto',
+  box: 'w-full min-w-max',
+  headerRow: 'sticky top-0 z-6 flex border-b border-border bg-background',
+  corner: 'sticky left-0 z-7 flex shrink-0 items-end border-r border-border bg-background p-2.5',
+  bodyRow: 'flex',
+  canvas: 'relative flex-1',
 } as const
 
 /**
- * The height of the HTML time header, in px, and the one number the two columns must agree on.
+ * The corner over the rail column: the filter, and nothing beside it.
  *
- * Two rows: the quarter over the weeks inside it. It is a constant rather than a measurement because
- * the names column has to leave exactly this much room at its top for row zero to line up with rail
- * zero, and `happy-dom` measures nothing.
+ * ### The `+` that is not here
+ *
+ * The design puts a 28px square `+` next to the filter. It is dropped, by the product owner's own
+ * call, and the reason it is an easy call: adding a rail is one of the three things the Add strip
+ * above the board already offers, and a second control for it in the corner of the board would be
+ * two ways to do one thing eight pixels apart — with the strip's version the one that says what it
+ * will make and where it will go.
  */
-export const HEADER_HEIGHT = 44
-
-/** The quarter row and the week row, splitting {@link HEADER_HEIGHT} between them. */
-export const QUARTER_HEIGHT = 22
+export const CORNER = {
+  filter:
+    'h-7 w-full rounded-md border border-line-strong bg-background px-2 text-[13px] outline-none placeholder:text-hint focus-visible:border-brand focus-visible:shadow-[0_0_0_3px_var(--color-brand-soft)]',
+} as const
 
 /**
- * The time header's two rows, and the absolutely positioned cells inside them.
+ * One rail, as a row in the column beside its band.
  *
- * ### Why `w-full` and not a width
+ * ### Why the swatch is the selection control and the name is a link
  *
- * The header had a fixed `width` — the canvas's own — and the canvas beside it is `w-full` over a
- * `minWidth`. On a pane wider than the plan those are two different numbers, and the difference showed
- * twice: the header's box ended before the pane did, and the bled cells painting past it extended the
- * scroller's scrollable area, so a plan that fitted on screen grew a horizontal scrollbar anyway.
+ * Two gestures share a row: *light this rail on the board* and *open this rail for editing*. The
+ * colour chip is the first, as it was in the tree this column replaces — it is also the thing the eye
+ * uses to match a row to its band, so it is doing the job it already did. The name is the second.
+ * Wrapping the whole row in a label would swallow the link; a second button beside the name is what
+ * produced the `Open` links that used to escape the old sidebar's column.
  *
- * Both say the same thing now — fill the pane, never be narrower than the plan's own days — which
- * resolves to one number, because `min-width` wins over a percentage that came out smaller. The two
- * cannot scroll apart, since neither was told a width that the other was not.
+ * ### The grip, which does not yet drag
  *
- * ### Why the rows clip
+ * `⋮⋮` is drawn and `cursor-grab` is on the row, and reordering rails by dragging one is not wired.
+ * It is drawn anyway because the row **is** draggable through the rail drawer's own Move controls,
+ * and because the alternative — a row that gives no sign it can be reordered — is what sent two
+ * readers looking for an option that was already there. The grip is `aria-hidden`: it is a
+ * handle for a gesture, and the gesture a keyboard has is in the drawer.
+ */
+export const RAIL_ROW = {
+  column: 'sticky left-0 z-5 shrink-0 border-r border-border bg-background',
+  row: 'flex cursor-grab items-center gap-2.5 border-b border-line pr-3.5 pl-1.5 hover:bg-[#faf9fc]',
+  grip: 'shrink-0 cursor-grab text-[10px] leading-none text-[#c4c1d0] select-none',
+  swatch: 'size-2.5 shrink-0 cursor-pointer rounded-[3px] bg-muted-foreground',
+  name: 'min-w-0 flex-1 truncate text-[13px] font-semibold hover:underline',
+  nameStatic: 'min-w-0 flex-1 truncate text-[13px] font-semibold',
+  count: 'shrink-0 text-[11px] tabular-nums text-muted-foreground',
+} as const
+
+/**
+ * The three tiers of the time header, and the cells inside each.
  *
- * The cells are bled past the range on purpose, so that nothing stops short of a pane nobody measured
+ * ### Why there are three where there were two
+ *
+ * The second row used to carry sprints at two stops and months at the third, under a row of calendar
+ * quarters, and the year was nowhere: a plan running into January showed `Q1` with nothing saying
+ * which year's. Splitting the year out costs 20px and answers that outright — and it is where the
+ * `TODAY` tag goes, which had no row of its own before and so had nowhere to be but on top of a
+ * quarter's name.
+ *
+ * ### Why each row clips
+ *
+ * The cells are bled past the range on purpose, so nothing stops short of a pane nobody measured
  * (`canvas/view.ts`'s `BLEED_DAYS`). A bleed is meant to be **clipped**, not scrolled to: without
  * `overflow-hidden` the absolutely positioned overflow of a `relative` row is scrollable area, which
- * is the scrollbar above. The row is their containing block, so hiding its overflow is what clips
- * them, and the first cell is unaffected because `cellOf` already clamps it to the axis origin.
+ * is a horizontal scrollbar on a plan that fits. The row is their containing block, so hiding its
+ * overflow is what clips them, and `cellOf` already clamps the first cell to the axis origin.
  */
 export const TIME = {
-  header: 'sticky top-0 z-10 w-full bg-background',
-  quarterRow: 'relative w-full overflow-hidden border-b border-border/60',
-  weekRow: 'relative w-full overflow-hidden border-b border-border',
+  header: 'relative flex-1',
+  yearRow: 'relative overflow-hidden border-b border-line',
+  quarterRow: 'relative overflow-hidden border-b border-line',
+  sprintRow: 'relative overflow-hidden',
+  year: 'absolute top-0 flex h-full items-center overflow-hidden px-2.5 text-[11px] font-bold tracking-[0.08em] whitespace-nowrap text-brand',
   quarter:
-    'absolute top-0 flex h-full items-center overflow-hidden border-l border-border/60 px-2 text-[11px] font-semibold whitespace-nowrap text-foreground',
-  week: 'absolute top-0 flex h-full items-center overflow-hidden border-l border-border/40 px-2 text-[11px] text-muted-foreground tabular-nums',
+    'absolute top-0 flex h-full items-center overflow-hidden border-l border-line px-2.5 text-[11px] font-semibold whitespace-nowrap text-foreground',
+  quarterPart: 'bg-sprint-alt',
+  sprint:
+    'absolute top-0 flex h-full items-baseline gap-1.5 overflow-hidden border-l border-line px-2.5 whitespace-nowrap',
+  sprintName: 'text-[12px] font-semibold text-foreground',
+  sprintWhen: 'text-[11px] tabular-nums text-muted-foreground',
+  today:
+    'absolute top-0.5 z-1 rounded-[4px] bg-gold px-1.5 text-[10px] leading-4 font-bold text-brand',
 } as const

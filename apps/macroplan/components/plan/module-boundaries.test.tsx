@@ -72,10 +72,11 @@ import { allWorkFit } from './labels/group-fit'
 import { labelRows } from './labels/label-rows'
 import { LabelsPanel } from './labels/labels-panel'
 import { NewLabelForm } from './labels/new-label-form'
-import { PlanSidebar } from './sidebar/plan-sidebar'
-import { SidebarSearch } from './sidebar/sidebar-search'
-import { SidebarActions } from './sidebar/sidebar-actions'
-import { sidebarRails } from './sidebar/sidebar-rows'
+import { BoardFilter } from './board/board-filter'
+import { RailColumn } from './board/rail-column'
+import { boardRails } from './board/board-rows'
+import { railLayout } from '@repo/canvas'
+import { CANVAS_SCALE } from './canvas/view'
 import { ShareManager } from './share/share-manager'
 import { seatDoubles } from './share/testing/seat-doubles'
 import { drawerSubject } from './drawer/subject'
@@ -188,6 +189,17 @@ async function bindProjectDouble(): Promise<ActionResult<Plan>> {
 // no tint, so any other fixture would leave two of the three `SECTION_CLASS` literals unpainted and so
 // unswept. Its rows close with `next/link`, which is already doubled above.
 const TANGLED = planScreenModel(tangledPlan())
+
+// The rails the column paints, derived the way the board derives them: from `railLayout`'s own output
+// rather than from the plan, so the rows and the bands cannot disagree about which rail is row three.
+// The **tangled** plan's attention, so the dot a row carries is painted here as well as the row.
+const RAILED_PLAN = planScreenModel(railedPlan())
+
+const RAILED = boardRails(
+  RAILED_PLAN,
+  railLayout(RAILED_PLAN, RAILED_PLAN.schedule, CANVAS_SCALE),
+  attentionOf(TANGLED),
+)
 
 // One row, written out rather than looked up, so the drawer tree below paints a panel whatever the
 // derived order does with the fixture.
@@ -334,7 +346,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [TimingForm, 'settings/timing-form.tsx'],
   [TimingFields, 'settings/timing-fields.tsx'],
   [DeletePlan, 'settings/delete-plan.tsx'],
-  [SidebarSearch, 'sidebar/sidebar-search.tsx'],
+  [BoardFilter, 'board/board-filter.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -419,7 +431,7 @@ const TREES = [
     progress={[]}
     root={PLAN_A}
     routes={ADMIN_DRAWER_ROUTES}
-    sidebar={null}
+
     tray={null}
     zoom="feature"
     zoomControl={null}
@@ -438,7 +450,7 @@ const TREES = [
     progress={[]}
     root={PLAN_A}
     routes={ADMIN_DRAWER_ROUTES}
-    sidebar={null}
+
     tray={null}
     zoom="feature"
     zoomControl={null}
@@ -457,7 +469,7 @@ const TREES = [
     progress={[]}
     root={PLAN_A}
     routes={ADMIN_DRAWER_ROUTES}
-    sidebar={null}
+
     tray={null}
     zoom="feature"
     zoomControl={null}
@@ -476,7 +488,7 @@ const TREES = [
     progress={[]}
     root={PLAN_A}
     routes={ADMIN_DRAWER_ROUTES}
-    sidebar={null}
+
     tray={null}
     zoom="feature"
     zoomControl={null}
@@ -589,7 +601,7 @@ const TREES = [
     progress={[]}
     root={PLAN_A}
     routes={ADMIN_DRAWER_ROUTES}
-    sidebar={null}
+
     tray={null}
     zoom="feature"
     zoomControl={null}
@@ -622,7 +634,7 @@ const TREES = [
     progress={[]}
     root={PLAN_A}
     routes={ADMIN_DRAWER_ROUTES}
-    sidebar={null}
+
     tray={
       <UnscheduledTray
         found={attentionOf(TANGLED)}
@@ -692,42 +704,19 @@ const TREES = [
   // The callout the same facts become inside a drawer, which is where the sentences went.
   <AttentionCallout key="k3" on={attentionOf(TANGLED).get(FEATURE_1)} />,
   <AttentionChip count={4} key="k4" />,
-  // The sidebar, which is the admin surface's whole navigation and the one place the four plan-level
-  // drawers are linked from. Rendered from the **railed** plan so the tree paints a rail with features, a
-  // rail with none, and the rail no epic claims — three row states the Atlas fixture has only one of.
-  // `SidebarSearch` is the one client component inside it, so the walk stops there and its props are
-  // checked; it takes two strings, which is why it needs no tree of its own the way RailFields does.
-  <PlanSidebar
-    actions={<SidebarActions key="sa" mayAddRail planId={PLAN_A} railCount={3} />}
-    found={attentionOf(TANGLED)}
-    key="l"
-    rails={sidebarRails(planScreenModel(railedPlan()))}
-    root={PLAN_A}
-    routes={ADMIN_DRAWER_ROUTES}
-  />,
+  // The rail column inside the board, which is the admin surface's whole navigation now. Rendered from
+  // the **railed** plan so it paints a rail with features, a rail with none and the rail no epic claims
+  // — three row states the Atlas fixture has only one of.
+  <RailColumn key="l" rails={RAILED} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} />,
   // And as the seat surface mounts it, where a rail is a heading rather than a link.
-  <PlanSidebar
-    actions={null}
-    found={attentionOf(TANGLED)}
-    key="l3"
-    rails={sidebarRails(planScreenModel(railedPlan()))}
-    root={SEAT_TOKEN}
-    routes={SEAT_DRAWER_ROUTES}
-  />,
+  <RailColumn key="l3" rails={RAILED} root={SEAT_TOKEN} routes={SEAT_DRAWER_ROUTES} />,
+  // The board's own filter, which is the one client component in that column's own chrome. It takes two
+  // strings, which is why it needs no tree of its own the way RailFields does.
+  <BoardFilter hint="Filter rails and features" key="bf" label="Filter rails and features by name" />,
   // The whole-plan actions, which are two menus at the end of the title row. Both slots are filled, so the
   // opener classes and the panel classes are both painted; the share slot brings its own opener, which is
   // the one asymmetry `plan-manage.tsx` records and the reason it is markup here rather than a boolean.
   <PlanManage key="pm" settings={<p key="ps">Settings go here</p>} share={MANAGER} />,
-  // And again with no rails at all, which is the state a new plan is in and the one the empty sentence is
-  // for: the row markup above never renders it, so a sweep without this tree would leave that class unseen.
-  <PlanSidebar
-    actions={null}
-    found={attentionOf(TANGLED)}
-    key="l2"
-    rails={[]}
-    root={PLAN_A}
-    routes={ADMIN_DRAWER_ROUTES}
-  />,
   MANAGER,
 ]
 
@@ -735,7 +724,7 @@ describe('the class-literal reader this sweep is built on', () => {
   it('reads a real set of files and a real set of tokens, so the sweep below is not empty', () => {
     expect(walk(PLAN).length).toBeGreaterThan(10)
     expect(SCANNED_TOKENS.size).toBeGreaterThan(200)
-    expect(SCANNED_TOKENS.has('overflow-x-auto')).toBe(true)
+    expect(SCANNED_TOKENS.has('overflow-auto')).toBe(true)
   })
 
   it('reads no token out of a composed class name, which is the failure Tailwind makes silent', () => {

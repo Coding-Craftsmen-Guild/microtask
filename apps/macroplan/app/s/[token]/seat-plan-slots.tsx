@@ -1,13 +1,14 @@
 import type { PlanEditActions } from '../../../components/plan/edit-actions'
 import type { PlanScreenModel } from '../../../components/plan/plan-screen-model'
 import { seatGroupsPanel, seatRailsPanel } from './seat-content-panels'
+import { MenuButton } from '../../../components/plan/shell/menu-button'
 import { PlanManage } from '../../../components/plan/shell/plan-manage'
 import { ShareManager } from '../../../components/plan/share/share-manager'
 import type { SeatManagerActions, SeatPlanOwnActions } from '../../../components/plan/seat-own-actions'
 import { SettingsSections } from '../../../components/plan/settings/settings-sections'
 import type { PlanControls } from '../../../lib/plan-capabilities'
 
-const PANELS = 'grid gap-2 border-t border-border px-3 py-3'
+const WORDS = { rails: 'Rails', groups: 'Groups' } as const
 
 /** The three action records a seat's panels write through, named together so none is passed alone. */
 export interface SeatPanelActions {
@@ -49,50 +50,47 @@ const shareSlot = (plan: PlanScreenModel, seats: SeatManagerActions, controls: P
   )
 }
 
+const contentMenu = (label: string, slot: string, panel: ReturnType<typeof seatRailsPanel>) =>
+  panel === null ? null : (
+    <MenuButton label={label} slot={slot} tone="quiet">
+      {panel}
+    </MenuButton>
+  )
+
 /**
- * What a seat may do to the plan itself, in the head row beside the admin's own two menus.
+ * Everything a seat may manage, as menus at the end of the plan's head row.
  *
- * ### Why these climbed out of the sidebar
+ * ### Why all four climbed out of the sidebar
  *
- * They were two collapsed panels under the rail tree, because this surface has no `/s/<token>/settings`
- * to link to and the admin's equivalents were drawer routes. Neither of those is true any more: the
- * admin's are menus in the head row (`components/plan/shell/plan-manage.tsx`), and a menu needs no
- * route, so the two surfaces can finally render the one control. A `manage` seat and an admin now
- * reach a plan's calendar the same way, which is what this file previously had to say they could not.
+ * They were four collapsed panels under the rail tree, in the one pane this surface had that could
+ * scroll, because the admin's equivalents were drawer routes and this surface has no address for any
+ * of them. Neither half of that is true any more: the rail tree is gone, and the admin's plan-level
+ * controls are menus (`components/plan/shell/plan-manage.tsx`) — and a menu needs no route. So a
+ * manage seat and an admin reach a plan's calendar the same way, which is what this file previously
+ * had to say they could not.
  *
- * A `view` seat, which is what most links are, is refused both and the row draws neither button.
+ * Rails and Groups stay this surface's own, because the admin reaches those through `/r/<epicId>` and
+ * `/g/<labelId>`, two addresses a token does not open. The division is the same one
+ * `seat-content-panels.tsx` already drew: these two write what the plan **holds**, the other two
+ * write the plan itself and who may open it.
+ *
+ * A `view` seat, which is what most links are, is refused all four and the row draws nothing.
  */
 export function seatManageSlot(
   plan: PlanScreenModel,
   actions: SeatPanelActions,
   controls: PlanControls,
 ) {
+  const rails = contentMenu(WORDS.rails, 'seat-rails-menu', seatRailsPanel(plan, actions.writes, controls))
+  const groups = contentMenu(WORDS.groups, 'seat-groups-menu', seatGroupsPanel(plan, actions.writes, controls))
   const settings = settingsSlot(plan, actions.own, controls)
   const share = shareSlot(plan, actions.seats, controls)
-  if (settings === null && share === null) return null
-  return <PlanManage settings={settings} share={share} />
-}
-
-/**
- * What a seat may do to what the plan *holds* — its rails and its groups — under the rail tree.
- *
- * These stay in the sidebar where the two above left it, and the division is the one
- * `seat-content-panels.tsx` already draws: these write content, the other two write the plan itself
- * and who may open it. A rail panel belongs beside the rails.
- */
-export function seatContentSlot(
-  plan: PlanScreenModel,
-  actions: SeatPanelActions,
-  controls: PlanControls,
-) {
-  const panels = [
-    seatRailsPanel(plan, actions.writes, controls),
-    seatGroupsPanel(plan, actions.writes, controls),
-  ].filter((panel) => panel !== null)
-  if (panels.length === 0) return null
+  if (rails === null && groups === null && settings === null && share === null) return null
   return (
-    <div className={PANELS} data-slot="seat-manage">
-      {panels}
-    </div>
+    <span className="contents" data-slot="seat-manage">
+      {rails}
+      {groups}
+      <PlanManage settings={settings} share={share} />
+    </span>
   )
 }

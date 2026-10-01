@@ -100,7 +100,7 @@ export function PlanCanvas({
         style={{ minWidth: width }}
         width={width}
       >
-        <TimeGrid height={height} plan={plan} range={range} rung={rung} scale={scale} />
+        <TimeGrid height={height} plan={plan} range={range} scale={scale} />
         <ArcLayer arcs={arcs} />
         {rails.map((rail, index) => (
           <Rail frame={frame} key={rail.epicId} rail={rail} top={railTop(index)} width={drawnWidth} />

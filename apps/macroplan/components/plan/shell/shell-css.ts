@@ -4,7 +4,7 @@
  * ### Why it is a constant and not three string literals
  *
  * Three things have to name the same element: the shell that renders it, the group sheet
- * (`labels/group-css.ts`) and the selection sheet (`sidebar/select-css.ts`). They did not. Both
+ * (`labels/group-css.ts`) and the rail sheet (`board/rail-select-css.ts`). They did not. Both
  * sheets named `plan-root`, which nothing has rendered since this frame replaced the old root with
  * `plan-shell` — so every rule in both sheets anchored on an element that did not exist, no rule
  * could match, and **neither selection dimmed anything in a browser**.
@@ -43,16 +43,11 @@ export const PLAN_ROOT = `[data-slot="${PLAN_ROOT_SLOT}"]`
  * reader could see a reason for — a view switch is as much part of "which plan am I looking at" as
  * the name above it. {@link HEAD} is the merged row.
  *
- * ### Why flex and not a two-column grid
- *
- * The previous split was `lg:grid-cols-[17rem_minmax(0,1fr)]`, and the seat surface passed no
- * sidebar. A null React child renders nothing at all rather than an empty box, so the timeline
- * became the *first* grid item and drew itself into the 17rem track — a 272px canvas on a 1545px
- * grid, with the wide column beside it empty. That is the single worst thing the deployed page was
- * doing, and it was invisible in every test because no test rendered the seat surface at width.
- *
- * Flex cannot fail that way. A missing sidebar is one fewer flex item and `flex-1` takes the room,
- * which is the right answer rather than a silently wrong one.
+ * The **side** went with the rail tree it held. Both surfaces drew a pane of rails beside a board
+ * that drew the same rails again, and the seat surface used to draw none at all — which, while the
+ * split was a two-column grid, put the timeline in the 17rem names track and left the wide column
+ * empty. There is one column of rails now and it is inside the board, so neither fault has anywhere
+ * left to happen.
  *
  * ### `min-w-0` and `min-h-0`, everywhere
  *
@@ -64,8 +59,7 @@ export const PLAN_ROOT = `[data-slot="${PLAN_ROOT_SLOT}"]`
 export const SHELL = {
   root: 'flex h-full min-h-0 flex-col bg-background',
   head: 'shrink-0 border-b border-border bg-background',
-  body: 'flex min-h-0 flex-1 max-lg:flex-col',
-  side: 'flex w-[17.5rem] min-w-0 shrink-0 flex-col overflow-y-auto border-r border-border bg-background max-lg:h-52 max-lg:w-full max-lg:border-r-0 max-lg:border-b',
+  body: 'flex min-h-0 flex-1',
   main: 'flex min-h-0 min-w-0 flex-1 flex-col',
 } as const
 

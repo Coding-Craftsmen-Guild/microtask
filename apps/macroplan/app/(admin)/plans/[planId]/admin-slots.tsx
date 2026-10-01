@@ -6,29 +6,12 @@ import { allWorkFit } from '../../../../components/plan/labels/group-fit'
 import { labelRows } from '../../../../components/plan/labels/label-rows'
 import type { PlanScreenModel } from '../../../../components/plan/plan-screen-model'
 import { ZoomSwitch } from '../../../../components/plan/canvas/zoom-switch'
-import { PlanSidebar } from '../../../../components/plan/sidebar/plan-sidebar'
-import { SidebarActions } from '../../../../components/plan/sidebar/sidebar-actions'
-import { sidebarRails } from '../../../../components/plan/sidebar/sidebar-rows'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { ADMIN_DRAWER_ROUTES } from '../../../../lib/drawer-routes'
 import type { Rung } from '@repo/canvas'
 
 /** The whole-plan menus, re-exported so a page fills every slot from one import. */
 export { manageSlot } from './manage-slot'
-
-/** The rail tree, with the admin's own routes and whichever actions the admin may take. */
-export function sidebarSlot(plan: PlanScreenModel, found: AttentionMap) {
-  const { content } = ADMIN_CONTROLS
-  return (
-    <PlanSidebar
-      actions={<SidebarActions mayAddRail={content.createEpic} planId={plan.id} railCount={plan.epics.length} />}
-      found={found}
-      rails={sidebarRails(plan)}
-      root={plan.id}
-      routes={ADMIN_DRAWER_ROUTES}
-    />
-  )
-}
 
 /** The features with no bar, under the board. */
 export function traySlot(plan: PlanScreenModel, found: AttentionMap) {

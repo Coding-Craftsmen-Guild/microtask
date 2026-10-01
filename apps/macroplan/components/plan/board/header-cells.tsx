@@ -1,5 +1,6 @@
-import type { CalendarBand, MonthBand, SprintTick } from '@repo/canvas'
+import type { CalendarBand, Rung, SprintTick } from '@repo/canvas'
 import { TIME } from './board-css'
+import { sprintWords, type YearBand } from './time-bands'
 
 /**
  * The narrowest cell that still gets its quarter's name, in px.
@@ -19,15 +20,8 @@ import { TIME } from './board-css'
  */
 export const NAMEABLE = 48
 
-/**
- * The same threshold for a month cell, which carries three letters rather than seven.
- *
- * A month band can be clamped as hard as a quarter band — a plan opening inside September leaves
- * September's cell most of a month behind day zero — and a clipped `O` reads as a fault for exactly
- * the reason {@link NAMEABLE} exists. Reusing 48 would drop the name off cells wide enough to carry
- * it, so the budget is the one this row's own words need.
- */
-export const NAMEABLE_MONTH = 24
+/** The same threshold for a short name — `Q3` — which is what a clamped leading quarter carries. */
+export const NAMEABLE_SHORT = 24
 
 /** Where one band's heading sits in the row, after clamping. */
 export interface BandCell {
@@ -37,11 +31,11 @@ export interface BandCell {
 }
 
 /**
- * The two numbers {@link cellOf} needs, named structurally so one clamp serves both rows.
+ * The two numbers {@link cellOf} needs, named structurally so one clamp serves every row.
  *
- * A quarter band and a month band are clamped identically and for the same reason — each can open
- * before the axis does — and neither has anything else {@link cellOf} reads. Taking the shape rather
- * than either type is what stops the second row growing a second, subtly different clamp.
+ * A quarter band, a year band and a sprint tick are clamped identically and for the same reason —
+ * each can open before the axis does — and none has anything else {@link cellOf} reads. Taking the
+ * shape rather than any one type is what stops a second row growing a second, subtly different clamp.
  */
 export interface Placed {
   readonly x: number
@@ -71,56 +65,74 @@ export const cellOf = (band: Placed): BandCell => {
   return { left: clamped, width: band.width - (clamped - band.x) }
 }
 
-/** One quarter's heading, in the top row. */
-export function QuarterCell({ band }: { readonly band: CalendarBand }) {
-  const cell = cellOf(band)
-  return (
-    <span
-      className={TIME.quarter}
-      data-quarter={`${String(band.year)}-${String(band.quarter)}`}
-      data-slot="quarter-head"
-      style={{ left: cell.left, width: cell.width }}
-    >
-      {cell.width < NAMEABLE ? null : band.label}
-    </span>
-  )
-}
+/** Whether a band opens before the axis does, which is what makes its cell a partial one. */
+export const isClamped = (band: Placed): boolean => band.x < 0
 
-/** One month's heading, in the lower row at the Year stop. */
-export function MonthCell({ band }: { readonly band: MonthBand }) {
+/** One year's heading, in the top tier. */
+export function YearCell({ band }: { readonly band: YearBand }) {
   const cell = cellOf(band)
   return (
     <span
-      className={TIME.week}
-      data-month={`${String(band.year)}-${String(band.month)}`}
-      data-slot="month-head"
+      className={TIME.year}
+      data-slot="year-head"
+      data-year={band.year}
       style={{ left: cell.left, width: cell.width }}
     >
-      {cell.width < NAMEABLE_MONTH ? null : band.label}
+      {cell.width < NAMEABLE_SHORT ? null : band.label}
     </span>
   )
 }
 
 /**
- * One sprint's heading, in the lower row at the Quarter and Sprint stops.
+ * One quarter's heading, in the middle tier.
+ *
+ * ### Why a clamped quarter is shaded and renamed
+ *
+ * A plan starting in late September opens inside a Q3 that began sixty working days earlier, so the
+ * first cell in this row is a stub of a quarter rather than a quarter. Shading it says that, and the
+ * short name says it twice: `Q3` where its neighbours read `Q4 2026` is a cell that is visibly not
+ * claiming to be the whole of anything. The year is in the tier above either way, so nothing is lost
+ * by dropping it from a cell too narrow to hold it.
+ */
+export function QuarterCell({ band }: { readonly band: CalendarBand }) {
+  const cell = cellOf(band)
+  const part = isClamped(band)
+  const label = part ? `Q${String(band.quarter)}` : band.label
+  return (
+    <span
+      className={part ? `${TIME.quarter} ${TIME.quarterPart}` : TIME.quarter}
+      data-part={part ? '' : undefined}
+      data-quarter={`${String(band.year)}-${String(band.quarter)}`}
+      data-slot="quarter-head"
+      style={{ left: cell.left, width: cell.width }}
+    >
+      {cell.width < (part ? NAMEABLE_SHORT : NAMEABLE) ? null : label}
+    </span>
+  )
+}
+
+/**
+ * One sprint's heading, in the bottom tier: what it is called, and when it runs.
  *
  * It is not clamped, where the two band cells are. A sprint tick is a fixed width counted from the
  * plan's own day zero, so the only tick that can open before the axis is one for a negative sprint,
  * which a bled range never reaches to the left — `chromeRange` bleeds rightwards only.
  *
- * The `title` is the one place a real calendar date appears in this row, which spec §5 allows on
- * hover and not as permanent chrome.
+ * `title` carries the full dates whatever the stop shows, which is what a 40px cell at the Year stop
+ * has instead of room. `time-bands.ts` carries what each stop says and why.
  */
-export function WeekCell({ tick }: { readonly tick: SprintTick }) {
+export function SprintCell({ tick, rung }: { readonly tick: SprintTick; readonly rung: Rung }) {
+  const words = sprintWords(tick, rung)
   return (
     <span
-      className={TIME.week}
+      className={TIME.sprint}
       data-slot="week-head"
       data-sprint={tick.sprint}
       style={{ left: tick.x, width: tick.width }}
       title={`${tick.from} to ${tick.to}`}
     >
-      {tick.label}
+      <span className={TIME.sprintName}>{words.name}</span>
+      {words.when === '' ? null : <span className={TIME.sprintWhen}>{words.when}</span>}
     </span>
   )
 }

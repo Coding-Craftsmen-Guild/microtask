@@ -1,23 +1,21 @@
-import { calendarBands, monthBands, sprintTicks } from '@repo/canvas'
-import type { CalendarBand, DayRange, PlanScale, Rung } from '@repo/canvas'
+import { sprintTicks } from '@repo/canvas'
+import type { DayRange, PlanScale, SprintTick } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { chromeRange } from './view'
 
 /**
- * Whether a band takes the shaded half of the alternation.
+ * Whether a sprint takes the shaded half of the alternation.
  *
- * Counted on `year * 4 + quarter` and not on the quarter alone, so the stripe keeps alternating
- * across a year boundary. Q4 and the Q1 after it are consecutive bands; keying on the quarter would
- * make both of them odd and put two unshaded bands side by side at every new year, exactly where a
- * reader most wants the edge to be visible.
+ * Counted on the sprint's own index, which runs unbroken from the plan's day zero through every
+ * quarter and every year it crosses — so there is no boundary at which two shaded columns can end up
+ * side by side. A negative index is floored by `sprintOf` rather than folded onto zero, and `%` in
+ * JavaScript keeps the sign, so the test is against a non-zero remainder rather than against `1`.
  */
-export const shaded = (band: CalendarBand): boolean => (band.year * 4 + band.quarter) % 2 === 0
+export const shaded = (tick: SprintTick): boolean => tick.sprint % 2 !== 0
 
-const EVEN_BAND = 'fill-foreground/[0.02]'
+const SHADE = 'fill-sprint-alt'
 
-const TICK_LINE = 'stroke-border'
-
-const MONTHLY: Rung = 'epic'
+const TICK_LINE = 'stroke-[#ededed]'
 
 /** Props for {@link TimeGrid}. */
 export interface TimeGridProps {
@@ -27,85 +25,69 @@ export interface TimeGridProps {
 
   readonly range: DayRange
 
-  /**
-   * Which stop is drawn, which decides what the rules count in.
-   *
-   * The same argument `TimeHeader` takes, and it must be the same value: the header's lower row and
-   * these rules are the same boundaries drawn twice, once as a labelled cell and once as a line down
-   * the canvas. A disagreement here would put a label over a cell with no line under it.
-   */
-  readonly rung: Rung
-
   readonly height: number
 }
 
 /**
- * The grid the bars sit on: an alternating wash per quarter, and a rule at each boundary below it.
+ * The grid the bars sit on: one column per sprint, alternately washed, each opening on a hairline.
  *
- * This is what `QuarterBandLayer` and `SprintTickLayer` were, minus every piece of text and every
- * hover target. The headings are HTML in the row above (`../board/time-header.tsx`), and the
- * per-sprint hover rectangles went with them — a full-height transparent `<rect>` per sprint was one
- * invisible pointer target per sprint lying over every bar on the canvas, which is a strange thing to
- * have built and a worse thing to drag through.
+ * ### Why it is sprints, at every stop, and nothing else
  *
- * Merging the two layers into one also halves the number of `<g>` wrappers on a canvas whose element
- * count is the thing that grows with the plan.
+ * It washed alternating **calendar quarters** and ruled either months or sprints depending on the
+ * stop. That was three units of time drawn over each other — quarters behind, months or sprints in
+ * front, and the header above counting in a fourth — and the lines agreed with the wash only by
+ * accident, because a quarter opens on the calendar and a sprint opens `sprintLengthDays` after the
+ * plan's own day zero.
  *
- * ### Why it rules months at the Year stop
+ * One unit now, and it is the one the plan is actually scheduled against: a feature is pinned to a
+ * sprint, placed into a sprint and reported by sprint, so a column a reader can count is a column
+ * that answers the question they came with. The quarters and the year are still drawn — as the two
+ * tiers above the board (`../board/time-header.tsx`), where a boundary can be labelled rather than
+ * guessed at from a change of shade.
  *
- * It was `SprintGrid` and ruled sprint boundaries at every stop, which is what the name said. At the
- * Year stop that drew a rule every forty pixels, none of which lined up with the quarter wash behind
- * it — a sprint opens `sprintLengthDays` after the plan's own day zero and a quarter opens on the
- * calendar, so the two coincide only by accident.
+ * ### Why it no longer takes the rung
  *
- * A quarter is exactly three calendar months, so a month rule falls on every band edge and never
- * inside one by surprise. `../board/time-header.tsx` carries the whole argument, including why the
- * Quarter and Sprint stops keep their sprint rules; what matters here is that both files read
- * {@link TimeGridProps.rung} and neither decides for itself.
+ * It did, and had to: the header's lower row counted in months at the Year stop and in sprints at the
+ * other two, and a grid ruling anything else would have put a label over a cell with no line under
+ * it. Both count in sprints at every stop now (`../board/time-bands.ts` is what made that legible at
+ * four pixels a day), so there is nothing left for either to disagree about and no argument to pass.
+ *
+ * ### Why the rule is a hex and not `border`
+ *
+ * The lane separators and the column rules are both hairlines and they are deliberately different
+ * weights: a lane is a row of the plan and a sprint is a column of the calendar, and at the density
+ * this board draws at, two greys of the same value make a plaid. This is the lighter of the two.
  */
-export function TimeGrid({ plan, scale, range, rung, height }: TimeGridProps) {
-  const drawn = chromeRange(range)
+export function TimeGrid({ plan, scale, range, height }: TimeGridProps) {
+  const ticks = sprintTicks(plan, scale, chromeRange(range))
   return (
     <g data-slot="time-grid">
-      {calendarBands(plan, scale, drawn).map((band) =>
-        shaded(band) ? (
+      {ticks.map((tick) =>
+        shaded(tick) ? (
           <rect
-            className={EVEN_BAND}
-            data-quarter={`${String(band.year)}-${String(band.quarter)}`}
-            data-slot="quarter-band"
+            className={SHADE}
+            data-slot="sprint-band"
+            data-sprint={tick.sprint}
             height={height}
-            key={`${String(band.year)}-${String(band.quarter)}`}
-            width={band.width}
-            x={band.x}
+            key={tick.sprint}
+            width={tick.width}
+            x={tick.x}
             y={0}
           />
         ) : null,
       )}
-      {rung === MONTHLY
-        ? monthBands(plan, scale, drawn).map((band) => (
-            <line
-              className={TICK_LINE}
-              data-month={`${String(band.year)}-${String(band.month)}`}
-              data-slot="month-rule"
-              key={`${String(band.year)}-${String(band.month)}`}
-              x1={band.x}
-              x2={band.x}
-              y1={0}
-              y2={height}
-            />
-          ))
-        : sprintTicks(plan, scale, drawn).map((tick) => (
-            <line
-              className={TICK_LINE}
-              data-slot="sprint-tick"
-              data-sprint={tick.sprint}
-              key={tick.sprint}
-              x1={tick.x}
-              x2={tick.x}
-              y1={0}
-              y2={height}
-            />
-          ))}
+      {ticks.map((tick) => (
+        <line
+          className={TICK_LINE}
+          data-slot="sprint-tick"
+          data-sprint={tick.sprint}
+          key={tick.sprint}
+          x1={tick.x}
+          x2={tick.x}
+          y1={0}
+          y2={height}
+        />
+      ))}
     </g>
   )
 }

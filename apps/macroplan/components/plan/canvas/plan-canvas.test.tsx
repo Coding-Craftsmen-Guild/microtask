@@ -1,6 +1,6 @@
 import type { Plan } from '@repo/api-client'
-import { calendarBands, dayToX, railLayout, rungFor, sprintTicks } from '@repo/canvas'
-import type { DayRange } from '@repo/canvas'
+import { dayToX, railLayout, rungFor, sprintTicks } from '@repo/canvas'
+import type { DayRange, Rung } from '@repo/canvas'
 import { LIMITS } from '@repo/contracts'
 import { cleanup, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
@@ -17,6 +17,7 @@ import {
   unplacedPlan,
 } from '../testing/plan-fixture'
 import { PlanCanvas } from './plan-canvas'
+import { ZOOM_VIEW } from './zoom-view'
 import {
   BAR_GAP,
   CANVAS_RANGE,
@@ -40,8 +41,6 @@ const PLATFORM_BLUE = '#3b82f6'
 /** What a placed feature nothing has started is drawn as, spelled out so a widening is visible. */
 const SOLID = 'fill-chart-3/20 stroke-chart-3 stroke-[1.25]'
 
-/** Only the even quarters carry a wash, so a 60-day view of a 14-day-sprint plan has exactly one. */
-const ONE_QUARTER_BAND = 1
 
 /** Each rail paints one transparent band rect to hang its own hairline off. */
 const ONE_RAIL_BAND = 1
@@ -406,32 +405,43 @@ describe('a feature the forward pass left off the axis', () => {
 })
 
 describe('the chrome the canvas draws around its rails', () => {
-  it('washes a quarter band and labels none, the ordinals being an HTML row above the canvas', () => {
+  // The wash was a **calendar quarter** and it is a **sprint** now. Three units of time were being
+  // drawn over each other — a quarter behind, a month or a sprint in front, the header counting in a
+  // fourth — and the wash agreed with the rules only by accident, a quarter opening on the calendar
+  // and a sprint `sprintLengthDays` after the plan's own day zero. The quarters are still drawn,
+  // as a labelled tier above the board, where a boundary can be named rather than guessed at.
+  it('washes a sprint column and labels none, the words being an HTML row above the canvas', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    const bands = slot('quarter-band')
-    expect(bands.length).toBeGreaterThanOrEqual(ONE_QUARTER_BAND)
+    const bands = slot('sprint-band')
+    expect(bands.length).toBeGreaterThan(0)
     expect(nth(bands, 0).tagName).toBe('rect')
-    expect(nth(bands, 0).getAttribute('data-quarter')).toBe('2026-4')
     expect(nth(bands, 0).textContent).toBe('')
     expect(numberOf(nth(bands, 0), 'height')).toBe(
       numberOf(only('[data-slot="plan-canvas"]'), 'height'),
     )
   })
 
-  it('washes only every other quarter, so a band edge is visible where nothing is written', () => {
+  it('washes no quarter at all, the quarters having become a tier of the header', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    const drawn = calendarBands(atlasPlan(), CANVAS_SCALE, chromeRange(CANVAS_RANGE))
-    const keys = drawn.map((band) => `${String(band.year)}-${String(band.quarter)}`)
-    const washed = slot('quarter-band').map((band) => band.getAttribute('data-quarter'))
-    expect(keys.length).toBeGreaterThan(washed.length)
-    expect(keys.filter((_key, index) => index % 2 === 0)).not.toEqual(washed)
-    expect(keys.filter((_key, index) => index % 2 === 1)).toEqual(washed)
+    expect(slot('quarter-band')).toEqual([])
   })
 
-  it('keeps the wash alternating across a new year, Q4 and the Q1 after it being consecutive', () => {
+  it('washes every other sprint, counted on the sprint’s own unbroken index', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    const washed = slot('quarter-band').map((band) => band.getAttribute('data-quarter'))
-    expect(washed).toEqual(['2026-4', '2027-2'])
+    const washed = slot('sprint-band').map((band) => Number(band.getAttribute('data-sprint')))
+    const ruled = slot('sprint-tick').map((tick) => Number(tick.getAttribute('data-sprint')))
+    expect(washed).toEqual(ruled.filter((sprint) => sprint % 2 !== 0))
+  })
+
+  it('washes a column exactly as wide as the sprint it is, so no pixel is washed twice', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const drawn = sprintTicks(atlasPlan(), CANVAS_SCALE, chromeRange(CANVAS_RANGE))
+    const byIndex = new Map(drawn.map((tick) => [tick.sprint, tick]))
+    for (const band of slot('sprint-band')) {
+      const tick = byIndex.get(Number(band.getAttribute('data-sprint')))
+      expect(numberOf(band, 'x')).toBe(tick?.x)
+      expect(numberOf(band, 'width')).toBe(tick?.width)
+    }
   })
 
   it('rules each sprint boundary the full height of the canvas, with no week label and no hover target', () => {
@@ -548,7 +558,7 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   it('draws no wrapper around a mark either, which a count of marks alone would not notice', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
-    const washed = slot('quarter-band').length
+    const washed = slot('sprint-band').length
     expect(canvas.querySelectorAll('rect')).toHaveLength(
       LIMITS.itemsPerPlan + LIMITS.featuresPerPlan + washed + ONE_RAIL_BAND,
     )
@@ -579,42 +589,50 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
   })
 })
 
-describe('what the grid rules at each stop, which follows what the header counts in', () => {
-  it('rules month boundaries at the Year stop and draws no sprint rule at all', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
-    expect(slot('month-rule').length).toBeGreaterThan(1)
-    expect(slot('sprint-tick')).toEqual([])
-  })
-
-  it('rules sprint boundaries at the Quarter stop and draws no month rule', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="feature" />)
-    expect(slot('sprint-tick').length).toBeGreaterThan(1)
-    expect(slot('month-rule')).toEqual([])
-  })
-
-  it('rules sprint boundaries at the Sprint stop too', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    expect(slot('sprint-tick').length).toBeGreaterThan(1)
-    expect(slot('month-rule')).toEqual([])
-  })
-
-  it('puts a month rule on every quarter band edge, so the wash and the rules cannot disagree', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
-    const ruled = new Set(slot('month-rule').map((rule) => rule.getAttribute('x1')))
-    const bands = calendarBands(atlasPlan(), CANVAS_SCALE, chromeRange(CANVAS_RANGE))
-    expect(bands.length).toBeGreaterThan(1)
-    for (const band of bands.slice(1)) expect(ruled.has(String(band.x))).toBe(true)
-  })
-
-  it('draws each month rule the full height of the canvas, as a sprint rule is drawn', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
-    const rules = slot('month-rule')
-    expect(rules.map((rule) => rule.tagName)).toEqual(rules.map(() => 'line'))
-    expect(numberOf(nth(rules, 1), 'x1')).toBe(numberOf(nth(rules, 1), 'x2'))
-    expect(numberOf(nth(rules, 1), 'y1')).toBe(0)
-    expect(numberOf(nth(rules, 1), 'y2')).toBe(
-      numberOf(only('[data-slot="plan-canvas"]'), 'height'),
+// The grid ruled months at the Year stop, because the header's lower row counted in months there and a
+// grid ruling anything else would have put a label over a cell with no line under it. Both count in
+// sprints at every stop now — `../board/time-bands.ts` is what made that legible at four pixels a day —
+// so there is nothing left for either to disagree about, and the grid no longer takes the rung at all.
+describe('what the grid rules, which is sprints at every stop and nothing else', () => {
+  const ruled = (rung: Rung, slotName: string): readonly Element[] => {
+    cleanup()
+    const { scale, rangeFor } = ZOOM_VIEW[rung]
+    render(
+      <PlanCanvas
+        at={AT}
+        place={null}
+        plan={planScreenModel(atlasPlan())}
+        range={rangeFor(planScreenModel(atlasPlan()))}
+        rung={rung}
+        scale={scale}
+      />,
     )
+    return slot(slotName)
+  }
+
+  it('rules sprint boundaries at every stop, that being the unit the plan is scheduled against', () => {
+    for (const rung of ['epic', 'feature', 'item'] as const) {
+      expect(ruled(rung, 'sprint-tick').length, rung).toBeGreaterThan(1)
+    }
+  })
+
+  it('rules no month boundary anywhere, the grid no longer changing unit with the stop', () => {
+    for (const rung of ['epic', 'feature', 'item'] as const) {
+      expect(ruled(rung, 'month-rule'), rung).toEqual([])
+    }
+  })
+
+  // The rules are read first and the height second: `ruled` cleans up before it renders, so a height
+  // taken before it is a height off a tree that has just been unmounted.
+  it('draws each rule the full height of the canvas at every stop', () => {
+    for (const rung of ['epic', 'feature', 'item'] as const) {
+      const rules = ruled(rung, 'sprint-tick')
+      const height = numberOf(only('[data-slot="plan-canvas"]'), 'height')
+      for (const rule of rules) {
+        expect(numberOf(rule, 'y1'), rung).toBe(0)
+        expect(numberOf(rule, 'y2'), rung).toBe(height)
+      }
+    }
   })
 })
 

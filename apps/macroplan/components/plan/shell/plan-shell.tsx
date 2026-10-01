@@ -6,14 +6,6 @@ export interface PlanShellProps {
   /** The title row: the plan's name, its calendar, the view switch and the whole-plan actions. */
   readonly head: ReactNode
 
-  /**
-   * The rail tree and its filter. Rendered as its own scrolling pane.
-   *
-   * Passing nothing is allowed and leaves the timeline the whole width, which is the honest
-   * rendering of a surface with no navigation rather than the silent column-shuffle a grid gave.
-   */
-  readonly sidebar: ReactNode
-
   /** The timeline or the table, whichever the view switch has on screen. */
   readonly children: ReactNode
 
@@ -28,7 +20,7 @@ export interface PlanShellProps {
 }
 
 /**
- * The plan page's frame: one strip over two panes that scroll independently.
+ * The plan page's frame: one strip over one pane.
  *
  * Every region is a sibling and every one of them says how it shrinks, so no child can push another
  * off the page. {@link SHELL} carries the reasoning for the shape.
@@ -38,17 +30,18 @@ export interface PlanShellProps {
  * The **toolbar** region did, into the head row above it: two strips, each with its own padding and
  * its own bottom border, put 60-odd pixels of chrome between a plan's name and its first bar and
  * divided them at a line no reader could see a reason for. `shell-css.ts` carries that argument.
+ *
+ * The **sidebar** region did too, and that is the larger change. The rail tree was a 17.5rem pane
+ * scrolling beside the board, so a reader scrolling the plan down scrolled the tree out of step with
+ * the bands it was naming — two columns of the same rails at two offsets. The rails are a sticky
+ * column *inside* the board's own scroller now (`board/rail-column.tsx`), which makes a rail's name
+ * being beside its band structural rather than two panes agreeing about a row height.
  */
-export function PlanShell({ head, sidebar, children, drawer }: PlanShellProps) {
+export function PlanShell({ head, children, drawer }: PlanShellProps) {
   return (
     <div className={SHELL.root} data-slot={PLAN_ROOT_SLOT}>
       <div className={SHELL.head}>{head}</div>
       <div className={SHELL.body}>
-        {sidebar === null ? null : (
-          <aside className={SHELL.side} data-slot="plan-side">
-            {sidebar}
-          </aside>
-        )}
         <div className={SHELL.main} data-slot="plan-main">
           {children}
         </div>

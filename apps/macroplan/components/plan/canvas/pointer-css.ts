@@ -1,19 +1,19 @@
 /**
  * The slots a hover lights, which is every part of one feature's thread.
  *
- * A bar, the item ticks under it, the arcs leaving and arriving, and the row in the tree. Pointing at
- * any one of them lights all of them, which is what makes "hover a feature in the sidebar and watch
- * the timeline" and "hover a bar" the same gesture rather than two features.
+ * A bar, the item ticks under it, and the arcs leaving and arriving. Pointing at any one of them
+ * lights all of them, which is what makes a hover answer "what does this wait on, and what waits on
+ * it" without a click and without a second view.
  *
- * The name on the bar was a fifth, and the canvas no longer draws one. The row in the tree is now the
- * only lit thing that carries words, which is part of why the card matters more than it did.
+ * There were five. The name on the bar went when the canvas stopped drawing text, and **the row in
+ * the rail tree** went with the tree: a row there was a feature, so it carried a `data-hover-id` and
+ * lit with its bar. The column that replaced it (`../board/rail-column.tsx`) is one row per **rail**,
+ * and a rail is not a feature's thread — lighting a lane because the pointer is on one bar in it
+ * would say something the plan does not mean. Nothing is lost that the card does not say better: it
+ * is now the only thing a hover produces that carries words, which is part of why it matters more
+ * than it did.
  */
-export const LIT_SLOTS: readonly string[] = [
-  'feature-bar',
-  'item-mark',
-  'arc',
-  'sidebar-row',
-]
+export const LIT_SLOTS: readonly string[] = ['feature-bar', 'item-mark', 'arc']
 
 const lit = (slot: string): string => `[data-slot="${slot}"][data-lit]`
 
@@ -37,10 +37,10 @@ const SHAPES = ['feature-bar', 'item-mark', 'arc'].map(lit).join(',')
  *
  * ### Why it brightens rather than dims
  *
- * Dimming is the selection gesture's own language — a group chip, a rail, a feature in the tree all
- * quiet everything else. A hover that also dimmed would make a pointer crossing the sidebar look like a
- * click that had already happened, and there would be no way to tell a chosen thread from one the
- * pointer is merely passing over.
+ * Dimming is the selection gesture's own language — a group chip, a chosen rail and the board's own
+ * filter all quiet everything else. A hover that also dimmed would make a pointer crossing the board
+ * look like a click that had already happened, and there would be no way to tell a chosen thread from
+ * one the pointer is merely passing over.
  *
  * `opacity:1` is deliberate and is the one declaration that overrides something: a feature outside the
  * chosen group is dimmed to 0.32, and pointing at it should still show it. A reader asking "what is
@@ -52,10 +52,7 @@ const SHAPES = ['feature-bar', 'item-mark', 'arc'].map(lit).join(',')
  * constant beside `view-switch.ts`'s, rather than a generated string beside the group and selection
  * sheets, and it is mounted once by `PlanScreen`.
  */
-export const POINTER_CSS = [
-  `${SHAPES}{opacity:1;stroke-width:2.5px}`,
-  `${lit('sidebar-row')}{background-color:var(--color-brand-soft)}`,
-].join('')
+export const POINTER_CSS = `${SHAPES}{opacity:1;stroke-width:2.5px}`
 
 /**
  * The hover card itself, as whole class strings.

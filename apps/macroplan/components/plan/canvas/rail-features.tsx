@@ -79,7 +79,7 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
           <FeatureBarMark {...shared} />
         )
         return (
-          <g data-slot="feature-group" key={bar.id}>
+          <g data-search={frame.search.get(bar.id)} data-slot="feature-group" key={bar.id}>
             {href === null ? (
               mark
             ) : (

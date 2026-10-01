@@ -1,13 +1,14 @@
-import { calendarBands, monthBands, sprintTicks } from '@repo/canvas'
+import { calendarBands, sprintTicks, todayLine } from '@repo/canvas'
 import type { DayRange, PlanScale, Rung } from '@repo/canvas'
 import { chromeRange } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
-import { HEADER_HEIGHT, QUARTER_HEIGHT, TIME } from './board-css'
-import { MonthCell, QuarterCell, WeekCell } from './header-cells'
+import { TIER, TIME } from './board-css'
+import { QuarterCell, SprintCell, YearCell } from './header-cells'
+import { yearBands } from './time-bands'
 
-const WEEK_HEIGHT = HEADER_HEIGHT - QUARTER_HEIGHT
+const TODAY = 'TODAY'
 
-const MONTHLY: Rung = 'epic'
+const TODAY_OFFSET = 4
 
 /** Props for {@link TimeHeader}. */
 export interface TimeHeaderProps {
@@ -18,21 +19,24 @@ export interface TimeHeaderProps {
   readonly range: DayRange
 
   /**
-   * Which stop is drawn, which decides what the second row counts in.
+   * Which stop is drawn, which decides what each sprint cell has room to say.
    *
    * Passed rather than derived from the range with `rungFor`, for the reason `CanvasQuery` states:
    * the range follows the plan's own span, so a short plan at the Year stop produces a range
-   * `rungFor` would call `item`, and the header would label in weeks under a canvas drawing a
-   * rollup. The two must agree, and the only way to be sure is for both to be told.
+   * `rungFor` would call `item`, and the header would label in a stop's worth of detail under a
+   * canvas drawing a rollup. The two must agree, and the only way to be sure is for both to be told.
    */
   readonly rung: Rung
+
+  /** The instant to read the clock at, which is what puts the `TODAY` tag somewhere. */
+  readonly at: Date
 
   /** The canvas width, so the header is exactly as wide as the thing it labels. */
   readonly width: number
 }
 
 /**
- * The calendar headings, as HTML positioned over the same x axis the canvas uses.
+ * The calendar headings, as three tiers of HTML positioned over the axis the canvas uses.
  *
  * ### Why it is not in the SVG
  *
@@ -41,32 +45,25 @@ export interface TimeHeaderProps {
  * quarter's name from scrolling out of its own band. As HTML each heading is a box inside a
  * positioned row, `overflow-hidden` does the clipping, and a long name simply ellipsises.
  *
- * It also lets the row be `sticky top-0`, so the dates stay on screen while a tall plan scrolls —
- * which an SVG element inside a `viewBox` cannot do at all.
+ * ### Why three tiers
+ *
+ * A year, a quarter, a sprint, each nesting inside the one above it. The year is what was missing: a
+ * plan running into January showed `Q1` with nothing saying which year's, and the `TODAY` tag had no
+ * row of its own and so nowhere to be but on top of a quarter's name.
+ *
+ * The bottom tier is sprints at **every** stop now, where it used to be months at the Year stop. The
+ * swap was made because a quarter is exactly three calendar months and sprints are not, so two rows
+ * of boxes disagreed everywhere at four pixels a day. What changed is that a sprint cell is no longer
+ * handed one string to clip — `time-bands.ts` gives each stop what it has room for, which is `S1` at
+ * four pixels a day and `Sprint 1 · W40–41 · Sep 28 – Oct 9` at forty. So the row that was dense is
+ * legible, and the plan is labelled in the unit it is actually scheduled against at every zoom.
  *
  * ### Why the numbers come from the same functions the canvas uses
  *
- * `calendarBands`, `monthBands` and `sprintTicks` are the canvas's own geometry, called here with the
- * same scale and the same `chromeRange`. Two sources for one axis is two things to drift; this way a
- * heading is over its band because both were computed from one number.
- *
- * ### What the second row counts in, and why only the Year stop changed
- *
- * The top row is a **calendar** quarter and the second row used to be a **sprint** tick at every
- * stop. Those two families of edges coincide only by accident: a quarter opens on the first working
- * day of January, April, July or October, and a sprint opens `sprintLengthDays` after the plan's own
- * day zero. At the Year stop that produced two rows of boxes disagreeing everywhere, at four pixels
- * a day, with `W40–41` in a forty-pixel cell — which is what made that view look broken rather than
- * merely dense.
- *
- * A quarter is exactly three calendar months, so months nest where sprints cannot. At {@link MONTHLY}
- * the second row is `monthBands`, and every line in it is one the row above either shares or sits
- * inside. The other two stops keep their sprint ticks: a reader there is looking at individual work,
- * and the boundary that matters is the one the plan is scheduled against. The misalignment survives
- * at those stops and is correct — two true statements about time, drawn where both are legible.
- *
- * `./time-grid.tsx` reads the same `rung` and rules the same boundaries down the canvas, which is
- * why neither file decides for itself what a row counts in.
+ * `calendarBands` and `sprintTicks` are the canvas's own geometry, called here with the same scale
+ * and the same `chromeRange`. Two sources for one axis is two things to drift; this way a heading is
+ * over its band because both were computed from one number. `./time-bands.ts`'s years are a fold over
+ * the quarters for exactly that reason rather than a second walk of the calendar.
  *
  * ### Why the range is bled
  *
@@ -75,21 +72,31 @@ export interface TimeHeaderProps {
  * here is only that the header and the grid under it are bled by the **same** call, so a cell and
  * the rule beneath it cannot end at different days.
  */
-export function TimeHeader({ plan, scale, range, rung, width }: TimeHeaderProps) {
+export function TimeHeader({ plan, scale, range, rung, at, width }: TimeHeaderProps) {
   const drawn = chromeRange(range)
+  const quarters = calendarBands(plan, scale, drawn)
+  const today = todayLine(plan, at, scale)
   return (
     <div className={TIME.header} data-slot="time-header" style={{ minWidth: width }}>
-      <div className={TIME.quarterRow} style={{ height: QUARTER_HEIGHT }}>
-        {calendarBands(plan, scale, drawn).map((band) => (
+      <div className={TIME.yearRow} style={{ height: TIER.year }}>
+        {yearBands(quarters).map((band) => (
+          <YearCell band={band} key={band.year} />
+        ))}
+        {today === null ? null : (
+          <span className={TIME.today} data-slot="today-tag" style={{ left: today.x + TODAY_OFFSET }}>
+            {TODAY}
+          </span>
+        )}
+      </div>
+      <div className={TIME.quarterRow} style={{ height: TIER.quarter }}>
+        {quarters.map((band) => (
           <QuarterCell band={band} key={`${String(band.year)}-${String(band.quarter)}`} />
         ))}
       </div>
-      <div className={TIME.weekRow} style={{ height: WEEK_HEIGHT }}>
-        {rung === MONTHLY
-          ? monthBands(plan, scale, drawn).map((band) => (
-              <MonthCell band={band} key={`${String(band.year)}-${String(band.month)}`} />
-            ))
-          : sprintTicks(plan, scale, drawn).map((tick) => <WeekCell key={tick.sprint} tick={tick} />)}
+      <div className={TIME.sprintRow} style={{ height: TIER.sprint }}>
+        {sprintTicks(plan, scale, drawn).map((tick) => (
+          <SprintCell key={tick.sprint} rung={rung} tick={tick} />
+        ))}
       </div>
     </div>
   )

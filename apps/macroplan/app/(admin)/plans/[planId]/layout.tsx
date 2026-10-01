@@ -8,7 +8,7 @@ import { ADMIN_DRAWER_ROUTES, PLAN_DRAWERS } from '../../../../lib/drawer-routes
 import { zoomFor } from '../../../../components/plan/canvas/zoom-view'
 import { zoomTo } from '../../../../actions/zoom'
 import { readZoom } from '../../../../lib/zoom'
-import { groupsSlot, manageSlot, sidebarSlot, traySlot, zoomSlot } from './admin-slots'
+import { groupsSlot, manageSlot, traySlot, zoomSlot } from './admin-slots'
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
 
@@ -60,7 +60,6 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       progress={bridge?.items ?? []}
       root={planId}
       routes={ADMIN_DRAWER_ROUTES}
-      sidebar={sidebarSlot(plan, found)}
       tray={traySlot(plan, found)}
       zoom={zoom}
       zoomControl={zoomSlot(zoom)}

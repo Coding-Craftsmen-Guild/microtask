@@ -408,7 +408,6 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
       'progress',
       'root',
       'routes',
-      'sidebar',
       'tray',
       'zoom',
       'zoomControl',
@@ -419,38 +418,28 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
     // Every slot is built by `admin-slots.tsx` rather than inline, because this file's own layout was
     // five lines from ADR 0027's cap. Each is an element and not `null` because `ADMIN_CONTROLS` draws
     // every control; what each was built with is asserted case by case below.
-    for (const slot of ['groups', 'manage', 'sidebar', 'tray', 'zoomControl']) {
+    for (const slot of ['groups', 'manage', 'tray', 'zoomControl']) {
       expect(isValidElement(handed[slot])).toBe(true)
     }
   })
 
-  // The sidebar is handed the plan's id as the **root** of this surface's URLs — `planId` was the prop
-  // until the same tree was mounted on `/s/<token>`, where the root is a token and not an id — along
-  // with the routes to spend it on and the rail tree. Never a seat, a count or a token, which is what
-  // the sweep further down asserts by shape. The id is the API's own rather than the URL's, so it is
-  // the plan this screen is drawing.
-  it('builds the sidebar on the plan the API confirmed, and hands it the rail tree', async () => {
+  // The rail tree was a slot of its own, built here from the plan the API confirmed. It is the board's
+  // own column now and the board derives it from `railLayout`, so this layout hands no rails at all —
+  // which is the point rather than a loss: the rows and the bands beside them come out of one call, so
+  // nothing has to keep two lists of rails in the same order.
+  it('hands no rail list of its own, the board deriving its column from the layout it draws', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const handed = await slotsOf(PLAN_A)
-    const props = propsIn(handed['sidebar'])
-    expect(props['root']).toBe(PLAN_A)
-    expect(props['root']).toBe((handed['plan'] as { readonly id: string }).id)
-    expect(Array.isArray(props['rails'])).toBe(true)
-    expect(props['rails']).toHaveLength(atlasPlan().epics.length)
+    expect(handed).not.toHaveProperty('sidebar')
+    expect(handed['root']).toBe((handed['plan'] as { readonly id: string }).id)
   })
 
-  // This case used to say the heading drew no manager at all, all four being routes the sidebar linked
-  // to. Three of them are back in the heading — as **links** to those routes rather than as the
-  // disclosures they were — because they act on the whole plan and so belong beside its name; crowded
-  // into the sidebar they pushed the rail tree down and made the one action that is about rails compete
-  // with three that are not. So the split is the assertion: what acts on the whole plan is in the head,
-  // one action is in the tree, and each is answered by what this viewer may do rather than drawn
-  // unconditionally.
-  //
-  // `New group` has since left the head for the chip row, which is where the groups it adds to are: a
-  // control three regions away from its own subject was the same crowding one level up.
-  it('puts the whole-plan actions in the head and leaves the tree the one action of its own', async () => {
+  // Everything that acts on the whole plan is in the head row, and everything that acts on one thing in
+  // it is on or beside that thing. `New group` left the head for the chip row, which is where the groups
+  // it adds to are; `New rail` left for the board, which is where the rails are. What is in the head is
+  // the two menus and the chips, each drawn on what this viewer may do rather than unconditionally.
+  it('puts the whole-plan actions in the head, each on its own answer about what may be done', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const handed = await slotsOf(PLAN_A)
@@ -463,11 +452,6 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
       mayAdd: true,
       planId: PLAN_A,
       rows: expect.anything(),
-    })
-    expect(propsIn(propsIn(handed['sidebar'])['actions'])).toEqual({
-      mayAddRail: true,
-      planId: PLAN_A,
-      railCount: 1,
     })
   })
 
@@ -484,12 +468,11 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
   // disagree about what is wrong with a feature. Neither is a read of its own — the bridge request
   // beside the plan is a read of something else, what the rails are bound to, and is the only other
   // one there is.
-  it('marks the tree and the tray from one pass over the plan it hands over, never from a second read', async () => {
+  it('marks the tray from one pass over the plan it hands over, never from a second read', async () => {
     holdingAdmin(api)
     api.plans = [tangledPlan()]
     const handed = await slotsOf(PLAN_A)
     const found = propsIn(handed['tray'])['found']
-    expect(found).toBe(propsIn(handed['sidebar'])['found'])
     expect((found as ReadonlyMap<string, unknown>).size).toBeGreaterThan(0)
     expect(propsIn(handed['tray'])['root']).toBe((handed['plan'] as { readonly id: string }).id)
     expect(trace(api)).toEqual([
@@ -507,24 +490,28 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
     api.plans = [atlasPlan()]
     const handed = await slotsOf(PLAN_A)
     expect(handed['root']).toBe(PLAN_A)
-    for (const slot of [handed, propsIn(handed['sidebar']), propsIn(handed['tray'])]) {
+    for (const slot of [handed, propsIn(handed['tray'])]) {
       expect(slot['routes']).toBe(ADMIN_DRAWER_ROUTES)
     }
   })
 
-  // The rail's builder is the third one, and it is spent twice: the tree links a rail and so does the
-  // names column beside the canvas, the names having left the SVG to become HTML that can carry a link
-  // at all. Both to the same address, because both were handed the same record.
+  // The rail's builder is the third one. It was spent twice while a tree and a names column both drew
+  // a rail; there is one column now, so a rail is named in exactly one place on this page — and a
+  // feature is named in the table and nowhere else, the canvas drawing no text at all. Both still come
+  // from the handed record, which is what keeps a link off the other surface.
   it('addresses one rail and one feature the same way wherever the page links to them', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     await show()
     const rails = screen.getAllByRole('link', { name: 'Platform' })
-    expect(rails).toHaveLength(2)
+    expect(rails).toHaveLength(1)
     for (const link of rails) expect(link.getAttribute('href')).toBe(railPath(PLAN_A, EPIC_1))
-    for (const link of screen.getAllByRole('link', { name: 'Auth rewrite' })) {
-      expect(link.getAttribute('href')).toBe(featurePath(PLAN_A, FEATURE_1))
-    }
+    // A feature's link is the bar itself, which carries no accessible name at all: the canvas is one
+    // `role="img"` and the bar is `tabIndex={-1}` inside it, deliberately (`canvas/rail-features.tsx`).
+    // So it is reached by the id it carries rather than by a name, and the name a reader has is the
+    // table's cell and the hover card.
+    const bar = document.querySelector('[data-slot="feature-bar"][data-feature-id="' + FEATURE_1 + '"]')
+    expect(bar?.closest('a')?.getAttribute('href')).toBe(featurePath(PLAN_A, FEATURE_1))
   })
 
   // Atlas plans eight days on a fourteen-day sprint, which is 28 days of axis — 1176px at the finest

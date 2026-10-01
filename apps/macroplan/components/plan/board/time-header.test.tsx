@@ -7,17 +7,22 @@ import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan } from '../testing/plan-fixture'
 import { CANVAS_SCALE, canvasWidth, chromeRange } from '../canvas/view'
 import { ZOOM_VIEW } from '../canvas/zoom-view'
-import { NAMEABLE } from './header-cells'
+import { NAMEABLE, NAMEABLE_SHORT } from './header-cells'
 import { TimeHeader } from './time-header'
 
 const plan = planScreenModel(atlasPlan())
 
 const RANGE = { fromDay: 0, toDay: 60 }
 
+// A fixed instant, so the TODAY tag is somewhere it can be asserted and nowhere it can drift. It is a
+// prop for the reason `TodayMark` takes one: a component that read the clock would answer differently
+// one midnight to the next, and the header draws the tag from the same `todayLine` the canvas does.
+const AT = new Date('2026-10-05T09:00:00.000Z')
+
 const draw = () => {
   cleanup()
   const width = canvasWidth(CANVAS_SCALE, RANGE)
-  render(<TimeHeader plan={plan} range={RANGE} rung="feature" scale={CANVAS_SCALE} width={width} />)
+  render(<TimeHeader at={AT} plan={plan} range={RANGE} rung="feature" scale={CANVAS_SCALE} width={width} />)
 }
 
 const cells = (slot: string): readonly HTMLElement[] => {
@@ -32,6 +37,7 @@ const atRung = (rung: Rung, slot: string): readonly HTMLElement[] => {
   const range = rangeFor(plan)
   render(
     <TimeHeader
+      at={AT}
       plan={plan}
       range={range}
       rung={rung}
@@ -49,11 +55,28 @@ const wide = (cell: HTMLElement): number => Number.parseFloat(cell.style.width)
 describe('the quarters the header names, now that they are the calendar’s own', () => {
   it('names a real year quarter, so a plan starting in September is not drawing Q1 over October', () => {
     expect(cells('quarter-head').map((cell) => cell.textContent)).toEqual([
-      '',
+      'Q3',
       'Q4 2026',
       'Q1 2027',
       'Q2 2027',
     ])
+  })
+
+  // The first cell is a stub: this plan opens four working days before Q4, so two thirds of Q3 is
+  // behind day zero. It says so twice — the short name, and a shade — because a cell reading
+  // "Q3 2026" beside "Q4 2026" would be claiming to be a whole quarter at a tenth of the width.
+  it('names a clamped leading quarter short and shades it, it being a stub of a quarter', () => {
+    const first = cells('quarter-head')[0]
+    expect(first?.textContent).toBe('Q3')
+    expect(first?.dataset['part']).toBe('')
+    expect(first?.className).toContain('bg-sprint-alt')
+  })
+
+  it('leaves a whole quarter unshaded and named in full, which is what the stub is told apart from', () => {
+    const second = cells('quarter-head')[1]
+    expect(second?.textContent).toBe('Q4 2026')
+    expect(second?.dataset['part']).toBeUndefined()
+    expect(second?.className).not.toContain('bg-sprint-alt')
   })
 
   // The first band is Q3 2026 and is unnamed only because this plan's four days of it leave a cell too
@@ -133,11 +156,15 @@ describe('a cell narrower than the words in it', () => {
 // look broken: this plan opens four working days before Q4 2026, so Q3's clamped cell is a few pixels
 // wide and showed a lone "Q" in the corner. A quarter too narrow to name is not named.
 describe('a band too narrow to carry its own name', () => {
-  it('draws the cell and no label, a single clipped letter reading as a fault rather than a quarter', () => {
+  // The budget is the name's own: "Q4 2026" needs 48px and "Q3" needs 24, so a clamped cell keeps its
+  // short name at widths where the full one would have been dropped. This plan's first cell is between
+  // the two, which is exactly the case the two thresholds exist for.
+  it('spends each name against its own width, a clipped letter reading as a fault rather than a quarter', () => {
     const [first, second] = cells('quarter-head')
 
     expect(wide(first as HTMLElement)).toBeLessThan(NAMEABLE)
-    expect(first?.textContent).toBe('')
+    expect(wide(first as HTMLElement)).toBeGreaterThanOrEqual(NAMEABLE_SHORT)
+    expect(first?.textContent).toBe('Q3')
     expect(second?.textContent).toBe('Q4 2026')
   })
 
@@ -146,47 +173,71 @@ describe('a band too narrow to carry its own name', () => {
   })
 })
 
-describe('the row under the quarters, which is a month at Year and a sprint everywhere else', () => {
-  it('names months at the Year stop, a forty-pixel sprint cell being too narrow to carry W40–41', () => {
-    expect(atRung('epic', 'month-head').length).toBeGreaterThan(0)
-    expect(atRung('epic', 'week-head')).toEqual([])
+describe('the bottom tier, which is sprints at every stop and says as much as each has room for', () => {
+  it('draws sprints at every stop, that being the unit the plan is actually scheduled against', () => {
+    for (const rung of ['epic', 'feature', 'item'] as const) {
+      expect(atRung(rung, 'week-head').length, rung).toBeGreaterThan(0)
+    }
   })
 
-  it('leaves the Quarter stop on sprints, that being the unit the plan is scheduled against', () => {
-    expect(atRung('feature', 'week-head').length).toBeGreaterThan(0)
-    expect(atRung('feature', 'month-head')).toEqual([])
+  // The row carried **months** at the Year stop, because a sprint cell is forty pixels there and
+  // W40–41 is not. What changed is that a cell is no longer handed one string to clip: each stop is
+  // told what it has room for, so the row can stay in the plan's own unit at every zoom.
+  it('draws no month cells anywhere, the row no longer changing unit to stay legible', () => {
+    for (const rung of ['epic', 'feature', 'item'] as const) {
+      expect(atRung(rung, 'month-head'), rung).toEqual([])
+    }
   })
 
-  it('leaves the Sprint stop on sprints too', () => {
-    expect(atRung('item', 'week-head').length).toBeGreaterThan(0)
-    expect(atRung('item', 'month-head')).toEqual([])
+  it('counts sprints from one, S0 being the only thing on the page that would count from zero', () => {
+    expect(atRung('item', 'week-head')[0]?.textContent).toContain('Sprint 1')
+    expect(atRung('epic', 'week-head')[0]?.textContent).toBe('S1')
   })
 
-  it('opens every quarter cell on a month cell at Year, which is why the row was changed at all', () => {
-    const opens = new Set(atRung('epic', 'month-head').map((cell) => cell.style.left))
-    const quarters = atRung('epic', 'quarter-head')
-    expect(quarters.length).toBeGreaterThan(1)
-    for (const quarter of quarters.slice(1)) expect(opens.has(quarter.style.left)).toBe(true)
+  it('spells out the sprint and its dates where a cell is wide enough to hold them', () => {
+    const first = atRung('item', 'week-head')[0]
+    expect(first?.textContent).toMatch(/^Sprint 1W\d+(–\d+)? · \w{3} \d+ – \w{3} \d+$/)
   })
 
-  it('does not open every quarter on a sprint cell at Quarter, the misalignment being real there', () => {
-    const opens = new Set(atRung('feature', 'week-head').map((cell) => cell.style.left))
-    const quarters = atRung('feature', 'quarter-head')
-    expect(quarters.slice(1).some((quarter) => !opens.has(quarter.style.left))).toBe(true)
+  it('drops to the start date alone at Quarter, and to the name alone at Year', () => {
+    expect(atRung('feature', 'week-head')[0]?.textContent).toMatch(/^S1\w{3} \d+$/)
+    expect(atRung('epic', 'week-head')[0]?.textContent).toBe('S1')
   })
 
-  it('names a month in three letters and without its year, the quarter above it carrying the year', () => {
-    const named = atRung('epic', 'month-head')
-      .map((cell) => cell.textContent ?? '')
-      .filter((text) => text !== '')
-    expect(named.length).toBeGreaterThan(0)
-    for (const text of named) expect(text).toMatch(/^[A-Z][a-z]{2}$/)
+  it('keeps the whole dates in a title at every stop, which is what a forty-pixel cell has instead', () => {
+    for (const rung of ['epic', 'feature', 'item'] as const) {
+      expect(atRung(rung, 'week-head')[0]?.title, rung).toMatch(
+        /^\d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/,
+      )
+    }
+  })
+})
+
+// The tier that was missing. A plan running into January showed Q1 with nothing saying which
+// year's, and the TODAY tag had no row of its own and so nowhere to be but over a quarter's name.
+describe('the year tier over the quarters', () => {
+  it('spans each year across its own quarters, folded from the bands under it', () => {
+    const years = cells('year-head')
+    expect(years.map((cell) => cell.textContent)).toEqual(['2026', '2027'])
+    expect(years.map((cell) => cell.dataset['year'])).toEqual(['2026', '2027'])
   })
 
-  it('keys each month cell on its year as well, two Januaries being two different bands', () => {
-    const keys = atRung('epic', 'month-head').map((cell) => cell.dataset['month'])
-    expect(new Set(keys).size).toBe(keys.length)
-    expect(keys[0]).toMatch(/^\d{4}-\d{1,2}$/)
+  it('opens each year where its first quarter opens and ends where its last one ends', () => {
+    const [first, second] = cells('year-head')
+    const quarters = cells('quarter-head')
+    expect(left(first as HTMLElement)).toBe(left(quarters[0] as HTMLElement))
+    expect(left(first as HTMLElement) + wide(first as HTMLElement)).toBe(left(second as HTMLElement))
+  })
+
+  // One render, read twice: `cells` draws afresh each call, so comparing an element from one call to
+  // an element from another compares two nodes from two trees and can only ever fail.
+  it('puts the TODAY tag in that row, at the day the canvas draws its line on', () => {
+    draw()
+    const tag = document.querySelector<HTMLElement>('[data-slot="today-tag"]')
+    const year = document.querySelector<HTMLElement>('[data-slot="year-head"]')
+    expect(tag?.textContent).toBe('TODAY')
+    expect(tag?.parentElement).toBe(year?.parentElement)
+    expect(Number.parseFloat(tag?.style.left ?? '')).toBeGreaterThan(0)
   })
 })
 
@@ -206,13 +257,13 @@ describe('how wide the header is, which has to be exactly how wide the canvas is
   it('floors itself at the plan width and fills a wider pane, rather than fixing its own width', () => {
     expect(header().style.minWidth).toBe(`${String(canvasWidth(CANVAS_SCALE, RANGE))}px`)
     expect(header().style.width).toBe('')
-    expect(header().className).toContain('w-full')
+    expect(header().className).toContain('flex-1')
   })
 
-  it('clips both rows, so the bled cells cannot scroll a pane the plan already fits in', () => {
-    for (const slot of ['quarter-head', 'week-head']) {
+  it('clips all three rows, so the bled cells cannot scroll a pane the plan already fits in', () => {
+    for (const slot of ['year-head', 'quarter-head', 'week-head']) {
       const row = cells(slot)[0]?.parentElement
-      expect(row?.className).toContain('overflow-hidden')
+      expect(row?.className, slot).toContain('overflow-hidden')
     }
   })
 })

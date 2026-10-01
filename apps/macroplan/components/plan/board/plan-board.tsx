@@ -1,13 +1,18 @@
 import { railLayout } from '@repo/canvas'
 import type { DayRange, PlanScale, Rung } from '@repo/canvas'
+import { attentionOf } from '../attention/attention'
 import type { FeaturePlace } from '../canvas/drag-root'
 import { PlanCanvas } from '../canvas/plan-canvas'
 import type { Counted } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
-import { BOARD } from './board-css'
+import { BOARD, RAIL_WIDTH } from './board-css'
+import { BOARD_WORDS } from './board-words'
+import { BoardFilter } from './board-filter'
 import { boardRails } from './board-rows'
-import { RailNames } from './rail-names'
+import { FILTER_CSS } from './filter-css'
+import { NOTHING_SELECTED_ID, SELECT_RADIO_NAME, railSelectCss } from './rail-select-css'
+import { RailColumn } from './rail-column'
 import { TimeHeader } from './time-header'
 import { canvasWidth } from '../canvas/view'
 
@@ -33,8 +38,8 @@ export interface PlanBoardProps {
 }
 
 /**
- * The timeline as a reader meets it: rail names that stay put, dates that stay on screen, and the
- * canvas scrolling under both.
+ * The timeline as a reader meets it: one scroller, with the rail names and the dates pinned to its
+ * edges and the canvas moving under both.
  *
  * ### Why the rails are laid out twice
  *
@@ -43,26 +48,63 @@ export interface PlanBoardProps {
  * the two agree by construction — which is the property that matters, and a cheaper one to hold than
  * threading a layout through two components that otherwise share nothing. Passing it down would make
  * `PlanCanvas` take geometry it can compute, and it is the component that owns computing it.
+ *
+ * ### The radio that means nothing is selected
+ *
+ * Rendered first and checked, so the generated sheet has a resting state to return to and the board
+ * is undimmed until a reader clicks a swatch. It is the one piece of the retired rail tree that had
+ * to come with the column: a radio group with no unchecked state cannot be un-chosen.
+ *
+ * ### Two sheets, and the difference between them is the point
+ *
+ * `FILTER_CSS` is one rule naming an attribute, static whatever the plan holds. `railSelectCss` is
+ * two rules **per rail**, generated from their ids. Keeping them apart is what keeps the cost of
+ * dimming on a keystroke from growing with the plan.
  */
 export function PlanBoard(props: PlanBoardProps) {
   const { plan, at, range, scale, rung, progress, place, root, routes } = props
-  const rails = boardRails(plan, railLayout(plan, plan.schedule, scale))
+  const rails = boardRails(plan, railLayout(plan, plan.schedule, scale), attentionOf(plan))
   const width = canvasWidth(scale, range)
   return (
     <div className={BOARD.scroller} data-slot="plan-board">
-      <RailNames rails={rails} root={root} routes={routes} />
-      <div className={BOARD.timeline} data-slot="timeline-scroller">
-        <TimeHeader plan={plan} range={range} rung={rung} scale={scale} width={width} />
-        <PlanCanvas
-          at={at}
-          hrefOf={(featureId) => routes.feature(root, featureId)}
-          place={place}
-          plan={plan}
-          progress={progress}
-          range={range}
-          rung={rung}
-          scale={scale}
-        />
+      <style>{FILTER_CSS}</style>
+      <style>{railSelectCss(rails)}</style>
+      <input
+        className="sr-only"
+        defaultChecked
+        id={NOTHING_SELECTED_ID}
+        name={SELECT_RADIO_NAME}
+        type="radio"
+      />
+      <div className={BOARD.box}>
+        <div className={BOARD.headerRow} data-slot="board-head">
+          <div className={BOARD.corner} style={{ width: RAIL_WIDTH }}>
+            <BoardFilter hint={BOARD_WORDS.hint} label={BOARD_WORDS.filter} />
+          </div>
+          <TimeHeader
+            at={at}
+            plan={plan}
+            range={range}
+            rung={rung}
+            scale={scale}
+            width={width}
+          />
+        </div>
+        <div className={BOARD.bodyRow}>
+          <RailColumn rails={rails} root={root} routes={routes} />
+          <div className={BOARD.canvas}>
+            <PlanCanvas
+              at={at}
+              hrefOf={(featureId) => routes.feature(root, featureId)}
+              place={place}
+              plan={plan}
+              progress={progress}
+              range={range}
+              rung={rung}
+              scale={scale}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )

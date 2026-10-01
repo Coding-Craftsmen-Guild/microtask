@@ -89,6 +89,7 @@ const todayAt = (date: string) => {
 const headingsOf = (plan: Plan = atlasPlan()): readonly Element[] => {
   render(
     <TimeHeader
+      at={new Date('2026-10-05T09:00:00.000Z')}
       plan={planScreenModel(plan)}
       range={CANVAS_RANGE}
       rung="feature"
@@ -155,17 +156,19 @@ describe('the sprint dates the week headings reveal, now that the canvas has no 
     expect(dateToDay(second.from, plan)).toBe(first.endDay)
   })
 
-  it('joins the two dates with a word and no dash at all, since the en dash is the label’s own', () => {
+  // The cell says "S1 Sep 28" at the Quarter stop these headings are drawn at — the week label is the
+  // Sprint stop's, where there is room for it (`../board/time-bands.ts`). What the title owes is
+  // unchanged: the two stored dates, joined by a word, so the en dash in a week label cannot be read
+  // as the separator between them.
+  it('joins the two dates with a word and no dash at all, since the en dash is a label’s own', () => {
     const heading = nth(headingsOf(), 0)
-    expect(heading.textContent).toBe(nth(ticksOf(), 0).label)
-    expect(heading.textContent).toContain('–')
     expect(heading.getAttribute('title')).toContain(' to ')
     expect(heading.getAttribute('title')).not.toContain('–')
   })
 
-  it('leaves the week label out of the title, which would otherwise read the visible text back', () => {
+  it('keeps the visible text out of the title, which would otherwise read the cell back', () => {
     const heading = nth(headingsOf(), 0)
-    expect(heading.getAttribute('title')).not.toContain(nth(ticksOf(), 0).label)
+    expect(heading.getAttribute('title')).not.toContain(heading.textContent ?? '')
     expect(heading.textContent).not.toMatch(ISO_DATE)
   })
 
@@ -209,7 +212,7 @@ describe('what the canvas still does not draw, and still does not name', () => {
   it('leaves the grid holding bands and rules only, so nothing per-sprint lies over the bars', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
     const grid = [...only('[data-slot="time-grid"]').children]
-    const bands = grid.filter((child) => child.getAttribute('data-slot') === 'quarter-band')
+    const bands = grid.filter((child) => child.getAttribute('data-slot') === 'sprint-band')
     const rules = grid.filter((child) => child.getAttribute('data-slot') === 'sprint-tick')
     expect(bands.length + rules.length).toBe(grid.length)
     expect(bands.length).toBeGreaterThan(0)

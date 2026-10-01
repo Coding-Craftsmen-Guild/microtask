@@ -32,9 +32,6 @@ export interface PlanScreenProps {
   /** Whatever route is open beside the plan. */
   readonly drawer: ReactNode
 
-  /** The rail tree and its filter, as its own scrolling pane. */
-  readonly sidebar: ReactNode
-
   /** Whole-plan actions — share, settings — already filtered by what this viewer may do. */
   readonly manage: ReactNode
 
@@ -90,11 +87,15 @@ export interface PlanScreenProps {
  * the heading rendered in a row, became `manage`: the surface decides what a viewer may do and hands
  * over the controls, and this lays them out in one place.
  *
- * `toolbar` and `home` are the restyle's. The control strip merged into the head row, which is one
+ * `toolbar`, `home` and `sidebar` are the restyle's. The control strip merged into the head row, which is one
  * region rather than two over the same board (`shell/shell-css.ts`), and the breadcrumb climbed into
  * the brand bar, where a breadcrumb goes (`app/(admin)/plan-crumb.tsx`). The seat surface still draws
- * no crumb at all, for the reason this prop used to record: it holds one plan and has no index above
+ * no crumb at all, for the reason that prop used to record: it holds one plan and has no index above
  * it, and a trail whose parent is a sign-in page with no password behind it is worse than none.
+ *
+ * The rail tree went with `sidebar`. It listed every rail and every feature in a pane beside a board
+ * that lists the same rails, and the board's own column is where they are now
+ * (`board/rail-column.tsx`).
  *
  * ### Why the style element is here
  *
@@ -103,7 +104,7 @@ export interface PlanScreenProps {
  * group and selection sheets, which are generated per plan.
  */
 export function PlanScreen(props: PlanScreenProps) {
-  const { plan, at, actions, controls, drawer, groups, progress, sidebar } = props
+  const { plan, at, actions, controls, drawer, groups, progress } = props
   const { manage, newRailHref, root, routes, tray, zoom, zoomControl, zoomTo } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   const found = attentionOf(plan)
@@ -125,7 +126,6 @@ export function PlanScreen(props: PlanScreenProps) {
               zoom={zoomControl}
             />
           }
-          sidebar={sidebar}
         >
           <PlanViews
             at={at}

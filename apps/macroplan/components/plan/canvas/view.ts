@@ -79,6 +79,15 @@ export interface RailFrame {
   readonly details: ReadonlyMap<string, string>
 
   /**
+   * What each feature can be found by, lowered, keyed by feature id.
+   *
+   * On the frame for the reason `details` is: a mark is drawn from the frame and nothing else, so a
+   * feature's `<g>` carries the name the board's filter matches on without the component drawing it
+   * looking anything up. {@link featureSearch} carries why it is lowered on the server.
+   */
+  readonly search: ReadonlyMap<string, string>
+
+  /**
    * Where a bar opens, or `null` for a canvas nobody can open anything from.
    *
    * A bar is a link as well as a drag handle. Clicking one is how a person opens the thing they are
@@ -95,6 +104,20 @@ export interface RailFrame {
 /** What each group is coloured, keyed by label id. */
 export const labelHues = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
   new Map(plan.labels.map((label) => [label.id, label.colour]))
+
+/**
+ * What each feature can be found by, keyed by feature id and lowered once on the server.
+ *
+ * It lands on the mark as `data-search` and the board's filter matches on it
+ * (`../board/board-filter.tsx`), which is why it is lowered here rather than at the keystroke: a
+ * plan of two hundred features would otherwise lower two hundred names on every letter typed.
+ *
+ * It is the feature's **own** name and not its rail's or its group's. Typing a rail's name already
+ * matches that rail's row in the column beside the board, and a filter that also lit every feature
+ * on it would make a search for one feature indistinguishable from a search for its lane.
+ */
+export const featureSearch = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
+  new Map(plan.features.map((feature) => [feature.id, feature.name.toLowerCase()]))
 
 /**
  * The hue one feature's marks are drawn in: its **group's** colour, or its **rail's** where it is in
@@ -336,6 +359,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
       hues: labelHues(plan),
       draws: DRAWS[rung],
       details: detailsOf(plan),
+      search: featureSearch(plan),
       hrefOf: query.hrefOf,
     },
   }

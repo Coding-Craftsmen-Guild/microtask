@@ -13,9 +13,7 @@ import { planAxis } from './canvas/zoom-view'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
 import { PLAN_ROOT } from './shell/shell-css'
-import { PlanSidebar } from './sidebar/plan-sidebar'
-import { NOTHING_SELECTED_ID } from './sidebar/select-css'
-import { sidebarRails } from './sidebar/sidebar-rows'
+import { NOTHING_SELECTED_ID } from './board/rail-select-css'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
 import { stubActions } from './testing/plan-writes'
 import { VIEW_SWITCH_CSS } from './view-switch'
@@ -45,7 +43,6 @@ interface Shown {
   readonly manage?: ReactNode
   readonly actions?: PlanEditActions | null
   readonly tray?: ReactNode
-  readonly sidebar?: ReactNode
 
   readonly zoom?: Rung
 }
@@ -63,7 +60,6 @@ const show = (over: Shown = {}) =>
       progress={[]}
       root={PLAN_A}
       routes={ADMIN_DRAWER_ROUTES}
-      sidebar={over.sidebar ?? null}
       tray={over.tray ?? null}
       zoom={over.zoom ?? 'feature'}
       zoomControl={null}
@@ -193,49 +189,14 @@ describe('the frame the regions sit in', () => {
     expect(before(radio('Timeline'), slot('plan-board') as Element)).toBe(true)
   })
 
-  it('omits the sidebar pane entirely where a surface passes none, rather than an empty column', () => {
+  // There is no second pane any more. The rail tree was one — 17.5rem of rails beside a board listing
+  // the same rails — and it is a sticky column inside the board's own scroller now. So the frame has
+  // one region under the head row, and the rails are in the scroller they name.
+  it('draws the board in the one pane the frame has, with the rails inside it', () => {
     show()
     expect(slot('plan-side')).toBeNull()
-    expect(slot('plan-main')).toBeTruthy()
-  })
-
-  // The defect this frame replaced, and the one no test could see. The split was
-  // `lg:grid-cols-[17rem_minmax(0,1fr)]` and the seat surface passed no sidebar; a null child renders
-  // nothing at all rather than an empty box, so the board became the FIRST grid item and drew itself
-  // into the 17rem names track — a 272px timeline on a 1545px page, with the wide column beside it
-  // empty. happy-dom computes no layout, so the only way to pin it is structurally: the board is in
-  // the main pane, and it is in the main pane whether or not there is a sidebar beside it.
-  it('draws the board in the main pane and never in the sidebar’s, with a sidebar beside it', () => {
-    render(
-      <PlanScreen
-        actions={null}
-        at={AT}
-        controls={ADMIN_CONTROLS}
-        drawer={null}
-        groups={null}
-        manage={null}
-        plan={planScreenModel(atlasPlan())}
-        progress={[]}
-        root={PLAN_A}
-        routes={ADMIN_DRAWER_ROUTES}
-        sidebar={<p data-testid="side-marker">the tree</p>}
-        tray={null}
-        zoom="feature"
-        zoomControl={null}
-        newRailHref="/plans/p/new/rail?n=1"
-        zoomTo={null}
-      />,
-    )
-    const board = slot('plan-board')
-    expect(board).toBeTruthy()
-    expect(slot('plan-main')?.contains(board as Node)).toBe(true)
-    expect(slot('plan-side')?.contains(board as Node)).toBe(false)
-    expect(slot('plan-side')?.contains(screen.getByTestId('side-marker'))).toBe(true)
-  })
-
-  it('draws the board in the main pane with no sidebar at all, which is the seat surface', () => {
-    show()
     expect(slot('plan-main')?.contains(slot('plan-board') as Node)).toBe(true)
+    expect(slot('plan-board')?.contains(slot('rail-names') as Node)).toBe(true)
   })
 })
 
@@ -303,7 +264,6 @@ describe('the count of what wants looking at', () => {
         progress={[]}
         root={PLAN_A}
         routes={ADMIN_DRAWER_ROUTES}
-        sidebar={null}
         tray={null}
         zoom="feature"
         zoomControl={null}
@@ -362,8 +322,8 @@ describe('the controls the screen is handed', () => {
   })
 })
 
-// The two generated selection sheets — `labels/group-css.ts` for a group and `sidebar/select-css.ts`
-// for a rail or a feature — are `:has()` rules anchored on one ancestor of both the radio and the
+// The two generated selection sheets — `labels/group-css.ts` for a group and
+// `board/rail-select-css.ts` for a rail — are `:has()` rules anchored on one ancestor of both the radio and the
 // marks. Every test of either asserted the rule's **text** and, separately, that the marks carry the
 // attributes it names; none asserted that the element it anchors on is an element this screen
 // renders. It was not: both sheets named `[data-slot="plan-root"]`, which nothing has rendered since
@@ -382,7 +342,7 @@ describe('the element both generated selection sheets anchor on', () => {
   })
 
   it('contains the radios the rules key on and the marks they dim, both being inside one ancestor', () => {
-    show({ sidebar: <PlanSidebar actions={null} found={new Map()} rails={sidebarRails(planScreenModel(atlasPlan()))} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} /> })
+    show()
     const root = document.querySelector(PLAN_ROOT)
 
     expect(root).not.toBeNull()
@@ -403,20 +363,19 @@ describe('the element both generated selection sheets anchor on', () => {
 // paints nothing at all if the screen renders none of them, and a rule that matches nothing is valid
 // CSS. So each slot it names is asserted to be something under the root that listens for the hover.
 describe('the root that listens for a pointer over the plan', () => {
-  it('wraps the whole screen, so a hover in the sidebar can reach a bar on the canvas', () => {
-    show({ sidebar: <PlanSidebar actions={null} found={new Map()} rails={sidebarRails(planScreenModel(atlasPlan()))} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} /> })
+  it('wraps the whole screen, so a hover anywhere on it can reach a bar on the canvas', () => {
+    show()
     const root = document.querySelector('[data-slot="plan-pointer"]')
 
     expect(root).not.toBeNull()
     expect(root?.querySelector(PLAN_ROOT)).toBe(shell())
-    expect(root?.querySelector('[data-slot="sidebar-row"][data-hover-id]')).not.toBeNull()
     expect(root?.querySelector('[data-slot="feature-bar"][data-hover-id]')).not.toBeNull()
   })
 
   it('mounts the sheet that paints a lit mark, every slot of which the screen renders', () => {
     // At the Sprint rung, which is the one that draws item ticks: a sheet naming a slot no rendering
     // produces is a rule that matches nothing, which is the defect this whole block exists to catch.
-    show({ zoom: 'item', sidebar: <PlanSidebar actions={null} found={new Map()} rails={sidebarRails(planScreenModel(atlasPlan()))} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} /> })
+    show({ zoom: 'item' })
     const sheets = [...document.querySelectorAll('style')].map((one) => one.textContent ?? '').join('')
 
     expect(sheets).toContain(POINTER_CSS)
