@@ -58,7 +58,7 @@ import { GroupChips } from './labels/group-chips'
 import { LabelFields } from './labels/label-fields'
 import { NewRailForm } from './rails/new-rail-form'
 import { DeletePlan } from './settings/delete-plan'
-import { SettingsPanel } from './settings/settings-panel'
+import { SettingsSections } from './settings/settings-sections'
 import { PlanNameForm } from './settings/plan-name-form'
 import { TimingFields } from './settings/timing-fields'
 import { TimingForm } from './settings/timing-form'
@@ -415,7 +415,6 @@ const TREES = [
         planId={PLAN_A}
         rows={labelRows(planScreenModel(atlasPlan()))}
       />}
-    home="/"
     manage={null}
     progress={[]}
     root={PLAN_A}
@@ -435,7 +434,6 @@ const TREES = [
     controls={ADMIN_CONTROLS}
     drawer={null}
     groups={null}
-    home="/"
     manage={null}
     progress={[]}
     root={PLAN_A}
@@ -455,7 +453,6 @@ const TREES = [
     controls={ADMIN_CONTROLS}
     drawer={null}
     groups={null}
-    home="/"
     manage={null}
     progress={[]}
     root={PLAN_A}
@@ -475,7 +472,6 @@ const TREES = [
     controls={ADMIN_CONTROLS}
     drawer={null}
     groups={null}
-    home="/"
     manage={null}
     progress={[]}
     root={PLAN_A}
@@ -556,11 +552,11 @@ const TREES = [
     rename={STUB_ACTIONS.renameLabel}
     rows={labelRows(planScreenModel(atlasPlan()))}
   />,
-  // The settings panel, so the three client forms inside it are walked. Its one datum is the plan model,
+  // The three settings forms, so each client form inside them is walked. Their one datum is the plan model,
   // which never crosses the boundary: each form is handed the plan's id, name and three calendar values as
-  // primitives. That is the whole reason the panel is a Server Component wrapping three client forms
-  // rather than one client panel taking a plan.
-  <SettingsPanel
+  // primitives. That is the whole reason this is a Server Component wrapping three client forms rather
+  // than one client panel taking a plan.
+  <SettingsSections
     key="f8"
     mayRemove
     mayRename
@@ -587,7 +583,6 @@ const TREES = [
     controls={ADMIN_CONTROLS}
     drawer={panel({ key: 'g1' })}
     groups={null}
-    home="/"
     key="g"
     manage={null}
     plan={planScreenModel(atlasPlan())}
@@ -621,7 +616,6 @@ const TREES = [
     controls={ADMIN_CONTROLS}
     drawer={null}
     groups={null}
-    home="/"
     key="j"
     manage={MANAGER}
     plan={TANGLED}
@@ -720,8 +714,10 @@ const TREES = [
     root={SEAT_TOKEN}
     routes={SEAT_DRAWER_ROUTES}
   />,
-  // The whole-plan actions, which moved out of the sidebar and into the title row.
-  <PlanManage key="pm" maySettings mayShare planId={PLAN_A} />,
+  // The whole-plan actions, which are two menus at the end of the title row. Both slots are filled, so the
+  // opener classes and the panel classes are both painted; the share slot brings its own opener, which is
+  // the one asymmetry `plan-manage.tsx` records and the reason it is markup here rather than a boolean.
+  <PlanManage key="pm" settings={<p key="ps">Settings go here</p>} share={MANAGER} />,
   // And again with no rails at all, which is the state a new plan is in and the one the empty sentence is
   // for: the row markup above never renders it, so a sweep without this tree would leave that class unseen.
   <PlanSidebar

@@ -83,4 +83,23 @@ it('runs its row to the viewport edges for width="wide", so the lockup is not mi
       expect(container.querySelector('header > div')?.className).toContain('px-5')
     }
   })
+
+  it('renders a caller-supplied trail after the lockup, behind a divider', () => {
+    const { container } = render(
+      <AppBar crumbs={<nav aria-label="Breadcrumb">Plans</nav>} product="Macroplan" width="wide" />,
+    )
+    const children = [...(container.querySelector('header > div')?.children ?? [])]
+    expect(children.map((node) => node.tagName)).toEqual(['A', 'SPAN', 'NAV', 'SPAN'])
+    expect(children[1]?.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('draws no divider for a bar with no trail, which is what the other product renders', () => {
+    const { container } = render(<AppBar product="Microtask" />)
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull()
+  })
+
+  it('keeps the lockup whole when a long trail runs out of room beside it', () => {
+    const { container } = render(<AppBar crumbs={<nav>x</nav>} product="Macroplan" width="wide" />)
+    expect(container.querySelector('header > div > a')?.className).toContain('shrink-0')
+  })
 })

@@ -1,9 +1,10 @@
 import type { PlanEditActions } from '../../../components/plan/edit-actions'
 import type { PlanScreenModel } from '../../../components/plan/plan-screen-model'
 import { seatGroupsPanel, seatRailsPanel } from './seat-content-panels'
+import { PlanManage } from '../../../components/plan/shell/plan-manage'
 import { ShareManager } from '../../../components/plan/share/share-manager'
 import type { SeatManagerActions, SeatPlanOwnActions } from '../../../components/plan/seat-own-actions'
-import { SettingsPanel } from '../../../components/plan/settings/settings-panel'
+import { SettingsSections } from '../../../components/plan/settings/settings-sections'
 import type { PlanControls } from '../../../lib/plan-capabilities'
 
 const PANELS = 'grid gap-2 border-t border-border px-3 py-3'
@@ -15,11 +16,11 @@ export interface SeatPanelActions {
   readonly seats: SeatManagerActions
 }
 
-const settingsPanel = (plan: PlanScreenModel, own: SeatPlanOwnActions, controls: PlanControls) => {
+const settingsSlot = (plan: PlanScreenModel, own: SeatPlanOwnActions, controls: PlanControls) => {
   const { plan: mine } = controls
   if (!mine.rename && !mine.retime && !mine.remove) return null
   return (
-    <SettingsPanel
+    <SettingsSections
       mayRemove={mine.remove}
       mayRename={mine.rename}
       mayRetime={mine.retime}
@@ -31,8 +32,8 @@ const settingsPanel = (plan: PlanScreenModel, own: SeatPlanOwnActions, controls:
   )
 }
 
-const sharePanel = (plan: PlanScreenModel, seats: SeatManagerActions, controls: PlanControls) => {
-  if (!controls.seats.read) return null
+const shareSlot = (plan: PlanScreenModel, seats: SeatManagerActions, controls: PlanControls) => {
+  if (!controls.seats.read && !controls.seats.create) return null
   return (
     <ShareManager
       editSeat={seats.update}
@@ -49,19 +50,37 @@ const sharePanel = (plan: PlanScreenModel, seats: SeatManagerActions, controls: 
 }
 
 /**
- * Everything a seat may manage, under the rail tree in the sidebar.
+ * What a seat may do to the plan itself, in the head row beside the admin's own two menus.
  *
- * ### Why here and not in drawers
+ * ### Why these climbed out of the sidebar
  *
- * The admin surface opens a rail, a group, the settings and the share list as routes (ADR 0057). The
- * seat surface addresses features and items and nothing else, so there is no `/s/<token>/settings`
- * to link to, and building four more routes is a larger change than this revision is. Until there
- * is, these stay the collapsed panels they have always been — moved out of the page body, where
- * they pushed the board down, and into the column that already scrolls.
+ * They were two collapsed panels under the rail tree, because this surface has no `/s/<token>/settings`
+ * to link to and the admin's equivalents were drawer routes. Neither of those is true any more: the
+ * admin's are menus in the head row (`components/plan/shell/plan-manage.tsx`), and a menu needs no
+ * route, so the two surfaces can finally render the one control. A `manage` seat and an admin now
+ * reach a plan's calendar the same way, which is what this file previously had to say they could not.
  *
- * A `view` seat, which is what most links are, gets `null` from all four and no panel at all.
+ * A `view` seat, which is what most links are, is refused both and the row draws neither button.
  */
 export function seatManageSlot(
+  plan: PlanScreenModel,
+  actions: SeatPanelActions,
+  controls: PlanControls,
+) {
+  const settings = settingsSlot(plan, actions.own, controls)
+  const share = shareSlot(plan, actions.seats, controls)
+  if (settings === null && share === null) return null
+  return <PlanManage settings={settings} share={share} />
+}
+
+/**
+ * What a seat may do to what the plan *holds* — its rails and its groups — under the rail tree.
+ *
+ * These stay in the sidebar where the two above left it, and the division is the one
+ * `seat-content-panels.tsx` already draws: these write content, the other two write the plan itself
+ * and who may open it. A rail panel belongs beside the rails.
+ */
+export function seatContentSlot(
   plan: PlanScreenModel,
   actions: SeatPanelActions,
   controls: PlanControls,
@@ -69,8 +88,6 @@ export function seatManageSlot(
   const panels = [
     seatRailsPanel(plan, actions.writes, controls),
     seatGroupsPanel(plan, actions.writes, controls),
-    settingsPanel(plan, actions.own, controls),
-    sharePanel(plan, actions.seats, controls),
   ].filter((panel) => panel !== null)
   if (panels.length === 0) return null
   return (

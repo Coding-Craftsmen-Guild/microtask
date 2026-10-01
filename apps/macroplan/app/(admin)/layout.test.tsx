@@ -16,7 +16,7 @@ describe('the admin frame', () => {
   it('carries the CC Guild lockup and the mark at bar size', () => {
     render(<AdminLayout>body</AdminLayout>)
     expect(screen.getByText('CC Guild')).toBeTruthy()
-    expect(screen.getByAltText('CC Guild logo').getAttribute('width')).toBe('34')
+    expect(screen.getByAltText('CC Guild logo').getAttribute('width')).toBe('28')
   })
 
   it('offers Sign out on every admin page', () => {
@@ -63,5 +63,24 @@ describe('the admin frame', () => {
     // legacy's column pads and caps itself — the plan list does, with `COLUMN`.
     expect(main?.className).not.toContain('px-5')
     expect(main?.className).not.toContain('pb-20')
+  })
+
+  it('renders whatever the crumbs slot fills, between the lockup and Sign out', () => {
+    const { container } = render(
+      <AdminLayout crumbs={<nav aria-label="Breadcrumb">Plans</nav>}>body</AdminLayout>,
+    )
+    const row = container.querySelector('header > div')
+    expect([...(row?.children ?? [])].map((child) => child.tagName)).toEqual([
+      'A',
+      'SPAN',
+      'NAV',
+      'SPAN',
+      'BUTTON',
+    ])
+  })
+
+  it('draws the bar unchanged where the slot is empty, which is every page off the plan tree', () => {
+    const { container } = render(<AdminLayout>body</AdminLayout>)
+    expect(container.querySelector('[aria-label="Breadcrumb"]')).toBeNull()
   })
 })

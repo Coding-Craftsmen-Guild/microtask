@@ -52,8 +52,47 @@ describe('the chips that select one group across every rail', () => {
     // second line; it is now "empty". A test that interpolates the constant asserts only that the
     // chip uses its own constant, so it passed unchanged through that rewording and would pass
     // through the next one — including a reword to nothing at all.
-    expect(screen.getByText('Phase 1 · 1 feature')).toBeTruthy()
-    expect(screen.getByText('Phase 2 · empty')).toBeTruthy()
+    //
+    // The count is the bare number now, the word "features" six times across a filter row being the
+    // same word six times. Zero stays a word, because "0" beside a name does not explain the blank
+    // timeline that choosing it produces.
+    expect(screen.getByText('Phase 1')).toBeTruthy()
+    expect(screen.getByText('1')).toBeTruthy()
+    expect(screen.getByText('Phase 2')).toBeTruthy()
+    expect(screen.getByText('empty')).toBeTruthy()
+  })
+
+  it('keeps the sentence as the chip’s own name, so what is lost to the eye is not lost to a reader', () => {
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
+
+    const chips = [...document.querySelectorAll('[data-slot="group-chip"]')]
+    expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
+      'Phase 1 · 1 feature',
+      'Phase 2 · empty',
+    ])
+    expect(chips.map((chip) => chip.getAttribute('title'))).toEqual([
+      'Phase 1 · 1 feature',
+      'Phase 2 · empty',
+    ])
+  })
+
+  /**
+   * The hue reaches the chip **once**, as `--chip-hue`, and the tint, the ink and the chosen ring are
+   * all mixed from it by classes Tailwind can see (`./chip-css.ts`).
+   *
+   * The property and not the computed colour, because a computed one is not there to read: a
+   * `backgroundColor: 'color-mix(…)'` in the style object is correct in a browser and dropped outright
+   * by `happy-dom`, which parses inline declarations and discards a value it cannot read. That was the
+   * first shape of this and the reason it is not the shape now.
+   */
+  it('hands each chip its group’s hue once, and lets the classes mix the rest from it', () => {
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
+
+    const chip = document.querySelector('[data-slot="group-chip"]')
+    expect(chip?.getAttribute('style')).toContain('#7c3aed')
+    const classes = chip?.getAttribute('class') ?? ''
+    expect(classes).toContain('var(--chip-hue)')
+    expect(classes).toContain('color-mix')
   })
 
   it('names the chip that clears the choice, so the way back out of a group is a word and not a gesture', () => {
@@ -113,8 +152,13 @@ describe('the chips that select one group across every rail', () => {
       </>,
     )
 
-    expect(screen.getByText('Phase 1 · 1 feature')).toBeTruthy()
-    expect(screen.getByText('Phase 2 · 2 features')).toBeTruthy()
+    expect(screen.getByText('Phase 1')).toBeTruthy()
+    expect(screen.getByText('Phase 2')).toBeTruthy()
+    const chips = [...document.querySelectorAll('[data-slot="group-chip"]')]
+    expect(chips.map((chip) => chip.getAttribute('aria-label'))).toEqual([
+      'Phase 1 · 1 feature',
+      'Phase 2 · 2 features',
+    ])
   })
 })
 
@@ -236,7 +280,7 @@ describe('the way into a group, and the way to make one', () => {
 
   it('offers a new group at the end of the row, where the groups are and not up in the head', () => {
     render(<GroupChips allFit={ALL_FIT} mayAdd planId={PLAN_A} rows={ROWS} />)
-    const pill = screen.getByRole('link', { name: 'New group' })
+    const pill = screen.getByRole('link', { name: '+ Group' })
 
     expect(pill.getAttribute('href')).toBe(`/plans/${PLAN_A}/new/group`)
     expect([...document.querySelectorAll('[data-slot]')].at(-1)).toBe(pill)
@@ -245,7 +289,7 @@ describe('the way into a group, and the way to make one', () => {
   it('offers it to a viewer who may make one and to nobody else', () => {
     render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={PLAN_A} rows={ROWS} />)
 
-    expect(screen.queryByRole('link', { name: 'New group' })).toBeNull()
+    expect(screen.queryByRole('link', { name: '+ Group' })).toBeNull()
   })
 
   // The seat surface has no group drawer and no way to make one — `SEAT_DRAWER_ROUTES` addresses
@@ -257,14 +301,14 @@ describe('the way into a group, and the way to make one', () => {
     fireEvent.doubleClick(screen.getByText(/Phase 1/))
 
     expect(pushed).toEqual([])
-    expect(screen.queryByRole('link', { name: 'New group' })).toBeNull()
+    expect(screen.queryByRole('link', { name: '+ Group' })).toBeNull()
   })
 
   it('still draws nothing at all for a plan with no groups, pill included', () => {
     render(<GroupChips allFit={ALL_FIT} mayAdd planId={PLAN_A} rows={[]} />)
 
     expect(document.querySelector('[data-slot="group-chips"]')).toBeNull()
-    expect(screen.queryByRole('link', { name: 'New group' })).toBeNull()
+    expect(screen.queryByRole('link', { name: '+ Group' })).toBeNull()
   })
 })
 

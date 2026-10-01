@@ -135,22 +135,28 @@ export const groupPath = (planId: string, labelId: string): string =>
   drawerPath(planPath(planId), GROUP_SEGMENT, labelId)
 
 /**
- * The four drawers that are about the plan rather than about something in it.
+ * The two drawers that are about the plan rather than about something in it.
  *
  * Static segments and so plain suffixes on {@link planPath}, with nothing to encode: there is no id in
- * any of them. They are a record rather than four exported functions because every caller that draws one
- * draws several — the sidebar's header offers `newRail`, `newGroup`, `settings` and `share` together —
- * and a record is one import that cannot be half-updated.
+ * any of them. They are a record rather than two exported functions because every caller that draws one
+ * draws both, and a record is one import that cannot be half-updated.
  *
  * `new/rail` and `new/group` share a `new` segment so that "make one of these" reads the same for both,
  * and neither can shadow anything: every child of `[planId]` is static.
+ *
+ * ### `settings` and `share` were here and are not
+ *
+ * Both were routes — `/plans/<id>/settings` and `/plans/<id>/share` — and both are menus under their
+ * own button in the plan's head row now. ADR 0057's case for a route is about **selection**: a feature
+ * or an item, one of two thousand, worth addressing and worth reloading. A three-field form about the
+ * plan's calendar selects nothing, and opening it covered the plan with a 28rem panel behind a scrim to
+ * do it. `components/plan/shell/plan-manage.tsx` carries the whole argument; what it leaves intact is
+ * everything below — a feature, an item, a rail and a group are still four addresses.
  */
 export const PLAN_DRAWERS = {
   newRail: (planId: string, railCount = 0): string =>
     `${planPath(planId)}/new/rail?n=${String(Math.max(0, Math.floor(railCount)))}`,
   newGroup: (planId: string): string => `${planPath(planId)}/new/group`,
-  settings: (planId: string): string => `${planPath(planId)}/settings`,
-  share: (planId: string): string => `${planPath(planId)}/share`,
 } as const
 
 /**

@@ -20,18 +20,18 @@
  * cheaper rule than a second `:has()`.
  */
 export const VIEW_SWITCH = {
-  tabs: 'flex items-center gap-0.5 rounded-lg bg-muted p-0.5',
+  tabs: 'flex h-7 items-center gap-0.5 rounded-md bg-muted p-0.5',
   timelineId: 'plan-view-timeline',
   tableId: 'plan-view-table',
   hintId: 'plan-view-hint',
   timelineRadio: 'peer/timeline sr-only',
   tableRadio: 'peer/table sr-only',
   timelineTab:
-    'cursor-pointer rounded-md px-2.5 py-1 text-[13px] font-medium text-muted-foreground hover:text-foreground peer-checked/timeline:bg-background peer-checked/timeline:text-foreground peer-checked/timeline:shadow-sm peer-focus-visible/timeline:outline-2 peer-focus-visible/timeline:outline-brand',
+    'cursor-pointer rounded-[5px] px-2.5 text-[12px] font-medium leading-6 text-muted-foreground hover:text-foreground peer-checked/timeline:bg-background peer-checked/timeline:text-foreground peer-checked/timeline:shadow-[0_1px_2px_rgba(0,0,0,.08)] peer-focus-visible/timeline:outline-2 peer-focus-visible/timeline:outline-brand',
   tableTab:
-    'cursor-pointer rounded-md px-2.5 py-1 text-[13px] font-medium text-muted-foreground hover:text-foreground peer-checked/table:bg-background peer-checked/table:text-foreground peer-checked/table:shadow-sm peer-focus-visible/table:outline-2 peer-focus-visible/table:outline-brand',
+    'cursor-pointer rounded-[5px] px-2.5 text-[12px] font-medium leading-6 text-muted-foreground hover:text-foreground peer-checked/table:bg-background peer-checked/table:text-foreground peer-checked/table:shadow-[0_1px_2px_rgba(0,0,0,.08)] peer-focus-visible/table:outline-2 peer-focus-visible/table:outline-brand',
   timelinePanel: 'flex min-h-0 flex-1 flex-col',
-  tablePanel: 'min-h-0 flex-1 overflow-auto p-3',
+  tablePanel: 'min-h-0 flex-1 overflow-auto',
 } as const
 
 const SHELL = '[data-slot="plan-shell"]'

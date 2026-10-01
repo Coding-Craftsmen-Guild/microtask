@@ -124,11 +124,9 @@ describe('each surface addresses its own drawer, and neither can address the oth
     expect(groupPath(PLAN_A, '../../etc')).toBe(`/plans/${PLAN_A}/g/..%2F..%2Fetc`)
   })
 
-  it('builds the four plan-level drawers off the same plan path every other builder uses', () => {
+  it('builds the two plan-level drawers off the same plan path every other builder uses', () => {
     expect(PLAN_DRAWERS.newRail(PLAN_A)).toBe(`/plans/${PLAN_A}/new/rail?n=0`)
     expect(PLAN_DRAWERS.newGroup(PLAN_A)).toBe(`/plans/${PLAN_A}/new/group`)
-    expect(PLAN_DRAWERS.settings(PLAN_A)).toBe(`/plans/${PLAN_A}/settings`)
-    expect(PLAN_DRAWERS.share(PLAN_A)).toBe(`/plans/${PLAN_A}/share`)
   })
 
   // The count rides on the link because the sidebar that draws it already knows how many rails there
@@ -143,7 +141,16 @@ describe('each surface addresses its own drawer, and neither can address the oth
     expect(PLAN_DRAWERS.newRail(PLAN_A, 2.7)).toBe(`/plans/${PLAN_A}/new/rail?n=2`)
   })
 
-  it('offers exactly the four, so a fifth cannot be added without this list noticing', () => {
-    expect(Object.keys(PLAN_DRAWERS).sort()).toEqual(['newGroup', 'newRail', 'settings', 'share'])
+  it('offers exactly the two, so a third cannot be added without this list noticing', () => {
+    expect(Object.keys(PLAN_DRAWERS).sort()).toEqual(['newGroup', 'newRail'])
+  })
+
+  // Settings and sharing were the other two. Neither selects anything, so neither needed an address, and
+  // both are menus in the plan head row now (`components/plan/shell/plan-manage.tsx`). This asserts the
+  // removal rather than leaving it to the list above, because a path that no longer routes anywhere is
+  // exactly the kind of thing a builder keeps answering long after the page behind it is gone.
+  it('no longer builds a settings or a share path, both pages having been deleted', () => {
+    expect(PLAN_DRAWERS).not.toHaveProperty('settings')
+    expect(PLAN_DRAWERS).not.toHaveProperty('share')
   })
 })

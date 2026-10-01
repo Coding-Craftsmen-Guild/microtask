@@ -1,22 +1,27 @@
 'use client'
 
 import { Button } from '@repo/ui/components/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@repo/ui/components/dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@repo/ui/components/popover'
 import { useState } from 'react'
 import { SeatList } from './seat-list'
-import { SHARE_HINT } from './seat-words'
+import { SHARE_HINT, SHARE_WORDS } from './seat-words'
 import { usePlanSeats, type PlanSeatActions } from './use-plan-seats'
 
-const GROUP = 'flex items-center gap-2.5'
+const OPENER =
+  'inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md bg-brand px-3 text-[13px] font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand'
 
-const PANEL = 'sm:max-w-[620px]'
+const PANEL =
+  'max-h-[70vh] w-[min(34rem,calc(100vw-2rem))] gap-3 overflow-y-auto rounded-[10px] border border-border p-4 shadow-[0_12px_32px_rgba(46,36,86,.16),0_2px_6px_rgba(0,0,0,.06)]'
+
+const TITLE = 'text-[13px] font-semibold'
+
+const HINT = 'text-[12px] text-hint'
+
+const FOOTER = 'flex justify-end'
+
+const TITLE_ID = 'plan-share-title'
+
+const DONE = 'Done'
 
 /**
  * Props for {@link ShareManager}: **no seat and no token among them**, and nine flat members.
@@ -62,14 +67,26 @@ export interface ShareManagerProps {
 }
 
 /**
- * The Share button, and the dialog whose seats **load when it opens**.
+ * The Share button in the head row, and the panel whose seats **load when it opens**.
  *
  * The page renders no seat and no count. A token-bearing list handed to a client component is serialised
  * into the Flight payload and lands in the HTML, which is the credential dump ADR 0033 exists to prevent
  * — and its second amendment refuses to rely on the tree happening to be server-only, which is why the
  * plan both surfaces render is a `PlanScreenModel` whose `shareLinks?: never` makes carrying one a
  * compile error. So tokens reach this browser only in the answer to {@link ShareManagerProps.listSeats},
- * asked after this dialog is open, and are dropped again when it closes (`use-plan-seats.ts`).
+ * asked after this panel is open, and are dropped again when it closes (`use-plan-seats.ts`).
+ *
+ * ### Why this one is a popover where Settings is a `<details>`
+ *
+ * Because of that sentence. A `<details>` keeps its content mounted whether it is open or shut, so a
+ * seat list inside one would mount — and fetch — on every page load, which is the whole leak restated
+ * as a layout choice. A Radix popover mounts its content when it opens and unmounts it when it closes,
+ * which is the behaviour this panel's contents actually require. `shell/menu-button.tsx` carries why
+ * every other menu on this page is the cheaper disclosure.
+ *
+ * It was a **modal dialog**, opened by a button that was itself inside the share drawer's panel — so
+ * reaching a seat list meant a route, then a drawer, then a button, then a dialog over all three. The
+ * drawer and the dialog are both gone: this is the control, in the head row, one press from the plan.
  *
  * There is no count beside the button, where Microtask's manager shows a server-rendered one. It could
  * not have one honestly: `shareLinkCount` is a field of the plan **list** row, and the plan a page reads
@@ -78,10 +95,12 @@ export interface ShareManagerProps {
  * rendered.
  *
  * It draws nothing at all for a surface that may neither list nor mint, which in this product is every
- * seat below `manage`: a Share button whose dialog can only 403 is worse than no button.
+ * seat below `manage`: a Share button whose panel can only 403 is worse than no button.
  *
  * `load` on open and `forget` on close are both this component's, and they are one function so that the
- * dialog's own dismissals — Done, Escape, a click outside — cannot each forget differently.
+ * popover's own dismissals — Escape, a click outside, the trigger again, `Done` — cannot each forget
+ * differently. `Done` is kept from the dialog this replaced, and it is not redundant with the three
+ * native ones: the panel holds a form, and a form wants an end.
  */
 export function ShareManager(props: ShareManagerProps) {
   const { mayCreate, mayRead, mayRevoke, mayUpdate } = props
@@ -99,30 +118,33 @@ export function ShareManager(props: ShareManagerProps) {
   }
   if (!mayRead && !mayCreate) return null
   return (
-    <div className={GROUP}>
-      <Button onClick={() => change(true)} type="button">
-        Share
-      </Button>
-      <Dialog onOpenChange={change} open={open}>
-        <DialogContent className={PANEL} showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>Share this plan</DialogTitle>
-            <DialogDescription>{SHARE_HINT}</DialogDescription>
-          </DialogHeader>
-          <SeatList
-            mayCreate={mayCreate}
-            mayRead={mayRead}
-            mayRevoke={mayRevoke}
-            mayUpdate={mayUpdate}
-            seats={seats}
-          />
-          <DialogFooter>
-            <Button onClick={() => change(false)} type="button" variant="outline">
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+    <Popover onOpenChange={change} open={open}>
+      <PopoverTrigger className={OPENER} data-slot="plan-share-menu">
+        {SHARE_WORDS.open}
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        aria-labelledby={TITLE_ID}
+        className={PANEL}
+        data-slot="plan-share-panel"
+      >
+        <p className={TITLE} id={TITLE_ID}>
+          {SHARE_WORDS.heading}
+        </p>
+        <p className={HINT}>{SHARE_HINT}</p>
+        <SeatList
+          mayCreate={mayCreate}
+          mayRead={mayRead}
+          mayRevoke={mayRevoke}
+          mayUpdate={mayUpdate}
+          seats={seats}
+        />
+        <div className={FOOTER}>
+          <Button onClick={() => change(false)} size="sm" type="button" variant="outline">
+            {DONE}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }

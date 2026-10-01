@@ -1,19 +1,11 @@
 import Link from 'next/link'
+import type { CSSProperties } from 'react'
 import { PLAN_DRAWERS } from '../../../lib/drawer-routes'
 import { GroupChipRoot } from './group-chip-root'
 import { ALL_RADIO_ID, GROUP_RADIO_NAME, groupCss, groupRadioId } from './group-css'
+import { CHIP } from './chip-css'
 import type { GroupFit } from './group-fit'
 import type { LabelRow } from './label-rows'
-
-const CHIP =
-  'cursor-pointer rounded-full border border-border px-2 py-0.5 text-[12px] text-muted-foreground hover:text-foreground peer-checked:border-foreground peer-checked:text-foreground peer-checked:font-medium peer-focus-visible:outline-2 peer-focus-visible:outline-offset-1 peer-focus-visible:outline-brand'
-
-const SWATCH = 'mr-1.5 inline-block size-2 rounded-full align-middle'
-
-const ROW = 'flex flex-wrap items-center gap-1.5'
-
-const NEW_CHIP =
-  'cursor-pointer rounded-full border border-dashed border-border px-2 py-0.5 text-[12px] text-muted-foreground hover:border-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand'
 
 /** Props for {@link GroupChips}. */
 export interface GroupChipsProps {
@@ -51,22 +43,40 @@ const fitAttributes = (fit: GroupFit | null): Record<string, string> =>
 export const GROUP_WORDS = {
   all: 'All work',
   none: 'empty',
-  add: 'New group',
+  add: '+ Group',
 } as const
 
 /**
- * What one chip says about how much is in its group, in words.
+ * What one chip says about how much is in its group: the number, or `empty`.
  *
- * Singular at one, because a group of one is the common case rather than an edge: a phase is started by
- * putting the first feature in it, so `1 features` would be on screen most of the time a group is new.
+ * It was the whole phrase — `1 feature`, `4 features` — and it is a bare number now because the chips
+ * are a filter row rather than a report: six chips each ending in the word `features` is the same
+ * word six times, and the number is what a reader is actually comparing. {@link countTitle} keeps the
+ * sentence a hover away, and a screen reader is given it rather than the digit.
+ *
+ * Zero is the exception and stays a word. It is the state a reader most needs told, because choosing
+ * that chip dims the **entire** plan — and `0` beside a group's name does not explain a blank
+ * timeline the way `empty` does.
  *
  * Exported so this paragraph is allowed to exist — `local/tsdoc-comments-only` admits TSDoc on an
  * exported declaration and bans a line comment outright (ADR 0027).
  */
-export const countOf = (row: LabelRow): string => {
-  if (row.features === 0) return GROUP_WORDS.none
-  return row.features === 1 ? '1 feature' : `${String(row.features)} features`
+export const countOf = (row: LabelRow): string =>
+  row.features === 0 ? GROUP_WORDS.none : String(row.features)
+
+/**
+ * The same count as a sentence, for the chip's `title` and its accessible name.
+ *
+ * Singular at one, because a group of one is the common case rather than an edge: a phase is started
+ * by putting the first feature in it, so `1 features` would be on screen most of the time a group is
+ * new.
+ */
+export const countTitle = (row: LabelRow): string => {
+  if (row.features === 0) return `${row.name} · ${GROUP_WORDS.none}`
+  return `${row.name} · ${String(row.features)} ${row.features === 1 ? 'feature' : 'features'}`
 }
+
+const hueOf = (colour: string): CSSProperties => ({ '--chip-hue': colour }) as CSSProperties
 
 /**
  * One chip per group, and choosing one dims every feature that is not in it — on every rail at once.
@@ -78,15 +88,30 @@ export const countOf = (row: LabelRow): string => {
  *
  * ### No JavaScript, and a Server Component
  *
- * A radio group the browser owns, exactly as the view switch below it owns which rendering is on screen.
+ * A radio group the browser owns, exactly as the view switch beside it owns which rendering is on screen.
  * The radios are `sr-only` and each chip is their `<label>`, so a click on a chip checks the radio and the
- * `peer-checked` classes above restyle it — those are static class names, which is what lets Tailwind see
+ * `peer-checked` classes restyle it — those are static class names, which is what lets Tailwind see
  * them. The dimming itself is the one thing no class can express, and `groupCss` argues at length why it is
  * a generated `<style>` rather than a class or an inline style.
  *
  * `All work` is first and checked, so the plan opens undimmed. It carries no rule of its own: with it
  * checked, no `:has()` in the sheet matches, and every bar is at full opacity because nothing said
  * otherwise.
+ *
+ * ### Why a group chip is tinted and `All work` is filled
+ *
+ * A group owns a hue on this canvas (`canvas/view.ts` decides it), so the chip is the one place that hue
+ * can be shown at rest rather than only while something is chosen — a reader matching a lavender bar to
+ * `Phase 0` should not have to click to find out which chip is lavender. The tint and the ink are mixed
+ * from the stored colour by the chip's own classes rather than stored beside it, so a recoloured group
+ * needs one write and not three. `All work` has no hue of its own, so what it gets is the brand: it is the resting state and it
+ * is the one chip that is filled when chosen, which is also how a reader sees that nothing is filtered.
+ *
+ * A chosen group chip takes a ring in its own hue. Every one of those three colours is a runtime value,
+ * so the hue reaches the element once as a custom property and the classes that mix and spend it are
+ * static literals — the same split `canvas/treatments.ts` makes between the treatment and the hue, for
+ * the same reason: Tailwind's scanner reads class names as text. `./chip-css.ts` carries why the mixing
+ * is in the class and not in the style attribute.
  *
  * ### Why a chip also carries where the view should go
  *
@@ -102,44 +127,42 @@ export const countOf = (row: LabelRow): string => {
  *
  * A group with nothing placed carries neither attribute, and clicking it selects without moving. There
  * is no window to fit to, and sending a reader to day zero would look like the plan jumping.
- *
- * ### What a count is for
- *
- * A group with nothing in it says so. It is the state a reader most needs told, because choosing it dims
- * the **entire** plan — and without the words, an admin who has made "Phase 2" and not filled it yet reads
- * a blank timeline as a bug rather than as an empty phase.
  */
 export function GroupChips({ rows, planId, mayAdd, allFit }: GroupChipsProps) {
   if (rows.length === 0) return null
   const chips = (
-    <div className={ROW} data-slot="group-chips">
+    <div className={CHIP.row} data-slot="group-chips">
       <style>{groupCss(rows)}</style>
-      <input className="sr-only peer" defaultChecked id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} type="radio" />
-      <label className={CHIP} htmlFor={ALL_RADIO_ID} {...fitAttributes(allFit)}>
+      <input className="peer sr-only" defaultChecked id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} type="radio" />
+      <label className={CHIP.all} htmlFor={ALL_RADIO_ID} {...fitAttributes(allFit)}>
         {GROUP_WORDS.all}
       </label>
       {rows.map((row) => (
         <span className="contents" key={row.id}>
           <input
-            className="sr-only peer"
+            className="peer sr-only"
             id={groupRadioId(row.id)}
             name={GROUP_RADIO_NAME}
             type="radio"
           />
           <label
-            className={CHIP}
+            aria-label={countTitle(row)}
+            className={CHIP.group}
             data-label-id={row.id}
             data-slot="group-chip"
             htmlFor={groupRadioId(row.id)}
+            style={hueOf(row.colour)}
+            title={countTitle(row)}
             {...fitAttributes(row.fit)}
           >
-            <span className={SWATCH} style={{ backgroundColor: row.colour }} />
-            {`${row.name} · ${countOf(row)}`}
+            <span className={CHIP.dot} style={{ backgroundColor: row.colour }} />
+            <span className={CHIP.name}>{row.name}</span>
+            <span className={CHIP.count}>{countOf(row)}</span>
           </label>
         </span>
       ))}
       {planId === null || !mayAdd ? null : (
-        <Link className={NEW_CHIP} data-slot="new-group-chip" href={PLAN_DRAWERS.newGroup(planId)}>
+        <Link className={CHIP.add} data-slot="new-group-chip" href={PLAN_DRAWERS.newGroup(planId)}>
           {GROUP_WORDS.add}
         </Link>
       )}

@@ -8,6 +8,16 @@ import { SignOutForm } from '../../components/shared/sign-out-form'
 export interface AdminLayoutProps {
   /** The admin page. */
   readonly children: ReactNode
+
+  /**
+   * The brand bar's breadcrumb, filled by the `@crumbs` parallel route.
+   *
+   * A slot and not a prop because a layout cannot be handed one by its children, and the trail's
+   * last step is a plan's own name — read two segments below this (`./plan-crumb.tsx`). Optional so
+   * that this component still renders in a test that mounts it directly, where there is no router
+   * to fill a slot and `undefined` is what arrives.
+   */
+  readonly crumbs?: ReactNode
 }
 
 /**
@@ -24,6 +34,10 @@ export interface AdminLayoutProps {
  * nothing to import until it has entities, and a link to a page that does not exist is worse than
  * no link.
  *
+ * It does carry a **breadcrumb**, and it arrives through the `@crumbs` slot rather than as a prop
+ * — `./plan-crumb.tsx` carries why that is the only direction the fact can travel. Off the plan
+ * tree the slot draws nothing and the bar is what it was.
+ *
  * `width="wide"` because this surface's own page is a timeline. A layout cannot see which page it is
  * wrapping, so the choice is made once for the surface and the one page that wants legacy's 900px
  * column — the plan list — caps itself; the alternative was moving `Page` out of the layout and into
@@ -32,10 +46,10 @@ export interface AdminLayoutProps {
  * landmark at either width, which is what `layout.test.tsx` asserts here, and it supplies no
  * `overflow-x` at either — a canvas wider than the viewport brings its own scroller (`PlanScreen`).
  */
-export default function AdminLayout({ children }: AdminLayoutProps) {
+export default function AdminLayout({ children, crumbs }: AdminLayoutProps) {
   return (
     <div className="flex h-dvh flex-col">
-      <AppBar logo={<Logo size="bar" />} product="Macroplan" width="wide">
+      <AppBar crumbs={crumbs} logo={<Logo size="bar" />} product="Macroplan" width="wide">
         <SignOutForm />
       </AppBar>
       <Page width="full">{children}</Page>

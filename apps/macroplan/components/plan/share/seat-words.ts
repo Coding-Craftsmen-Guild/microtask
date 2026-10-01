@@ -112,3 +112,16 @@ export const COPY_FAILED =
 
 /** What a copy that reached the clipboard says. */
 export const COPIED = 'Link copied.'
+
+/**
+ * What the Share control says, and what its panel is headed with.
+ *
+ * Two spellings of nearly one word, because the button is in a row of 13px controls and the panel it
+ * opens has to name itself to a reader who arrived there from a keyboard. They are a record and not
+ * two literals in `share-manager.tsx` so that the one surface that renders this control twice — the
+ * admin's head row and a `manage` seat's — cannot label it two different things.
+ */
+export const SHARE_WORDS = {
+  open: 'Share',
+  heading: 'Share this plan',
+} as const

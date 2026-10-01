@@ -7,7 +7,7 @@ import { openingZoom } from '../../../components/plan/canvas/zoom-view'
 import { SEAT_DRAWER_ROUTES } from '../../../lib/drawer-routes'
 import { planCapabilities } from '../../../lib/plan-capabilities'
 import { seatGroupsSlot, seatSidebarSlot, seatTraySlot } from './seat-slots'
-import { seatManageSlot } from './seat-plan-slots'
+import { seatContentSlot, seatManageSlot } from './seat-plan-slots'
 import { readSeatBridge } from './read-seat-item'
 import { readSeatPlan, readShare } from './read-share'
 
@@ -60,8 +60,7 @@ export async function seatPlanScreen(token: string, drawer: ReactNode) {
       controls={controls}
       drawer={drawer}
       groups={seatGroupsSlot(plan.value)}
-      home={null}
-      manage={null}
+      manage={seatManageSlot(plan.value, { writes, own, seats }, controls)}
       plan={plan.value}
       progress={bridge?.items ?? []}
       root={token}
@@ -69,7 +68,7 @@ export async function seatPlanScreen(token: string, drawer: ReactNode) {
       sidebar={
         <>
           {seatSidebarSlot(plan.value, token, found)}
-          {seatManageSlot(plan.value, { writes, own, seats }, controls)}
+          {seatContentSlot(plan.value, { writes, own, seats }, controls)}
         </>
       }
       tray={seatTraySlot(plan.value, token, found)}

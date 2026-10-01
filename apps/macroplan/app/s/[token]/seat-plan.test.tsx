@@ -657,12 +657,17 @@ describe('which controls the seat’s own role draws', () => {
 
   // The role and the scope are what `planCapabilities` is asked with, and neither goes down: a
   // permission restated below this point is one nothing authorises, and a component added later
-  // could ask a second question of it. What the screen takes is now fifteen props rather than
+  // could ask a second question of it. What the screen takes is now fourteen props rather than
   // thirteen, and the four slots it used to be handed — `conflicts`, `rails`, `settings`, `share` —
   // are gone from the list: the panel is deleted outright and the other three are one `manage` slot
-  // on the screen, which this surface fills from the sidebar instead. `home`, `root`, `routes`,
+  // on the screen, which this surface now fills from the head row like the admin's. `root`, `routes`,
   // `tray`, `zoomControl` and `manage` are what replaced them.
-  it('hands the screen fifteen props, the four panel slots it used to take being gone', async () => {
+  //
+  // `home` left in the restyle. It was where the breadcrumb climbed to, and this surface always passed
+  // `null` because it holds one plan and has no index above it. The crumb is the brand bar's now, and
+  // this surface's bar (`components/link/link-frame.tsx`) draws none — so the absence is still stated,
+  // one layer out, by there being no slot to fill.
+  it('hands the screen fourteen props, the four panel slots it used to take being gone', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
     expect(isValidElement(element)).toBe(true)
@@ -673,7 +678,6 @@ describe('which controls the seat’s own role draws', () => {
       'controls',
       'drawer',
       'groups',
-      'home',
       'manage',
       'newRailHref',
       'plan',
@@ -704,11 +708,11 @@ describe('which controls the seat’s own role draws', () => {
   // `newRailHref` because `/plans/<id>/new/rail` is an admin path: a manage seat *may* create a rail, so
   // the capability alone would have put a link to a login they have no password for in the table's own
   // toolbar — which is the mistake `DrawerRoutes` exists to stop a component making (ADR 0032).
-  it('states six slots empty: no drawer, no plan index, no whole-plan actions, no zoom and nowhere to add a rail', async () => {
+  it('states five slots empty: no drawer, no whole-plan actions, no zoom and nowhere to add a rail', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    for (const empty of ['drawer', 'home', 'manage', 'newRailHref', 'zoomControl', 'zoomTo']) {
+    for (const empty of ['drawer', 'manage', 'newRailHref', 'zoomControl', 'zoomTo']) {
       expect(handed[empty], empty).toBeNull()
     }
     // And three that are filled, every one of them new to this surface: the tree that used to be a null
@@ -754,21 +758,30 @@ describe('which controls the seat’s own role draws', () => {
   })
 
   // The four editors a seat may be handed are the same four as before — rails, groups, settings, seats —
-  // and they are no longer four props of the screen. They are one panel under the rail tree, in the column
-  // that already scrolls, because this surface has no `/s/<token>/settings` route to open them as drawers
-  // and a collapsed panel in the page body pushed the board down. Which is what a plan shared at `manage`
-  // is for: the holder adds a rail, groups a feature, corrects the calendar and hands on a seat of their
-  // own, with no admin cookie anywhere.
-  it('puts all four editors under the rail tree for a manage seat, every action behind them being manage', async () => {
+  // and they are split by what they write. Rails and groups change what the plan *holds*, so they stay
+  // under the rail tree they are about, in the column that already scrolls. Settings and sharing change
+  // the plan itself and who may open it, and they are two menus in the head row — the same two the admin
+  // surface draws, which is what this surface could not do while they were drawer routes it has no
+  // address for. Which is what a plan shared at `manage` is for: the holder adds a rail, groups a
+  // feature, corrects the calendar and hands on a seat of their own, with no admin cookie anywhere.
+  it('puts the content editors under the rail tree for a manage seat, every action behind them being manage', async () => {
     seated(MANAGE_SEAT_TOKEN)
     await show(MANAGE_SEAT_TOKEN)
     const panel = slot('seat-manage')
     expect(panel).not.toBeNull()
-    for (const each of ['rails-panel', 'labels-panel', 'settings-panel']) {
+    for (const each of ['rails-panel', 'labels-panel']) {
       expect(panel?.querySelector(`[data-slot="${each}"]`), each).not.toBeNull()
     }
-    expect(panel?.contains(screen.getByRole('button', { name: 'Share' }))).toBe(true)
     expect(slot('plan-side')?.contains(panel as Node)).toBe(true)
+  })
+
+  it('puts the plan’s own settings and its seats in the head row, where the admin’s are', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    await show(MANAGE_SEAT_TOKEN)
+    const head = slot('plan-head')
+    expect(head?.querySelector('[data-slot="plan-settings-menu"]')).not.toBeNull()
+    expect(head?.contains(screen.getByRole('button', { name: 'Share' }))).toBe(true)
+    expect(slot('seat-manage')?.querySelector('[data-slot="plan-settings-menu"]')).toBeFalsy()
   })
 
   // The other direction, and what makes the case above a rule rather than a page that draws everything for
@@ -792,7 +805,7 @@ describe('which controls the seat’s own role draws', () => {
     seated(SEAT_TOKEN)
     await show()
     expect(slot('group-chips')).not.toBeNull()
-    expect(slots('group-chip').map((chip) => chip.textContent)).toEqual([
+    expect(slots('group-chip').map((chip) => chip.getAttribute('aria-label'))).toEqual([
       'Phase 1 · 1 feature',
       'Phase 2 · empty',
     ])

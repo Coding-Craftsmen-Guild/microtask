@@ -18,6 +18,27 @@
     --color-ok: #1f9d6b;
     --color-ok-light: #43c58c;
 
+    /* The restyle's own greys and inks. Five of them name a surface and five name a weight of
+       text or of hairline, and they exist as tokens rather than as arbitrary values because the
+       same five greys recur in the board, the panel and the table — a `#f0f0f0` written in eight
+       class strings is eight places to change a lane separator. */
+    --color-ink-soft: #3a3650;
+    --color-hint: #8a8699;
+    --color-label: #8a8a8a;
+    --color-line: #f0f0f0;
+    --color-line-strong: #e0e0e6;
+    --color-panel-strip: #f6f5f9;
+    --color-panel-col: #fbfbfc;
+    --color-sprint-alt: #fafafa;
+    --color-warn: #b45309;
+    --color-danger: #b91c1c;
+
+    /* The two inks the breadcrumb spends on the brand ground. They are tokens and not
+       `text-white/70`, because an alpha over indigo and a mixed indigo are different colours and
+       the design names these two exactly. */
+    --color-crumb: #c9c3e6;
+    --color-crumb-dim: #8e86b5;
+
     --animate-progress-fill: progress-fill 0.25s ease;
 
     @keyframes progress-fill {

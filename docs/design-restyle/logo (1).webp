@@ -1,0 +1,24 @@
+# Component map — design → repo (apps/macroplan unless noted)
+
+| Design part | Change | Files |
+|---|---|---|
+| App bar with breadcrumb | modify (add optional breadcrumb slot, 8px padding, 28px logo) | packages/ui/src/shell/app-bar.tsx, packages/ui/src/shell/logo.tsx |
+| Merged head + toolbar row | modify | components/plan/shell/plan-head.tsx, shell/plan-toolbar.tsx, shell/shell-css.ts (HEAD, SHELL) |
+| Filled group chips | restyle classes only | components/plan/labels/group-chips.tsx |
+| Add strip (Epic/Feature/Item pills) | new, client | components/plan/shell/create-strip.tsx |
+| Single rail column (drag reorder, rename) | replace sidebar tree + names | components/plan/board/rail-names.tsx, board/board-css.ts; retire sidebar/* tree (keep filter logic from sidebar-search.tsx) |
+| Single 2-axis scroller, sticky header + rail column | modify | components/plan/board/plan-board.tsx, board/board-css.ts |
+| Three-tier time header | modify | components/plan/board/time-header.tsx, board/header-cells.tsx |
+| Feature line + diamonds (Sprint) / bar (Quarter, Year) | modify | components/plan/canvas/feature-bar.tsx, canvas/feature-node.tsx, canvas/treatments.ts, canvas/rail-features.tsx |
+| Item bars at Sprint zoom | modify | components/plan/canvas/item-mark.tsx, canvas/rail.tsx |
+| Arcs end→start, rail hue, hover emphasis | modify | components/plan/canvas/arc-layer.tsx, canvas/arc-kinds.ts, canvas/pointer-css.ts |
+| Hover card | restyle | components/plan/canvas/hover-card.tsx, canvas/pointer-css.ts (CARD), canvas/detail-lines.ts |
+| + handles and draw-to-create | new, client | components/plan/canvas/extend-handle.tsx; wire in canvas/plan-pointer.tsx and canvas/drag-root.tsx (reuse selection.ts geometry) |
+| DnD drop previews | new | components/plan/canvas/drop-preview.tsx (+ drag-ghost.tsx patterns) |
+| Bottom resizable panel + tabs | replace drawer frame | components/plan/drawer/drawer-shell.tsx, drawer/drawer-dock.tsx → panel-frame.tsx, panel-tabs.tsx, resize-handle.tsx; shell/plan-shell.tsx (drawer slot moves under main) |
+| Feature tab form | restyle/rebuild | drawer/drawer-panel.tsx, name-field.tsx, estimate-field.tsx, pin-field.tsx, group-field.tsx, move-target.tsx (→ Epic picker), dependency-editor.tsx / dependency-row.tsx / dependency-toggle.tsx (→ Waits for / Unblocks + search) |
+| Items list in feature tab | new section | drawer/breakdown-line.tsx (reuse), drawer/create-controls.tsx (item add) |
+| Item tab | restyle | app/(admin)/plans/[planId]/i/[itemId]/page.tsx, drawer/place-controls.tsx (order ← →) |
+| Removed from panel | delete UI (keep actions) | drawer/place-control.tsx (move up/down), drawer/new-name.tsx (new feature), drawer/delete-control.tsx (→ ⋯ menu) |
+
+Seat (share-link) surface: same frame; Add strip, + handles, rename and reorder hidden unless the seat's capabilities allow them (lib/plan-capabilities).

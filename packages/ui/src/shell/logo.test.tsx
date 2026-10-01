@@ -7,12 +7,12 @@ describe('Logo', () => {
     expect(LOGO_PATH).toBe('/img/logo.webp')
   })
 
-  it.each(['bar', 'login'] as const)('draws the %s size at the dimensions legacy drew it', (size) => {
+  it.each(['bar', 'login'] as const)('draws the %s size at the dimensions the bar and the sign-in page ask for', (size) => {
     render(<Logo size={size} />)
     const mark = screen.getByAltText('CC Guild logo')
     expect(mark.getAttribute('src')).toBe(LOGO_PATH)
-    expect(mark.getAttribute('width')).toBe(size === 'bar' ? '34' : '74')
-    expect(mark.getAttribute('height')).toBe(size === 'bar' ? '34' : '74')
+    expect(mark.getAttribute('width')).toBe(size === 'bar' ? '28' : '74')
+    expect(mark.getAttribute('height')).toBe(size === 'bar' ? '28' : '74')
   })
 
   it('carries alt text, so the mark is not an unnamed image in a screen reader', () => {

@@ -211,8 +211,6 @@ describe('the sidebar carries the tree’s own action and no other', () => {
     )
     const hrefs = [...document.querySelectorAll('a')].map((one) => one.getAttribute('href'))
     expect(hrefs).not.toContain(PLAN_DRAWERS.newGroup(PLAN_A))
-    expect(hrefs).not.toContain(PLAN_DRAWERS.settings(PLAN_A))
-    expect(hrefs).not.toContain(PLAN_DRAWERS.share(PLAN_A))
   })
 
   it('draws nothing at all for a reader who may not add a rail, and never a link that would 404', () => {

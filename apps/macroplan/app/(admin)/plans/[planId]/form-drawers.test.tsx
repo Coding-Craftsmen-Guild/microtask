@@ -58,17 +58,15 @@ vi.mock('next/link', async () => ({
   default: (await import('../../../../components/plan/testing/next-link')).LinkDouble,
 }))
 
-// One file for six routes, which is a departure from the page-per-test-file shape the two subject drawers
+// One file for four routes, which is a departure from the page-per-test-file shape the two subject drawers
 // use — and it is deliberate. Each of these needs the same sixty lines of cookie, navigation and fetch
-// doubling, and none of them needs anything the others do not: they are one decision (design §4 — every form
-// becomes a drawer route) checked six times. The two subject drawers keep their own files because each has a
+// doubling, and none of them needs anything the others do not: they are one decision (design §4 — every form about
+// something *in* the plan becomes a drawer route) checked four times. The two subject drawers keep their own files because each has a
 // subject resolution and a not-found boundary that is genuinely its own.
 const { default: NewRailPage } = await import('./new/rail/page')
 const { default: NewGroupPage } = await import('./new/group/page')
 const { default: RailDrawerPage } = await import('./r/[epicId]/page')
 const { default: GroupDrawerPage } = await import('./g/[labelId]/page')
-const { default: PlanSettingsPage } = await import('./settings/page')
-const { default: PlanSharePage } = await import('./share/page')
 
 let api: FakePlanApiState
 
@@ -123,15 +121,13 @@ describe('every form is a drawer route, and every one of them closes back to the
   it.each([
     ['a new rail', async () => NewRailPage(newRail), 'Add a rail'],
     ['a new group', async () => NewGroupPage(planOnly), 'Add a group'],
-    ['plan settings', async () => PlanSettingsPage(planOnly), 'Plan settings'],
-    ['sharing', async () => PlanSharePage(planOnly), 'Share this plan'],
     ['one rail', async () => RailDrawerPage(railParams(EPIC_1)), 'Platform'],
     ['one group', async () => GroupDrawerPage(groupParams(LABEL_1)), 'Phase 1'],
   ])('draws %s in a shell headed %s', async (_what, open, title) => {
     render(await open())
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(title)
     expect(dockOf()).toBeTruthy()
-    // Both ways out, on all six: the control in the title bar and the scrim over the page behind it
+    // Both ways out, on all four: the control in the title bar and the scrim over the page behind it
     // address the same plan, so clicking away and clicking Close cannot end up meaning two things.
     expect(closeOf()).toBe(planPath(PLAN_A))
     expect(scrimOf()?.getAttribute('href')).toBe(planPath(PLAN_A))
@@ -142,9 +138,9 @@ describe('every form is a drawer route, and every one of them closes back to the
 // reading `Close` at the very bottom — past however many fields the subject had, which on plan settings or
 // a rail's three forms meant the only way out was off screen until you scrolled to find it, and the plan
 // behind it stayed fully lit. The dock is a scrim, a title bar that keeps the way out in place, and a body
-// that scrolls under it. All six routes take all three from `drawer-dock.tsx` without asking for them, so
+// that scrolls under it. All four routes take all three from `drawer-dock.tsx` without asking for them, so
 // one route can stand for the rest here: what these check is the dock a route is handed, and the case above
-// is what checks that each of the six is handed it.
+// is what checks that each of the four is handed it.
 describe('the dock they open in: a scrim, a bar that keeps the way out on screen, a body that scrolls', () => {
   it('puts the way out in the title bar beside the name, and not under the fields', async () => {
     render(await RailDrawerPage(railParams(EPIC_1)))
@@ -179,7 +175,7 @@ describe('the dock they open in: a scrim, a bar that keeps the way out on screen
   // The chrome moved into a file `DrawerPanel` shares, so this is the invariant that could have been
   // dropped in the move without a form route noticing: a drawer is a route, not an overlay.
   it('is still an aside named by its own heading, and still claims no dialog role', async () => {
-    render(await PlanSettingsPage(planOnly))
+    render(await GroupDrawerPage(groupParams(LABEL_1)))
     const dock = dockOf()
     expect(dock?.tagName).toBe('ASIDE')
     expect(dock?.getAttribute('aria-labelledby')).toBe(dock?.querySelector('h2')?.id)
@@ -212,41 +208,11 @@ describe('the two make-one routes ask the API nothing', () => {
   })
 })
 
-// The guard that moved here from `layout.test.tsx`. Those seven actions were handed from the layout while
-// the share manager and the settings panel were disclosures in the plan heading; they are handed from these
-// two routes now, and ADR 0040's check has to live where the action does — a bound action is the one way a
-// token reaches a component invisibly, and `Function.prototype.bind` names its result `bound <name>`.
-describe('the two plan-level routes hand their own actions, by name and nothing bound', () => {
-  it('hands settings exactly the three plan-own writes', async () => {
-    const handed = handedBy(await PlanSettingsPage(planOnly))
-    expect([...new Set(handed.functions)].sort()).toEqual(['deletePlan', 'renamePlan', 'retimePlan'])
-    expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
-  })
-
-  it('hands sharing exactly the four seat writes', async () => {
-    const handed = handedBy(await PlanSharePage(planOnly))
-    expect([...new Set(handed.functions)].sort()).toEqual([
-      'createPlanSeat',
-      'readPlanSeats',
-      'revokePlanSeat',
-      'updatePlanSeat',
-    ])
-    expect(handed.functions.filter((name) => name.startsWith('bound '))).toEqual([])
-  })
-
-  // The share route reads the plan not at all, which is what keeps every live token out of its payload: the
-  // admin's plan read answers `shareLinks` in full (ADR 0033), and `ShareManager` fetches its own seats.
-  it('reads no plan to draw the share manager, so no seat reaches the payload', async () => {
-    await PlanSharePage(planOnly)
-    expect(trace(api)).toEqual([])
-  })
-
-  it('hands no token down from either, checked against the three the fixture really has', async () => {
-    const tokens = atlasPlan().shareLinks.map((seat) => seat.token)
-    expect(tokensHandedBy(await PlanSharePage(planOnly), tokens)).toEqual([])
-    expect(tokensHandedBy(await PlanSettingsPage(planOnly), tokens)).toEqual([])
-  })
-})
+// The two plan-level guards are not here any more. Settings and sharing stopped being routes in the
+// restyle — both are menus in the plan head row, handed their actions by `admin-slots.tsx` — so the check
+// that neither hands a bound action moved with them, to `admin-slots.test.tsx`. ADR 0040’s rule is
+// unchanged and so is the reason for it: a bound action is the one way a token reaches a component
+// invisibly, and `Function.prototype.bind` names its result `bound <name>`.
 
 describe('the rail drawer, which is where a binding lives now', () => {
   it('names the rail it opened and offers the rail writes by name', async () => {

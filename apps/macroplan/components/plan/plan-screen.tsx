@@ -12,7 +12,6 @@ import { PlanViews } from './plan-views'
 import { writesFor } from './table/table-writes'
 import { PlanHead } from './shell/plan-head'
 import { PlanShell } from './shell/plan-shell'
-import { PlanToolbar } from './shell/plan-toolbar'
 import type { PlanEditActions } from './edit-actions'
 import type { PlanScreenModel } from './plan-screen-model'
 import type { DrawerRoutes } from '../../lib/drawer-routes'
@@ -58,9 +57,6 @@ export interface PlanScreenProps {
   /** The features with no bar, listed under the board. */
   readonly tray: ReactNode
 
-  /** Where the breadcrumb climbs to, or nothing on a surface with no plan list. */
-  readonly home: string | null
-
   /** The plan id or the seat token, whichever roots this surface’s URLs. */
   readonly root: string
 
@@ -81,7 +77,7 @@ export interface PlanScreenProps {
 }
 
 /**
- * The whole plan page: a frame, a toolbar, a tree and a board.
+ * The whole plan page: a frame, a head row, a tree and a board.
  *
  * ### What left
  *
@@ -94,6 +90,12 @@ export interface PlanScreenProps {
  * the heading rendered in a row, became `manage`: the surface decides what a viewer may do and hands
  * over the controls, and this lays them out in one place.
  *
+ * `toolbar` and `home` are the restyle's. The control strip merged into the head row, which is one
+ * region rather than two over the same board (`shell/shell-css.ts`), and the breadcrumb climbed into
+ * the brand bar, where a breadcrumb goes (`app/(admin)/plan-crumb.tsx`). The seat surface still draws
+ * no crumb at all, for the reason this prop used to record: it holds one plan and has no index above
+ * it, and a trail whose parent is a sign-in page with no password behind it is worse than none.
+ *
  * ### Why the style element is here
  *
  * `VIEW_SWITCH_CSS` is a `:has()` rule anchored on the shell, so it has to be inside a document that
@@ -102,7 +104,7 @@ export interface PlanScreenProps {
  */
 export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, controls, drawer, groups, progress, sidebar } = props
-  const { home, manage, newRailHref, root, routes, tray, zoom, zoomControl, zoomTo } = props
+  const { manage, newRailHref, root, routes, tray, zoom, zoomControl, zoomTo } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   const found = attentionOf(plan)
   const axis = planAxis(plan, at, zoom)
@@ -118,12 +120,12 @@ export function PlanScreen(props: PlanScreenProps) {
             <PlanHead
               actions={manage}
               attention={<AttentionChip count={attentionCount(plan, found)} />}
-              home={home}
+              groups={groups}
               plan={plan}
+              zoom={zoomControl}
             />
           }
           sidebar={sidebar}
-          toolbar={<PlanToolbar groups={groups} zoom={zoomControl} />}
         >
           <PlanViews
             at={at}

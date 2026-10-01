@@ -46,12 +46,13 @@ import { ZOOM_COOKIE } from '../../../../lib/zoom'
 // tree and the tray be mounted on the seat surface too: a component that imported the admin pair drew
 // links a seat holder would follow into a login they have no password for (ADR 0032).
 //
-// What is *not* here is as much of the point. The four seat actions and the three plan-own ones used
-// to be handed from this layout, because the share manager and the settings panel were collapsed
-// disclosures in the plan heading. Both are drawer routes now, so the layout hands neither — and the
-// guard moved with them rather than being dropped: `share/page.test.tsx` and `settings/page.test.tsx`
-// each assert their own route hands its actions by name with nothing bound, which is where ADR 0040's
-// check has to live once the action does.
+// The seven that are here beside them are the plan's own. The four seat writes and the three plan-own
+// ones were handed from this layout, then from two drawer routes, and are handed from this layout again
+// — because settings and sharing are two menus in the head row and this is the component that builds
+// that row's slots. They are not members of `PlanEditActions` and should not be: none of them writes
+// anything *in* the plan. `admin-slots.test.tsx` is where the shape of each menu is asserted; what this
+// file still owes is the one thing only a whole-layout render can say, which is that nothing anywhere in
+// the tree is bound.
 const OFF_INTERFACE = [
   ...Object.values(ADMIN_DRAWER_ROUTES)
     .filter((builder): builder is (root: string, id: string) => string => builder !== null)
@@ -62,6 +63,17 @@ const OFF_INTERFACE = [
   // exactly what the second assertion below is about, and why `actions/zoom.ts` takes a rung as an
   // argument rather than offering three bound actions.
   zoomTo.name,
+  // The plan's own three and the four seat writes, which the head row's two menus are handed. Written as
+  // names rather than reached through a record, because there is no interface they are members of: that
+  // is the point `PlanEditActions` makes by not holding them, and a list here is what makes an eighth
+  // arrival visible.
+  'renamePlan',
+  'retimePlan',
+  'deletePlan',
+  'readPlanSeats',
+  'createPlanSeat',
+  'updatePlanSeat',
+  'revokePlanSeat',
 ]
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
@@ -368,14 +380,18 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
     expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
   })
 
-  // Fifteen props, and the shape of the list is the revision. `conflicts` is gone with the panel it
+  // Sixteen props, and the shape of the list is the revision. `conflicts` is gone with the panel it
   // filled. `rails`, `groups`, `settings` and `share` were four panel slots the plan heading rendered
-  // in a row, and the three whole-plan ones are one `manage` slot of links now while the group chips
-  // moved to the toolbar as `groups`. What is new beside those is what the frame needs to know that a
+  // in a row, and the three whole-plan ones are one `manage` slot of menus now while the group chips
+  // moved into the head row as `groups`. What is new beside those is what the frame needs to know that a
   // document did not: `tray` for the features with no bar, `zoomControl` beside the rung itself, and
-  // `home`/`root`/`routes` so every link on the page is addressed for **this** surface — the seat
-  // surface renders the same screen, may not carry links into this one's drawer routes, and may not
-  // present this one's cookie. The drawer stays identity-compared, being `children` and not built here.
+  // `root`/`routes` so every link on the page is addressed for **this** surface — the seat surface
+  // renders the same screen, may not carry links into this one's drawer routes, and may not present
+  // this one's cookie. The drawer stays identity-compared, being `children` and not built here.
+  //
+  // `home` left in the restyle. It was where the breadcrumb climbed to, and the breadcrumb climbed into
+  // the brand bar, which a layout two segments up renders — so the trail is a parallel route now
+  // (`app/(admin)/plan-crumb.tsx`) and the screen is told nothing about an index above it.
   it('hands the screen every slot it builds, the writes, and the bridge facts', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
@@ -386,7 +402,6 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
       'controls',
       'drawer',
       'groups',
-      'home',
       'manage',
       'newRailHref',
       'plan',
@@ -439,11 +454,10 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const handed = await slotsOf(PLAN_A)
-    expect(propsIn(handed['manage'])).toEqual({
-      maySettings: true,
-      mayShare: true,
-      planId: PLAN_A,
-    })
+    expect(Object.keys(propsIn(handed['manage'])).sort()).toEqual(['settings', 'share'])
+    for (const slot of ['settings', 'share']) {
+      expect(propsIn(handed['manage'])[slot]).not.toBeNull()
+    }
     expect(propsIn(handed['groups'])).toEqual({
       allFit: expect.anything(),
       mayAdd: true,
@@ -493,7 +507,6 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
     api.plans = [atlasPlan()]
     const handed = await slotsOf(PLAN_A)
     expect(handed['root']).toBe(PLAN_A)
-    expect(handed['home']).toBe('/')
     for (const slot of [handed, propsIn(handed['sidebar']), propsIn(handed['tray'])]) {
       expect(slot['routes']).toBe(ADMIN_DRAWER_ROUTES)
     }

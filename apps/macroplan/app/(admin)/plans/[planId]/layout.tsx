@@ -12,8 +12,6 @@ import { groupsSlot, manageSlot, sidebarSlot, traySlot, zoomSlot } from './admin
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
 
-const HOME = '/'
-
 /** Props for {@link PlanLayout}, which Next supplies. */
 export interface PlanLayoutProps {
   readonly params: Promise<{ readonly planId: string }>
@@ -56,7 +54,6 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       controls={ADMIN_CONTROLS}
       drawer={children}
       groups={groupsSlot(plan)}
-      home={HOME}
       manage={manageSlot(plan)}
       newRailHref={PLAN_DRAWERS.newRail(planId, plan.epics.length)}
       plan={plan}
