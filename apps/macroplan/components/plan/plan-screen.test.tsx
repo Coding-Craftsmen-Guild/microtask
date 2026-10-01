@@ -68,6 +68,7 @@ const show = (over: Shown = {}) =>
       tray={over.tray ?? null}
       zoom={over.zoom ?? 'feature'}
       zoomControl={null}
+      newRailHref="/plans/p/new/rail?n=1"
       zoomTo={null}
     />,
   )
@@ -223,6 +224,7 @@ describe('the frame the regions sit in', () => {
         tray={null}
         zoom="feature"
         zoomControl={null}
+        newRailHref="/plans/p/new/rail?n=1"
         zoomTo={null}
       />,
     )
@@ -308,6 +310,7 @@ describe('the count of what wants looking at', () => {
         tray={null}
         zoom="feature"
         zoomControl={null}
+        newRailHref="/plans/p/new/rail?n=1"
         zoomTo={null}
       />,
     )
@@ -326,11 +329,26 @@ describe('the controls the screen is handed', () => {
     expect(screen.getByTestId(`row-${ITEM_1}`)).toBeTruthy()
   })
 
-  it('renders alike for the admin and for a view seat while it is handed no write at all', () => {
+  // This read `expect(seat.innerHTML).toBe(admin.innerHTML)` until the table grew an actions column, and
+  // the premise it was defending is unchanged: no *write* is load-bearing, so a surface handed none draws
+  // the whole plan. What has changed is that a row now offers links into the controls a viewer may use,
+  // and which links those are is a question about the **viewer** rather than about the writes. So the
+  // picture is still compared whole, and the one thing that may legitimately differ is asserted below it.
+  it('draws the same plan for the admin and for a view seat while it is handed no write at all', () => {
     const { container: admin } = show()
     const { container: seat } = show({ controls: planCapabilities('view', SEAT) })
-    expect(seat.innerHTML).toBe(admin.innerHTML)
+    const canvas = (container: HTMLElement): string =>
+      container.querySelector('[data-slot="plan-canvas"]')?.innerHTML ?? ''
+    expect(canvas(seat)).toBe(canvas(admin))
+    expect(canvas(admin)).not.toBe('')
     expect(dragging(admin)).toBe('false')
+  })
+
+  it('offers a view seat no row actions at all, rather than links to controls that would refuse it', () => {
+    const actions = (container: HTMLElement): number =>
+      container.querySelectorAll('[data-slot="row-actions"]').length
+    expect(actions(show().container)).toBeGreaterThan(0)
+    expect(actions(show({ controls: planCapabilities('view', SEAT) }).container)).toBe(0)
   })
 
   it('listens for a drag once it holds the writes, and not for a seat that may not place', () => {

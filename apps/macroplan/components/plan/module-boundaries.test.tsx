@@ -20,8 +20,10 @@ import { ZoomSwitch } from './canvas/zoom-switch'
 import { planScreenModel } from './plan-screen-model'
 import type { TableRow } from './table/rows'
 import { PlanTable } from './table/plan-table'
+import { TableRoot } from './table/table-root'
 import {
   atlasPlan,
+  EPIC_1,
   FEATURE_1,
   ITEM_1,
   LABEL_1,
@@ -200,6 +202,10 @@ const DRAWER_ROW: TableRow = {
   sprint: 'S1',
   treatment: 'solid',
   blockedBy: [],
+  railId: EPIC_1,
+  block: FEATURE_1,
+  search: 'platform auth rewrite',
+  sort: null,
 }
 
 // The drawer now draws fields, so every tree below that mounts it hands over the pair a page hands
@@ -308,6 +314,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [MoveTargetField, 'drawer/move-target.tsx'],
   [DragRoot, 'canvas/drag-root.tsx'],
   [PlanPointer, 'canvas/plan-pointer.tsx'],
+  [TableRoot, 'table/table-root.tsx'],
   [BindForm, 'bridge/bind-form.tsx'],
   [BindFields, 'bridge/bind-fields.tsx'],
   [BindProjectForm, 'bridge/bind-project-form.tsx'],
@@ -411,6 +418,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    newRailHref={null}
     zoomTo={zoomDouble}
     key="a"
     plan={planScreenModel(atlasPlan())}
@@ -430,6 +438,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    newRailHref={null}
     zoomTo={zoomDouble}
     key="b"
     plan={planScreenModel(unplacedPlan('no-estimate'))}
@@ -449,6 +458,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    newRailHref={null}
     zoomTo={zoomDouble}
     key="c"
     plan={planScreenModel(unplacedPlan('in-cycle'))}
@@ -468,6 +478,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    newRailHref={null}
     zoomTo={zoomDouble}
     key="d"
     plan={planScreenModel(unclaimed())}
@@ -581,6 +592,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    newRailHref={null}
     zoomTo={zoomDouble}
   />,
   panel({
@@ -621,6 +633,7 @@ const TREES = [
     }
     zoom="feature"
     zoomControl={<ZoomSwitch zoom="feature" />}
+    newRailHref={null}
     zoomTo={zoomDouble}
   />,
   // The four rail files are the way into a plan, so the sweep has to reach all of them: RailFields sits

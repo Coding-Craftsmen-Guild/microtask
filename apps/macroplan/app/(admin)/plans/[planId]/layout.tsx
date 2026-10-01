@@ -4,7 +4,7 @@ import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
 import { attentionOf } from '../../../../components/plan/attention/attention'
 import { PlanScreen } from '../../../../components/plan/plan-screen'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
-import { ADMIN_DRAWER_ROUTES } from '../../../../lib/drawer-routes'
+import { ADMIN_DRAWER_ROUTES, PLAN_DRAWERS } from '../../../../lib/drawer-routes'
 import { zoomFor } from '../../../../components/plan/canvas/zoom-view'
 import { zoomTo } from '../../../../actions/zoom'
 import { readZoom } from '../../../../lib/zoom'
@@ -58,6 +58,7 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       groups={groupsSlot(plan)}
       home={HOME}
       manage={manageSlot(plan)}
+      newRailHref={PLAN_DRAWERS.newRail(planId, plan.epics.length)}
       plan={plan}
       progress={bridge?.items ?? []}
       root={planId}

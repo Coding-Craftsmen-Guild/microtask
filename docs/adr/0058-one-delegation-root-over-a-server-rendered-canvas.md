@@ -220,3 +220,39 @@ rather than hydrated, with the double-clicked chip resolved by `closest()` and i
 read off the markup. It is handed `children` and one string, so the `children` exception this ADR
 opened is now exercised by two components rather than one, and `module-boundaries.test.tsx` names both
 in the allowlist it asserts exact in both directions.
+
+## Amendment — 2026-10-02: four roots, and the sweep now looks inside the markup
+
+The decision is unchanged and is now the shape of every pointer gesture on this page. Four delegation
+roots exist, each wrapping server-rendered markup it never re-renders:
+
+| Root | Wraps | Resolves |
+| ---- | ----- | -------- |
+| `canvas/drag-root.tsx` | the SVG | which bar was grabbed, and where it was dropped |
+| `labels/group-chip-root.tsx` | the chip row | which chip was double-clicked |
+| `canvas/plan-pointer.tsx` | the whole shell | which mark is hovered, and which link was clicked |
+| `table/table-root.tsx` | the table panel | which column to sort by, and which to move |
+
+`plan-pointer.tsx` is the one worth recording, because it wraps **everything**. It has to: a hover over
+a row in the rail tree lights the bar on the canvas, and those are two subtrees. Its frame is
+`display: contents`, so it adds a listener and no box — the shell keeps its own height and its own
+containing block, and events bubble through regardless of layout.
+
+**Wrapping the whole screen cost this ADR's guard, and the fix is a stricter sweep.** The walk in
+`module-boundaries.test.tsx` recorded the props crossing into a client component and then **stopped**,
+which was safe only while the one wrapping root wrapped an SVG with nothing of its own inside it. With
+the shell inside a client component, four islands below it — `group-field`, `pin-field`,
+`dependency-toggle` and `group-chip-root` — were suddenly inspected by nothing, and every assertion in
+that file still passed.
+
+The walk now descends through `children` after recording a boundary. That is strictly stricter than
+before: the wrapper's own props are still checked, and the markup handed to it is server markup whose
+nested islands are now checked too. The sentence this ADR used to rely on — "the allowlist is the guard
+that makes not descending safe" — is no longer load-bearing, and the allowlist is still asserted exact
+in both directions.
+
+One new thing a test here cannot see, and it is named rather than discovered. The zoom anchor reads
+`scrollLeft` and a bounding rect to keep the day under the pointer in place across a rung change, and
+`happy-dom` answers every rect with zeros. The arithmetic is a pure module with its own tests
+(`canvas/pointer-view.ts`); what is untestable is the three measurements feeding it, and
+`canvas/use-wheel-zoom.ts` states the gesture to check in a browser.

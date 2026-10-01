@@ -278,3 +278,76 @@ describe('the blocked-by column, which reads dependsOn and ignoredEdges together
     expect(rowOf(tableRows(atlasPlan()), FEATURE_1).epic).not.toContain(EPIC_1)
   })
 })
+
+describe('what a row carries for the toolbar rather than for a cell', () => {
+  it('names the block each row belongs to, which on a feature row is the feature itself', () => {
+    const rows = tableRows(atlasPlan())
+    expect(rowOf(rows, FEATURE_1).block).toBe(FEATURE_1)
+    expect(rowOf(rows, ITEM_1).block).toBe(FEATURE_1)
+    expect(rowOf(rows, ITEM_3).block).toBe(FEATURE_2)
+  })
+
+  it('pre-lowers what a search matches on, so two thousand rows are not lowered on a keystroke', () => {
+    const row = rowOf(tableRows(atlasPlan()), FEATURE_1)
+    expect(row.search).toBe(row.search.toLowerCase())
+    expect(row.search).toContain('auth rewrite')
+    expect(row.search).toContain('platform')
+    expect(row.search).toContain('phase 1')
+  })
+
+  it('lets an item be found by its own name and by its feature’s, a search being for a line of work', () => {
+    const row = rowOf(tableRows(atlasPlan()), ITEM_1)
+    expect(row.search).toContain('sessions')
+    expect(row.search).toContain('auth rewrite')
+  })
+
+  it('sorts a feature by the values its own row holds, in a shape a comparison can read', () => {
+    expect(rowOf(tableRows(atlasPlan()), FEATURE_1).sort).toEqual({
+      epic: 'Platform',
+      feature: 'Auth rewrite',
+      group: 'Phase 1',
+      estimate: 5,
+      sprint: 0,
+      blocked: 0,
+    })
+  })
+
+  it('counts what a feature waits on, which is the one number the blocked column could be ordered by', () => {
+    expect(rowOf(tableRows(atlasPlan()), FEATURE_2).sort?.blocked).toBe(1)
+  })
+
+  it('says a feature in no group has nothing to sort by there, rather than the word for one', () => {
+    expect(rowOf(tableRows(atlasPlan()), FEATURE_2).sort?.group).toBe('')
+  })
+
+  it('says an unplaced feature has no sprint to sort by, and does not invent a zero', () => {
+    const row = rowOf(tableRows(unplacedPlan('no-estimate')), FEATURE_2)
+    expect(row.sprint).toContain('not placed')
+    expect(row.sort?.sprint).toBe(-1)
+  })
+
+  // The number the cell words and the number the column sorts by are the same number, deliberately: a
+  // table that printed `3d` and ordered the row as though it had none would be two answers to one
+  // question. So this reads the cell too — `unplacedPlan` strips the *feature's* estimate and leaves its
+  // item's, which is why that row is still worth three days to both of them.
+  it('sorts estimate by the same effective days the cell words, breakdown and all', () => {
+    const row = rowOf(tableRows(unplacedPlan('no-estimate')), FEATURE_2)
+    expect(row.estimate).toBe('3d')
+    expect(row.sort?.estimate).toBe(3)
+  })
+
+  it('says a feature nothing under it was sized has no estimate to sort by, rather than a zero', () => {
+    const base = atlasPlan()
+    const bare = atlasPlan({
+      features: base.features.map((one) => (one.id === FEATURE_2 ? { ...one, estimateDays: null } : one)),
+      items: base.items.filter((one) => one.featureId !== FEATURE_2),
+    })
+    const row = rowOf(tableRows(bare), FEATURE_2)
+    expect(row.estimate).toBe('no estimate')
+    expect(row.sort?.estimate).toBe(-1)
+  })
+
+  it('gives an item row no sort at all, a block being ordered by the feature that heads it', () => {
+    expect(rowOf(tableRows(atlasPlan()), ITEM_1).sort).toBeNull()
+  })
+})

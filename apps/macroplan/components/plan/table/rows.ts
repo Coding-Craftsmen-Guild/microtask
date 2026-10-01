@@ -4,6 +4,8 @@ import { breakdown, effectiveEstimate, itemsByFeature, railsOf, sprintOf } from 
 import type { ScheduleFeature, ScheduleItem, Span } from '@repo/schedule'
 import { cache } from 'react'
 import { railNames } from '../canvas/view'
+import { edgesOf, edgeKey } from './row-edges'
+import { searchOf, sortOf, type TableSort } from './row-keys'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
@@ -72,6 +74,15 @@ export interface TableRow {
   /** Its rail's epic's name, or the same words the canvas draws for a rail no epic claims. */
   readonly epic: string
 
+  /**
+   * The same rail as an id. **Nothing draws it** — it lands as `data-rail` and the filter matches on it.
+   *
+   * An id rather than the name beside it, for the reason {@link TableRow.labelId} is an id: two rails may
+   * not share a name in practice and nothing stops them, so filtering on the name would be a control that
+   * sometimes showed two rails at once and never said which.
+   */
+  readonly railId: string
+
   readonly feature: string
 
   readonly item: string | null
@@ -105,6 +116,30 @@ export interface TableRow {
 
   /** Every dependency the feature states, or nothing at all on an item row. */
   readonly blockedBy: readonly BlockedBy[]
+
+  /**
+   * The id of the feature this row belongs to — its own, on a feature row.
+   *
+   * A **block** is a feature and the items under it, and it is the unit the toolbar works in: a filter
+   * keeps or drops a whole block, and a sort moves one without ever separating an item from the feature
+   * it flows under. Nothing draws it; it lands as `data-block`.
+   */
+  readonly block: string
+
+  /**
+   * Everything this row can be found by, already lower-cased.
+   *
+   * Pre-lowered by the server because the alternative is lower-casing two thousand strings on every
+   * keystroke — the same trade `sidebar/sidebar-rows.ts` makes with `data-search`, and the reason both
+   * match with `includes` rather than a regular expression.
+   *
+   * An item row carries its **feature's** name as well as its own, for the reason the epic and feature
+   * cells are repeated on every row: somebody searching for a line of work means the whole of it.
+   */
+  readonly search: string
+
+  /** What this block is ordered by, or `null` on an item row. See {@link TableSort}. */
+  readonly sort: TableSort | null
 }
 
 interface Rows {
@@ -135,21 +170,6 @@ const days = (count: number): string => `${String(count)}d`
 
 const signed = (delta: number): string => (delta < 0 ? days(delta) : `+${days(delta)}`)
 
-const edgeKey = (featureId: string, dependsOnId: string): string => `${featureId} ${dependsOnId}`
-
-const edgeState = (featureId: string, dependsOnId: string, rows: Rows): EdgeState => {
-  if (rows.setAside.has(edgeKey(featureId, dependsOnId))) return 'set-aside'
-  if (!rows.features.has(dependsOnId)) return 'unknown'
-  return rows.spans.has(dependsOnId) ? 'honoured' : 'unplaced'
-}
-
-const edgesOf = (feature: ScheduleFeature, rows: Rows): readonly BlockedBy[] =>
-  feature.dependsOn.map((id) => ({
-    id,
-    name: rows.features.get(id) ?? id,
-    state: edgeState(feature.id, id, rows),
-  }))
-
 const estimateOf = (feature: ScheduleFeature, items: readonly ScheduleItem[]): string => {
   const pair = breakdown(feature, items)
   if (pair !== null && pair.delta !== 0) {
@@ -170,38 +190,69 @@ const sprintOfRow = (id: string, rows: Rows): string => {
 const groupIdOf = (featureId: string, rows: Rows): string | null =>
   rows.plan.features.find((each) => each.id === featureId)?.labelId ?? null
 
-const featureRow = (feature: ScheduleFeature, rows: Rows): TableRow => ({
-  id: feature.id,
-  kind: 'feature',
-  epic: rows.epics.get(feature.epicId) ?? UNCLAIMED,
-  feature: rows.features.get(feature.id) ?? feature.id,
-  item: null,
-  group: rows.labels.get(groupIdOf(feature.id, rows) ?? '') ?? null,
-  labelId: groupIdOf(feature.id, rows),
-  estimate: estimateOf(feature, rows.items.get(feature.id) ?? []),
-  sprint: sprintOfRow(feature.id, rows),
-  treatment: rows.treatments.get(feature.id) ?? 'solid',
-  blockedBy: edgesOf(feature, rows),
-})
+interface Shared {
+  readonly epic: string
+  readonly railId: string
+  readonly feature: string
+  readonly group: string | null
+  readonly labelId: string | null
+  readonly block: string
+}
 
-const itemRow = (item: ScheduleItem, feature: ScheduleFeature, rows: Rows): TableRow => ({
-  id: item.id,
-  kind: 'item',
-  epic: rows.epics.get(feature.epicId) ?? UNCLAIMED,
-  feature: rows.features.get(feature.id) ?? feature.id,
-  item: rows.itemNames.get(item.id) ?? item.id,
-  group: rows.labels.get(groupIdOf(feature.id, rows) ?? '') ?? null,
-  labelId: groupIdOf(feature.id, rows),
-  estimate: item.estimateDays === null ? NO_ESTIMATE : days(item.estimateDays),
-  sprint: sprintOfRow(item.id, rows),
-  treatment: rows.treatments.get(item.id) ?? 'solid',
-  blockedBy: [],
-})
+const sharedOf = (feature: ScheduleFeature, rows: Rows): Shared => {
+  const labelId = groupIdOf(feature.id, rows)
+  return {
+    epic: rows.epics.get(feature.epicId) ?? UNCLAIMED,
+    railId: feature.epicId,
+    feature: rows.features.get(feature.id) ?? feature.id,
+    group: rows.labels.get(labelId ?? '') ?? null,
+    labelId,
+    block: feature.id,
+  }
+}
+
+const featureRow = (feature: ScheduleFeature, rows: Rows): TableRow => {
+  const shared = sharedOf(feature, rows)
+  return {
+    ...shared,
+    id: feature.id,
+    kind: 'feature',
+    item: null,
+    estimate: estimateOf(feature, rows.items.get(feature.id) ?? []),
+    sprint: sprintOfRow(feature.id, rows),
+    treatment: rows.treatments.get(feature.id) ?? 'solid',
+    blockedBy: edgesOf(feature, rows),
+    search: searchOf([shared.epic, shared.feature, shared.group]),
+    sort: null,
+  }
+}
+
+const itemRow = (item: ScheduleItem, feature: ScheduleFeature, rows: Rows): TableRow => {
+  const shared = sharedOf(feature, rows)
+  const name = rows.itemNames.get(item.id) ?? item.id
+  return {
+    ...shared,
+    id: item.id,
+    kind: 'item',
+    item: name,
+    estimate: item.estimateDays === null ? NO_ESTIMATE : days(item.estimateDays),
+    sprint: sprintOfRow(item.id, rows),
+    treatment: rows.treatments.get(item.id) ?? 'solid',
+    blockedBy: [],
+    search: searchOf([shared.epic, shared.feature, name, shared.group]),
+    sort: null,
+  }
+}
+
+const sorted = (feature: ScheduleFeature, rows: Rows): TableRow => {
+  const row = featureRow(feature, rows)
+  return { ...row, sort: sortOf(feature, rows, row) }
+}
 
 const rowsOf = (plan: PlanScreenModel, rows: Rows): readonly TableRow[] =>
   railsOf(plan).flatMap((rail) =>
     rail.flatMap((feature) => [
-      featureRow(feature, rows),
+      sorted(feature, rows),
       ...(rows.items.get(feature.id) ?? []).map((item) => itemRow(item, feature, rows)),
     ]),
   )

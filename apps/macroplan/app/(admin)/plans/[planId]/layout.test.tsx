@@ -388,6 +388,7 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
       'groups',
       'home',
       'manage',
+      'newRailHref',
       'plan',
       'progress',
       'root',

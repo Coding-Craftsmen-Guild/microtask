@@ -668,6 +668,7 @@ describe('which controls the seat’s own role draws', () => {
       'groups',
       'home',
       'manage',
+      'newRailHref',
       'plan',
       'progress',
       'root',
@@ -692,12 +693,15 @@ describe('which controls the seat’s own role draws', () => {
   // zoom means writing the `mp_zoom` cookie and revalidating `/plans`, both of which this surface is
   // forbidden (ADR 0040); the rung it opens at is the plan's own fit instead. `zoomTo` is the same fact
   // said to the pointer root rather than to the control: with no action to call, a wheel over this board
-  // is left entirely to the browser rather than swallowed by a gesture that could write nothing.
-  it('states five slots empty: no drawer, no plan index, no whole-plan actions and no zoom either way', async () => {
+  // is left entirely to the browser rather than swallowed by a gesture that could write nothing. And
+  // `newRailHref` because `/plans/<id>/new/rail` is an admin path: a manage seat *may* create a rail, so
+  // the capability alone would have put a link to a login they have no password for in the table's own
+  // toolbar — which is the mistake `DrawerRoutes` exists to stop a component making (ADR 0032).
+  it('states six slots empty: no drawer, no plan index, no whole-plan actions, no zoom and nowhere to add a rail', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    for (const empty of ['drawer', 'home', 'manage', 'zoomControl', 'zoomTo']) {
+    for (const empty of ['drawer', 'home', 'manage', 'newRailHref', 'zoomControl', 'zoomTo']) {
       expect(handed[empty], empty).toBeNull()
     }
     // And three that are filled, every one of them new to this surface: the tree that used to be a null

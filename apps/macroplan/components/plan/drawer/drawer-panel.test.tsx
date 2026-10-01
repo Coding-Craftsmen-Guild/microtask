@@ -50,6 +50,10 @@ const FEATURE_ROW: TableRow = {
   sprint: 'S1',
   treatment: 'solid',
   blockedBy: [],
+  railId: EPIC_1,
+  block: FEATURE_1,
+  search: 'platform auth rewrite',
+  sort: null,
 }
 
 const ITEM_ROW: TableRow = {

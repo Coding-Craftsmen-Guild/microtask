@@ -9,6 +9,7 @@ import { POINTER_CSS } from './canvas/pointer-css'
 import { axisX } from './canvas/view'
 import { planAxis } from './canvas/zoom-view'
 import { PlanViews } from './plan-views'
+import { writesFor } from './table/table-writes'
 import { PlanHead } from './shell/plan-head'
 import { PlanShell } from './shell/plan-shell'
 import { PlanToolbar } from './shell/plan-toolbar'
@@ -65,6 +66,17 @@ export interface PlanScreenProps {
 
   readonly routes: DrawerRoutes
 
+  /**
+   * Where the table's one plan-level add goes, or `null` where this surface has nowhere for it.
+   *
+   * The **surface** builds it and this screen only passes it on, which is the rule {@link DrawerRoutes}
+   * exists to enforce: `/plans/<id>/new/rail` is an admin path, and a seat holder following one would
+   * meet a login they have no password for (ADR 0032). Building it here from `PLAN_DRAWERS` would have
+   * done exactly that, because a manage seat may create a rail — the capability is granted and the route
+   * is not, and only the page knows which surface it is.
+   */
+  readonly newRailHref: string | null
+
   readonly progress: PlanBridge['items']
 }
 
@@ -90,20 +102,16 @@ export interface PlanScreenProps {
  */
 export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, controls, drawer, groups, progress, sidebar } = props
-  const { home, manage, root, routes, tray, zoom, zoomControl, zoomTo } = props
+  const { home, manage, newRailHref, root, routes, tray, zoom, zoomControl, zoomTo } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   const found = attentionOf(plan)
   const axis = planAxis(plan, at, zoom)
+  const pointer = { axisX: axisX(axis.scale, axis.range), pxPerDay: axis.scale.pxPerDay }
   return (
     <>
       <style>{VIEW_SWITCH_CSS}</style>
       <style>{POINTER_CSS}</style>
-      <PlanPointer
-        axisX={axisX(axis.scale, axis.range)}
-        pxPerDay={axis.scale.pxPerDay}
-        rung={zoom}
-        zoomTo={zoomTo}
-      >
+      <PlanPointer {...pointer} rung={zoom} zoomTo={zoomTo}>
         <PlanShell
           drawer={drawer}
           head={
@@ -119,12 +127,14 @@ export function PlanScreen(props: PlanScreenProps) {
         >
           <PlanViews
             at={at}
+            newRailHref={controls.content.createEpic ? newRailHref : null}
             place={place}
             plan={plan}
             progress={progress}
             root={root}
             routes={routes}
             tray={tray}
+            writes={writesFor(controls.content)}
             zoom={zoom}
           />
         </PlanShell>

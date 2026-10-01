@@ -5,7 +5,7 @@ import { PlanBoard } from './board/plan-board'
 import type { FeaturePlace } from './canvas/drag-root'
 import { planAxis } from './canvas/zoom-view'
 import type { PlanScreenModel } from './plan-screen-model'
-import { PlanTable } from './table/plan-table'
+import { PlanTable, type TableWrites } from './table/plan-table'
 import type { DrawerRoutes } from '../../lib/drawer-routes'
 import { VIEW_SWITCH } from './view-switch'
 
@@ -27,6 +27,12 @@ export interface PlanViewsProps {
   /** The plan id or the seat token, whichever roots this surface’s URLs. */
   readonly root: string
 
+  /** What this viewer may do to a row, which decides the table's actions column. */
+  readonly writes: TableWrites
+
+  /** Where the table's one plan-level add goes, or `null` on a surface that may not add a rail. */
+  readonly newRailHref: string | null
+
   readonly routes: DrawerRoutes
 }
 
@@ -43,7 +49,7 @@ export interface PlanViewsProps {
  * duplication this revision set out to remove.
  */
 export function PlanViews(props: PlanViewsProps) {
-  const { plan, at, zoom, progress, place, tray, root, routes } = props
+  const { plan, at, zoom, progress, place, tray, root, routes, writes, newRailHref } = props
   const axis = planAxis(plan, at, zoom)
   return (
     <>
@@ -62,7 +68,14 @@ export function PlanViews(props: PlanViewsProps) {
         {tray}
       </div>
       <div className={VIEW_SWITCH.tablePanel} data-slot="table-panel">
-        <PlanTable plan={plan} progress={progress} />
+        <PlanTable
+          newRailHref={newRailHref}
+          plan={plan}
+          progress={progress}
+          root={root}
+          routes={routes}
+          writes={writes}
+        />
       </div>
     </>
   )

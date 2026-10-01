@@ -1,6 +1,7 @@
 'use client'
 
 import { orNoAnswer } from '@repo/app-session/no-answer'
+import { DELETE_ANCHOR } from '../table/row-actions'
 import { Button } from '@repo/ui/components/button'
 import { ConfirmDialog } from '@repo/ui/shell/confirm-dialog'
 import { useRouter } from 'next/navigation'
@@ -117,7 +118,7 @@ export function DeleteControl({
     else setProblem(result.detail)
   }
   return (
-    <div className={GROUP}>
+    <div className={GROUP} id={DELETE_ANCHOR}>
       <Button
         onClick={() => setAsking(true)}
         size="sm"

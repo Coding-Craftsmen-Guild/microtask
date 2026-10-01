@@ -179,3 +179,42 @@ above into an automated check. Rejected as out of scope for a rendering task rat
 — it is a workspace-wide lint regime and an ADR of its own, and adopting it in one app's test file
 would leave the other app and every `@repo/ui` component unchecked while implying otherwise. Recorded
 here so that the next person to reach for one knows the absence was noticed rather than overlooked.
+
+## Amendment — 2026-10-02: the table becomes a data table, and the floor is unchanged
+
+Product-owner instruction: the table gains search, filtering, ordering, column visibility, column
+reordering, and row actions. Nothing in the decision above is reversed — this ADR's whole point is that
+the table is a first-class rendering, and six capabilities is what a first-class rendering of two
+thousand rows needs to be usable. What matters is that the accessibility floor is **unchanged**, and
+every mechanism was chosen to keep it so.
+
+It is still a real `<table>` with `scope`d column headers and a `<th scope="row">` per row, still mounted
+whichever view is selected, and still the only rendering a screen reader can read. No capability depends
+on a pointer: the search is a field, the filters are `<select>`s, the sort is a `<button>` in its header,
+and the columns are checkboxes and two buttons each.
+
+**What is native, and what is left over for JavaScript.** Hiding a column is a checkbox and one
+generated `:has()` rule per column, so it costs no island, survives every re-render on its own, and
+works with scripting off entirely. Three things cannot be expressed that way and only those three are a
+client root's: hiding a row (the condition is a substring of an attribute), reordering rows, and
+reordering cells — `order` does not apply to table cells, and the only way round that is to stop being a
+`<table>`, which would cost exactly what this ADR exists to protect.
+
+**The sort does not re-derive the order.** `table/rows.ts` argues that the table's order is the canvas's
+and must not be computed again, and that stands: a sort moves whole **blocks** — a feature with its items
+— the derived order inside a block is untouched, and a third click on a header clears the sort rather
+than cycling, so the order the bars are in is always one click away. Two columns of nine cannot be sorted
+at all, because `Item` and `Progress` are per-item and a block has several of each; their headers are
+plain text rather than buttons, which is how a reader is told.
+
+**The actions are links, not controls.** Three per row, into the drawer's own rename, add-a-child and
+delete-with-confirm. A delete button per row would be either two thousand client islands or a
+destructive write with no confirmation; the drawer is one island whichever row opened it (ADR 0057), and
+each link lands on the control that does the thing by fragment. A viewer who may write nothing is shown
+no actions column at all rather than a column of blank cells.
+
+**One thing is remembered and three are not.** A search, a filter and a sort are how somebody reads a
+plan for ten seconds, and ADR 0064 makes the same call about a chosen group. A column order is a layout
+preference, so it lives in `localStorage` — and what comes back is rebuilt from the columns that exist,
+because a remembered key for a column that has since been renamed would leave the header one cell short
+of its rows.

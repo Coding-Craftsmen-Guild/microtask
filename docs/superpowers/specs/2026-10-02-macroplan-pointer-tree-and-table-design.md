@@ -236,3 +236,58 @@ row action has somewhere to land.
   `group-css.ts` makes the same call. Column order is the one exception, because it is a layout
   preference rather than a question.
 - Row-level writes. Every write stays in the drawer, with its confirmation.
+
+## 6. As built, six things differ from the above
+
+Written after the work, so that the spec says what shipped rather than what was planned.
+
+**§2's named peer became a `:has()` rule.** The plan was `peer-checked/open:` on the features wrapper and
+on the caret. Only the first was possible: the caret lives **inside** the rail's row and the features in a
+wrapper **beside** it, so no single element is a sibling of both, and `peer-*` compiles to the sibling
+combinator. Two static rules on the branch do it instead — which is the same limit `view-switch.ts` ran
+into and the same answer. The argument against a second unnamed `peer` still holds and is still recorded;
+it is now a hazard avoided rather than a mechanism used.
+
+**§1.3's scroll anchor is one pure module and two effects, not one.** The day under the pointer cannot be
+restored when the action resolves, because the canvas has not been redrawn yet — the new scale arrives as
+a prop. So the day is recorded on the way out and put back by an effect watching `pxPerDay`.
+
+**§1.5's hover needed a second attribute.** `data-detail` says what to show; it does not say what to
+light. Marks, bar labels, item ticks and sidebar rows all carry `data-hover-id` — the **feature's** id,
+so pointing at an item tick lights the whole thread it belongs to — and that is the attribute the root
+queries. An item mark's card is still its own.
+
+**§3.4 and §3.6 gained a guard each.** The sort compares `data-sort-*` the server wrote, and a row with no
+value for the column sinks to the bottom in **both** directions rather than leading an ascending sort; a
+remembered column order is rebuilt from the columns that exist, so a key for a renamed column cannot leave
+the header one cell short of its rows.
+
+**§3.6's "no actions column at all" is implemented as asked, and the new-rail link moved.** It was going
+to be built in `PlanScreen` from `PLAN_DRAWERS`, which would have handed a **manage seat** a link to
+`/plans/<id>/new/rail` — a surface they have no cookie for, and the exact mistake `DrawerRoutes` exists to
+prevent (ADR 0032). A manage seat may create a rail, so the capability alone was not the question. The
+surface supplies the href and the screen only passes it on.
+
+**Two files were split that this spec did not name.** `table/rows.ts` reached the 150-line cap its own note
+predicted it would, and the cut is by concern as that note asks: the four edge states are
+`table/row-edges.ts` and the sort and search keys are `table/row-keys.ts`. `plan-pointer.tsx` split the
+same way — the wheel gesture, the lighting, the arithmetic and the card are each their own module.
+
+### What the build found that this spec did not
+
+**Wrapping the whole screen in a client root silently removed four islands from the module-boundaries
+sweep.** The walk stopped at the first client component it met, which was safe only while the one wrapping
+root wrapped an SVG. It descends through `children` now, which is stricter than before rather than weaker.
+The ADR 0058 amendment records it.
+
+**`happy-dom`'s `WheelEvent` drops `ctrlKey` and `metaKey` from its init dictionary.** It carries `deltaY`
+and the coordinates and not the modifier state, so an event built the ordinary way arrives with both
+undefined and every zoom gesture reads as a plain scroll. The test defines them on the event afterwards,
+which patches the environment and not the component, and says so in a comment.
+
+### Still to verify in a browser
+
+- Zoom with the pointer over a date in the middle of a plan, and check the date stays under the pointer.
+- Hover a feature in the rail tree and check the bar, its label, its ticks and its arcs light.
+- Collapse a rail and check the caret turns and its features go.
+- Move a column in a plan of a few hundred rows and check the whole table follows in one frame.
