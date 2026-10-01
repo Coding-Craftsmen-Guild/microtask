@@ -1,13 +1,15 @@
 /**
  * The slots a hover lights, which is every part of one feature's thread.
  *
- * A bar, the name on it, the item ticks under it, the arcs leaving and arriving, and the row in the
- * tree. Pointing at any one of them lights all of them, which is what makes "hover a feature in the
- * sidebar and watch the timeline" and "hover a bar" the same gesture rather than two features.
+ * A bar, the item ticks under it, the arcs leaving and arriving, and the row in the tree. Pointing at
+ * any one of them lights all of them, which is what makes "hover a feature in the sidebar and watch
+ * the timeline" and "hover a bar" the same gesture rather than two features.
+ *
+ * The name on the bar was a fifth, and the canvas no longer draws one. The row in the tree is now the
+ * only lit thing that carries words, which is part of why the card matters more than it did.
  */
 export const LIT_SLOTS: readonly string[] = [
   'feature-bar',
-  'bar-label',
   'item-mark',
   'arc',
   'sidebar-row',
@@ -52,7 +54,6 @@ const SHAPES = ['feature-bar', 'item-mark', 'arc'].map(lit).join(',')
  */
 export const POINTER_CSS = [
   `${SHAPES}{opacity:1;stroke-width:2.5px}`,
-  `${lit('bar-label')}{opacity:1;font-weight:650}`,
   `${lit('sidebar-row')}{background-color:var(--color-brand-soft)}`,
 ].join('')
 

@@ -1,5 +1,4 @@
 import {
-  barLabels,
   dayToX,
   itemsToMarks,
   railLayout,
@@ -10,7 +9,6 @@ import {
   widthOfDays,
 } from '@repo/canvas'
 import type {
-  BarLabel,
   DayRange,
   ItemMark,
   PlanScale,
@@ -20,7 +18,7 @@ import type {
 } from '@repo/canvas'
 import { canvasArcs } from './arc-view'
 import type { CanvasArc } from './arc-view'
-import { LABEL_METRICS, LAYOUT, NODE_LABEL_METRICS } from './mark-metrics'
+import { LAYOUT } from './mark-metrics'
 import { DRAWS } from './rung-view'
 import { detailsOf } from './detail-lines'
 import type { RungDrawing } from './rung-view'
@@ -30,7 +28,7 @@ import type { PlanScreenModel } from '../plan-screen-model'
  * The numbers every mark is placed from, re-exported so a component reaches one module for the
  * geometry and the metrics together rather than importing from two that are always used as one.
  */
-export { BAR_GAP, LABEL_METRICS, LAYOUT, NODE_LABEL_METRICS, NODE_RADIUS } from './mark-metrics'
+export { BAR_GAP, LAYOUT, NODE_RADIUS } from './mark-metrics'
 
 /**
  * The fallback window a canvas draws when a caller names none: one quarter of working days.
@@ -69,12 +67,6 @@ export interface RailFrame {
   readonly hues: ReadonlyMap<string, string>
 
   readonly draws: RungDrawing
-
-  /** Where each bar's name goes, keyed by feature id. */
-  readonly labels: ReadonlyMap<string, BarLabel>
-
-  /** What each bar is called, keyed by feature id. */
-  readonly names: ReadonlyMap<string, string>
 
   /**
    * What a hover over one mark says, joined, keyed by **feature or item** id.
@@ -203,10 +195,6 @@ export const chromeRange = (range: DayRange): DayRange => ({
   toDay: range.toDay + BLEED_DAYS,
 })
 
-/** What each feature is called, keyed by id, for the labels drawn on its bar. */
-export const featureNames = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
-  new Map(plan.features.map((feature) => [feature.id, feature.name]))
-
 /**
  * What each rail is called, keyed by epic id.
  *
@@ -216,31 +204,6 @@ export const featureNames = (plan: PlanScreenModel): ReadonlyMap<string, string>
  */
 export const railNames = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
   new Map(plan.epics.map((epic) => [epic.id, epic.name]))
-
-/** Where every bar's name goes, across every rail, keyed by feature id. */
-/**
- * Where every mark's name goes, across every rail, keyed by feature id.
- *
- * ### A point is measured as a zero-width mark
- *
- * At the node rungs each bar is handed to `barLabels` with its width flattened to zero. That is not
- * a trick: a point *is* a zero-width mark — it is drawn at the day the feature starts and says
- * nothing about how long it runs — so measuring it as one gives exactly the right answer. Every
- * label lands outside, and each is bounded by the x of the next feature on its rail, which is the
- * gap that has to hold the text.
- *
- * The bars' own widths are left alone at the Sprint rung, where a name goes inside a bar wide enough
- * to hold it.
- */
-export const labelsOf = (rails: readonly RailBox[], nodes: boolean): ReadonlyMap<string, BarLabel> =>
-  new Map(
-    rails.flatMap((rail) =>
-      barLabels(
-        nodes ? rail.bars.map((bar) => ({ ...bar, width: 0 })) : rail.bars,
-        nodes ? NODE_LABEL_METRICS : LABEL_METRICS,
-      ).map((label) => [label.id, label] as const),
-    ),
-  )
 
 /** The item ticks of each feature, keyed by feature id, so a rail reads its own without a scan. */
 export const marksByFeature = (
@@ -352,8 +315,6 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
       groups: groupsOf(plan),
       hues: labelHues(plan),
       draws: DRAWS[rung],
-      labels: labelsOf(rails, DRAWS[rung].nodes),
-      names: featureNames(plan),
       details: detailsOf(plan),
       hrefOf: query.hrefOf,
     },

@@ -98,16 +98,14 @@ describe('the canvas draws the three progress levels and stays one element per i
     expect(container.querySelectorAll('defs')).toHaveLength(0)
   })
 
-  // Names are drawn on this canvas now, and they are drawn per **bar**: one `<text>` beside each one, at the
-  // budget `barLabels` measured. The count that has to hold at the 2,000-item cap is per *item*, and it
-  // survives that — three placed items under two bars draw two labels and not five, because an item's own
-  // name stays in the table, which is the rendering a reader can actually read.
-  it('names every bar and no item, so the labels the canvas gained cost nothing per item', () => {
+  // The canvas drew a name per bar once, and draws none now: `rail-features.tsx` carries the whole
+  // argument, which is that a name belongs where a reader can read it. The cost that mattered was per
+  // *item* and is now zero per mark of either kind, so what is left to assert is the absence itself.
+  it('names neither a bar nor an item, every name being in the sidebar, the table or the card', () => {
     const container = canvasOf(EVERY_LEVEL)
     expect(container.querySelectorAll('[data-slot="item-mark"]')).toHaveLength(3)
-    const labels = [...container.querySelectorAll('[data-slot="bar-label"]')]
-    expect(labels).toHaveLength(2)
-    expect(labels.map((label) => label.textContent).join(' ')).not.toContain('Sessions')
+    expect(container.querySelectorAll('text')).toHaveLength(0)
+    expect(container.textContent).not.toContain('Sessions')
   })
 
   // Painted so the three differ in lightness as well as in outline, which is what makes them readable in

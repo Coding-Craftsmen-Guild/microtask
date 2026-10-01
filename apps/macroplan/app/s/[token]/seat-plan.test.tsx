@@ -368,14 +368,21 @@ describe('a plan seat lands on the one plan its token opens', () => {
   // what a reader clicks first, and the row in the tree, which is the keyboard path to the same drawer —
   // the bar is `tabIndex={-1}` inside a `role="img"`, so it is no keyboard stop at all. Both are built from
   // the same `SEAT_DRAWER_ROUTES`, so they cannot disagree about where a feature lives on this surface.
-  it('offers a feature both ways — its bar and its tree row — at one address under this token', async () => {
+  // The bar is still a link to the same place, and it is no longer a *named* one: its accessible name
+  // was the `<text>` drawn on it, and the canvas draws no text now. Nothing is lost that a reader had
+  // — the canvas is `role="img"`, which prunes its whole subtree from the accessibility tree, and the
+  // anchor carries `tabIndex={-1}`, so this link was never a stop a keyboard reached or a screen
+  // reader announced. The named way in is the tree row, which is what `rail-features.tsx` says.
+  it('offers a feature by name from its tree row, and aims its bar at the same address', async () => {
     seated(SEAT_TOKEN)
     await show()
-    const ways = screen.getAllByRole('link', { name: 'Auth rewrite' })
-    expect(ways).toHaveLength(2)
-    expect([...new Set(ways.map((one) => one.getAttribute('href')))]).toEqual([
+    const named = screen.getAllByRole('link', { name: 'Auth rewrite' })
+    expect(named).toHaveLength(1)
+    expect(named[0]?.getAttribute('href')).toBe(`/s/${SEAT_TOKEN}/f/${FEATURE_1}`)
+    const bar = document.querySelector(`[data-slot="feature-bar"][data-feature-id="${FEATURE_1}"]`)
+    expect(bar?.closest('[data-slot="feature-link"]')?.getAttribute('href')).toBe(
       `/s/${SEAT_TOKEN}/f/${FEATURE_1}`,
-    ])
+    )
   })
 
   // Zoom is a cookie on the admin surface — `readZoom` reads one and the control's form writes one,

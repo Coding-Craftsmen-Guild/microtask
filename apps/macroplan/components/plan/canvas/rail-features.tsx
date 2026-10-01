@@ -1,5 +1,4 @@
 import type { RailBox } from '@repo/canvas'
-import { BarLabelText } from './bar-label'
 import { FeatureBarMark } from './feature-bar'
 import { FeatureNode } from './feature-node'
 import { hueOf } from './view'
@@ -17,12 +16,23 @@ export interface RailFeaturesProps {
 }
 
 /**
- * Every placed feature on one rail, each with its name.
+ * Every placed feature on one rail, as a mark and nothing else.
  *
- * The mark and its label are siblings rather than the label being inside the mark's component: a
- * `<rect>` cannot contain a `<text>`, and the two want different parents in the one case where the
- * mark is a `<polygon>`. Keeping them as a pair here also means the label is drawn *after* its bar
- * in document order, which is what puts it on top without a `z-index` SVG does not have.
+ * ### Why there is no name here
+ *
+ * There was one: a `<text>` beside each mark, cut to a budget `barLabels` worked out from the bar's
+ * width and the gap to the next one. The whole mechanism is gone, and the rule it leaves behind is
+ * flat — **the canvas draws geometry and never text**.
+ *
+ * What a reader loses is naming a bar by looking at it. What answers that instead was already built
+ * three times over: the rail tree names every feature, the table names every feature and item in a
+ * cell with a header, and the hover card names whatever the pointer is on. The card is why this is a
+ * trade rather than a loss, and why `canvas/pointer-css.ts` stopped truncating its title.
+ *
+ * What it gains is one fewer element per feature on a surface whose element count grows with the
+ * plan, and an end to deciding how much of a name fits — a question with no good answer at four
+ * pixels a day, where a label budgeted against the gap to the next dot was cut to nothing or drawn
+ * over it.
  *
  * ### Why a bar is a link, and why it is out of the tab order
  *
@@ -42,20 +52,17 @@ export interface RailFeaturesProps {
  * actually listens — `DragRoot` sets `data-drag` — so a read-only seat shows the link cursor and does
  * not promise a gesture it would refuse.
  *
- * ### Why the node rung is unlabelled
+ * ### Why the Year rung draws a dot
  *
- * At the Year rung a feature is a dot, not a bar, because four pixels a day makes a span meaningless
- * — and it makes the gaps between spans meaningless too. `barLabels` budgets an outside label
- * against the distance to the next bar, so at that scale every label on a busy rail would be cut to
- * nothing or, worse, drawn over the next dot. The rung is a rollup; the names column beside it still
- * says which rail each row is, which is the question that rung answers.
+ * At four pixels a day a span is meaningless, so a feature there is a point at the day it starts
+ * rather than a bar claiming a width nobody can read. The rung is a rollup, and the names column
+ * beside it still says which rail each row is — which is the question that rung answers.
  */
 export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
   if (!frame.draws.bars && !frame.draws.nodes) return null
   return (
     <>
       {rail.bars.map((bar) => {
-        const label = frame.labels.get(bar.id)
         const shared = {
           bar,
           colour: hueOf(frame, bar.id, rail.colour),
@@ -66,20 +73,10 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
           treatment: frame.treatments.get(bar.id) ?? ('solid' as const),
         }
         const href = frame.hrefOf(bar.id)
-        const mark = (
-          <>
-            {frame.draws.nodes ? <FeatureNode {...shared} /> : <FeatureBarMark {...shared} />}
-            {label === undefined ? null : (
-              <BarLabelText
-                detail={frame.details.get(bar.id) ?? null}
-                hoverId={bar.id}
-                label={label}
-                labelId={shared.labelId}
-                name={frame.names.get(bar.id) ?? ''}
-                top={top}
-              />
-            )}
-          </>
+        const mark = frame.draws.nodes ? (
+          <FeatureNode {...shared} />
+        ) : (
+          <FeatureBarMark {...shared} />
         )
         return (
           <g data-slot="feature-group" key={bar.id}>

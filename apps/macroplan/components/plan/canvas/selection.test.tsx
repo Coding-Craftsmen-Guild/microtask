@@ -163,18 +163,10 @@ describe('what a pointer went down on', () => {
     expect(grabbedAt(null)).toBeNull()
   })
 
-  // A bar carries its own name now, drawn inside it when it is wide enough. The `<text>` is a **sibling**
-  // of the mark rather than a child of it — a `<rect>` cannot contain a `<text>` — so `closest()` cannot
-  // reach a bar from it, and what makes that harmless is the `pointer-events-none` `bar-label.tsx` puts
-  // on every label so the browser hands the event to the bar underneath. Both halves are asserted,
-  // because either one alone leaves a hole in the drag target exactly where the bar is easiest to hit.
-  it('answers null for a bar’s own name, which passes the pointer through instead of being grabbed', () => {
-    canvasOf()
-    const label = only('[data-slot="bar-label"]')
-    expect(grabbedAt(label)).toBeNull()
-    expect(label.getAttribute('class')).toContain('pointer-events-none')
-  })
-
+  // A bar used to carry its own name, a `<text>` sibling that `closest()` could not reach a bar from.
+  // That needed `pointer-events-none` on every label to keep a hole out of the drag target exactly
+  // where the bar is easiest to hit. The canvas draws no text at all now, so the hole cannot exist and
+  // there is nothing left to assert about it.
   it('resolves the bar from a descendant of it too, which is what closest() buys', () => {
     canvasOf()
     expect(grabbedAt(barFor(FEATURE_1))?.featureId).toBe(FEATURE_1)

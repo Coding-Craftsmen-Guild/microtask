@@ -189,12 +189,14 @@ describe('the sprint dates the week headings reveal, now that the canvas has no 
 })
 
 describe('what the canvas still does not draw, and still does not name', () => {
-  it('puts no calendar date in any text the canvas draws, which is §5’s whole condition', () => {
+  // §5's condition was that no real calendar date is permanent chrome. The canvas now satisfies it the
+  // strongest way available: it draws no text of any kind, so there is nothing for a date to be in.
+  it('draws no text at all, which is more than §5’s condition on calendar dates asked for', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
-    const drawn = all('[data-slot="plan-canvas"] text')
-    expect(drawn.length).toBeGreaterThan(1)
-    for (const text of drawn) expect(text.textContent).not.toMatch(ISO_DATE)
-    expect(drawn.map((text) => text.getAttribute('data-slot'))).toEqual(drawn.map(() => 'bar-label'))
+    expect(all('[data-slot="plan-canvas"] text')).toEqual([])
+    const leaves = all('[data-slot="plan-canvas"] *').filter((node) => node.children.length === 0)
+    const dated = leaves.filter((node) => (node.textContent ?? '').match(ISO_DATE) !== null)
+    expect(dated.map((node) => node.tagName)).toEqual(['title'])
   })
 
   it('leaves the today line the only node on the canvas a pointer can name, the rects being gone', () => {

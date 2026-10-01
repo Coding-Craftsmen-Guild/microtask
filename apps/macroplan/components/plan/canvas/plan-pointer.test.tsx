@@ -27,15 +27,15 @@ const detailOf = (id: string): string => DETAIL.get(id) ?? ''
 
 const board = () => (
   <div data-slot="plan-board">
+    <div data-detail={detailOf(FEATURE_1)} data-hover-id={FEATURE_1} data-slot="sidebar-row">
+      Auth rewrite
+    </div>
     <div data-slot="time-header">
       <span data-slot="quarter-head">Q4 2026</span>
     </div>
     <div data-slot="timeline-scroller">
       <svg data-slot="plan-canvas">
         <rect data-detail={detailOf(FEATURE_1)} data-hover-id={FEATURE_1} data-slot="feature-bar" />
-        <text data-detail={detailOf(FEATURE_1)} data-hover-id={FEATURE_1} data-slot="bar-label">
-          Auth rewrite
-        </text>
         <rect data-detail={detailOf(ITEM_1)} data-hover-id={FEATURE_1} data-slot="item-mark" />
         <rect data-detail={detailOf(FEATURE_2)} data-hover-id={FEATURE_2} data-slot="feature-bar" />
         <path data-arc-from={FEATURE_1} data-arc-to={FEATURE_2} data-slot="arc" />
@@ -255,13 +255,13 @@ describe('what a hover lights', () => {
   it('lights every part of the feature’s thread and the arcs at either end of it', () => {
     show()
     fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
-    expect(lit().toSorted()).toEqual(['arc', 'bar-label', 'feature-bar', 'feature-bar', 'item-mark'])
+    expect(lit().toSorted()).toEqual(['arc', 'feature-bar', 'feature-bar', 'item-mark', 'sidebar-row'])
   })
 
-  it('lights the same thread from an item tick, because a tick is part of its feature', () => {
+  it('lights the same thread from an item tick, the row in the tree included', () => {
     show()
     fireEvent.pointerOver(at('[data-slot="item-mark"]'), { clientX: 100, clientY: 100 })
-    expect(lit()).toContain('bar-label')
+    expect(lit()).toContain('sidebar-row')
     expect(lit()).toContain('item-mark')
   })
 

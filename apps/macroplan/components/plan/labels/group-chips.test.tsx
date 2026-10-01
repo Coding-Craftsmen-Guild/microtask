@@ -141,12 +141,18 @@ describe('the rule that dims what is not in the chosen group', () => {
     expect(css).not.toContain(`[data-label-id]:not(`)
   })
 
-  it('names every kind of mark a group reaches, a lit name over a dimmed bar being worse than neither', () => {
+  it('names every kind of mark a group reaches, a lit arc over a dimmed plan being worse than neither', () => {
     const css = groupCss(ROWS)
 
-    for (const slot of ['feature-bar', 'item-mark', 'bar-label', 'arc', 'plan-table-row']) {
+    for (const slot of ['feature-bar', 'item-mark', 'arc', 'plan-table-row']) {
       expect(css).toContain(`[data-slot="${slot}"]`)
     }
+  })
+
+  // There were five. `bar-label` was the fifth and is gone with the names themselves: the canvas draws
+  // no text, so there is no name left to stay bright over its own dimmed bar.
+  it('names no bar label, there being none on the canvas to dim', () => {
+    expect(groupCss(ROWS)).not.toContain('bar-label')
   })
 
   it('skips an id that could not be a ULID, rather than escaping it into a selector', () => {

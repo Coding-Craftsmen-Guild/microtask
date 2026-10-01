@@ -24,7 +24,6 @@ import {
   canvasWidth,
   chromeRange,
   insideRail,
-  LABEL_METRICS,
   LAYOUT,
 } from './view'
 import { DRAWS } from './rung-view'
@@ -53,12 +52,12 @@ const ONE_RAIL_RULE = 1
 const ONE_TODAY_LINE = 1
 
 /**
- * What one bar costs the canvas now: its pair's `<g>`, the mark, and the name beside it.
+ * What one bar costs the canvas now: its group's `<g>`, and the mark.
  *
- * One, through phase 4. The names are inside the canvas and the items' are not, so the element count
- * grows three per feature and one per item — which is the shape this block exists to hold.
+ * It was three, the third being the `<text>` beside each bar. Nothing on this canvas is text any
+ * more, so the element count grows two per feature and one per item.
  */
-const ELEMENTS_PER_BAR = 3
+const ELEMENTS_PER_BAR = 2
 
 const CHROME_ALLOWANCE = 100
 
@@ -76,21 +75,6 @@ const barFor = (featureId: string): Element =>
   only(`[data-slot="feature-bar"][data-feature-id="${featureId}"]`)
 
 const markFor = (itemId: string): Element => only(`[data-slot="item-mark"][data-item-id="${itemId}"]`)
-
-/**
- * The name drawn for one feature.
- *
- * Found through the bar's own `feature-group`, because a `<text>` carries no feature id: it is the
- * pairing in `rail-features.tsx` that says which bar a name belongs to, and reading it back the same
- * way is what makes this assert the pairing rather than a second guess at it.
- */
-const labelFor = (featureId: string): Element => {
-  const label = barFor(featureId)
-    .closest('[data-slot="feature-group"]')
-    ?.querySelector('[data-slot="bar-label"]')
-  if (label === null || label === undefined) throw new Error(`no label for ${featureId}`)
-  return label
-}
 
 const numberOf = (element: Element, attribute: string): number =>
   Number(element.getAttribute(attribute))
@@ -198,12 +182,6 @@ describe('the geometry the components are kept thin by', () => {
     }
   })
 
-  // The budget clears the gap as well as the inset, because the gap is taken off the bar's drawn
-  // width: a label measured against the full span would overrun the edge it is written inside.
-  it('budgets a label against the inset and the gap the bars are drawn with, so one number moves both', () => {
-    expect(LABEL_METRICS.inset).toBe(LAYOUT.labelInset + BAR_GAP)
-    expect(LABEL_METRICS.charWidth).toBeGreaterThan(0)
-  })
 })
 
 describe('PlanCanvas', () => {
@@ -258,7 +236,7 @@ describe('PlanCanvas', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
     // `RailNames` draws `Platform` beside the canvas; the rail group here is geometry and two keys.
     expect(screen.queryByText('Platform')).toBeNull()
-    expect(all('[data-slot="plan-canvas"] text')).toHaveLength(slot('bar-label').length)
+    expect(all('[data-slot="plan-canvas"] text')).toHaveLength(0)
     expect(only('[data-slot="rail"]').getAttribute('data-epic-id')).toBe(EPIC_1)
     expect(only('[data-slot="rail"]').getAttribute('data-colour')).toBe(PLATFORM_BLUE)
   })
@@ -427,64 +405,6 @@ describe('a feature the forward pass left off the axis', () => {
   })
 })
 
-describe('the name each bar carries', () => {
-  it('sets a wide bar’s name on the bar itself, one label inset in from its own left edge', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    const label = labelFor(FEATURE_1)
-    expect(numberOf(label, 'x')).toBe(numberOf(barFor(FEATURE_1), 'x') + LAYOUT.labelInset)
-    expect(numberOf(label, 'y')).toBe(insideRail(0, 'bar') + LAYOUT.barHeight / 2)
-    // Dark and not white: a bar is a translucent wash inside an outline now, so white text on one is
-    // white text on the page.
-    expect(label.getAttribute('class')).toContain('fill-foreground')
-  })
-
-  it('cuts a name that outruns its own bar to an ellipsis, since SVG has no text-overflow', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    expect(labelFor(FEATURE_1).textContent).toBe('Auth rew…')
-    expect(screen.queryByText('Auth rewrite')).toBeNull()
-  })
-
-  it('puts a narrow bar’s name after it in the canvas ink, where the whole name still fits', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    const bar = barFor(FEATURE_2)
-    const label = labelFor(FEATURE_2)
-    expect(numberOf(label, 'x')).toBe(
-      numberOf(bar, 'data-x') + numberOf(bar, 'data-width') + LABEL_METRICS.inset,
-    )
-    expect(label.textContent).toBe('Billing')
-    expect(label.getAttribute('class')).toContain('fill-foreground')
-  })
-
-  it('takes no pointer on either, so a name is never a hole in the bar it is drawn over', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    expect(slot('bar-label')).toHaveLength(2)
-    for (const label of slot('bar-label')) {
-      expect(label.getAttribute('class')).toContain('pointer-events-none')
-    }
-  })
-
-  // A point has no inside to write in, so every name at the node rungs sits after its dot and is
-  // bounded by the next one on that rail — which is the gap that has to hold the text.
-  it('names a node beside it, never on it, the point having no inside to write in', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
-    expect(slot('feature-bar')).toHaveLength(2)
-    const labels = slot('bar-label')
-    expect(labels.length).toBeGreaterThan(0)
-    for (const label of labels) {
-      expect(label.getAttribute('class')).not.toContain('fill-foreground text-[11px] font-medium')
-    }
-  })
-
-  // Below four characters `cut` has nothing left to keep and returns a letter and an ellipsis, which
-  // names nothing and sits in front of the point it was meant to label.
-  it('draws no name at all where the gap cannot hold a readable one', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
-    for (const label of slot('bar-label')) {
-      expect((label.textContent ?? '').replace('…', '').length).toBeGreaterThanOrEqual(3)
-    }
-  })
-})
-
 describe('the chrome the canvas draws around its rails', () => {
   it('washes a quarter band and labels none, the ordinals being an HTML row above the canvas', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
@@ -531,9 +451,7 @@ describe('the chrome the canvas draws around its rails', () => {
 
   it('writes no calendar date into the permanent chrome, which is what §5 reserves a hover for', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
-    const drawn = all('[data-slot="plan-canvas"] text')
-    expect(drawn.map((text) => text.getAttribute('data-slot'))).toEqual(['bar-label', 'bar-label'])
-    for (const text of drawn) expect(text.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}/)
+    expect(all('[data-slot="plan-canvas"] text')).toEqual([])
     // Today's `<title>` is the one date in the SVG, and a title draws nothing until it is pointed at.
     expect(all('[data-slot="plan-canvas"] title')).toHaveLength(1)
     expect(only('[data-slot="today"] title').textContent).toContain('2026-10-05')
@@ -639,11 +557,10 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
     )
   })
 
-  it('names all 200 bars, and pays one text per bar and none at all per item', () => {
+  it('draws all 200 bars and pays no text for any of them, which is 200 elements it used to', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(planAtCap())} rung="item" />)
     const canvas = only('[data-slot="plan-canvas"]')
-    expect(slot('bar-label')).toHaveLength(LIMITS.featuresPerPlan)
-    expect(canvas.querySelectorAll('text')).toHaveLength(LIMITS.featuresPerPlan)
+    expect(canvas.querySelectorAll('text')).toHaveLength(0)
     expect(slot('feature-group')).toHaveLength(LIMITS.featuresPerPlan)
   })
 
@@ -698,5 +615,25 @@ describe('what the grid rules at each stop, which follows what the header counts
     expect(numberOf(nth(rules, 1), 'y2')).toBe(
       numberOf(only('[data-slot="plan-canvas"]'), 'height'),
     )
+  })
+})
+
+describe('what the canvas draws, now that it draws no words at all', () => {
+  it('draws no text at any stop, every name being in the sidebar, the table or the hover card', () => {
+    for (const rung of ['epic', 'feature', 'item'] as const) {
+      cleanup()
+      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung={rung} />)
+      expect(only('[data-slot="plan-canvas"]').querySelectorAll('text')).toHaveLength(0)
+    }
+  })
+
+  it('draws no bar label, the slot having gone rather than merely been emptied', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    expect(slot('bar-label')).toEqual([])
+  })
+
+  it('still draws a mark for every placed feature, the words going and the geometry staying', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    expect(slot('feature-bar').length).toBeGreaterThan(0)
   })
 })

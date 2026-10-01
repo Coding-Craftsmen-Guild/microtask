@@ -26,7 +26,6 @@ const ROOT = PLAN_ROOT
 const DIMMABLE = [
   '[data-slot="feature-bar"]',
   '[data-slot="item-mark"]',
-  '[data-slot="bar-label"]',
   '[data-slot="arc"]',
   '[data-slot="plan-table-row"]',
 ].join(',')
@@ -74,12 +73,15 @@ const ruleFor = (labelId: string): string =>
  * {@link DIMMABLE} names the slots instead, which says what was meant: dim every mark that is not in the
  * chosen group, whether it is in another one or in none.
  *
- * All five kinds are named for a reason. `bar-label` and `arc` carry a `data-label-id` for this rule and
- * nothing else; without them a feature's **name** stays bright over its own dimmed bar, which reads as a
- * rendering fault rather than a selection, and the arcs stay at full weight over a quiet plan. A
- * `plan-table-row` is here because the table is the second rendering of the same plan (ADR 0056) and the
- * chips filter both. An arc takes the label of the feature it **leaves** (`canvas/arc-view.ts`), so a
- * chosen group keeps its own outgoing edges lit.
+ * All four kinds are named for a reason. `arc` carries a `data-label-id` for this rule and nothing else;
+ * without it the arcs stay at full weight over a quiet plan. A `plan-table-row` is here because the
+ * table is the second rendering of the same plan (ADR 0056) and the chips filter both. An arc takes the
+ * label of the feature it **leaves** (`canvas/arc-view.ts`), so a chosen group keeps its own outgoing
+ * edges lit.
+ *
+ * There were five. `bar-label` was the fifth, and it is gone with the names themselves — the canvas
+ * draws no text at all now (`canvas/rail-features.tsx`), so there is no name left to stay bright over
+ * its own dimmed bar.
  *
  * An id that is not ULID-shaped is **skipped** rather than escaped: it cannot occur, since every id here
  * came out of a `PlanView` decode, and a rule is the wrong place to be clever about a value that should
