@@ -249,6 +249,18 @@ describe('the card a hover puts up', () => {
     fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
     expect(card()?.getAttribute('aria-hidden')).toBe('true')
   })
+
+  // The title was `truncate`, which mattered little while a bar carried its own name and matters a
+  // great deal now that it does not: this is the only place on the board a name appears in full, and
+  // a card that cut it off would make the gesture that replaced the labels worse than the labels.
+  it('wraps a long title onto another line rather than cutting it off at the card’s edge', () => {
+    show()
+    fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
+    const title = card()?.querySelector('p')
+    expect(title?.className).not.toContain('truncate')
+    expect(title?.className).toContain('break-words')
+    expect(title?.textContent).toBe(splitDetail(detailOf(FEATURE_1)).title)
+  })
 })
 
 describe('what a hover lights', () => {

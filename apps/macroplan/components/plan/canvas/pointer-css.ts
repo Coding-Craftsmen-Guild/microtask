@@ -68,10 +68,18 @@ export const POINTER_CSS = [
  * `aria-hidden` goes on it in the component for the reason the drag ghost carries one: it is a visual
  * echo of something already in the accessibility tree, and the keyboard path to the same facts is the
  * table, which names every one of them in a cell.
+ *
+ * ### Why the title wraps
+ *
+ * It was `truncate`, which cost little while every bar carried its own name and costs a great deal
+ * now that none does: this is the only place on the board where a feature or an item is named in
+ * full. A card put up to say what something is, cutting off what it is, would make the gesture that
+ * replaced the labels worse than the labels were. `max-w-80` is what stops it growing without bound,
+ * and `break-words` is what keeps an unspaced id from pushing past that.
  */
 export const CARD = {
   root: 'pointer-events-none fixed z-50 max-w-80 rounded-md border border-border bg-background px-3 py-2 text-[12px] shadow-lg',
-  title: 'mb-1 truncate text-[13px] font-semibold text-foreground',
+  title: 'mb-1 break-words text-[13px] font-semibold text-foreground',
   rows: 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5',
   label: 'text-muted-foreground',
   value: 'text-foreground',
