@@ -346,3 +346,38 @@ Each of these is its own spec, in this order:
 
 Also out of scope here: any change to `@repo/schedule`'s forward pass. No bar moves because of
 anything in this spec.
+
+## 7. As built, four things differ from the above
+
+Written after the work, because each was found by opening the page rather than by reasoning about it.
+
+**The selection sheets anchored on an element that did not exist.** §4.1 treats the dimming rule's
+`:not()` as the whole defect. It was half of it. Both generated sheets — `labels/group-css.ts` and
+`sidebar/select-css.ts` — opened every rule with `[data-slot="plan-root"]`, and nothing has rendered
+that slot since the frame of ADR 0068 replaced the old root with `plan-shell`. So no rule in either
+sheet could match, and the sidebar's rail and feature selection had never dimmed anything either.
+
+Nothing failed, and the reason is worth keeping: each sheet's tests assert the rule's **text**, the
+marks' tests assert the **attributes** those rules name, and no test joined the two. A selector that
+matches nothing is valid CSS. The anchor is now one exported constant, `shell/shell-css.ts`'s
+`PLAN_ROOT`, and `plan-screen.test.tsx` holds the join — the anchor must be an element the screen
+renders *and* an ancestor of the radios and the marks.
+
+**The first band can open before day zero, so the header clamps the cell.** A calendar quarter does
+not care when a plan started: a plan opening 2026-09-28 sits in a Q3 2026 that began on 2026-07-01,
+sixty working days earlier. `calendarBands` returns that band whole, as it must, so its `x` is
+negative — `time-header.tsx`'s `cellOf` floors the cell's `left` at the axis origin and takes exactly
+those pixels off its width.
+
+**Two more header faults followed from that and are fixed with it.** Each cell now clips to its own
+band, because a four-pixel sliver of Q3 2026 was printing its name on top of Q4 2026's; and a band
+narrower than `NAMEABLE` draws its cell and **no** text, because clipping alone left a lone `Q` in the
+corner that reads as a rendering fault. The week cells clip but still wrap to two lines, which is what
+lets `W40–41` fit a 40px column at the Year stop.
+
+**`FEATURE_RUNG_MAX_DAYS` keeps 60 and stops pretending to be derived.** §2.1 deletes
+`SPRINTS_PER_QUARTER`, which that bound was computed from. A calendar quarter is 62 to 66 working days
+depending on which one and which year, so no constant equals it, and `rungFor` is handed a `DayRange`
+with no calendar and could not know which quarter a viewport is over in any case. The bound is now
+openly an approximation of a quarter rather than a restatement of one — the same limit
+`ITEM_RUNG_MAX_DAYS` already lives with.
