@@ -296,11 +296,24 @@ describe('the rail drawer, which is where a binding lives now', () => {
 describe('the group drawer', () => {
   it('names the group, counts what is in it, and offers the three label writes', async () => {
     render(await GroupDrawerPage(groupParams(LABEL_1)))
-    expect(screen.getByText(/features in this group/)).toBeTruthy()
+    expect(screen.getByText(/in this group/)).toBeTruthy()
     const handed = handedBy(await GroupDrawerPage(groupParams(LABEL_1)))
     for (const write of ['renameLabel', 'recolourLabel', 'removeLabel']) {
       expect(handed.functions).toContain(write)
     }
+  })
+
+  // ADR 0064 kept membership off this drawer, on the grounds that it would be a second place to write
+  // one pointer. It is a second place to *invoke* one write against one record, which is the thing the
+  // objection was not about — so the assertion is that it is the same write the feature's own drawer
+  // sends, and that every feature is offered rather than only the ones already in.
+  it('fills the group from here too, over the same feature:label write and no other', async () => {
+    render(await GroupDrawerPage(groupParams(LABEL_1)))
+    const boxes = document.querySelectorAll('[data-slot="group-members"] input[type="checkbox"]')
+    const handed = handedBy(await GroupDrawerPage(groupParams(LABEL_1)))
+
+    expect(boxes.length).toBe(atlasPlan().features.length)
+    expect(handed.functions).toContain('labelFeature')
   })
 
   it('is notFound for a label id the plan does not hold', async () => {

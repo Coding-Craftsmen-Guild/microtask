@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation'
-import { recolourLabel, removeLabel, renameLabel } from '../../../../../../actions/labels'
+import { labelFeature, recolourLabel, removeLabel, renameLabel } from '../../../../../../actions/labels'
 import { DrawerShell } from '../../../../../../components/plan/drawer/drawer-shell'
+import { GroupMembers } from '../../../../../../components/plan/labels/group-members'
 import { LabelForm } from '../../../../../../components/plan/labels/label-form'
 import { labelRows } from '../../../../../../components/plan/labels/label-rows'
+import { joinMembers, memberRows } from '../../../../../../components/plan/labels/member-rows'
 import { ADMIN_CONTROLS } from '../../../../../../lib/admin-controls'
 import { planPath } from '../../../../../../lib/routes'
 import { readPlan } from '../../read-plan'
@@ -13,8 +15,6 @@ export interface GroupDrawerPageProps {
   readonly params: Promise<{ readonly planId: string; readonly labelId: string }>
 }
 
-const COUNT = 'text-[13px] text-muted-foreground'
-
 /**
  * `/plans/<planId>/g/<labelId>`: one group, renamed, recoloured or deleted.
  *
@@ -22,10 +22,12 @@ const COUNT = 'text-[13px] text-muted-foreground'
  * a release that turns out to hold two features is a different thing from one holding thirty, and nothing
  * else on this surface counts them. `labelRows` already does, for the chips in the heading.
  *
- * It does **not** carry "put this feature in this group". That is a field on the feature's own drawer
- * (`drawer/group-field.tsx`), because a feature points at a label and not the other way round (ADR 0064) —
- * a group with a list of members here would be a second place to write the same pointer, and the two could
- * disagree about a feature whose label was changed from the other side.
+ * It **does** carry "put this feature in this group" now, which ADR 0064 originally kept off it. The
+ * objection was that "a group with a list of members here would be a second place to write the same
+ * pointer, and the two could disagree" — and it does not apply to what is here: the boxes send
+ * `feature:label`, the same single write the feature's own drawer sends, against the same single record.
+ * There is one place the answer is stored and two places to invoke the write, which is not the same thing
+ * as two places to store it. `components/plan/labels/group-members.tsx` carries the rest of the argument.
  */
 export default async function GroupDrawerPage({ params }: GroupDrawerPageProps) {
   const { planId, labelId } = await params
@@ -36,7 +38,6 @@ export default async function GroupDrawerPage({ params }: GroupDrawerPageProps) 
   const { content } = ADMIN_CONTROLS
   return (
     <DrawerShell closeHref={planPath(planId)} title={group.name}>
-      <p className={COUNT}>{`${String(group.features)} features in this group`}</p>
       <LabelForm
         colour={group.colour}
         labelId={group.id}
@@ -48,6 +49,12 @@ export default async function GroupDrawerPage({ params }: GroupDrawerPageProps) 
         recolour={recolourLabel}
         remove={removeLabel}
         rename={renameLabel}
+      />
+      <GroupMembers
+        labelId={group.id}
+        options={joinMembers(memberRows(loaded.value, group.id))}
+        planId={planId}
+        setLabel={labelFeature}
       />
     </DrawerShell>
   )

@@ -24,6 +24,7 @@ import {
   atlasPlan,
   FEATURE_1,
   ITEM_1,
+  LABEL_1,
   PLAN_A,
   railedPlan,
   SEAT_TOKEN,
@@ -48,6 +49,8 @@ import { BindProjectForm } from './bridge/bind-project-form'
 import { LinkField } from './drawer/link-field'
 import { TaskPicker } from './drawer/task-picker'
 import { GroupChipRoot } from './labels/group-chip-root'
+import { GroupMembers } from './labels/group-members'
+import { joinMembers, memberRows } from './labels/member-rows'
 import { GroupChips } from './labels/group-chips'
 import { LabelFields } from './labels/label-fields'
 import { NewRailForm } from './rails/new-rail-form'
@@ -301,6 +304,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [LinkField, 'drawer/link-field.tsx'],
   [TaskPicker, 'drawer/task-picker.tsx'],
   [GroupChipRoot, 'labels/group-chip-root.tsx'],
+  [GroupMembers, 'labels/group-members.tsx'],
   [LabelForm, 'labels/label-form.tsx'],
   [LabelFields, 'labels/label-fields.tsx'],
   [NewLabelForm, 'labels/new-label-form.tsx'],
@@ -564,6 +568,13 @@ const TREES = [
     values: ITEM.values,
   }),
   panel({ controls: NOTHING_DRAWN, key: 'i' }),
+  <GroupMembers
+    key="gm"
+    labelId={LABEL_1}
+    options={joinMembers(memberRows(planScreenModel(atlasPlan()), LABEL_1))}
+    planId={PLAN_A}
+    setLabel={STUB_ACTIONS.labelFeature}
+  />,
   <PlanScreen
     actions={STUB_ACTIONS}
     at={AT}
