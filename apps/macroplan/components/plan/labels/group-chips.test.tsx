@@ -7,8 +7,11 @@ import { GROUP_RADIO_NAME, groupRadioId, groupCss, ALL_RADIO_ID, DIMMED_OPACITY 
 import { PLAN_ROOT } from '../shell/shell-css'
 import { GroupChips } from './group-chips'
 import { labelRows } from './label-rows'
+import { allWorkFit, groupFits } from './group-fit'
 
 const ROWS = labelRows(planScreenModel(atlasPlan()))
+
+const ALL_FIT = allWorkFit(planScreenModel(atlasPlan()))
 
 const radios = (): readonly HTMLInputElement[] => [
   ...document.querySelectorAll<HTMLInputElement>(`input[name="${GROUP_RADIO_NAME}"]`),
@@ -31,7 +34,7 @@ afterEach(() => {
 
 describe('the chips that select one group across every rail', () => {
   it('draws one radio per group plus the one that clears the choice, and opens on that one', () => {
-    render(<GroupChips mayAdd={false} planId={null} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
 
     expect(radios().map((one) => one.id)).toEqual([
       ALL_RADIO_ID,
@@ -42,7 +45,7 @@ describe('the chips that select one group across every rail', () => {
   })
 
   it('names each group and counts what is in it, an empty one in a single word', () => {
-    render(<GroupChips mayAdd={false} planId={null} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
 
     // The words themselves, not `GROUP_WORDS.none` interpolated. An empty group first read
     // "nothing in it yet", which is a sentence in a control strip and wrapped the chip row onto a
@@ -54,13 +57,13 @@ describe('the chips that select one group across every rail', () => {
   })
 
   it('names the chip that clears the choice, so the way back out of a group is a word and not a gesture', () => {
-    render(<GroupChips mayAdd={false} planId={null} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
 
     expect(document.querySelector(`label[for="${ALL_RADIO_ID}"]`)?.textContent).toBe('All work')
   })
 
   it('keeps every radio a label of its own chip, so a click on the words checks it', () => {
-    render(<GroupChips mayAdd={false} planId={null} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
 
     for (const one of radios()) {
       const chip = document.querySelector(`label[for="${one.id}"]`)
@@ -80,7 +83,7 @@ describe('the chips that select one group across every rail', () => {
    * saying nothing about whether a chosen chip still looks chosen.
    */
   it('leaves chosen and focused to the browser, which needs the radio sr-only and the chip its peer', () => {
-    render(<GroupChips mayAdd={false} planId={null} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
 
     // So the loop below cannot pass by finding nothing: one radio per group, plus the clearing one.
     expect(radios()).toHaveLength(ROWS.length + 1)
@@ -95,18 +98,18 @@ describe('the chips that select one group across every rail', () => {
   })
 
   it('draws nothing at all for a plan with no groups, rather than a lone All chip', () => {
-    const { container } = render(<GroupChips mayAdd={false} planId={null} rows={[]} />)
+    const { container } = render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={[]} />)
 
     expect(container.firstChild).toBeNull()
   })
 
   it('says features in the plural only past one, a group of one being the common new group', () => {
-    const one = [{ id: LABEL_1, name: 'Phase 1', colour: '#7c3aed', features: 1 }]
-    const two = [{ id: LABEL_2, name: 'Phase 2', colour: '#0088cc', features: 2 }]
+    const one = [{ id: LABEL_1, name: 'Phase 1', colour: '#7c3aed', features: 1, fit: null }]
+    const two = [{ id: LABEL_2, name: 'Phase 2', colour: '#0088cc', features: 2, fit: null }]
     render(
       <>
-        <GroupChips mayAdd={false} planId={null} rows={one} />
-        <GroupChips mayAdd={false} planId={null} rows={two} />
+        <GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={one} />
+        <GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={two} />
       </>,
     )
 
@@ -156,7 +159,7 @@ describe('the rule that dims what is not in the chosen group', () => {
   })
 
   it('skips an id that could not be a ULID, rather than escaping it into a selector', () => {
-    const hostile = [{ id: 'a"]{}', name: 'Injected', colour: '#000000', features: 0 }]
+    const hostile = [{ id: 'a"]{}', name: 'Injected', colour: '#000000', features: 0, fit: null }]
 
     expect(groupCss(hostile)).toBe('')
   })
@@ -198,7 +201,7 @@ describe('the rule that dims what is not in the chosen group', () => {
   })
 
   it('ships the rules inside the chips, so a plan with groups carries exactly one style element', () => {
-    render(<GroupChips mayAdd={false} planId={null} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
 
     expect(document.querySelectorAll('style')).toHaveLength(1)
     expect(styleText()).toBe(groupCss(ROWS))
@@ -207,7 +210,7 @@ describe('the rule that dims what is not in the chosen group', () => {
 
 describe('the way into a group, and the way to make one', () => {
   it('opens a group’s own drawer on a double click, the chip’s single click being the selection', () => {
-    render(<GroupChips mayAdd planId={PLAN_A} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd planId={PLAN_A} rows={ROWS} />)
     const chip = screen.getByText(/Phase 1/)
 
     fireEvent.doubleClick(chip)
@@ -216,7 +219,7 @@ describe('the way into a group, and the way to make one', () => {
   })
 
   it('leaves a single click alone, so choosing a group still costs one click and no navigation', () => {
-    render(<GroupChips mayAdd planId={PLAN_A} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd planId={PLAN_A} rows={ROWS} />)
 
     fireEvent.click(screen.getByText(/Phase 1/))
 
@@ -224,7 +227,7 @@ describe('the way into a group, and the way to make one', () => {
   })
 
   it('navigates nowhere for a double click that lands on no chip at all', () => {
-    render(<GroupChips mayAdd planId={PLAN_A} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd planId={PLAN_A} rows={ROWS} />)
 
     fireEvent.doubleClick(screen.getByText('All work'))
 
@@ -232,7 +235,7 @@ describe('the way into a group, and the way to make one', () => {
   })
 
   it('offers a new group at the end of the row, where the groups are and not up in the head', () => {
-    render(<GroupChips mayAdd planId={PLAN_A} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd planId={PLAN_A} rows={ROWS} />)
     const pill = screen.getByRole('link', { name: 'New group' })
 
     expect(pill.getAttribute('href')).toBe(`/plans/${PLAN_A}/new/group`)
@@ -240,7 +243,7 @@ describe('the way into a group, and the way to make one', () => {
   })
 
   it('offers it to a viewer who may make one and to nobody else', () => {
-    render(<GroupChips mayAdd={false} planId={PLAN_A} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={PLAN_A} rows={ROWS} />)
 
     expect(screen.queryByRole('link', { name: 'New group' })).toBeNull()
   })
@@ -249,7 +252,7 @@ describe('the way into a group, and the way to make one', () => {
   // features and items and nothing else — so it passes no plan id, and the chips stay what they are
   // there: a way of looking at the plan, with nothing to open and nothing to add.
   it('stays a plain selector where no plan id is passed, which is the seat surface', () => {
-    render(<GroupChips mayAdd planId={null} rows={ROWS} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd planId={null} rows={ROWS} />)
 
     fireEvent.doubleClick(screen.getByText(/Phase 1/))
 
@@ -258,9 +261,38 @@ describe('the way into a group, and the way to make one', () => {
   })
 
   it('still draws nothing at all for a plan with no groups, pill included', () => {
-    render(<GroupChips mayAdd planId={PLAN_A} rows={[]} />)
+    render(<GroupChips allFit={ALL_FIT} mayAdd planId={PLAN_A} rows={[]} />)
 
     expect(document.querySelector('[data-slot="group-chips"]')).toBeNull()
     expect(screen.queryByRole('link', { name: 'New group' })).toBeNull()
+  })
+})
+
+// Where the view goes when a chip is chosen is decided on the server and written onto the chip, for
+// the reason `data-detail` and `data-hover-id` are: the root that reads it is a client component, and
+// a map of groups is not one of the four things it may be handed (`../module-boundaries.test.tsx`).
+describe('what a chip carries about where the view should go', () => {
+  const chipFor = (labelId: string): Element | null =>
+    document.querySelector(`[data-slot="group-chip"][data-label-id="${labelId}"]`)
+
+  it('names the stop and the first day for a group with work placed in it', () => {
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
+    const fit = groupFits(planScreenModel(atlasPlan())).get(LABEL_1)
+    expect(chipFor(LABEL_1)?.getAttribute('data-fit-rung')).toBe(fit?.rung)
+    expect(chipFor(LABEL_1)?.getAttribute('data-fit-day')).toBe(String(fit?.day))
+  })
+
+  it('carries neither on a group with nothing placed, so clicking it selects and moves nothing', () => {
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
+    expect(groupFits(planScreenModel(atlasPlan())).get(LABEL_2)).toBeUndefined()
+    expect(chipFor(LABEL_2)?.getAttribute('data-fit-rung')).toBeNull()
+    expect(chipFor(LABEL_2)?.getAttribute('data-fit-day')).toBeNull()
+  })
+
+  it('sends All work back to the plan’s own opening fit, at day zero', () => {
+    render(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
+    const all = document.querySelector(`label[for="${ALL_RADIO_ID}"]`)
+    expect(all?.getAttribute('data-fit-rung')).toBe(ALL_FIT.rung)
+    expect(all?.getAttribute('data-fit-day')).toBe('0')
   })
 })

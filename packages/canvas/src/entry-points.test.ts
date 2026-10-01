@@ -21,6 +21,7 @@ describe('@repo/canvas entry points', () => {
       'ZOOM_STOPS',
       'arcLayout',
       'bestFit',
+      'bestSpan',
       'calendarBands',
       'countsAsDone',
       'countsAsStarted',

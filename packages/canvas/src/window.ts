@@ -122,3 +122,43 @@ export function bestFit<T extends { readonly pxPerDay: number }>(
   })
   return fits ?? offers.at(-1) ?? null
 }
+
+/**
+ * The finest offered scale that draws a given run of working days inside the pane.
+ *
+ * ### Why this is not {@link bestFit}
+ *
+ * They answer different questions. `bestFit` asks how to **open a plan**, so it routes each offer
+ * through {@link rangeFor}, which pads the window out past the last day to a whole sprint boundary —
+ * the axis a plan is drawn on should not stop mid-sprint.
+ *
+ * A group chip asks how to **fit a window that already exists**. Padding it is wrong twice over: the
+ * window's edges are the group's own first and last day and nothing is drawn past them, and the
+ * padding changes the answer. A run of exactly two sprints, padded by one more, no longer fits at the
+ * stop that exists to hold two sprints — so the plainest statement of the rule, "a group of about two
+ * sprints shows its items", would have been false.
+ *
+ * The tolerance is the same `TOLERABLE_OVERFLOW` `bestFit` allows, shared rather than restated, so the
+ * two can never disagree about what counts as fitting.
+ *
+ * ### What it assumes, and does not read
+ *
+ * No `sprintLengthDays`. The question is pixels — how wide is this run at this scale — and a sprint
+ * length cannot change that. The consequence is the one `rungs.ts` already states for
+ * `ITEM_RUNG_MAX_DAYS`: "two sprints" is two *ten-day* sprints, and a plan on longer sprints reaches a
+ * finer stop at fewer of its own. That is the price of an answer that is a function of the view alone,
+ * and it is the right price here for the same reason it is there.
+ *
+ * @param offers - The scales to choose between, **finest first**; the order is the preference.
+ * @param days - How many working days the run covers.
+ * @param paneWidth - How wide the pane is, which is a constant on the server (no viewport exists).
+ * @returns The first offer that fits, the widest offered if none does, or `null` if none was offered.
+ */
+export function bestSpan<T extends { readonly pxPerDay: number }>(
+  offers: readonly T[],
+  days: number,
+  paneWidth: number,
+): T | null {
+  const room = paneWidth * TOLERABLE_OVERFLOW
+  return offers.find((offer) => days * offer.pxPerDay <= room) ?? offers.at(-1) ?? null
+}

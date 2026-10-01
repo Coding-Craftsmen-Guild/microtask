@@ -1,4 +1,4 @@
-import { ZOOM_STOPS, bestFit, lastPlannedDay, rangeFor, scaleFor, todayLine } from '@repo/canvas'
+import { ZOOM_STOPS, bestFit, bestSpan, lastPlannedDay, rangeFor, scaleFor, todayLine } from '@repo/canvas'
 import type { CanvasSchedule, DayRange, PlanScale, Rung } from '@repo/canvas'
 import type { PlanCalendar } from '@repo/schedule'
 import { CANVAS_SCALE } from './view'
@@ -43,6 +43,8 @@ export const DEFAULT_ZOOM: Rung = 'feature'
 
 const FINEST_FIRST: readonly Rung[] = ['item', 'feature', 'epic']
 
+const OFFERS = FINEST_FIRST.map((rung) => ({ rung, pxPerDay: ZOOM_STOPS[rung].pxPerDay }))
+
 /**
  * Which zoom to open a plan at when the reader has never chosen one.
  *
@@ -61,14 +63,38 @@ const FINEST_FIRST: readonly Rung[] = ['item', 'feature', 'epic']
  * a number that only decides whether a short plan is followed by spare axis or by a scrollbar.
  */
 export function openingZoom(plan: ZoomPlan): Rung {
-  const offers = FINEST_FIRST.map((rung) => ({ rung, pxPerDay: ZOOM_STOPS[rung].pxPerDay }))
-  const fit = bestFit(offers, {
+  const fit = bestFit(OFFERS, {
     lastDay: lastPlannedDay(plan.schedule),
     sprintLengthDays: plan.sprintLengthDays,
     paneWidth: PANE_WIDTH,
     ...(plan.todayDay === undefined ? {} : { todayDay: plan.todayDay }),
   })
   return fit?.rung ?? DEFAULT_ZOOM
+}
+
+/**
+ * The finest stop that puts a run of working days inside the pane.
+ *
+ * {@link openingZoom} asks this question of the **whole plan**, measured from day zero. A group chip
+ * asks it of one group, measured from wherever that group happens to start — so what varies is a
+ * length and not an end day, and this takes the length.
+ *
+ * It walks the same stops in the same order, finest first, which is what makes "a group of about two
+ * sprints shows its items" fall out rather than be written again: a group that short is the first
+ * offer that fits, and nothing further down the list is consulted.
+ *
+ * `todayDay` is deliberately not taken. Reaching the today marker is a property of the plan's own
+ * axis, and a reader who asked to look at one group has not asked to see today as well.
+ *
+ * Neither is `sprintLengthDays`. `bestSpan` carries why at length: it pads by nothing, where `bestFit`
+ * pads out to a sprint boundary, and padding a window that already has edges would make a group of
+ * about two sprints fail to fit at the stop that exists to hold two sprints.
+ *
+ * @param days - How many working days the thing being fitted covers.
+ * @returns The stop to draw at, widest-case `DEFAULT_ZOOM` for a run no stop can hold.
+ */
+export function fitFor(days: number): Rung {
+  return bestSpan(OFFERS, days, PANE_WIDTH)?.rung ?? DEFAULT_ZOOM
 }
 
 /**

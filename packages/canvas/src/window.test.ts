@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CanvasSchedule } from './plan.js'
-import { bestFit, lastPlannedDay, rangeFor } from './window.js'
+import { bestFit, bestSpan, lastPlannedDay, rangeFor } from './window.js'
 
 const scheduleOf = (spans: readonly { readonly endDay: number }[]): CanvasSchedule => ({
   spans: spans.map((span, index) => ({ id: `f${String(index)}`, startDay: 0, endDay: span.endDay })),
@@ -139,5 +139,39 @@ describe('rangeFor reaches today, so the marker is never drawn off the canvas', 
 
   it('still lands on a sprint boundary once it has stretched to reach today', () => {
     expect(rangeFor({ ...QUERY, lastDay: 5, todayDay: 173, pxPerDay: 400 }).toDay % 10).toBe(0)
+  })
+})
+
+describe('bestSpan', () => {
+  const stops = [{ pxPerDay: 42 }, { pxPerDay: 14 }, { pxPerDay: 4 }] as const
+
+  it('takes the finest scale that draws the whole run inside the pane', () => {
+    expect(bestSpan(stops, 20, 1040)?.pxPerDay).toBe(42)
+  })
+
+  it('widens once the run no longer fits at the finest', () => {
+    expect(bestSpan(stops, 60, 1040)?.pxPerDay).toBe(14)
+  })
+
+  it('falls back to the widest offered rather than answering nothing for a very long run', () => {
+    expect(bestSpan(stops, 4000, 1040)?.pxPerDay).toBe(4)
+  })
+
+  it('answers null only when nothing was offered at all', () => {
+    expect(bestSpan([], 20, 1040)).toBeNull()
+  })
+
+  it('allows the same overflow bestFit does, so the two cannot disagree about what fits', () => {
+    const room = 1040 * 1.5
+    expect(bestSpan(stops, Math.floor(room / 42), 1040)?.pxPerDay).toBe(42)
+    expect(bestSpan(stops, Math.ceil(room / 42) + 1, 1040)?.pxPerDay).toBe(14)
+  })
+
+  it('pads by nothing, which is the whole difference from bestFit', () => {
+    // bestFit asks how to open a *plan*, so rangeFor pads its window out past the last day to a whole
+    // sprint boundary. A group is a window that already exists: padding it would make a run of exactly
+    // two sprints fail to fit at the stop that is meant to hold two sprints.
+    expect(bestSpan(stops, 24, 1040)?.pxPerDay).toBe(42)
+    expect(bestFit(stops, { lastDay: 24, sprintLengthDays: 14, paneWidth: 1040 })?.pxPerDay).toBe(14)
   })
 })

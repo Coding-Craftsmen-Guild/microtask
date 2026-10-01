@@ -2,6 +2,7 @@ import type { AttentionMap } from '../../../components/plan/attention/attention'
 import { trayRows } from '../../../components/plan/attention/tray-rows'
 import { UnscheduledTray } from '../../../components/plan/attention/unscheduled-tray'
 import { GroupChips } from '../../../components/plan/labels/group-chips'
+import { allWorkFit } from '../../../components/plan/labels/group-fit'
 import { labelRows } from '../../../components/plan/labels/label-rows'
 import type { PlanScreenModel } from '../../../components/plan/plan-screen-model'
 import { PlanSidebar } from '../../../components/plan/sidebar/plan-sidebar'
@@ -44,5 +45,5 @@ export function seatTraySlot(plan: PlanScreenModel, token: string, found: Attent
 
 /** The group chips, which a holder may use to pick out work across rails whatever their role. */
 export function seatGroupsSlot(plan: PlanScreenModel) {
-  return <GroupChips mayAdd={false} planId={null} rows={labelRows(plan)} />
+  return <GroupChips allFit={allWorkFit(plan)} mayAdd={false} planId={null} rows={labelRows(plan)} />
 }

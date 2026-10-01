@@ -445,6 +445,7 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
       planId: PLAN_A,
     })
     expect(propsIn(handed['groups'])).toEqual({
+      allFit: expect.anything(),
       mayAdd: true,
       planId: PLAN_A,
       rows: expect.anything(),

@@ -25,8 +25,19 @@ const DETAIL = detailsOf(planScreenModel(atlasPlan()))
 
 const detailOf = (id: string): string => DETAIL.get(id) ?? ''
 
+const FIT_DAY = 30
+
 const board = () => (
   <div data-slot="plan-board">
+    <div data-slot="group-chips">
+      <label data-fit-day={0} data-fit-rung="feature">
+        All work
+      </label>
+      <label data-fit-day={FIT_DAY} data-fit-rung="item" data-slot="group-chip">
+        Phase 1
+      </label>
+      <label data-slot="group-chip">Phase 2</label>
+    </div>
     <div data-detail={detailOf(FEATURE_1)} data-hover-id={FEATURE_1} data-slot="sidebar-row">
       Auth rewrite
     </div>
@@ -306,5 +317,83 @@ describe('over the canvas the server really renders, rather than a fixture of on
     })
     expect(card()?.textContent).toContain('Auth rewrite')
     expect(lit()).toContain('item-mark')
+  })
+})
+
+describe('fitting the view to a group when its chip is clicked', () => {
+  const chip = (which: number): Element => {
+    const found = [...document.querySelectorAll('[data-slot="group-chip"]')][which]
+    if (found === undefined) throw new Error('no chip')
+    return found
+  }
+
+  const scroller = (): HTMLElement => at('[data-slot="timeline-scroller"]') as HTMLElement
+
+  it('asks for the stop the chip names, which is the one the whole group fits at', () => {
+    show({ rung: 'epic' })
+    fireEvent.click(chip(0))
+    expect(asked).toEqual(['item'])
+  })
+
+  it('writes no zoom when the group already fits at the stop on screen, and scrolls anyway', () => {
+    show({ rung: 'item' })
+    fireEvent.click(chip(0))
+    expect(asked).toEqual([])
+    expect(scroller().scrollLeft).toBe(FIT_DAY * 14)
+  })
+
+  it('puts the group’s first day at the left edge once the new scale has arrived', () => {
+    const { rerender } = show({ rung: 'epic' })
+    fireEvent.click(chip(0))
+    rerender(
+      <PlanPointer axisX={0} pxPerDay={42} rung="item" zoomTo={zoomTo}>
+        {board()}
+      </PlanPointer>,
+    )
+    expect(scroller().scrollLeft).toBe(FIT_DAY * 42)
+  })
+
+  it('does nothing for a chip carrying no fit, a group with nothing placed having no window', () => {
+    show({ rung: 'epic' })
+    fireEvent.click(chip(1))
+    expect(asked).toEqual([])
+    expect(scroller().scrollLeft).toBe(0)
+  })
+
+  // The chip is a `<label>` for a radio and that is the whole of how a group is selected (ADR 0064).
+  // Preventing the default here would make a click that moves the view fail to select the group it
+  // moved to, which is the one thing this gesture must not do.
+  it('never prevents the default, so the click that moves the view is the one that selected', () => {
+    show({ rung: 'epic' })
+    const event = new window.MouseEvent('click', { bubbles: true, cancelable: true })
+    chip(0).dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('leaves a chip alone on a surface with no zoom to write, rather than scrolling it half way', () => {
+    show({ rung: 'epic', zoom: null })
+    fireEvent.click(chip(0))
+    expect(asked).toEqual([])
+  })
+})
+
+// `All work` is the one chip that is not a group, so it carries no `data-slot="group-chip"` — it is a
+// bare label beside the radio that clears the choice. It still has to widen the view again, or a
+// reader who looked at a fortnight and then asked for everything stays zoomed into the fortnight.
+describe('clearing the choice with the All work chip', () => {
+  const allChip = (): Element => at('[data-slot="group-chips"] label[data-fit-rung="feature"]')
+
+  it('takes the plan back to its own opening fit, at day zero', () => {
+    show({ rung: 'item' })
+    fireEvent.click(allChip())
+    expect(asked).toEqual(['feature'])
+  })
+
+  it('scrolls back to the start when the stop it asks for is the one already drawn', () => {
+    show({ rung: 'feature' })
+    at('[data-slot="timeline-scroller"]').scrollLeft = 900
+    fireEvent.click(allChip())
+    expect(asked).toEqual([])
+    expect(at('[data-slot="timeline-scroller"]').scrollLeft).toBe(0)
   })
 })

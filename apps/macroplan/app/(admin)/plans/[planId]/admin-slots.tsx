@@ -2,6 +2,7 @@ import type { AttentionMap } from '../../../../components/plan/attention/attenti
 import { UnscheduledTray } from '../../../../components/plan/attention/unscheduled-tray'
 import { trayRows } from '../../../../components/plan/attention/tray-rows'
 import { GroupChips } from '../../../../components/plan/labels/group-chips'
+import { allWorkFit } from '../../../../components/plan/labels/group-fit'
 import { labelRows } from '../../../../components/plan/labels/label-rows'
 import type { PlanScreenModel } from '../../../../components/plan/plan-screen-model'
 import { ZoomSwitch } from '../../../../components/plan/canvas/zoom-switch'
@@ -53,7 +54,14 @@ export function traySlot(plan: PlanScreenModel, found: AttentionMap) {
 
 /** The group chips, which filter both views at once. */
 export function groupsSlot(plan: PlanScreenModel) {
-  return <GroupChips mayAdd={ADMIN_CONTROLS.content.createLabel} planId={plan.id} rows={labelRows(plan)} />
+  return (
+    <GroupChips
+      allFit={allWorkFit(plan)}
+      mayAdd={ADMIN_CONTROLS.content.createLabel}
+      planId={plan.id}
+      rows={labelRows(plan)}
+    />
+  )
 }
 
 /** The zoom control, which the admin surface has because it can remember a choice in a cookie. */

@@ -68,6 +68,7 @@ import { RailForm } from './rails/rail-form'
 import { railRows } from './rails/rail-rows'
 import { RailsPanel } from './rails/rails-panel'
 import { LabelForm } from './labels/label-form'
+import { allWorkFit } from './labels/group-fit'
 import { labelRows } from './labels/label-rows'
 import { LabelsPanel } from './labels/labels-panel'
 import { NewLabelForm } from './labels/new-label-form'
@@ -408,7 +409,12 @@ const TREES = [
     at={AT}
     controls={ADMIN_CONTROLS}
     drawer={null}
-    groups={<GroupChips mayAdd planId={PLAN_A} rows={labelRows(planScreenModel(atlasPlan()))} />}
+    groups={<GroupChips
+        allFit={allWorkFit(planScreenModel(atlasPlan()))}
+        mayAdd
+        planId={PLAN_A}
+        rows={labelRows(planScreenModel(atlasPlan()))}
+      />}
     home="/"
     manage={null}
     progress={[]}

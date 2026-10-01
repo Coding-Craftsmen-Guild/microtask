@@ -50,4 +50,4 @@ export { ZOOM_STOPS, rungParam } from './zoom.js'
 
 export type { RangeQuery } from './window.js'
 
-export { bestFit, lastPlannedDay, rangeFor } from './window.js'
+export { bestFit, bestSpan, lastPlannedDay, rangeFor } from './window.js'

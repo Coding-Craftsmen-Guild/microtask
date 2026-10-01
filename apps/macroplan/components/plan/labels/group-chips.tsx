@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PLAN_DRAWERS } from '../../../lib/drawer-routes'
 import { GroupChipRoot } from './group-chip-root'
 import { ALL_RADIO_ID, GROUP_RADIO_NAME, groupCss, groupRadioId } from './group-css'
+import type { GroupFit } from './group-fit'
 import type { LabelRow } from './label-rows'
 
 const CHIP =
@@ -32,7 +33,19 @@ export interface GroupChipsProps {
 
   /** Whether this viewer may make a group, which decides the pill at the end of the row. */
   readonly mayAdd: boolean
+
+  /**
+   * Where the view goes when **All work** is chosen, which is the plan's own opening fit.
+   *
+   * A prop rather than something derived here, because this component is handed rows and not a plan —
+   * and `allWorkFit` needs the schedule. `./group-fit.ts` carries why clearing a choice has to widen
+   * the view again rather than leave a reader zoomed into a fortnight of a year's work.
+   */
+  readonly allFit: GroupFit
 }
+
+const fitAttributes = (fit: GroupFit | null): Record<string, string> =>
+  fit === null ? {} : { 'data-fit-rung': fit.rung, 'data-fit-day': String(fit.day) }
 
 /** What the chip that clears the choice says, and what an empty group's count reads as. */
 export const GROUP_WORDS = {
@@ -75,19 +88,34 @@ export const countOf = (row: LabelRow): string => {
  * checked, no `:has()` in the sheet matches, and every bar is at full opacity because nothing said
  * otherwise.
  *
+ * ### Why a chip also carries where the view should go
+ *
+ * Choosing a group fits the timeline to it — the stop that puts the whole group on screen, scrolled so
+ * its first day is at the left edge. The decision is made on the server (`./group-fit.ts`) and written
+ * onto the chip as two attributes, because the root that acts on it is a client component and a map of
+ * groups is not something it may be handed (`../module-boundaries.test.tsx`).
+ *
+ * Selecting is untouched by any of it. The chip is still a `<label>` for a radio, the dimming is still
+ * a generated rule, and `canvas/use-group-fit.ts` never calls `preventDefault` — so a click that moves
+ * the view is the same click that checked the radio, in that order, and a browser with no JavaScript
+ * still selects.
+ *
+ * A group with nothing placed carries neither attribute, and clicking it selects without moving. There
+ * is no window to fit to, and sending a reader to day zero would look like the plan jumping.
+ *
  * ### What a count is for
  *
  * A group with nothing in it says so. It is the state a reader most needs told, because choosing it dims
  * the **entire** plan — and without the words, an admin who has made "Phase 2" and not filled it yet reads
  * a blank timeline as a bug rather than as an empty phase.
  */
-export function GroupChips({ rows, planId, mayAdd }: GroupChipsProps) {
+export function GroupChips({ rows, planId, mayAdd, allFit }: GroupChipsProps) {
   if (rows.length === 0) return null
   const chips = (
     <div className={ROW} data-slot="group-chips">
       <style>{groupCss(rows)}</style>
       <input className="sr-only peer" defaultChecked id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} type="radio" />
-      <label className={CHIP} htmlFor={ALL_RADIO_ID}>
+      <label className={CHIP} htmlFor={ALL_RADIO_ID} {...fitAttributes(allFit)}>
         {GROUP_WORDS.all}
       </label>
       {rows.map((row) => (
@@ -103,6 +131,7 @@ export function GroupChips({ rows, planId, mayAdd }: GroupChipsProps) {
             data-label-id={row.id}
             data-slot="group-chip"
             htmlFor={groupRadioId(row.id)}
+            {...fitAttributes(row.fit)}
           >
             <span className={SWATCH} style={{ backgroundColor: row.colour }} />
             {`${row.name} · ${countOf(row)}`}

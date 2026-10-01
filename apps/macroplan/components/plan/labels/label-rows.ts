@@ -1,3 +1,5 @@
+import { groupFits } from './group-fit'
+import type { GroupFit } from './group-fit'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /** One group as a surface reports it: what it is called, its colour, and how much is in it. */
@@ -20,6 +22,15 @@ export interface LabelRow {
    * that reads as a bug rather than as an empty phase.
    */
   readonly features: number
+
+  /**
+   * Where the timeline goes when this group's chip is chosen, or `null` for a group with nothing
+   * placed in it.
+   *
+   * `./group-fit.ts` carries the whole argument, including why the decision is made here rather than
+   * in the browser and why a group with no window is `null` rather than fitted to day zero.
+   */
+  readonly fit: GroupFit | null
 }
 
 const ULID = /^[0-9A-Z]{26}$/
@@ -54,10 +65,12 @@ export const isStyleSafeId = (id: string): boolean => ULID.test(id)
  * four thousand comparisons on a screen that already derives a schedule.
  */
 export function labelRows(plan: PlanScreenModel): readonly LabelRow[] {
+  const fits = groupFits(plan)
   return plan.labels.map((label) => ({
     id: label.id,
     name: label.name,
     colour: label.colour,
     features: plan.features.filter((feature) => feature.labelId === label.id).length,
+    fit: fits.get(label.id) ?? null,
   }))
 }

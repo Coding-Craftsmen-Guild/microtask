@@ -1,15 +1,9 @@
 import type { Rung } from '@repo/canvas'
 import { useEffect, useRef, type RefObject } from 'react'
-import { dayAt, scrollFor, SETTLE_MS, stepRung, wheelZoom, type Zooming } from './pointer-view'
-
-const SCROLLER = '[data-slot="timeline-scroller"]'
+import { dayAt, SETTLE_MS, stepRung, wheelZoom, type Zooming } from './pointer-view'
+import { scrollerIn, type Anchoring } from './use-scroll-anchor'
 
 const HEADER = '[data-slot="time-header"]'
-
-interface Anchor {
-  readonly day: number
-  readonly pointerOffset: number
-}
 
 /** What the wheel gesture needs to know about the plan it is over, and what it may do about it. */
 export interface WheelZoom {
@@ -22,13 +16,11 @@ export interface WheelZoom {
 
   readonly axisX: number
 
+  /** Where to put the day that was under the pointer, once the new scale has arrived. */
+  readonly anchor: Anchoring
+
   /** The zoom write, or `null` on a surface that cannot remember one and so listens for nothing. */
   readonly zoomTo: ((rung: string) => Promise<void>) | null
-}
-
-const scrollerIn = (frame: RefObject<HTMLDivElement | null>): HTMLElement | null => {
-  const found = frame.current?.querySelector(SCROLLER) ?? null
-  return found instanceof HTMLElement ? found : null
 }
 
 /**
@@ -47,12 +39,13 @@ const scrollerIn = (frame: RefObject<HTMLDivElement | null>): HTMLElement | null
  * made once, after {@link SETTLE_MS} of quiet. The rung is read again at that moment rather than captured
  * when the gesture began, so a step that has become impossible in the meantime is not taken.
  *
- * ### Why the scroll is restored in a second effect
+ * ### Why the scroll is somebody else's effect
  *
  * The anchor cannot be applied when the action resolves, because the canvas has not been redrawn yet: the
- * new scale arrives as a **prop**, after the server re-rendered. So the day is recorded on the way out and
- * the second effect, which runs when `pxPerDay` changes, is what puts it back — the two halves of one
- * round trip, each where it can actually see the number it needs.
+ * new scale arrives as a **prop**, after the server re-rendered. So the day under the pointer is recorded
+ * on the way out with `Anchoring.after` and put back by `./use-scroll-anchor.ts` when `pxPerDay` changes.
+ * That lives in its own hook because the group chips need the same two halves (`./use-group-fit.ts`), and
+ * two gestures must not each keep their own idea of where the pane should end up.
  *
  * A gesture still settling when the rung changes keeps its timer rather than losing it to the cleanup:
  * dropping it would silently eat the second half of a quick double flick, which is a gesture somebody
@@ -64,18 +57,9 @@ const scrollerIn = (frame: RefObject<HTMLDivElement | null>): HTMLElement | null
  * browser-verification item**: zoom with the pointer over a date in the middle of a plan, and check that
  * the date is still under the pointer afterwards.
  */
-export function useWheelZoom({ frame, rung, pxPerDay, axisX, zoomTo }: WheelZoom): void {
+export function useWheelZoom({ frame, rung, pxPerDay, axisX, anchor, zoomTo }: WheelZoom): void {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const asked = useRef<Zooming | null>(null)
-  const anchor = useRef<Anchor | null>(null)
-
-  useEffect(() => {
-    const back = anchor.current
-    anchor.current = null
-    const scroller = scrollerIn(frame)
-    if (back === null || scroller === null) return
-    scroller.scrollLeft = scrollFor({ ...back, axisX, pxPerDay })
-  }, [axisX, frame, pxPerDay])
 
   useEffect(() => {
     const root = frame.current
@@ -85,7 +69,7 @@ export function useWheelZoom({ frame, rung, pxPerDay, axisX, zoomTo }: WheelZoom
       if (scroller === null) return
       const pointerOffset = clientX - scroller.getBoundingClientRect().left
       const at = { scrollLeft: scroller.scrollLeft, pointerOffset, axisX, pxPerDay }
-      anchor.current = { day: dayAt(at), pointerOffset }
+      anchor.after(dayAt(at), pointerOffset)
     }
     const fire = (): void => {
       const going = asked.current
@@ -110,5 +94,5 @@ export function useWheelZoom({ frame, rung, pxPerDay, axisX, zoomTo }: WheelZoom
     return () => {
       root.removeEventListener('wheel', onWheel)
     }
-  }, [axisX, frame, pxPerDay, rung, zoomTo])
+  }, [anchor, axisX, frame, pxPerDay, rung, zoomTo])
 }

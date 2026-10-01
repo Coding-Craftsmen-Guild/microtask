@@ -8,6 +8,8 @@ import { splitDetail, type Detail } from './detail-lines'
 import { HoverCard } from './hover-card'
 import { lightThread } from './pointer-lights'
 import { cardAt, plainClick } from './pointer-view'
+import { useGroupFit } from './use-group-fit'
+import { useScrollAnchor } from './use-scroll-anchor'
 import { useWheelZoom } from './use-wheel-zoom'
 
 const FRAME = 'contents'
@@ -76,6 +78,13 @@ export interface PlanPointerProps {
  * block, and events bubble through regardless of layout.
  *
  * The wheel is `./use-wheel-zoom.ts`, which has to register its own non-passive listener and carries why.
+ * A fifth gesture joined them on the same terms: `./use-group-fit.ts` fits the timeline to a group when
+ * its chip is clicked, reading the stop and the day the server wrote onto the chip. It is here rather
+ * than beside the chips because this is the root that already holds the zoom write and the scroller, and
+ * because the chips are inside it.
+ *
+ * Both zoom gestures share one `./use-scroll-anchor.ts`, so neither can keep its own idea of where the
+ * pane should end up.
  *
  * ### The click, and why it is in the bubble phase
  *
@@ -102,7 +111,9 @@ export function PlanPointer({ children, rung, pxPerDay, axisX, zoomTo }: PlanPoi
   const router = useRouter()
   const frame = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState<Shown | null>(null)
-  useWheelZoom({ frame, rung, pxPerDay, axisX, zoomTo })
+  const anchor = useScrollAnchor({ frame, axisX, pxPerDay })
+  useWheelZoom({ frame, rung, pxPerDay, axisX, anchor, zoomTo })
+  useGroupFit({ frame, rung, anchor, zoomTo })
 
   const drill = async (href: string): Promise<void> => {
     if (zoomTo !== null) await zoomTo(FINEST)
