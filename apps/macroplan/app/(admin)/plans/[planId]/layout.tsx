@@ -6,6 +6,7 @@ import { PlanScreen } from '../../../../components/plan/plan-screen'
 import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { ADMIN_DRAWER_ROUTES } from '../../../../lib/drawer-routes'
 import { zoomFor } from '../../../../components/plan/canvas/zoom-view'
+import { zoomTo } from '../../../../actions/zoom'
 import { readZoom } from '../../../../lib/zoom'
 import { groupsSlot, manageSlot, sidebarSlot, traySlot, zoomSlot } from './admin-slots'
 import { readBridge } from './read-bridge'
@@ -65,6 +66,7 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       tray={traySlot(plan, found)}
       zoom={zoom}
       zoomControl={zoomSlot(zoom)}
+      zoomTo={zoomTo}
     />
   )
 }

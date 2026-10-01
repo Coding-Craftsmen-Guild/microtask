@@ -26,6 +26,16 @@ export interface TreeRowProps {
 
   /** The rail's colour, for a rail row's chip. Ignored for a feature. */
   readonly colour?: string
+
+  /**
+   * What a hover over this row says, joined, or nothing for a rail.
+   *
+   * It lands as `data-detail` beside `data-hover-id`, and those two attributes are the whole of what
+   * `canvas/plan-pointer.tsx` needs: the card to draw, and which feature's marks to light while it is
+   * up. That is why hovering a row in the tree and hovering a bar are one implementation rather than
+   * two — the row is just another element carrying the same pair.
+   */
+  readonly detail?: string
 }
 
 /**
@@ -36,10 +46,12 @@ export interface TreeRowProps {
  * to disagree about `min-w-0` in the first place, which is what put the sidebar on top of the canvas.
  */
 export function TreeRow(props: TreeRowProps) {
-  const { name, radioId, href, found, id, kind, colour } = props
+  const { name, radioId, href, found, id, kind, colour, detail } = props
   return (
     <div
       className={kind === 'rail' ? TREE.railRow : TREE.featureRow}
+      data-detail={kind === 'feature' ? detail : undefined}
+      data-hover-id={kind === 'feature' ? id : undefined}
       data-search={name.toLowerCase()}
       data-slot="sidebar-row"
     >
@@ -47,6 +59,7 @@ export function TreeRow(props: TreeRowProps) {
         {kind === 'rail' ? (
           <span
             className={TREE.swatch}
+            data-slot="rail-swatch"
             style={colour === undefined || colour === '' ? undefined : { backgroundColor: colour }}
           />
         ) : null}

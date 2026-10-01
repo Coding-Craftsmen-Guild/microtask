@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { chooseZoom } from './zoom'
+import { chooseZoom, zoomTo } from './zoom'
 
 const set = vi.fn()
 
@@ -56,5 +56,19 @@ describe('chooseZoom keeps the chosen rung for this browser', () => {
   it('leaves the cookie readable to the client, since nothing about a zoom is a secret', async () => {
     await chooseZoom(asked('item'))
     expect(set).toHaveBeenCalledWith('mp_zoom', 'item', expect.objectContaining({ httpOnly: false }))
+  })
+})
+
+describe('zoomTo, which a gesture calls with a rung rather than a form', () => {
+  it('writes the same cookie chooseZoom writes, the form being the only difference between them', async () => {
+    await zoomTo('epic')
+    expect(set).toHaveBeenCalledWith('mp_zoom', 'epic', expect.objectContaining({ path: '/' }))
+    expect(revalidatePath).toHaveBeenCalledWith('/plans', 'layout')
+  })
+
+  it('refuses a rung no stop of ours is named after, since a gesture is as forgeable as a form', async () => {
+    for (const junk of ['', 'EPIC', 'quarter', 'item; Domain=evil']) await zoomTo(junk)
+    expect(set).not.toHaveBeenCalled()
+    expect(revalidatePath).not.toHaveBeenCalled()
   })
 })

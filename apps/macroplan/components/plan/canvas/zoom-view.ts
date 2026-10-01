@@ -1,5 +1,6 @@
-import { ZOOM_STOPS, bestFit, lastPlannedDay, rangeFor, scaleFor } from '@repo/canvas'
+import { ZOOM_STOPS, bestFit, lastPlannedDay, rangeFor, scaleFor, todayLine } from '@repo/canvas'
 import type { CanvasSchedule, DayRange, PlanScale, Rung } from '@repo/canvas'
+import type { PlanCalendar } from '@repo/schedule'
 import { CANVAS_SCALE } from './view'
 
 /** What {@link openingZoom} and {@link ZoomView.rangeFor} read off a plan, and nothing more. */
@@ -110,3 +111,39 @@ export const ZOOM_WORDS: Readonly<Record<Rung, string>> = {
 
 /** The order the control offers them in: widest first, which is how a zoom control reads. */
 export const ZOOM_ORDER: readonly Rung[] = ['epic', 'feature', 'item']
+
+/** The two numbers one rung puts a plan on screen with: how wide a day is, and which days are drawn. */
+export interface PlanAxis {
+  readonly scale: PlanScale
+
+  readonly range: DayRange
+}
+
+/**
+ * The axis a plan is drawn on at one rung, at one instant.
+ *
+ * ### Why it is a function two components both call
+ *
+ * `PlanViews` needs it to draw the board and `PlanScreen` needs it to tell the pointer root how wide a
+ * day is. It is pure in its three arguments and both callers pass the same three, so the two agree by
+ * construction — which is the same property `PlanBoard` relies on when it calls `railLayout` beside the
+ * canvas's own call, and it is cheaper to hold than threading an axis through a component that otherwise
+ * shares nothing with the one above it.
+ *
+ * Two opinions about `pxPerDay` would be a zoom gesture that anchors the scroll against a scale the
+ * canvas was not drawn at: the day under the pointer would land a few hundred pixels from where it was,
+ * which looks like the zoom jumping rather than like a disagreement about arithmetic.
+ *
+ * ### Why today is folded in
+ *
+ * The range has to reach the today marker or the line is clipped off the end of a plan that finished
+ * last month. `ZoomView.rangeFor` takes `todayDay` for that, and the day itself can only come from
+ * `todayLine`, which needs the scale — so the order here is scale, then today, then range, and that
+ * order is why this is one function rather than two exported halves.
+ */
+export function planAxis(plan: ZoomPlan & PlanCalendar, at: Date, rung: Rung): PlanAxis {
+  const view = ZOOM_VIEW[rung]
+  const today = todayLine(plan, at, view.scale)
+  const reach = today === null ? plan : { ...plan, todayDay: today.day }
+  return { scale: view.scale, range: view.rangeFor(reach) }
+}

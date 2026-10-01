@@ -1,5 +1,6 @@
 import { railsOf } from '@repo/schedule'
 import { describe, expect, it } from 'vitest'
+import { detailsOf } from '../canvas/detail-lines'
 import { planScreenModel } from '../plan-screen-model'
 import {
   atlasPlan,
@@ -84,5 +85,22 @@ describe('sidebarRails turns a plan into the tree the sidebar lists', () => {
     const before = JSON.stringify(plan)
     sidebarRails(plan)
     expect(JSON.stringify(plan)).toBe(before)
+  })
+})
+
+describe('the hover card each feature row carries', () => {
+  it('carries the same joined detail the bar on the canvas carries, so one hover has one answer', () => {
+    const details = detailsOf(ATLAS)
+    const features = sidebarRails(ATLAS).flatMap((rail) => rail.features)
+    expect(features.length).toBeGreaterThan(0)
+    for (const feature of features) {
+      expect(feature.detail, feature.name).toBe(details.get(feature.id))
+    }
+  })
+
+  it('leaves a rail without one, there being nothing a card would add to the band’s own name', () => {
+    const rails = sidebarRails(ATLAS)
+    expect(rails.length).toBeGreaterThan(0)
+    for (const rail of rails) expect(Object.hasOwn(rail, 'detail')).toBe(false)
   })
 })

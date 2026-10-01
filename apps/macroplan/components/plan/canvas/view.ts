@@ -22,6 +22,7 @@ import { canvasArcs } from './arc-view'
 import type { CanvasArc } from './arc-view'
 import { LABEL_METRICS, LAYOUT, NODE_LABEL_METRICS } from './mark-metrics'
 import { DRAWS } from './rung-view'
+import { detailsOf } from './detail-lines'
 import type { RungDrawing } from './rung-view'
 import type { PlanScreenModel } from '../plan-screen-model'
 
@@ -74,6 +75,16 @@ export interface RailFrame {
 
   /** What each bar is called, keyed by feature id. */
   readonly names: ReadonlyMap<string, string>
+
+  /**
+   * What a hover over one mark says, joined, keyed by **feature or item** id.
+   *
+   * The only entry in this record that is not geometry, and it is here for the reason every other one
+   * is: a mark is drawn from the frame and nothing else, so a bar carries its card without the
+   * component that draws it looking anything up. 'detail-lines.ts' carries what is in a card and why
+   * the wording is the table's rather than a third opinion about it.
+   */
+  readonly details: ReadonlyMap<string, string>
 
   /**
    * Where a bar opens, or `null` for a canvas nobody can open anything from.
@@ -343,6 +354,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
       draws: DRAWS[rung],
       labels: labelsOf(rails, DRAWS[rung].nodes),
       names: featureNames(plan),
+      details: detailsOf(plan),
       hrefOf: query.hrefOf,
     },
   }

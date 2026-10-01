@@ -4,6 +4,10 @@ import type { ReactNode } from 'react'
 import type { PlanControls } from '../../lib/plan-capabilities'
 import { attentionCount, attentionOf } from './attention/attention'
 import { AttentionChip } from './attention/attention-mark'
+import { PlanPointer } from './canvas/plan-pointer'
+import { POINTER_CSS } from './canvas/pointer-css'
+import { axisX } from './canvas/view'
+import { planAxis } from './canvas/zoom-view'
 import { PlanViews } from './plan-views'
 import { PlanHead } from './shell/plan-head'
 import { PlanShell } from './shell/plan-shell'
@@ -39,6 +43,16 @@ export interface PlanScreenProps {
 
   /** The zoom control. */
   readonly zoomControl: ReactNode
+
+  /**
+   * The zoom write a gesture calls, or `null` on a surface that cannot remember one.
+   *
+   * A prop rather than an import, though `ZoomSwitch` imports the same action directly: that control is
+   * mounted by the admin surface alone and this screen is mounted by both. The seat surface has no zoom
+   * cookie to read, so a gesture there would write one nothing reads and revalidate a layout it is not
+   * in — it passes `null`, and the root then leaves every wheel to the browser.
+   */
+  readonly zoomTo: ((rung: string) => Promise<void>) | null
 
   /** The features with no bar, listed under the board. */
   readonly tray: ReactNode
@@ -76,36 +90,45 @@ export interface PlanScreenProps {
  */
 export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, controls, drawer, groups, progress, sidebar } = props
-  const { home, manage, root, routes, tray, zoom, zoomControl } = props
+  const { home, manage, root, routes, tray, zoom, zoomControl, zoomTo } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
   const found = attentionOf(plan)
+  const axis = planAxis(plan, at, zoom)
   return (
     <>
       <style>{VIEW_SWITCH_CSS}</style>
-      <PlanShell
-        drawer={drawer}
-        head={
-          <PlanHead
-            actions={manage}
-            attention={<AttentionChip count={attentionCount(plan, found)} />}
-            home={home}
-            plan={plan}
-          />
-        }
-        sidebar={sidebar}
-        toolbar={<PlanToolbar groups={groups} zoom={zoomControl} />}
+      <style>{POINTER_CSS}</style>
+      <PlanPointer
+        axisX={axisX(axis.scale, axis.range)}
+        pxPerDay={axis.scale.pxPerDay}
+        rung={zoom}
+        zoomTo={zoomTo}
       >
-        <PlanViews
-          at={at}
-          place={place}
-          plan={plan}
-          progress={progress}
-          root={root}
-          routes={routes}
-          tray={tray}
-          zoom={zoom}
-        />
-      </PlanShell>
+        <PlanShell
+          drawer={drawer}
+          head={
+            <PlanHead
+              actions={manage}
+              attention={<AttentionChip count={attentionCount(plan, found)} />}
+              home={home}
+              plan={plan}
+            />
+          }
+          sidebar={sidebar}
+          toolbar={<PlanToolbar groups={groups} zoom={zoomControl} />}
+        >
+          <PlanViews
+            at={at}
+            place={place}
+            plan={plan}
+            progress={progress}
+            root={root}
+            routes={routes}
+            tray={tray}
+            zoom={zoom}
+          />
+        </PlanShell>
+      </PlanPointer>
     </>
   )
 }

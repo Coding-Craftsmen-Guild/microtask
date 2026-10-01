@@ -75,6 +75,7 @@ export async function seatPlanScreen(token: string, drawer: ReactNode) {
       tray={seatTraySlot(plan.value, token, found)}
       zoom={openingZoom(plan.value)}
       zoomControl={null}
+      zoomTo={null}
     />
   )
 }

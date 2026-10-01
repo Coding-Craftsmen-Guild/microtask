@@ -52,6 +52,8 @@ export function Rail({ rail, frame, top, width }: RailProps) {
             (frame.marks.get(bar.id) ?? []).map((mark) => (
               <ItemMarkShape
                 colour={hueOf(frame, bar.id, rail.colour)}
+                detail={frame.details.get(mark.id) ?? null}
+                hoverId={bar.id}
                 key={mark.id}
                 labelId={frame.groups.get(bar.id) ?? null}
                 mark={mark}

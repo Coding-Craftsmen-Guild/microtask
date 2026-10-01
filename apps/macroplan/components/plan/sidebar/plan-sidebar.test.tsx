@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ADMIN_DRAWER_ROUTES, featurePath, PLAN_DRAWERS, railPath, SEAT_DRAWER_ROUTES } from '../../../lib/drawer-routes'
+import { detailsOf } from '../canvas/detail-lines'
 import { planScreenModel } from '../plan-screen-model'
 import {
   atlasPlan,
@@ -290,5 +291,36 @@ describe('an entity that wants looking at is marked where it is listed', () => {
   it('marks nothing on a plan with nothing wrong, so the mark means something when it appears', () => {
     show()
     expect(document.querySelectorAll('[data-slot="attention-dot"]')).toHaveLength(0)
+  })
+})
+
+describe('what a feature row hands the hover root', () => {
+  it('writes its joined detail onto the row, which is what makes a sidebar hover and a bar hover one gesture', () => {
+    show()
+    const details = detailsOf(planScreenModel(railedPlan()))
+    const rows = [...document.querySelectorAll('[data-slot="sidebar-row"][data-hover-id]')]
+    expect(rows.length).toBeGreaterThan(0)
+    for (const row of rows) {
+      const id = row.getAttribute('data-hover-id') ?? ''
+      expect(row.getAttribute('data-detail'), id).toBe(details.get(id))
+    }
+  })
+
+  it('keys the row on the same feature id the bar is keyed on, which is what joins the two', () => {
+    show()
+    const row = document.querySelector(`[data-slot="sidebar-row"][data-hover-id="${FEATURE_1}"]`)
+    expect(row).toBeTruthy()
+  })
+
+  it('leaves a rail row out of it, so a pointer crossing the tree lights nothing until it reaches a feature', () => {
+    show()
+    const rails = [...document.querySelectorAll('[data-slot="sidebar-row"]')].filter(
+      (row) => row.querySelector('[data-slot="rail-swatch"]') !== null,
+    )
+    expect(rails.length).toBeGreaterThan(0)
+    for (const rail of rails) {
+      expect(rail.getAttribute('data-hover-id')).toBeNull()
+      expect(rail.getAttribute('data-detail')).toBeNull()
+    }
   })
 })

@@ -29,6 +29,7 @@ import {
   tangledPlan,
   WRITE_SEAT_TOKEN,
 } from '../../../../components/plan/testing/plan-fixture'
+import { zoomTo } from '../../../../actions/zoom'
 import { ADMIN_DRAWER_ROUTES, featurePath, railPath } from '../../../../lib/drawer-routes'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
@@ -51,9 +52,17 @@ import { ZOOM_COOKIE } from '../../../../lib/zoom'
 // guard moved with them rather than being dropped: `share/page.test.tsx` and `settings/page.test.tsx`
 // each assert their own route hands its actions by name with nothing bound, which is where ADR 0040's
 // check has to live once the action does.
-const OFF_INTERFACE = Object.values(ADMIN_DRAWER_ROUTES)
-  .filter((builder): builder is (root: string, id: string) => string => builder !== null)
-  .map((builder) => builder.name)
+const OFF_INTERFACE = [
+  ...Object.values(ADMIN_DRAWER_ROUTES)
+    .filter((builder): builder is (root: string, id: string) => string => builder !== null)
+    .map((builder) => builder.name),
+  // The zoom, which is a Server Action and is deliberately not a member of `PlanEditActions`: it asks the
+  // API nothing, authorises nothing and names no plan, so putting it on the interface of a plan's writes
+  // would be claiming it is one. It reaches the pointer root as its own prop, named and unbound — which is
+  // exactly what the second assertion below is about, and why `actions/zoom.ts` takes a rung as an
+  // argument rather than offering three bound actions.
+  zoomTo.name,
+]
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
 
@@ -387,6 +396,7 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
       'tray',
       'zoom',
       'zoomControl',
+      'zoomTo',
     ])
     expect(handed['drawer']).toBe(DRAWER)
     expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)

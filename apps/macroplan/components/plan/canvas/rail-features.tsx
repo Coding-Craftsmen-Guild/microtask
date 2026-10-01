@@ -59,6 +59,8 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
         const shared = {
           bar,
           colour: hueOf(frame, bar.id, rail.colour),
+          detail: frame.details.get(bar.id) ?? null,
+          hoverId: bar.id,
           labelId: frame.groups.get(bar.id) ?? null,
           top,
           treatment: frame.treatments.get(bar.id) ?? ('solid' as const),
@@ -69,6 +71,8 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
             {frame.draws.nodes ? <FeatureNode {...shared} /> : <FeatureBarMark {...shared} />}
             {label === undefined ? null : (
               <BarLabelText
+                detail={frame.details.get(bar.id) ?? null}
+                hoverId={bar.id}
                 label={label}
                 labelId={shared.labelId}
                 name={frame.names.get(bar.id) ?? ''}

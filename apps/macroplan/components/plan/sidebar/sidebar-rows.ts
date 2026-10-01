@@ -1,4 +1,5 @@
 import { railsOf } from '@repo/schedule'
+import { detailsOf } from '../canvas/detail-lines'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /** One feature as the sidebar lists it: enough to name it, link to it and filter it. */
@@ -8,6 +9,15 @@ export interface SidebarFeature {
 
   /** Its name, or the placeholder for one saved blank. */
   readonly name: string
+
+  /**
+   * What a hover over this row says, joined, which is the card its bar on the canvas shows.
+   *
+   * It is carried on the row rather than looked up when a pointer arrives, because the thing that
+   * looks it up is a client component and may not be handed a plan. A rail has no such field: the
+   * names column beside the canvas already says everything a one-line card about a rail could.
+   */
+  readonly detail: string
 }
 
 /** One rail and the features on it, in the order the timeline draws them. */
@@ -54,6 +64,7 @@ export const UNNAMED = '(unnamed)'
  * order and membership rather than for the list of rails.
  */
 export function sidebarRails(plan: PlanScreenModel): readonly SidebarRail[] {
+  const details = detailsOf(plan)
   const named = new Map(plan.epics.map((epic) => [epic.id, epic]))
   const derived = railsOf(plan)
   const grouped = new Map(
@@ -73,6 +84,7 @@ export function sidebarRails(plan: PlanScreenModel): readonly SidebarRail[] {
     features: (grouped.get(id) ?? []).map((feature) => ({
       id: feature.id,
       name: plan.features.find((one) => one.id === feature.id)?.name ?? UNNAMED,
+      detail: details.get(feature.id) ?? '',
     })),
   }))
 }

@@ -43,6 +43,7 @@ import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
 import { MoveTargetField } from './drawer/move-target'
 import { DragRoot } from './canvas/drag-root'
+import { PlanPointer } from './canvas/plan-pointer'
 import { BindFields } from './bridge/bind-fields'
 import { BindForm } from './bridge/bind-form'
 import { BindProjectForm } from './bridge/bind-project-form'
@@ -146,6 +147,14 @@ const declaresUseClient = (source: string) => {
 }
 
 const unclaimed = (): Plan => ({ ...atlasPlan(), epics: [] })
+
+// The zoom is a Server Action and not a member of PlanEditActions either: it takes a rung and answers
+// nothing, and it is the one write on this page that asks the API nothing at all. Named and unbound,
+// which is what the walk below admits — a `chooseZoom.bind(null, 'epic')` would be refused here, which
+// is the whole reason `actions/zoom.ts` takes its argument rather than binding it.
+async function zoomDouble(): Promise<void> {
+  return undefined
+}
 
 // A double of its own rather than a member of STUB_ACTIONS, because binding by project is not on
 // PlanEditActions: the rail drawer imports that action directly, and widening the interface to give this
@@ -298,6 +307,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [PlaceControl, 'drawer/place-control.tsx'],
   [MoveTargetField, 'drawer/move-target.tsx'],
   [DragRoot, 'canvas/drag-root.tsx'],
+  [PlanPointer, 'canvas/plan-pointer.tsx'],
   [BindForm, 'bridge/bind-form.tsx'],
   [BindFields, 'bridge/bind-fields.tsx'],
   [BindProjectForm, 'bridge/bind-project-form.tsx'],
@@ -359,8 +369,15 @@ interface HandedToClient {
 }
 
 // Server components are **called** rather than rendered, so the walk reaches the elements they build
-// with the props still on them; the client components named above are where it stops, those props being
-// exactly what crosses into the browser.
+// with the props still on them; at a client component the walk records the props, those being exactly
+// what crosses into the browser, and then **keeps going through its `children`**.
+//
+// It used to stop there, and that was safe only while the one wrapping client component wrapped an SVG
+// with nothing of its own inside it. `canvas/plan-pointer.tsx` wraps the whole screen, so stopping
+// silently took four client components out of this sweep at once — `group-field`, `pin-field`,
+// `dependency-toggle` and `group-chip-root` were suddenly checked by nothing, and every assertion
+// below still passed. Descending is strictly stricter: the wrapper's own props are still inspected,
+// and the markup handed to it is server markup whose nested islands now get inspected too.
 //
 // Recursion follows **every** prop and not `children` alone: a component handed through any other prop
 // — a `drawer` slot, a `header`, a list of panels — was invisible to a walk that only descended into
@@ -370,7 +387,7 @@ const clientProps = (node: unknown): readonly HandedToClient[] => {
   if (Array.isArray(node)) return node.flatMap((one) => clientProps(one))
   if (!isValidElement<Record<string, unknown>>(node)) return []
   const file = CLIENT_BY_FILE.get(node.type)
-  if (file !== undefined) return [{ file, props: node.props }]
+  if (file !== undefined) return [{ file, props: node.props }, ...clientProps(node.props['children'])]
   if (typeof node.type === 'function') {
     const build = node.type as (props: Record<string, unknown>) => unknown
     return clientProps(build(node.props))
@@ -394,6 +411,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    zoomTo={zoomDouble}
     key="a"
     plan={planScreenModel(atlasPlan())}
   />,
@@ -412,6 +430,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    zoomTo={zoomDouble}
     key="b"
     plan={planScreenModel(unplacedPlan('no-estimate'))}
   />,
@@ -430,6 +449,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    zoomTo={zoomDouble}
     key="c"
     plan={planScreenModel(unplacedPlan('in-cycle'))}
   />,
@@ -448,6 +468,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    zoomTo={zoomDouble}
     key="d"
     plan={planScreenModel(unclaimed())}
   />,
@@ -560,6 +581,7 @@ const TREES = [
     tray={null}
     zoom="feature"
     zoomControl={null}
+    zoomTo={zoomDouble}
   />,
   panel({
     description: 'Ship behind a flag',
@@ -599,6 +621,7 @@ const TREES = [
     }
     zoom="feature"
     zoomControl={<ZoomSwitch zoom="feature" />}
+    zoomTo={zoomDouble}
   />,
   // The four rail files are the way into a plan, so the sweep has to reach all of them: RailFields sits
   // inside RailForm and RailFeature beside it, and the walk stops at a client boundary rather than going

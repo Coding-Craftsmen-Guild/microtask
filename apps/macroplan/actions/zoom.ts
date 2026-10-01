@@ -45,7 +45,31 @@ const A_YEAR_IN_SECONDS = 60 * 60 * 24 * 365
  */
 export async function chooseZoom(form: FormData): Promise<void> {
   const asked = form.get('rung')
-  const chosen = typeof asked === 'string' ? rungParam(asked) : null
+  await zoomTo(typeof asked === 'string' ? asked : '')
+}
+
+/**
+ * The same choice, asked for by a gesture rather than by a form.
+ *
+ * ### Why there is a second entry point and not a second implementation
+ *
+ * A wheel over the board and a click on a bar at the Year rung both change the zoom, and neither of
+ * them is a form submission: a client root calls this directly. {@link chooseZoom} now reads the one
+ * field it was ever about and hands it here, so the validation above, the cookie's own name and
+ * options, and the revalidation are written once. Two actions writing one cookie is two places for the
+ * `maxAge` or the `path` to drift, and a cookie written with a different `path` is a zoom that works
+ * on the plan page and not in a drawer.
+ *
+ * ### Why it still validates
+ *
+ * The argument is what the browser sent. Everything {@link chooseZoom} says about a submitted body
+ * holds for a value a client component passed, and more loudly — this one is reachable from any script
+ * on the page, where the form at least had three buttons in front of it. `rungParam` is the one gate,
+ * and an unrecognised rung writes nothing and revalidates nothing rather than throwing: there is no
+ * sentence to show a person who did not do this, and the zoom they already had is a fine answer.
+ */
+export async function zoomTo(rung: string): Promise<void> {
+  const chosen = rungParam(rung)
   if (chosen === null) return
   const jar = await cookies()
   jar.set(ZOOM_COOKIE, chosen, {

@@ -57,6 +57,7 @@ export function RailTree({ root, routes, rails, noFeatures, found }: RailTreePro
             <span className="contents" key={feature.id}>
               <TreeRadio radioId={featureRadioId(feature.id)} />
               <TreeRow
+                detail={feature.detail}
                 found={found}
                 href={routes.feature(root, feature.id)}
                 id={feature.id}

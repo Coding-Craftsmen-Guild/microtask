@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { TimeHeader } from '../board/time-header'
 import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan } from '../testing/plan-fixture'
+import { detailsOf, splitDetail } from './detail-lines'
 import { todayHover } from './hover'
 import { PlanCanvas } from './plan-canvas'
 import { canvasWidth, CANVAS_RANGE, CANVAS_SCALE, chromeRange } from './view'
@@ -252,5 +253,58 @@ describe('what the canvas still does not draw, and still does not name', () => {
     expect(all('[data-slot="plan-canvas"] title')).toHaveLength(0)
     expect(all('[data-slot="sprint-tick"]').length).toBeGreaterThan(1)
     expect(all('[data-slot="feature-bar"]').length).toBeGreaterThan(0)
+  })
+})
+
+describe('the detail each mark carries, which is what the hover card reads', () => {
+  const detailsFor = (plan: Plan = atlasPlan()) => detailsOf(planScreenModel(plan))
+
+  const drawn = (rung: 'epic' | 'feature' | 'item') => {
+    render(
+      <PlanCanvas
+        at={AT}
+        place={null}
+        plan={planScreenModel(atlasPlan())}
+        rung={rung}
+      />,
+    )
+  }
+
+  it('carries the feature’s own card on every bar, joined exactly as detailsOf joined it', () => {
+    drawn('item')
+    const bars = all('[data-slot="feature-bar"]')
+    expect(bars.length).toBeGreaterThan(0)
+    for (const bar of bars) {
+      const id = bar.getAttribute('data-feature-id') ?? ''
+      expect(bar.getAttribute('data-detail'), id).toBe(detailsFor().get(id))
+    }
+  })
+
+  it('carries one on every item mark too, titled with the item and not with its feature', () => {
+    drawn('item')
+    const marks = all('[data-slot="item-mark"]')
+    expect(marks.length).toBeGreaterThan(0)
+    for (const mark of marks) {
+      const id = mark.getAttribute('data-item-id') ?? ''
+      expect(mark.getAttribute('data-detail'), id).toBe(detailsFor().get(id))
+    }
+    expect(splitDetail(nth(marks, 0).getAttribute('data-detail') ?? '').title).toBe('Sessions')
+  })
+
+  it('carries it at the point rungs as well, where a feature is a dot and has no label to read', () => {
+    drawn('epic')
+    const points = all('[data-slot="feature-bar"]')
+    expect(points.length).toBeGreaterThan(0)
+    for (const point of points) {
+      const id = point.getAttribute('data-feature-id') ?? ''
+      expect(point.getAttribute('data-detail'), id).toBe(detailsFor().get(id))
+    }
+  })
+
+  it('adds no title element, so the browser’s own tooltip does not race the card', () => {
+    drawn('item')
+    for (const title of all('[data-slot="plan-canvas"] title')) {
+      expect(title.closest('[data-slot="feature-bar"],[data-slot="item-mark"]')).toBeNull()
+    }
   })
 })

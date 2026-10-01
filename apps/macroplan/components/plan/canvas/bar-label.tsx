@@ -36,6 +36,17 @@ export interface BarLabelTextProps {
    * bright over its own dimmed bar, which reads as a rendering fault rather than as a selection.
    */
   readonly labelId: string | null
+
+  /** What a hover over this feature says, joined, so pointing at a name answers as its bar does. */
+  readonly detail: string | null
+
+  /**
+   * The feature this label names, which is what a hover lights.
+   *
+   * A label carries its feature's id and not its own, there being no such thing: it is the one part of
+   * a feature's thread that is text, and pointing at the words is pointing at the work.
+   */
+  readonly hoverId: string
 }
 
 /**
@@ -61,11 +72,14 @@ export interface BarLabelTextProps {
  * A bar is a translucent wash inside an outline rather than a slab of colour, so white text on one
  * is white text on the page — invisible on every rail whatever hue it carries.
  */
-export function BarLabelText({ label, name, top, labelId }: BarLabelTextProps) {
+export function BarLabelText(props: BarLabelTextProps) {
+  const { label, name, top, labelId, detail, hoverId } = props
   if (label.maxChars < MIN_READABLE || name === '') return null
   return (
     <text
       className={label.inside ? INSIDE : OUTSIDE}
+      data-detail={detail ?? undefined}
+      data-hover-id={hoverId}
       data-label-id={labelId ?? undefined}
       data-slot="bar-label"
       dominantBaseline="central"

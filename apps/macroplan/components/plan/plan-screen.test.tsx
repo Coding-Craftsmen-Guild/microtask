@@ -1,11 +1,15 @@
+import type { Rung } from '@repo/canvas'
 import type { ScopeValue } from '@repo/contracts'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
 import { ADMIN_DRAWER_ROUTES } from '../../lib/drawer-routes'
 import { planCapabilities, type PlanControls } from '../../lib/plan-capabilities'
 import type { PlanEditActions } from './edit-actions'
+import { axisX } from './canvas/view'
+import { LIT_SLOTS, POINTER_CSS } from './canvas/pointer-css'
+import { planAxis } from './canvas/zoom-view'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
 import { PLAN_ROOT } from './shell/shell-css'
@@ -15,6 +19,12 @@ import { sidebarRails } from './sidebar/sidebar-rows'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
 import { stubActions } from './testing/plan-writes'
 import { VIEW_SWITCH_CSS } from './view-switch'
+
+// The pointer root calls `useRouter`, which throws outside an App Router tree. What it is called with
+// is asserted where the gesture lives (`./canvas/plan-pointer.test.tsx`); here it only has to exist.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: () => undefined }),
+}))
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
@@ -36,6 +46,8 @@ interface Shown {
   readonly actions?: PlanEditActions | null
   readonly tray?: ReactNode
   readonly sidebar?: ReactNode
+
+  readonly zoom?: Rung
 }
 
 const show = (over: Shown = {}) =>
@@ -54,8 +66,9 @@ const show = (over: Shown = {}) =>
       routes={ADMIN_DRAWER_ROUTES}
       sidebar={over.sidebar ?? null}
       tray={over.tray ?? null}
-      zoom="feature"
+      zoom={over.zoom ?? 'feature'}
       zoomControl={null}
+      zoomTo={null}
     />,
   )
 
@@ -210,6 +223,7 @@ describe('the frame the regions sit in', () => {
         tray={null}
         zoom="feature"
         zoomControl={null}
+        zoomTo={null}
       />,
     )
     const board = slot('plan-board')
@@ -294,6 +308,7 @@ describe('the count of what wants looking at', () => {
         tray={null}
         zoom="feature"
         zoomControl={null}
+        zoomTo={null}
       />,
     )
     const chip = slot('attention-chip')
@@ -366,5 +381,42 @@ describe('the element both generated selection sheets anchor on', () => {
     show()
 
     expect(document.querySelector(PLAN_ROOT)).toBe(shell())
+  })
+})
+
+// The same join the block above exists for, for the hover sheet: `POINTER_CSS` names five slots and
+// paints nothing at all if the screen renders none of them, and a rule that matches nothing is valid
+// CSS. So each slot it names is asserted to be something under the root that listens for the hover.
+describe('the root that listens for a pointer over the plan', () => {
+  it('wraps the whole screen, so a hover in the sidebar can reach a bar on the canvas', () => {
+    show({ sidebar: <PlanSidebar actions={null} found={new Map()} rails={sidebarRails(planScreenModel(atlasPlan()))} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} /> })
+    const root = document.querySelector('[data-slot="plan-pointer"]')
+
+    expect(root).not.toBeNull()
+    expect(root?.querySelector(PLAN_ROOT)).toBe(shell())
+    expect(root?.querySelector('[data-slot="sidebar-row"][data-hover-id]')).not.toBeNull()
+    expect(root?.querySelector('[data-slot="feature-bar"][data-hover-id]')).not.toBeNull()
+  })
+
+  it('mounts the sheet that paints a lit mark, every slot of which the screen renders', () => {
+    // At the Sprint rung, which is the one that draws item ticks: a sheet naming a slot no rendering
+    // produces is a rule that matches nothing, which is the defect this whole block exists to catch.
+    show({ zoom: 'item', sidebar: <PlanSidebar actions={null} found={new Map()} rails={sidebarRails(planScreenModel(atlasPlan()))} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} /> })
+    const sheets = [...document.querySelectorAll('style')].map((one) => one.textContent ?? '').join('')
+
+    expect(sheets).toContain(POINTER_CSS)
+    for (const slot of LIT_SLOTS) {
+      expect(POINTER_CSS, slot).toContain(`[data-slot="${slot}"][data-lit]`)
+      expect(document.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull()
+    }
+  })
+
+  it('tells the root the scale the canvas was actually drawn at, so a zoom anchors where it looks', () => {
+    show()
+    const root = document.querySelector('[data-slot="plan-pointer"]')
+    const axis = planAxis(planScreenModel(atlasPlan()), AT, 'feature')
+
+    expect(root?.getAttribute('data-px-per-day')).toBe(String(axis.scale.pxPerDay))
+    expect(root?.getAttribute('data-axis-x')).toBe(String(axisX(axis.scale, axis.range)))
   })
 })

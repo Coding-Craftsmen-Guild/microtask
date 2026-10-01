@@ -1,10 +1,9 @@
 import type { PlanBridge } from '@repo/api-client'
-import { todayLine } from '@repo/canvas'
 import type { Rung } from '@repo/canvas'
 import type { ReactNode } from 'react'
 import { PlanBoard } from './board/plan-board'
 import type { FeaturePlace } from './canvas/drag-root'
-import { ZOOM_VIEW } from './canvas/zoom-view'
+import { planAxis } from './canvas/zoom-view'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable } from './table/plan-table'
 import type { DrawerRoutes } from '../../lib/drawer-routes'
@@ -45,9 +44,7 @@ export interface PlanViewsProps {
  */
 export function PlanViews(props: PlanViewsProps) {
   const { plan, at, zoom, progress, place, tray, root, routes } = props
-  const view = ZOOM_VIEW[zoom]
-  const today = todayLine(plan, at, view.scale)
-  const reach = today === null ? plan : { ...plan, todayDay: today.day }
+  const axis = planAxis(plan, at, zoom)
   return (
     <>
       <div className={VIEW_SWITCH.timelinePanel} data-slot="timeline-panel">
@@ -56,11 +53,11 @@ export function PlanViews(props: PlanViewsProps) {
           place={place}
           plan={plan}
           progress={progress}
-          range={view.rangeFor(reach)}
+          range={axis.range}
           root={root}
           routes={routes}
           rung={zoom}
-          scale={view.scale}
+          scale={axis.scale}
         />
         {tray}
       </div>

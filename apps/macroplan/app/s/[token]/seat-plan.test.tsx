@@ -59,6 +59,10 @@ vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new NotFound('notFound')
   },
+  // The pointer root calls `useRouter`, which throws outside an App Router tree. It is handed no zoom on
+  // this surface and so writes nothing here; what it does with a router is asserted where it lives
+  // (`components/plan/canvas/plan-pointer.test.tsx`).
+  useRouter: () => ({ push: () => undefined }),
 }))
 
 // The two seat-action modules by export name, so the recorders below stand in for every one of them. A
@@ -672,6 +676,7 @@ describe('which controls the seat’s own role draws', () => {
       'tray',
       'zoom',
       'zoomControl',
+      'zoomTo',
     ])
   })
 
@@ -685,12 +690,14 @@ describe('which controls the seat’s own role draws', () => {
   // to `/plans/<id>/new/group`, `/settings` and `/share`, none of which exists under `/s/<token>` — this
   // seat's own editors are in the sidebar, which is the case below. And `zoomControl` because choosing a
   // zoom means writing the `mp_zoom` cookie and revalidating `/plans`, both of which this surface is
-  // forbidden (ADR 0040); the rung it opens at is the plan's own fit instead.
-  it('states four slots empty: no drawer, no plan index, no whole-plan actions and no zoom to keep', async () => {
+  // forbidden (ADR 0040); the rung it opens at is the plan's own fit instead. `zoomTo` is the same fact
+  // said to the pointer root rather than to the control: with no action to call, a wheel over this board
+  // is left entirely to the browser rather than swallowed by a gesture that could write nothing.
+  it('states five slots empty: no drawer, no plan index, no whole-plan actions and no zoom either way', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    for (const empty of ['drawer', 'home', 'manage', 'zoomControl']) {
+    for (const empty of ['drawer', 'home', 'manage', 'zoomControl', 'zoomTo']) {
       expect(handed[empty], empty).toBeNull()
     }
     // And three that are filled, every one of them new to this surface: the tree that used to be a null

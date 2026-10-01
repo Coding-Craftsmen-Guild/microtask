@@ -17,6 +17,25 @@ export interface ItemMarkShapeProps {
   readonly top: number
 
   readonly labelId: string | null
+
+  /**
+   * What a hover over this mark says, joined, or `null` where nothing worded it.
+   *
+   * A string and not a record, because it lands as one attribute and is read back out of the markup
+   * by the one client root that draws the card — `detail-lines.ts` carries both halves of that.
+   */
+  readonly detail: string | null
+
+  /**
+   * The id of the feature whose thread this mark belongs to, which is what a hover lights.
+   *
+   * The same value as `data-feature-id` on a bar and deliberately a second attribute, because the two
+   * are read by different things and mean different things: `data-feature-id` is geometry the drag and
+   * the selection sheet answer against, and this is "light me when that feature is pointed at". An item
+   * mark and a bar label carry their **feature's** id here and not their own, so pointing at any part of
+   * a feature lights all of it.
+   */
+  readonly hoverId: string
 }
 
 /**
@@ -37,10 +56,13 @@ export interface ItemMarkShapeProps {
  * render as one unbroken strip. A fraction of a pixel of air at each end is what makes four ticks
  * read as four.
  */
-export function ItemMarkShape({ mark, colour, treatment, top, labelId }: ItemMarkShapeProps) {
+export function ItemMarkShape(props: ItemMarkShapeProps) {
+  const { mark, colour, treatment, top, labelId, detail, hoverId } = props
   return (
     <rect
       className={TREATMENT_CLASS[treatment]}
+      data-detail={detail ?? undefined}
+      data-hover-id={hoverId}
       data-item-id={mark.id}
       data-label-id={labelId ?? undefined}
       data-slot="item-mark"

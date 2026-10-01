@@ -82,7 +82,7 @@ describe('selectCss dims what was not chosen', () => {
   // one answer to which ids are safe to interpolate into a selector.
   it('skips an id that is not ULID-shaped rather than escaping it into a rule', () => {
     const forged = selectCss([
-      { id: 'a"]{}', name: 'x', colour: '#000000', features: [{ id: 'b"]{}', name: 'y' }] },
+      { id: 'a"]{}', name: 'x', colour: '#000000', features: [{ id: 'b"]{}', name: 'y', detail: '' }] },
     ])
     expect(forged).toBe('')
   })
