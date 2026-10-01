@@ -15,6 +15,7 @@ import {
 import { PlanSidebar } from './plan-sidebar'
 import { SidebarActions } from './sidebar-actions'
 import { featureRadioId, railRadioId } from './select-css'
+import { TREE_CSS } from './sidebar-css'
 import { sidebarRails } from './sidebar-rows'
 import { SIDEBAR_WORDS } from './sidebar-words'
 
@@ -100,9 +101,13 @@ describe('the sidebar lists what the plan holds', () => {
     expect(checked[0]?.id).toBe('mp-sel-none')
   })
 
+  // Every sheet the sidebar emits, joined, rather than the first one: the disclosure's static rules are
+  // emitted beside the generated selection sheet now, and an assertion that read `querySelector` alone
+  // would be asserting which of the two happens to come first.
   it('emits the selection stylesheet beside the rows it drives', () => {
     show()
-    expect(document.querySelector('style')?.textContent).toContain(railRadioId(EPIC_1))
+    const sheets = [...document.querySelectorAll('style')].map((one) => one.textContent ?? '').join('')
+    expect(sheets).toContain(railRadioId(EPIC_1))
   })
 
   it('says a rail with no features has none, that being the rail somebody needs to find', () => {
@@ -321,6 +326,62 @@ describe('what a feature row hands the hover root', () => {
     for (const rail of rails) {
       expect(rail.getAttribute('data-hover-id')).toBeNull()
       expect(rail.getAttribute('data-detail')).toBeNull()
+    }
+  })
+})
+
+describe('a rail as a dropdown', () => {
+  const branches = (): readonly Element[] => [...document.querySelectorAll('[data-slot="rail-branch"]')]
+
+  it('gives every rail a disclosure that starts open, so nothing is hidden until somebody hides it', () => {
+    show()
+    const toggles = [...document.querySelectorAll<HTMLInputElement>('[data-slot="rail-toggle"]')]
+
+    expect(toggles).toHaveLength(RAILS.length)
+    expect(toggles.filter((one) => one.defaultChecked)).toEqual([])
+    expect(toggles.map((one) => one.type)).toEqual(RAILS.map(() => 'checkbox'))
+  })
+
+  it('names the control for the rail it opens, which is the only label a bare triangle gets', () => {
+    show()
+    const first = RAILS[0]
+
+    expect(screen.getByLabelText(`${SIDEBAR_WORDS.collapse} ${first?.name ?? ''}`)).toBeTruthy()
+  })
+
+  it('keeps each rail’s features in one element the disclosure can hide, and its rows out of it', () => {
+    show()
+    for (const [index, rail] of RAILS.entries()) {
+      const branch = branches()[index]
+      const kids = branch?.querySelector('[data-slot="rail-kids"]')
+      expect(kids, rail.name).toBeTruthy()
+      expect(kids?.querySelectorAll('[data-slot="sidebar-row"]')).toHaveLength(rail.features.length)
+    }
+  })
+
+  it('puts the disclosure before the row it belongs to, so a sibling rule can reach what it hides', () => {
+    show()
+    const branch = branches()[0]
+    const kinds = [...(branch?.children ?? [])].map((one) => one.getAttribute('data-slot'))
+
+    expect(kinds.indexOf('rail-toggle')).toBeLessThan(kinds.indexOf('rail-kids'))
+  })
+
+  it('hides what it hides from a rule on the branch, not from a second peer that would tint every row', () => {
+    show()
+    const toggle = document.querySelector('[data-slot="rail-toggle"]')
+    const sheets = [...document.querySelectorAll('style')].map((one) => one.textContent ?? '').join('')
+
+    expect(toggle?.className.split(' ')).not.toContain('peer')
+    expect(sheets).toContain(TREE_CSS)
+    expect(TREE_CSS).toContain('[data-slot="rail-branch"]:has(> [data-slot="rail-toggle"]:checked)')
+  })
+
+  it('names in its sheet only slots the tree really renders, a rule matching nothing being valid CSS', () => {
+    show()
+    for (const slot of ['rail-branch', 'rail-toggle', 'rail-kids', 'rail-caret']) {
+      expect(TREE_CSS, slot).toContain(`[data-slot="${slot}"]`)
+      expect(document.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull()
     }
   })
 })

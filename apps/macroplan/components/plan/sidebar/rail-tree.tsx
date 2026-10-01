@@ -2,8 +2,11 @@ import type { AttentionMap } from '../attention/attention'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
 import { featureRadioId, railRadioId } from './select-css'
 import { TREE } from './sidebar-css'
+import { SIDEBAR_WORDS } from './sidebar-words'
 import type { SidebarRail } from './sidebar-rows'
 import { TreeRadio, TreeRow } from './tree-row'
+
+const openId = (epicId: string): string => `mp-open-rail-${epicId}`
 
 /** Props for {@link RailTree}. */
 export interface RailTreeProps {
@@ -30,6 +33,13 @@ export interface RailTreeProps {
  * painted over by it. Every row carries `min-w-0` explicitly now, and the name **is** the link, so
  * there is nothing beside it to push out.
  *
+ * ### The disclosure
+ *
+ * Every rail opens with a caret that collapses its features. It is a hidden checkbox at the top of the
+ * branch and a label inside the rail's row, joined by a rule on the branch itself — `sidebar-css.ts`
+ * carries why that is not a `<details>` and not a second peer. The features move into a wrapper for the
+ * rule to hide, which is the one element the tree gained.
+ *
  * ### Selection versus navigation
  *
  * Clicking a row's colour chip checks a hidden radio and the generated sheet in `select-css.ts` dims
@@ -42,6 +52,7 @@ export function RailTree({ root, routes, rails, noFeatures, found }: RailTreePro
     <div className={TREE.root} data-slot="rail-tree">
       {rails.map((rail) => (
         <div className={TREE.branch} data-slot="rail-branch" key={rail.id}>
+          <input className={TREE.toggle} data-slot="rail-toggle" id={openId(rail.id)} type="checkbox" />
           <TreeRadio radioId={railRadioId(rail.id)} />
           <TreeRow
             colour={rail.colour}
@@ -50,23 +61,27 @@ export function RailTree({ root, routes, rails, noFeatures, found }: RailTreePro
             id={rail.id}
             kind="rail"
             name={rail.name}
+            openId={openId(rail.id)}
+            openLabel={SIDEBAR_WORDS.collapse}
             radioId={railRadioId(rail.id)}
           />
-          {rail.features.length === 0 ? <p className={TREE.empty}>{noFeatures}</p> : null}
-          {rail.features.map((feature) => (
-            <span className="contents" key={feature.id}>
-              <TreeRadio radioId={featureRadioId(feature.id)} />
-              <TreeRow
-                detail={feature.detail}
-                found={found}
-                href={routes.feature(root, feature.id)}
-                id={feature.id}
-                kind="feature"
-                name={feature.name}
-                radioId={featureRadioId(feature.id)}
-              />
-            </span>
-          ))}
+          <div className={TREE.kids} data-slot="rail-kids">
+            {rail.features.length === 0 ? <p className={TREE.empty}>{noFeatures}</p> : null}
+            {rail.features.map((feature) => (
+              <span className="contents" key={feature.id}>
+                <TreeRadio radioId={featureRadioId(feature.id)} />
+                <TreeRow
+                  detail={feature.detail}
+                  found={found}
+                  href={routes.feature(root, feature.id)}
+                  id={feature.id}
+                  kind="feature"
+                  name={feature.name}
+                  radioId={featureRadioId(feature.id)}
+                />
+              </span>
+            ))}
+          </div>
         </div>
       ))}
     </div>

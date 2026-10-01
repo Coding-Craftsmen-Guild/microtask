@@ -4,6 +4,33 @@ import { AttentionDot } from '../attention/attention-mark'
 import { SELECT_RADIO_NAME } from './select-css'
 import { TREE } from './sidebar-css'
 
+const CARET = '▾'
+
+interface Disclosure {
+  readonly openId: string | undefined
+  readonly openLabel: string | undefined
+  readonly name: string
+}
+
+function RailCaret({ openId, openLabel, name }: Disclosure) {
+  if (openId === undefined) return null
+  return (
+    <label
+      aria-label={`${openLabel ?? ''} ${name}`}
+      className={TREE.caret}
+      data-slot="rail-caret"
+      htmlFor={openId}
+    >
+      {CARET}
+    </label>
+  )
+}
+
+function RailSwatch({ colour }: { readonly colour: string | undefined }) {
+  const painted = colour === undefined || colour === '' ? undefined : { backgroundColor: colour }
+  return <span className={TREE.swatch} data-slot="rail-swatch" style={painted} />
+}
+
 /** Props for {@link TreeRow}. */
 export interface TreeRowProps {
   /** What the row is called, and what it is searched by. */
@@ -28,6 +55,20 @@ export interface TreeRowProps {
   readonly colour?: string
 
   /**
+   * The id of the checkbox this row's caret toggles, for a rail. Absent on a feature, which has none.
+   *
+   * The caret is rendered **inside** the row rather than beside it, so that a rail reads as one line
+   * with a disclosure at its start; what it does is `sidebar-css.ts`'s `TREE_CSS`, asked from the
+   * branch above, and the glyph points down because an open rail is the resting state. One character
+   * that turns rather than two swapped on `:checked`, so nothing in the markup can disagree with the
+   * state of the checkbox that drives it.
+   */
+  readonly openId?: string
+
+  /** What the caret is called, with the rail's name appended by this component. */
+  readonly openLabel?: string
+
+  /**
    * What a hover over this row says, joined, or nothing for a rail.
    *
    * It lands as `data-detail` beside `data-hover-id`, and those two attributes are the whole of what
@@ -46,7 +87,7 @@ export interface TreeRowProps {
  * to disagree about `min-w-0` in the first place, which is what put the sidebar on top of the canvas.
  */
 export function TreeRow(props: TreeRowProps) {
-  const { name, radioId, href, found, id, kind, colour, detail } = props
+  const { name, radioId, href, found, id, kind, colour, detail, openId, openLabel } = props
   return (
     <div
       className={kind === 'rail' ? TREE.railRow : TREE.featureRow}
@@ -55,14 +96,9 @@ export function TreeRow(props: TreeRowProps) {
       data-search={name.toLowerCase()}
       data-slot="sidebar-row"
     >
+      <RailCaret name={name} openId={openId} openLabel={openLabel} />
       <label aria-label={`Highlight ${name}`} className={TREE.grip} htmlFor={radioId}>
-        {kind === 'rail' ? (
-          <span
-            className={TREE.swatch}
-            data-slot="rail-swatch"
-            style={colour === undefined || colour === '' ? undefined : { backgroundColor: colour }}
-          />
-        ) : null}
+        {kind === 'rail' ? <RailSwatch colour={colour} /> : null}
       </label>
       {href === null ? (
         <span className={kind === 'rail' ? TREE.railStatic : TREE.featureName} title={name}>
