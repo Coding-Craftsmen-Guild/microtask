@@ -1,3 +1,6 @@
+import Link from 'next/link'
+import { PLAN_DRAWERS } from '../../../lib/drawer-routes'
+import { GroupChipRoot } from './group-chip-root'
 import { ALL_RADIO_ID, GROUP_RADIO_NAME, groupCss, groupRadioId } from './group-css'
 import type { LabelRow } from './label-rows'
 
@@ -8,16 +11,34 @@ const SWATCH = 'mr-1.5 inline-block size-2 rounded-full align-middle'
 
 const ROW = 'flex flex-wrap items-center gap-1.5'
 
+const NEW_CHIP =
+  'cursor-pointer rounded-full border border-dashed border-border px-2 py-0.5 text-[12px] text-muted-foreground hover:border-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand'
+
 /** Props for {@link GroupChips}. */
 export interface GroupChipsProps {
   /** Every group of the plan, with what each holds. Empty draws nothing at all. */
   readonly rows: readonly LabelRow[]
+
+  /**
+   * The plan these chips belong to, or `null` on a surface with no group drawer.
+   *
+   * `null` is the seat surface, which addresses features and items and nothing else
+   * (`SEAT_DRAWER_ROUTES`). The chips stay what they have always been there — a way of looking at the
+   * plan — with nothing to open and nothing to add. Null rather than a no-op, for the reason
+   * `DrawerRoutes.rail` is null on that surface: a control that looks live and goes nowhere is worse
+   * than no control.
+   */
+  readonly planId: string | null
+
+  /** Whether this viewer may make a group, which decides the pill at the end of the row. */
+  readonly mayAdd: boolean
 }
 
 /** What the chip that clears the choice says, and what an empty group's count reads as. */
 export const GROUP_WORDS = {
   all: 'All work',
   none: 'empty',
+  add: 'New group',
 } as const
 
 /**
@@ -60,9 +81,9 @@ export const countOf = (row: LabelRow): string => {
  * the **entire** plan — and without the words, an admin who has made "Phase 2" and not filled it yet reads
  * a blank timeline as a bug rather than as an empty phase.
  */
-export function GroupChips({ rows }: GroupChipsProps) {
+export function GroupChips({ rows, planId, mayAdd }: GroupChipsProps) {
   if (rows.length === 0) return null
-  return (
+  const chips = (
     <div className={ROW} data-slot="group-chips">
       <style>{groupCss(rows)}</style>
       <input className="sr-only peer" defaultChecked id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} type="radio" />
@@ -77,12 +98,24 @@ export function GroupChips({ rows }: GroupChipsProps) {
             name={GROUP_RADIO_NAME}
             type="radio"
           />
-          <label className={CHIP} data-slot="group-chip" htmlFor={groupRadioId(row.id)}>
+          <label
+            className={CHIP}
+            data-label-id={row.id}
+            data-slot="group-chip"
+            htmlFor={groupRadioId(row.id)}
+          >
             <span className={SWATCH} style={{ backgroundColor: row.colour }} />
             {`${row.name} · ${countOf(row)}`}
           </label>
         </span>
       ))}
+      {planId === null || !mayAdd ? null : (
+        <Link className={NEW_CHIP} data-slot="new-group-chip" href={PLAN_DRAWERS.newGroup(planId)}>
+          {GROUP_WORDS.add}
+        </Link>
+      )}
     </div>
   )
+  if (planId === null) return chips
+  return <GroupChipRoot planId={planId}>{chips}</GroupChipRoot>
 }

@@ -3,7 +3,6 @@ import { PLAN_DRAWERS } from '../../../lib/drawer-routes'
 import { BUTTON } from './shell-css'
 
 const WORDS = {
-  group: 'New group',
   settings: 'Settings',
   share: 'Share',
 } as const
@@ -11,8 +10,6 @@ const WORDS = {
 /** Props for {@link PlanManage}. */
 export interface PlanManageProps {
   readonly planId: string
-
-  readonly mayAddGroup: boolean
 
   readonly maySettings: boolean
 
@@ -28,14 +25,9 @@ export interface PlanManageProps {
  * Every one is a link to a drawer route rather than a disclosure that expands in place (ADR 0057),
  * so each is addressable, reloadable and steps back out of.
  */
-export function PlanManage({ planId, mayAddGroup, maySettings, mayShare }: PlanManageProps) {
+export function PlanManage({ planId, maySettings, mayShare }: PlanManageProps) {
   return (
     <>
-      {mayAddGroup ? (
-        <Link className={BUTTON.quiet} href={PLAN_DRAWERS.newGroup(planId)}>
-          {WORDS.group}
-        </Link>
-      ) : null}
       {maySettings ? (
         <Link className={BUTTON.quiet} href={PLAN_DRAWERS.settings(planId)}>
           {WORDS.settings}

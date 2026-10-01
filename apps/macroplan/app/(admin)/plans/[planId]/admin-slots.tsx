@@ -29,10 +29,9 @@ export function sidebarSlot(plan: PlanScreenModel, found: AttentionMap) {
 
 /** The whole-plan actions, beside the plan's name. */
 export function manageSlot(plan: PlanScreenModel) {
-  const { content, plan: own, seats } = ADMIN_CONTROLS
+  const { plan: own, seats } = ADMIN_CONTROLS
   return (
     <PlanManage
-      mayAddGroup={content.createLabel}
       maySettings={own.rename || own.retime || own.remove}
       mayShare={seats.read || seats.create}
       planId={plan.id}
@@ -54,7 +53,7 @@ export function traySlot(plan: PlanScreenModel, found: AttentionMap) {
 
 /** The group chips, which filter both views at once. */
 export function groupsSlot(plan: PlanScreenModel) {
-  return <GroupChips rows={labelRows(plan)} />
+  return <GroupChips mayAdd={ADMIN_CONTROLS.content.createLabel} planId={plan.id} rows={labelRows(plan)} />
 }
 
 /** The zoom control, which the admin surface has because it can remember a choice in a cookie. */

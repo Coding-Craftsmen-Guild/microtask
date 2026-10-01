@@ -47,6 +47,8 @@ import { BindForm } from './bridge/bind-form'
 import { BindProjectForm } from './bridge/bind-project-form'
 import { LinkField } from './drawer/link-field'
 import { TaskPicker } from './drawer/task-picker'
+import { GroupChipRoot } from './labels/group-chip-root'
+import { GroupChips } from './labels/group-chips'
 import { LabelFields } from './labels/label-fields'
 import { NewRailForm } from './rails/new-rail-form'
 import { DeletePlan } from './settings/delete-plan'
@@ -298,6 +300,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [BindProjectForm, 'bridge/bind-project-form.tsx'],
   [LinkField, 'drawer/link-field.tsx'],
   [TaskPicker, 'drawer/task-picker.tsx'],
+  [GroupChipRoot, 'labels/group-chip-root.tsx'],
   [LabelForm, 'labels/label-form.tsx'],
   [LabelFields, 'labels/label-fields.tsx'],
   [NewLabelForm, 'labels/new-label-form.tsx'],
@@ -377,7 +380,7 @@ const TREES = [
     at={AT}
     controls={ADMIN_CONTROLS}
     drawer={null}
-    groups={null}
+    groups={<GroupChips mayAdd planId={PLAN_A} rows={labelRows(planScreenModel(atlasPlan()))} />}
     home="/"
     manage={null}
     progress={[]}
@@ -665,7 +668,7 @@ const TREES = [
     routes={SEAT_DRAWER_ROUTES}
   />,
   // The whole-plan actions, which moved out of the sidebar and into the title row.
-  <PlanManage key="pm" mayAddGroup maySettings mayShare planId={PLAN_A} />,
+  <PlanManage key="pm" maySettings mayShare planId={PLAN_A} />,
   // And again with no rails at all, which is the state a new plan is in and the one the empty sentence is
   // for: the row markup above never renders it, so a sweep without this tree would leave that class unseen.
   <PlanSidebar

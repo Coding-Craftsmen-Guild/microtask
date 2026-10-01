@@ -100,6 +100,7 @@ vi.mock('next/link', async () => ({
   default: (await import('../../../../components/plan/testing/next-link')).LinkDouble,
 }))
 vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: () => undefined }),
   redirect: (location: string) => {
     throw new Redirected(location)
   },
@@ -417,17 +418,25 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
   // to. Three of them are back in the heading — as **links** to those routes rather than as the
   // disclosures they were — because they act on the whole plan and so belong beside its name; crowded
   // into the sidebar they pushed the rail tree down and made the one action that is about rails compete
-  // with three that are not. So the split is the assertion: three in the head, one in the tree, and
-  // each answered by what this viewer may do rather than drawn unconditionally.
-  it('puts the three whole-plan actions in the head and leaves the tree the one action of its own', async () => {
+  // with three that are not. So the split is the assertion: what acts on the whole plan is in the head,
+  // one action is in the tree, and each is answered by what this viewer may do rather than drawn
+  // unconditionally.
+  //
+  // `New group` has since left the head for the chip row, which is where the groups it adds to are: a
+  // control three regions away from its own subject was the same crowding one level up.
+  it('puts the whole-plan actions in the head and leaves the tree the one action of its own', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     const handed = await slotsOf(PLAN_A)
     expect(propsIn(handed['manage'])).toEqual({
-      mayAddGroup: true,
       maySettings: true,
       mayShare: true,
       planId: PLAN_A,
+    })
+    expect(propsIn(handed['groups'])).toEqual({
+      mayAdd: true,
+      planId: PLAN_A,
+      rows: expect.anything(),
     })
     expect(propsIn(propsIn(handed['sidebar'])['actions'])).toEqual({
       mayAddRail: true,

@@ -38,6 +38,15 @@ export interface LinkDoubleProps {
 
   /** Passed through, for a link whose visible text is truncated. */
   title?: string
+
+  /**
+   * Passed through, and load-bearing for the third time.
+   *
+   * `data-slot` is how every region of this plan page is addressed, by tests and by the generated
+   * selection sheets alike, so a double that dropped it would make an element the real app labels
+   * invisible to exactly the queries the app is built around.
+   */
+  'data-slot'?: string
 }
 
 /**
@@ -59,6 +68,7 @@ export function LinkDouble(props: LinkDoubleProps) {
       aria-hidden={props['aria-hidden']}
       aria-label={props['aria-label']}
       className={className}
+      data-slot={props['data-slot']}
       data-testid={props['data-testid']}
       href={href}
       tabIndex={tabIndex}

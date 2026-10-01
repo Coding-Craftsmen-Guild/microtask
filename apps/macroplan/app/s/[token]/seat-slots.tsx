@@ -44,5 +44,5 @@ export function seatTraySlot(plan: PlanScreenModel, token: string, found: Attent
 
 /** The group chips, which a holder may use to pick out work across rails whatever their role. */
 export function seatGroupsSlot(plan: PlanScreenModel) {
-  return <GroupChips rows={labelRows(plan)} />
+  return <GroupChips mayAdd={false} planId={null} rows={labelRows(plan)} />
 }
