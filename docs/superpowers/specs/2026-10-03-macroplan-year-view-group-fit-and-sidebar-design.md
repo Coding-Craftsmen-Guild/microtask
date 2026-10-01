@@ -196,3 +196,70 @@ Two things are checked in a browser and not only in `happy-dom`, because `happy-
 `getBoundingClientRect` with a zero `DOMRect` and cannot be asked either question: that the grid
 reaches the right edge of its pane at every zoom and stays there when scrolled (§1.3), and that a
 group chip's click lands the group where it says it does (§2).
+
+## 7. As built, six things differ from the above
+
+Written after the work, so that the spec says what shipped rather than what was planned.
+
+**§1.3's second cause was real, and it was neither of the two guessed at.** The rail bands were indeed
+drawn to the unbled width, and fixing that was not enough. `DragRoot`'s frame is `w-fit`, and
+`fit-content` shrinks to the SVG's own `minWidth` — so a 1040px canvas in a 1412px pane got a 1040px
+frame, and the SVG's `w-full` then resolved against the frame rather than against the pane. The
+canvas had never filled a wide pane, and `plan-canvas.tsx`'s own note claiming it did had been wrong
+since the frame acquired a width. The frame is `w-full min-w-fit` now, which is what the header and
+the canvas both say. This is exactly what the spec reserved a measurement for, and it is why the
+measurement was worth taking rather than reasoning further.
+
+**§2's `bestFit` was the wrong function, and the fixture is what showed it.** `bestFit` routes each
+offer through `rangeFor`, which pads a window out past its last day to a whole sprint boundary. That
+is right for opening a plan and wrong for a window that already has edges: a group of exactly two
+sprints, padded by one more, no longer fits at the stop that exists to hold two sprints — so the
+plainest statement of the rule would have been false. `bestSpan` is the unpadded form, sharing
+`bestFit`'s own `TOLERABLE_OVERFLOW` so the two cannot disagree about what fits. It reads no
+`sprintLengthDays` at all, which `rungs.ts` already accepted for `ITEM_RUNG_MAX_DAYS`: "two sprints"
+means two ten-day sprints, and a plan on longer sprints reaches a finer stop at fewer of its own.
+
+**§2's scroll is clamped by the browser near the end of a plan, and that is left alone.** A group
+starting at day 47 of a plan that ends shortly after cannot have its first day brought to the left
+edge, because there is nothing to the right of it to scroll into; the browser stops at the scroll
+maximum. Measured: the group's bar was nevertheless fully inside the pane. The alternative — padding
+every axis with a screenful of empty days so that any day can reach the left edge — costs every plan
+something to serve a handful of groups, and was not taken.
+
+**§1.1's header needed a second threshold.** `NAMEABLE` is 48px, measured for `Q4 2026`. A month cell
+carries three letters, and reusing 48 would drop the name off cells wide enough to hold it, so
+`NAMEABLE_MONTH` is 24. A clamped first month still draws its cell and no text, for the reason a
+clamped quarter does.
+
+**§3's field id needed a module of its own.** The plan was for the sidebar to link to the field
+`rail-feature.tsx` already gives its input. That component is `'use client'`, and a server component
+importing from a client module gets client *references* rather than functions — so calling the id
+builder on the server would not have worked. `rails/rail-anchors.ts` is one line in a module neither
+side has to be.
+
+**Two guards caught things no test of mine would have.** The Tailwind scan test refused a template
+literal in `sidebar-css.ts` that split class names across an interpolation, which would have shipped
+rows with no padding. And `module-boundaries.test.tsx` demanded `allFit` be threaded through both
+surfaces rather than derived where the chips are rendered.
+
+## 8. What was checked in a browser
+
+Against a seeded plan at 1900×800 and 1100×900, after the gate:
+
+- **§1.1** — 19 month cells and no week cells at the Year stop; labels `Oct, Nov, Dec, Jan, …`; every
+  quarter cell's left edge is also a month cell's left edge, with none unmatched. 19 month rules on
+  the grid and no sprint ticks.
+- **§1.2** — zero `<text>` elements on the canvas at every stop.
+- **§1.3** — on a 1412px pane the frame, the canvas and the header all end at the pane's right edge
+  and the scroller grows no scrollbar; on a 612px pane the canvas is 1040px and scrolls, the header
+  agrees to the pixel, and the bled rail band still covers the pane after scrolling to the end.
+- **§2** — a chip carries its stop and its day; clicking `Phase 0` stepped 4 → 42 px/day and selected
+  the group; clicking a group already at the drawn stop scrolled immediately and **exactly**
+  (`scrollLeft` 126 against a wanted 126, drift 0); `All work` returned to 14 px/day, scroll 0, with
+  nothing dimmed.
+- **§3** — one add per rail, each linking to its own rail's drawer and field id, labelled `Add feature
+  to <rail>`, resting at zero opacity, and never on a feature row. Following one landed on a real
+  text input in the viewport with an `Add feature` submit beside it, and submitting it created a
+  feature that appeared in the tree under that rail.
+- **§4** — the card's title renders in full with `white-space: normal` and no ellipsis, and a title
+  too long for the card's 320px wraps to a second line rather than clipping.
