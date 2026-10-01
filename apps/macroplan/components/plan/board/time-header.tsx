@@ -6,6 +6,26 @@ import { HEADER_HEIGHT, QUARTER_HEIGHT, TIME } from './board-css'
 
 const WEEK_HEIGHT = HEADER_HEIGHT - QUARTER_HEIGHT
 
+/**
+ * The narrowest cell that still gets its quarter's name, in px.
+ *
+ * ### Why a label is dropped rather than merely clipped
+ *
+ * Each cell clips to its own band, which is what stops a sliver of a quarter printing on top of the
+ * next one's name. That left a second way to look broken: a plan opening four working days before Q4
+ * 2026 sits in a Q3 2026 whose visible cell is a few pixels wide, and clipping drew a lone `Q` in the
+ * corner of the page. One letter is not a quarter, and a reader cannot tell it from a fault.
+ *
+ * So a band narrower than this draws its cell — the band is real and the grid stays unbroken — and no
+ * text. Nothing legible is lost.
+ *
+ * 48 is `Q4 2026` at this row's own size plus its padding, measured in a browser rather than derived,
+ * because `happy-dom` answers every text measurement with zero and nothing here can ask. It is the
+ * same trade `canvas/bar-label.tsx` makes with `MIN_READABLE`, where the budget is in characters
+ * rather than in pixels.
+ */
+export const NAMEABLE = 48
+
 /** Props for {@link TimeHeader}. */
 export interface TimeHeaderProps {
   readonly plan: PlanScreenModel
@@ -91,7 +111,7 @@ export function TimeHeader({ plan, scale, range, width }: TimeHeaderProps) {
             key={`${String(band.year)}-${String(band.quarter)}`}
             style={{ left: cellOf(band).left, width: cellOf(band).width }}
           >
-            {band.label}
+            {cellOf(band).width < NAMEABLE ? null : band.label}
           </span>
         ))}
       </div>

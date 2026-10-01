@@ -1,3 +1,4 @@
+import { PLAN_ROOT } from '../shell/shell-css'
 import { isStyleSafeId, type LabelRow } from './label-rows'
 
 /** The `id` of the radio that selects one group, and the `for` of the chip that labels it. */
@@ -20,7 +21,7 @@ export const GROUP_RADIO_NAME = 'plan-group'
  */
 export const DIMMED_OPACITY = '0.32'
 
-const ROOT = '[data-slot="plan-root"]'
+const ROOT = PLAN_ROOT
 
 const DIMMABLE = [
   '[data-slot="feature-bar"]',

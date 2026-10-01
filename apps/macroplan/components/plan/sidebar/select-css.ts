@@ -1,4 +1,5 @@
 import { isStyleSafeId } from '../labels/label-rows'
+import { PLAN_ROOT } from '../shell/shell-css'
 import type { SidebarRail } from './sidebar-rows'
 
 /** The `id` of the radio that selects one rail, and the `for` of the row that names it. */
@@ -24,7 +25,7 @@ export const SELECT_RADIO_NAME = 'plan-selection'
  */
 export const SELECT_DIMMED = '0.32'
 
-const ROOT = '[data-slot="plan-root"]'
+const ROOT = PLAN_ROOT
 
 const railRule = (epicId: string): string =>
   `${ROOT}:has(#${railRadioId(epicId)}:checked) [data-slot="rail"]:not([data-epic-id="${epicId}"])` +
@@ -49,8 +50,10 @@ const arcRule = (featureId: string): string =>
  * either, because what has to change is the appearance of *other* elements than the one clicked; and
  * `:has()` on the common ancestor is what lets a control in one subtree reach marks in another. Selecting a
  * rail and selecting a group are the same gesture over a different attribute, so they are the same
- * mechanism rather than a second one — which is also why they share `[data-slot="plan-root"]` and why
- * choosing a rail re-renders nothing.
+ * mechanism rather than a second one — which is also why they share {@link PLAN_ROOT} and why choosing
+ * a rail re-renders nothing. That constant is the shell's own slot, imported rather than written again:
+ * both sheets used to spell it `plan-root`, which nothing had rendered since the frame of ADR 0068, so
+ * every rule in both anchored on an element that did not exist and no selection dimmed anything.
  *
  * ### A rail dims by its whole group, a feature by the marks
  *

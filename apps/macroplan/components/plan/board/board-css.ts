@@ -50,6 +50,6 @@ export const TIME = {
   quarterRow: 'relative border-b border-border/60',
   weekRow: 'relative border-b border-border',
   quarter:
-    'absolute top-0 flex h-full items-center border-l border-border/60 px-2 text-[11px] font-semibold text-foreground',
-  week: 'absolute top-0 flex h-full items-center border-l border-border/40 px-2 text-[11px] text-muted-foreground tabular-nums',
+    'absolute top-0 flex h-full items-center overflow-hidden border-l border-border/60 px-2 text-[11px] font-semibold whitespace-nowrap text-foreground',
+  week: 'absolute top-0 flex h-full items-center overflow-hidden border-l border-border/40 px-2 text-[11px] text-muted-foreground tabular-nums',
 } as const

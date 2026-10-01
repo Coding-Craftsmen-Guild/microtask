@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan } from '../testing/plan-fixture'
 import { CANVAS_SCALE, canvasWidth, chromeRange } from '../canvas/view'
-import { TimeHeader } from './time-header'
+import { NAMEABLE, TimeHeader } from './time-header'
 
 const plan = planScreenModel(atlasPlan())
 
@@ -29,11 +29,17 @@ const wide = (cell: HTMLElement): number => Number.parseFloat(cell.style.width)
 describe('the quarters the header names, now that they are the calendar’s own', () => {
   it('names a real year quarter, so a plan starting in September is not drawing Q1 over October', () => {
     expect(cells('quarter-head').map((cell) => cell.textContent)).toEqual([
-      'Q3 2026',
+      '',
       'Q4 2026',
       'Q1 2027',
       'Q2 2027',
     ])
+  })
+
+  // The first band is Q3 2026 and is unnamed only because this plan's four days of it leave a cell too
+  // narrow to carry the words; the band is still that quarter, which is what the key says.
+  it('keys the unnamed first cell on the quarter it is, a missing label being about width alone', () => {
+    expect(cells('quarter-head')[0]?.dataset['quarter']).toBe('2026-3')
   })
 
   it('keys each cell on the year as well as the quarter, two Q1s being two different bands', () => {
@@ -82,5 +88,40 @@ describe('the chrome drawn past the range, so the grid reaches the edge of any p
 
   it('bleeds only to the right, day zero being the plan’s own first day', () => {
     expect(chromeRange(RANGE).fromDay).toBe(RANGE.fromDay)
+  })
+})
+
+// A calendar quarter can be almost entirely behind day zero — this plan opens four working days
+// before Q4 2026, so Q3's cell is clamped to the left edge and a handful of pixels wide. Its label is
+// not that wide, and without clipping it overflowed its own cell and printed on top of the next
+// band's name: two quarter headings overlapping in the corner of the page.
+describe('a cell narrower than the words in it', () => {
+  it('clips each heading to its own band, so a sliver of a quarter cannot print over the next one', () => {
+    for (const cell of cells('quarter-head')) {
+      expect(cell.className).toContain('overflow-hidden')
+    }
+  })
+
+  it('clips a week heading too, the bled ones at the right running past the canvas by design', () => {
+    for (const cell of cells('week-head')) {
+      expect(cell.className).toContain('overflow-hidden')
+    }
+  })
+})
+
+// Clipping a label to its cell stops two headings printing over each other, and leaves a new way to
+// look broken: this plan opens four working days before Q4 2026, so Q3's clamped cell is a few pixels
+// wide and showed a lone "Q" in the corner. A quarter too narrow to name is not named.
+describe('a band too narrow to carry its own name', () => {
+  it('draws the cell and no label, a single clipped letter reading as a fault rather than a quarter', () => {
+    const [first, second] = cells('quarter-head')
+
+    expect(wide(first as HTMLElement)).toBeLessThan(NAMEABLE)
+    expect(first?.textContent).toBe('')
+    expect(second?.textContent).toBe('Q4 2026')
+  })
+
+  it('still draws the band itself, so the grid is unbroken where the name is absent', () => {
+    expect(cells('quarter-head')).toHaveLength(4)
   })
 })

@@ -4,6 +4,7 @@ import { FEATURE_1, FEATURE_2, LABEL_1, LABEL_2, PLAN_A, atlasPlan } from '../te
 import { planScreenModel } from '../plan-screen-model'
 import { PlanTable } from '../table/plan-table'
 import { GROUP_RADIO_NAME, groupRadioId, groupCss, ALL_RADIO_ID, DIMMED_OPACITY } from './group-css'
+import { PLAN_ROOT } from '../shell/shell-css'
 import { GroupChips } from './group-chips'
 import { labelRows } from './label-rows'
 
@@ -125,7 +126,7 @@ describe('the rule that dims what is not in the chosen group', () => {
   it('selects the bars and rows of every other group from the plan root, by :has on the radio', () => {
     const css = groupCss(ROWS)
 
-    expect(css).toContain(`[data-slot="plan-root"]:has(#${groupRadioId(LABEL_1)}:checked) `)
+    expect(css).toContain(`${PLAN_ROOT}:has(#${groupRadioId(LABEL_1)}:checked) `)
     expect(css).toContain(`:not([data-label-id="${LABEL_1}"]){opacity:${DIMMED_OPACITY}}`)
   })
 

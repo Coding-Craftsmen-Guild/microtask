@@ -1,4 +1,26 @@
 /**
+ * The `data-slot` of the one element every `:has()` rule on this page anchors on.
+ *
+ * ### Why it is a constant and not three string literals
+ *
+ * Three things have to name the same element: the shell that renders it, the group sheet
+ * (`labels/group-css.ts`) and the selection sheet (`sidebar/select-css.ts`). They did not. Both
+ * sheets named `plan-root`, which nothing has rendered since this frame replaced the old root with
+ * `plan-shell` — so every rule in both sheets anchored on an element that did not exist, no rule
+ * could match, and **neither selection dimmed anything in a browser**.
+ *
+ * Nothing failed. Each sheet's tests assert the rule's text, and the marks' tests assert the
+ * attributes those rules name, and no test joined the two — which is exactly the shape of defect a
+ * generated stylesheet invites, because a selector that matches nothing is valid CSS.
+ * `plan-screen.test.tsx` now holds the join: the anchor must be an element the screen renders and an
+ * ancestor of the marks the rules go on to select.
+ */
+export const PLAN_ROOT_SLOT = 'plan-shell'
+
+/** {@link PLAN_ROOT_SLOT} as the attribute selector both generated sheets open their rules with. */
+export const PLAN_ROOT = `[data-slot="${PLAN_ROOT_SLOT}"]`
+
+/**
  * The plan page's frame, as whole class strings.
  *
  * ### Why a frame and not a stack

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { SHELL } from './shell-css'
+import { PLAN_ROOT_SLOT, SHELL } from './shell-css'
 
 /** Props for {@link PlanShell}. */
 export interface PlanShellProps {
@@ -38,7 +38,7 @@ export interface PlanShellProps {
  */
 export function PlanShell({ head, toolbar, sidebar, children, drawer }: PlanShellProps) {
   return (
-    <div className={SHELL.root} data-slot="plan-shell">
+    <div className={SHELL.root} data-slot={PLAN_ROOT_SLOT}>
       <div className={SHELL.head}>{head}</div>
       <div className={SHELL.toolbar}>{toolbar}</div>
       <div className={SHELL.body}>

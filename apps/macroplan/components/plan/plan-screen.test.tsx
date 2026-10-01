@@ -8,6 +8,10 @@ import { planCapabilities, type PlanControls } from '../../lib/plan-capabilities
 import type { PlanEditActions } from './edit-actions'
 import { PlanScreen } from './plan-screen'
 import { planScreenModel } from './plan-screen-model'
+import { PLAN_ROOT } from './shell/shell-css'
+import { PlanSidebar } from './sidebar/plan-sidebar'
+import { NOTHING_SELECTED_ID } from './sidebar/select-css'
+import { sidebarRails } from './sidebar/sidebar-rows'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
 import { stubActions } from './testing/plan-writes'
 import { VIEW_SWITCH_CSS } from './view-switch'
@@ -31,6 +35,7 @@ interface Shown {
   readonly manage?: ReactNode
   readonly actions?: PlanEditActions | null
   readonly tray?: ReactNode
+  readonly sidebar?: ReactNode
 }
 
 const show = (over: Shown = {}) =>
@@ -47,7 +52,7 @@ const show = (over: Shown = {}) =>
       progress={[]}
       root={PLAN_A}
       routes={ADMIN_DRAWER_ROUTES}
-      sidebar={null}
+      sidebar={over.sidebar ?? null}
       tray={over.tray ?? null}
       zoom="feature"
       zoomControl={null}
@@ -324,5 +329,42 @@ describe('the controls the screen is handed', () => {
     const actions = stubActions()
     expect(dragging(show({ actions, controls: planCapabilities('write', SEAT) }).container)).toBe('false')
     expect(dragging(show({ actions, controls: planCapabilities('manage', SEAT) }).container)).toBe('true')
+  })
+})
+
+// The two generated selection sheets — `labels/group-css.ts` for a group and `sidebar/select-css.ts`
+// for a rail or a feature — are `:has()` rules anchored on one ancestor of both the radio and the
+// marks. Every test of either asserted the rule's **text** and, separately, that the marks carry the
+// attributes it names; none asserted that the element it anchors on is an element this screen
+// renders. It was not: both sheets named `[data-slot="plan-root"]`, which nothing has rendered since
+// the frame of ADR 0068 replaced the old root with `plan-shell`, so no rule in either sheet could
+// ever match and neither selection dimmed anything in a browser. The unit tests all passed.
+//
+// So this is the case that holds the anchor and the markup together, and it is deliberately about
+// containment rather than about equality of two constants, which would be a tautology: whatever the
+// sheets anchor on must be an element that exists and must contain the marks the rules go on to
+// select, or the `:has()` cannot reach them.
+describe('the element both generated selection sheets anchor on', () => {
+  it('is an element this screen renders, which is what makes a :has() rule able to match at all', () => {
+    show()
+
+    expect(document.querySelector(PLAN_ROOT)).not.toBeNull()
+  })
+
+  it('contains the radios the rules key on and the marks they dim, both being inside one ancestor', () => {
+    show({ sidebar: <PlanSidebar actions={null} found={new Map()} rails={sidebarRails(planScreenModel(atlasPlan()))} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} /> })
+    const root = document.querySelector(PLAN_ROOT)
+
+    expect(root).not.toBeNull()
+
+    expect(root?.querySelector(`#${NOTHING_SELECTED_ID}`)).not.toBeNull()
+    expect(root?.querySelector('[data-slot="feature-bar"]')).not.toBeNull()
+    expect(root?.querySelector('[data-slot="plan-table-row"]')).not.toBeNull()
+  })
+
+  it('is the shell itself, so the frame and the sheets cannot drift apart over a renamed slot', () => {
+    show()
+
+    expect(document.querySelector(PLAN_ROOT)).toBe(shell())
   })
 })

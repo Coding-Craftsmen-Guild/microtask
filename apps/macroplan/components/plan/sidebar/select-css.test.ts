@@ -1,3 +1,4 @@
+import { PLAN_ROOT } from '../shell/shell-css'
 import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
 import { EPIC_1, FEATURE_1, FEATURE_2, railedPlan } from '../testing/plan-fixture'
@@ -33,13 +34,13 @@ describe('the ids and the one name the selection is wired with', () => {
 describe('selectCss dims what was not chosen', () => {
   it('dims every other rail group when a rail is chosen, its name included', () => {
     expect(css()).toContain(
-      `[data-slot="plan-root"]:has(#${railRadioId(EPIC_1)}:checked) [data-slot="rail"]:not([data-epic-id="${EPIC_1}"]){opacity:${SELECT_DIMMED}}`,
+      `${PLAN_ROOT}:has(#${railRadioId(EPIC_1)}:checked) [data-slot="rail"]:not([data-epic-id="${EPIC_1}"]){opacity:${SELECT_DIMMED}}`,
     )
   })
 
   it('dims every other mark when a feature is chosen, which reaches its own rail too', () => {
     expect(css()).toContain(
-      `[data-slot="plan-root"]:has(#${featureRadioId(FEATURE_1)}:checked) [data-feature-id]:not([data-feature-id="${FEATURE_1}"]){opacity:${SELECT_DIMMED}}`,
+      `${PLAN_ROOT}:has(#${featureRadioId(FEATURE_1)}:checked) [data-feature-id]:not([data-feature-id="${FEATURE_1}"]){opacity:${SELECT_DIMMED}}`,
     )
   })
 
