@@ -1,9 +1,9 @@
 import type { PlanBridge } from '@repo/api-client'
 import type { Rung } from '@repo/canvas'
 import type { ReactNode } from 'react'
-import { PlanBoard } from './board/plan-board'
+import { TimelinePanel } from './board/timeline-panel'
+import type { CreateWrites } from './board/create-write'
 import type { FeaturePlace } from './canvas/drag-root'
-import { planAxis } from './canvas/zoom-view'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable, type TableWrites } from './table/plan-table'
 import type { DrawerRoutes } from '../../lib/drawer-routes'
@@ -34,6 +34,19 @@ export interface PlanViewsProps {
   readonly newRailHref: string | null
 
   readonly routes: DrawerRoutes
+
+  /**
+   * The four writes the Add strip's drops make, each `null` where this viewer may not make it.
+   *
+   * Separate from {@link PlanViewsProps.writes}, which is three booleans about what the **table** draws
+   * in its actions column. These are the functions themselves, and they are flat and narrow for the
+   * reason `board/create-write.ts` records: a drop handler handed the whole `PlanEditActions` could
+   * reach seventeen writes it has no business with.
+   */
+  readonly adds: CreateWrites
+
+  /** The hue to propose for a dropped rail, chosen on the server from how many the plan holds. */
+  readonly nextRailColour: string
 }
 
 /**
@@ -50,22 +63,22 @@ export interface PlanViewsProps {
  */
 export function PlanViews(props: PlanViewsProps) {
   const { plan, at, zoom, progress, place, tray, root, routes, writes, newRailHref } = props
-  const axis = planAxis(plan, at, zoom)
+  const { adds, nextRailColour } = props
   return (
     <>
       <div className={VIEW_SWITCH.timelinePanel} data-slot="timeline-panel">
-        <PlanBoard
+        <TimelinePanel
+          adds={adds}
           at={at}
+          nextRailColour={nextRailColour}
           place={place}
           plan={plan}
           progress={progress}
-          range={axis.range}
           root={root}
           routes={routes}
-          rung={zoom}
-          scale={axis.scale}
+          tray={tray}
+          zoom={zoom}
         />
-        {tray}
       </div>
       <div className={VIEW_SWITCH.tablePanel} data-slot="table-panel">
         <PlanTable

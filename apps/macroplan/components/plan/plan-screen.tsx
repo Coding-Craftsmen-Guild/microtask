@@ -9,7 +9,9 @@ import { POINTER_CSS } from './canvas/pointer-css'
 import { axisX } from './canvas/view'
 import { planAxis } from './canvas/zoom-view'
 import { PlanViews } from './plan-views'
+import { addsFor } from './table/table-writes'
 import { writesFor } from './table/table-writes'
+import { nextRailColour } from './rails/rail-palette'
 import { PlanHead } from './shell/plan-head'
 import { PlanShell } from './shell/plan-shell'
 import type { PlanEditActions } from './edit-actions'
@@ -136,6 +138,8 @@ export function PlanScreen(props: PlanScreenProps) {
             root={root}
             routes={routes}
             tray={tray}
+            adds={addsFor(actions, controls.content)}
+            nextRailColour={nextRailColour(plan.epics.length)}
             writes={writesFor(controls.content)}
             zoom={zoom}
           />

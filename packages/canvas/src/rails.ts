@@ -1,7 +1,7 @@
 import { railsOf } from '@repo/schedule'
 import type { ScheduleFeature } from '@repo/schedule'
 import { spansById } from './plan.js'
-import type { CanvasPlan, CanvasSchedule, CanvasSpan } from './plan.js'
+import type { CanvasEpic, CanvasPlan, CanvasSchedule, CanvasSpan } from './plan.js'
 import { dayToX, widthOfDays } from './scale.js'
 import type { PlanScale } from './scale.js'
 
@@ -106,13 +106,35 @@ function boxOf(epicId: string, rail: readonly ScheduleFeature[], context: RailCo
   }
 }
 
+const NO_FEATURES: readonly ScheduleFeature[] = []
+
+const byRailOrder = (left: CanvasEpic, right: CanvasEpic): number =>
+  left.railOrder === right.railOrder
+    ? left.id.localeCompare(right.id)
+    : left.railOrder - right.railOrder
+
 /**
- * The plan's rails as boxes of bars, in the exact order the forward pass placed spans in.
+ * The plan's rails as boxes of bars: **one per rail the plan holds**, in rail order, with the rails
+ * no epic claims after them.
  *
- * Order comes from `railsOf` in `@repo/schedule` and is never re-derived here. That is the one
- * shortcut worth naming: rails are ordered by `(railOrder, id)` and features within a rail by
- * `(position, id)`, and a second total order written in this package could disagree with the first
- * on any tie — which is a bar drawn on the wrong rail, silently, at exactly the zoom level nobody
+ * ### Why every epic gets a box, including one with nothing on it
+ *
+ * It did not, and that was a lane that did not exist. `railsOf` groups **features** by epic — which
+ * is right for the forward pass, since an empty rail has nothing to schedule — so a rail with no
+ * features produced no group and no box, and the board drew neither a band for it nor a row in the
+ * column beside it. A plan whose first act is "make a rail" therefore showed nothing at all until
+ * something was put on it, and the Add strip's epic drop appeared to do nothing.
+ *
+ * A rail is a lane, and a lane is where work *goes*. So the rails are the plan's own epics here, in
+ * `(railOrder, id)` order — the same total order `railsOf` sorts its groups by, written out because
+ * this is now ordering epics rather than groups of features. The grouping decides what is **on** each
+ * rail and no longer decides which rails exist.
+ *
+ * ### The one order that is still `railsOf`'s
+ *
+ * Features within a rail. Rails are ordered by `(railOrder, id)` and features within a rail by
+ * `(position, id)`, and a second order for the latter written in this package could disagree with the
+ * first on any tie — which is a bar drawn in the wrong place, silently, at exactly the zoom nobody
  * tested. A feature whose `epicId` names no epic still forms a rail of its own, ordered after every
  * real one, for the same reason the pass places it rather than dropping it.
  *
@@ -128,8 +150,7 @@ function boxOf(epicId: string, rail: readonly ScheduleFeature[], context: RailCo
  * rail's `bars` may be shorter than its features, and may be empty; the features it leaves out are
  * still named in that rail's `featureIds`, in the one order this derived.
  *
- * Nothing here is written to; neither argument is mutated and every sort runs on a copy inside
- * `railsOf`.
+ * Nothing here is written to; neither argument is mutated and every sort runs on a copy.
  */
 export function railLayout(
   plan: CanvasPlan,
@@ -141,8 +162,15 @@ export function railLayout(
     colours: new Map(plan.epics.map((epic) => [epic.id, epic.colour])),
     scale,
   }
-  return railsOf(plan).flatMap((rail) => {
-    const first = rail[0]
-    return first === undefined ? [] : [boxOf(first.epicId, rail, context)]
-  })
+  const grouped = new Map(
+    railsOf(plan).flatMap((rail) => (rail[0] === undefined ? [] : [[rail[0].epicId, rail] as const])),
+  )
+  const claimed = [...plan.epics].sort(byRailOrder)
+  const known = new Set(claimed.map((epic) => epic.id))
+  return [
+    ...claimed.map((epic) => boxOf(epic.id, grouped.get(epic.id) ?? NO_FEATURES, context)),
+    ...[...grouped.entries()]
+      .filter(([epicId]) => !known.has(epicId))
+      .map(([epicId, rail]) => boxOf(epicId, rail, context)),
+  ]
 }

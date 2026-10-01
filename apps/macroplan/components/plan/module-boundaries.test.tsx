@@ -73,6 +73,8 @@ import { labelRows } from './labels/label-rows'
 import { LabelsPanel } from './labels/labels-panel'
 import { NewLabelForm } from './labels/new-label-form'
 import { BoardFilter } from './board/board-filter'
+import { CreateRoot } from './board/create-root'
+import { CreateStrip } from './board/create-strip'
 import { RailColumn } from './board/rail-column'
 import { boardRails } from './board/board-rows'
 import { railLayout } from '@repo/canvas'
@@ -347,6 +349,8 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [TimingFields, 'settings/timing-fields.tsx'],
   [DeletePlan, 'settings/delete-plan.tsx'],
   [BoardFilter, 'board/board-filter.tsx'],
+  [CreateStrip, 'board/create-strip.tsx'],
+  [CreateRoot, 'board/create-root.tsx'],
 ])
 
 const CLIENT_FILES = [...CLIENT_BY_FILE.values()].map((name) => `components/plan/${name}`)
@@ -713,6 +717,25 @@ const TREES = [
   // The board's own filter, which is the one client component in that column's own chrome. It takes two
   // strings, which is why it needs no tree of its own the way RailFields does.
   <BoardFilter hint="Filter rails and features" key="bf" label="Filter rails and features by name" />,
+  // The Add strip, with every pill offered, so all three glyphs and the hint are painted.
+  <CreateStrip key="cs" mayAddEpic mayAddFeature mayAddItem />,
+  // And the board's drop root, which is the **second** component in this app to use the one exception
+  // this file states — markup on `children`, and on no other prop. Its four writes arrive flat beside
+  // it for that reason, which is the shape `ShareManager` is in and for the same reason.
+  <CreateRoot
+    createEpic={STUB_ACTIONS.createEpic}
+    createFeature={STUB_ACTIONS.createFeature}
+    createItem={STUB_ACTIONS.createItem}
+    gutter={0}
+    key="cr"
+    nextRailColour="#3355ff"
+    planId={PLAN_A}
+    pxPerDay={14}
+    reorderEpic={STUB_ACTIONS.reorderEpic}
+    sprintLengthDays={10}
+  >
+    <p>the board</p>
+  </CreateRoot>,
   // The whole-plan actions, which are two menus at the end of the title row. Both slots are filled, so the
   // opener classes and the panel classes are both painted; the share slot brings its own opener, which is
   // the one asymmetry `plan-manage.tsx` records and the reason it is markup here rather than a boolean.

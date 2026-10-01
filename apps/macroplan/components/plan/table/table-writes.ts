@@ -1,5 +1,7 @@
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { TableWrites } from './plan-table'
+import type { CreateWrites } from '../board/create-write'
+import type { PlanEditActions } from '../edit-actions'
 
 /**
  * What the table's actions column offers this viewer, out of the capabilities they hold.
@@ -20,4 +22,31 @@ export const writesFor = (content: PlanContentControls): TableWrites => ({
   add: content.createItem,
   remove: content.removeFeature || content.removeItem,
   rename: content.renameFeature || content.renameItem,
+})
+
+/**
+ * Which of the Add strip's four writes this viewer may make, each `null` where they may not.
+ *
+ * ### Why a `null` per write rather than a boolean per pill
+ *
+ * A pill that is drawn and refuses a drop is worse than one that is not drawn, so the strip asks the
+ * same question the drop does — *is there a function for this?* — and gets one answer. Threading a
+ * boolean beside each function would be the same fact twice, with the failure mode of a pill offered
+ * for a write that is not there.
+ *
+ * `reorderEpic` has no pill of its own and is here because an epic drop is **two** calls: the create
+ * route appends, and the drop is about where. A viewer who may create a rail but not reorder one gets
+ * the pill and a rail at the bottom, which is the honest outcome of the capabilities they hold.
+ *
+ * `actions` is `null` on a surface handed no writes at all, and every member is then `null` — which
+ * is what draws no strip.
+ */
+export const addsFor = (
+  actions: PlanEditActions | null,
+  content: PlanContentControls,
+): CreateWrites => ({
+  createEpic: actions !== null && content.createEpic ? actions.createEpic : null,
+  reorderEpic: actions !== null && content.reorderEpic ? actions.reorderEpic : null,
+  createFeature: actions !== null && content.createFeature ? actions.createFeature : null,
+  createItem: actions !== null && content.createItem ? actions.createItem : null,
 })

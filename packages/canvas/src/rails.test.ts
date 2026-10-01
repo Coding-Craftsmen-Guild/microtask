@@ -181,9 +181,40 @@ describe('a rail carries its epic colour as data, because the canvas never choos
 })
 
 describe('railLayout reads only what it was given', () => {
-  it('answers no rails for a plan with no features, not one empty rail per epic', () => {
+  // This said the opposite — no rails at all for a plan with no features — and that was a lane that
+  // did not exist. A rail is where work *goes*, so a plan whose first act is "make a rail" has to
+  // show one: the board drew neither a band nor a row for an empty epic, so making one appeared to do
+  // nothing at all. The grouping decides what is **on** each rail and no longer which rails there are.
+  it('answers one empty rail per epic for a plan with no features, a rail being a lane', () => {
     const empty: CanvasPlan = { ...PLAN, features: [], items: [] }
-    expect(railLayout(empty, wireOf(empty), SCALE)).toEqual([])
+    const rails = railLayout(empty, wireOf(empty), SCALE)
+    expect(rails.map((rail) => rail.epicId)).toEqual([E1, E2, E3])
+    expect(rails.map((rail) => rail.featureIds)).toEqual([[], [], []])
+    expect(rails.map((rail) => rail.bars)).toEqual([[], [], []])
+  })
+
+  // The fixture declares its epics out of rail order on purpose, so this is also the case that says
+  // the order is `(railOrder, id)` and never the order the plan happened to list them in.
+  it('keeps an empty rail in rail order among the ones that hold work', () => {
+    const thinned: CanvasPlan = {
+      ...PLAN,
+      features: PLAN.features.filter((feature) => feature.epicId !== E2),
+    }
+    const rails = railLayout(thinned, wireOf(thinned), SCALE)
+    expect(rails.map((rail) => rail.epicId)).toEqual([E1, E2, E3, NO_SUCH_EPIC])
+    expect(rails[1]?.featureIds).toEqual([])
+    expect(rails[0]?.featureIds.length).toBeGreaterThan(0)
+  })
+
+  // An epic's own colour reaches an empty rail too, which is what a reader matches the row to: the
+  // hue is the epic's data and has nothing to do with whether anything is on the lane yet.
+  it('carries an empty rail’s own colour, so the lane is still that rail’s', () => {
+    const empty: CanvasPlan = { ...PLAN, features: [], items: [] }
+    expect(railLayout(empty, wireOf(empty), SCALE).map((rail) => rail.colour)).toEqual([
+      '#ff8833',
+      '#3388ff',
+      '#33ff88',
+    ])
   })
 
   it('omits every bar when the wire schedule carries no spans at all', () => {
