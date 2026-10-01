@@ -92,10 +92,10 @@ describe('the canvas draws the three progress levels and stays one element per i
     expect(marks.length).toBeGreaterThan(0)
     for (const mark of marks) expect(mark.children).toHaveLength(0)
     expect(container.querySelectorAll('linearGradient')).toHaveLength(0)
-    // The one `<defs>` on this canvas is the arc layer's three arrowheads, which is a constant and not a
-    // per-mark cost: it holds markers only, and the same three whether the plan has one mark or 2,000.
-    const defs = [...container.querySelectorAll('defs > *')]
-    expect(defs.map((node) => node.tagName)).toEqual(['marker', 'marker', 'marker'])
+    // There is no `<defs>` on this canvas at all. It used to hold the arc layer's three arrowheads —
+    // a constant cost, not a per-mark one — and the arrowheads went with `markerEnd`: a dependency's
+    // direction is already in the curve, and hue now names the track an arc leaves instead of its kind.
+    expect(container.querySelectorAll('defs')).toHaveLength(0)
   })
 
   // Names are drawn on this canvas now, and they are drawn per **bar**: one `<text>` beside each one, at the

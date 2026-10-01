@@ -12,7 +12,6 @@ import {
 import type {
   BarLabel,
   DayRange,
-  DependencyArc,
   ItemMark,
   PlanScale,
   RailBox,
@@ -20,6 +19,7 @@ import type {
   Treatment,
 } from '@repo/canvas'
 import { canvasArcs } from './arc-view'
+import type { CanvasArc } from './arc-view'
 import { LABEL_METRICS, LAYOUT, NODE_LABEL_METRICS } from './mark-metrics'
 import { DRAWS } from './rung-view'
 import type { RungDrawing } from './rung-view'
@@ -280,7 +280,7 @@ export interface CanvasLayout {
 
   readonly width: number
 
-  readonly arcs: readonly DependencyArc[]
+  readonly arcs: readonly CanvasArc[]
 
   readonly frame: RailFrame
 }

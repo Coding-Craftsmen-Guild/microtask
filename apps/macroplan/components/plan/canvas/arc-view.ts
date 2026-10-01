@@ -3,11 +3,67 @@ import type { ArcMetrics, DependencyArc, RailBox } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
+ * One arc as this canvas draws it: the geometry, plus the two facts that come off the feature it
+ * leaves.
+ *
+ * ### Why both are the **source** feature's
+ *
+ * An arc runs out of what must finish first and into what waits. Those two ends may be on different
+ * rails and in different groups, so one colour and one group can only honestly name one of them —
+ * and the one worth naming is where the arc begins: an arc leaving a rail is that rail's thread
+ * continuing somewhere else, which is the thing a reader is trying to follow.
+ *
+ * `labelId` is what lets a chosen group keep its own outgoing arcs lit while the rest of the plan
+ * dims (`labels/group-css.ts`). Dimming every arc whose two ends are not both in the group would
+ * hide exactly the edges that say what a phase blocks.
+ */
+export interface CanvasArc extends DependencyArc {
+  /** The rail colour of the feature this arc leaves, or `null` for a rail no epic claims. */
+  readonly colour: string | null
+
+  /** The group of the feature this arc leaves, or `null` for one in no group. */
+  readonly labelId: string | null
+}
+
+function huesOf(rails: readonly RailBox[]): ReadonlyMap<string, string | null> {
+  return new Map(rails.flatMap((rail) => rail.featureIds.map((id) => [id, rail.colour] as const)))
+}
+
+function groupsOf(plan: PlanScreenModel): ReadonlyMap<string, string | null> {
+  return new Map(plan.features.map((feature) => [feature.id, feature.labelId] as const))
+}
+
+function fromSource(
+  arcs: readonly DependencyArc[],
+  hues: ReadonlyMap<string, string | null>,
+  groups: ReadonlyMap<string, string | null>,
+): readonly CanvasArc[] {
+  return arcs.map((arc) => ({
+    ...arc,
+    colour: hues.get(arc.fromId) ?? null,
+    labelId: groups.get(arc.fromId) ?? null,
+  }))
+}
+
+/**
  * Every dependency of the plan as an arc, over rails the layout has already placed.
  *
  * Thin on purpose: the geometry is `arcLayout`'s, in a package with no DOM (ADR 0055), and all this
- * adds is the two things that come off the plan a surface is holding — the features, and the edges the
- * forward pass dropped.
+ * adds is what comes off the plan a surface is holding — the features, the edges the forward pass
+ * dropped, and the hue and group of the feature each arc leaves.
+ *
+ * ### Why the hue is joined here and not in `@repo/canvas`
+ *
+ * A colour is not geometry. ADR 0055 splits the two — "the package holds what is arithmetic over the
+ * model; the app holds what this screen chose" — and which channel carries which meaning is as
+ * chosen as a decision gets: design §5 gives hue to the track and treatment to the status, and
+ * `labels/group-css.ts` records that a group's colour now outranks a rail's on a bar. None of that is
+ * derivable from a `DependencyArc`.
+ *
+ * The hue is read off the **rail** rather than off `plan.epics`, so an arc and the bar it leaves take
+ * their colour from one place: `RailBox.colour` is already `null` for a rail no epic claims, which is
+ * the one case with no hue to take, and re-deriving it here would be a second opinion about which
+ * rail a feature is on.
  *
  * ### Why `ignoredEdges` is read here and not passed in
  *
@@ -26,5 +82,9 @@ export const canvasArcs = (
   plan: PlanScreenModel,
   rails: readonly RailBox[],
   metrics: ArcMetrics,
-): readonly DependencyArc[] =>
-  arcLayout({ plan, rails, metrics, ignoredEdges: plan.schedule.ignoredEdges })
+): readonly CanvasArc[] =>
+  fromSource(
+    arcLayout({ plan, rails, metrics, ignoredEdges: plan.schedule.ignoredEdges }),
+    huesOf(rails),
+    groupsOf(plan),
+  )

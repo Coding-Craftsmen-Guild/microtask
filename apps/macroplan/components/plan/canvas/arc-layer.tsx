@@ -1,14 +1,10 @@
-import type { DependencyArc } from '@repo/canvas'
-import { ARC_CLASS, ARC_KINDS, ARROW_FILL, arcKindOf, arrowMarkerId } from './arc-kinds'
-
-const ARROW_POINTS = '0,0 6,2.5 0,5'
-
-const ARROW_SIZE = 6
+import { ARC_CLASS, arcKindOf } from './arc-kinds'
+import type { CanvasArc } from './arc-view'
 
 /** Props for {@link ArcLayer}. */
 export interface ArcLayerProps {
   /** Every dependency of the plan as a curve, from `canvasLayout`. */
-  readonly arcs: readonly DependencyArc[]
+  readonly arcs: readonly CanvasArc[]
 }
 
 /**
@@ -41,21 +37,6 @@ export function ArcLayer({ arcs }: ArcLayerProps) {
   if (arcs.length === 0) return null
   return (
     <g data-slot="arc-layer">
-      <defs>
-        {ARC_KINDS.map((kind) => (
-          <marker
-            id={arrowMarkerId(kind)}
-            key={kind}
-            markerHeight={ARROW_SIZE}
-            markerWidth={ARROW_SIZE}
-            orient="auto"
-            refX={ARROW_SIZE}
-            refY={ARROW_SIZE / 2 - 0.5}
-          >
-            <polygon className={ARROW_FILL[kind]} points={ARROW_POINTS} />
-          </marker>
-        ))}
-      </defs>
       {arcs.map((arc) => (
         <path
           className={ARC_CLASS[arcKindOf(arc)]}
@@ -63,9 +44,10 @@ export function ArcLayer({ arcs }: ArcLayerProps) {
           data-arc-from={arc.fromId}
           data-arc-kind={arcKindOf(arc)}
           data-arc-to={arc.toId}
+          data-label-id={arc.labelId ?? undefined}
           data-slot="arc"
           key={`${arc.fromId}>${arc.toId}`}
-          markerEnd={`url(#${arrowMarkerId(arcKindOf(arc))})`}
+          style={arc.colour === null ? undefined : { stroke: arc.colour }}
         />
       ))}
     </g>

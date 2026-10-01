@@ -31,36 +31,29 @@ export function arcKindOf(arc: DependencyArc): ArcKind {
  * composed `` `${BASE} stroke-destructive` `` produces a class the build never emits and an arc drawn
  * with no stroke at all.
  *
- * A same-rail arc is the faintest of the three on purpose. Design §3.1 makes rail order already imply
- * most within-rail dependencies, so drawing them at the weight of the cross-rail ones — the arcs that
- * are the only reason two lanes are coupled — would bury the signal in the restatement.
+ * ### None of them names a colour any more
  *
- * `ignored` is `stroke-destructive` and dashed, matching `TREATMENT_CLASS.contradicted` deliberately:
- * that record's own note says red is for "the plan contradicts itself", and a dropped edge is the
- * clearest case of it — two orderings stated that cannot both hold.
+ * They used to: `stroke-muted-foreground/40`, `stroke-muted-foreground` and `stroke-destructive`, one
+ * hue per kind. So an arc's colour said whether its two ends happened to share a rail — which a reader
+ * can already see — and said nothing about *which* work was coupled, which they cannot. On a plan with
+ * four rails every arc was the same grey and no thread could be followed.
+ *
+ * Hue now names the **track an arc leaves**, applied as an inline style by `arc-layer.tsx`, and these
+ * classes carry only the weight and the dash. The muted stroke stays as the fallback for an arc out of
+ * a rail no epic claims, which is the one case with no hue to take.
+ *
+ * `ignored` keeps the dash and loses the red. Design §5's rule is that hue cannot carry two meanings,
+ * and it is the same rule that made a dropped edge red when hue was unclaimed; with hue assigned to the
+ * track, the dash is what is left to say it — the only dashed thing on the canvas — and the table says
+ * `set aside to keep rail order` in words for a reader who cannot tell one stroke from another.
+ *
+ * `same` is quieted with **stroke alpha** rather than element opacity. Choosing a group dims
+ * everything outside it by setting `opacity` (`labels/group-css.ts`), so a class setting the same
+ * property would be overridden outright instead of compounding — and a faint arc outside the chosen
+ * group would come back *brighter* than it is at rest. The two alphas multiply.
  */
 export const ARC_CLASS: Readonly<Record<ArcKind, string>> = {
-  same: 'fill-none stroke-muted-foreground/40 stroke-1',
+  same: 'fill-none stroke-muted-foreground stroke-1 [stroke-opacity:0.4]',
   cross: 'fill-none stroke-muted-foreground stroke-[1.5]',
-  ignored: 'fill-none stroke-destructive stroke-[1.5] [stroke-dasharray:5_3]',
+  ignored: 'fill-none stroke-muted-foreground stroke-[1.5] [stroke-dasharray:5_3]',
 }
-
-/**
- * The arrowhead each kind ends with, as whole class strings.
- *
- * A `<marker>` per kind rather than one shared marker, because a marker cannot inherit the stroke of
- * the path that references it — `context-stroke` is the attribute that would do it and is not reliably
- * supported — so a single arrowhead would be one colour while three strokes were three, and the red of
- * a dropped edge would arrive at a grey point.
- */
-export const ARROW_FILL: Readonly<Record<ArcKind, string>> = {
-  same: 'fill-muted-foreground/40 stroke-none',
-  cross: 'fill-muted-foreground stroke-none',
-  ignored: 'fill-destructive stroke-none',
-}
-
-/** The three kinds in drawing order, so a layer maps one list rather than naming each. */
-export const ARC_KINDS: readonly ArcKind[] = ['same', 'cross', 'ignored']
-
-/** The id of one kind's arrowhead marker, referenced by every path of that kind. */
-export const arrowMarkerId = (kind: ArcKind): string => `mp-arrow-${kind}`

@@ -10,6 +10,7 @@ import {
   FEATURE_2,
   FEATURE_3,
   FEATURE_4,
+  FEATURE_5,
   ITEM_3,
   railedPlan,
   tangledPlan,
@@ -21,6 +22,17 @@ afterEach(cleanup)
 
 const draw = (plan: ReturnType<typeof atlasPlan>): HTMLElement =>
   render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />).container
+
+/** `railedPlan` with its third feature waiting on its first, which puts one arc across two rails. */
+const crossRail = (): HTMLElement => {
+  const crossed = railedPlan()
+  return draw({
+    ...crossed,
+    features: crossed.features.map((one) =>
+      one.id === FEATURE_3 ? { ...one, dependsOn: [FEATURE_1] } : one,
+    ),
+  })
+}
 
 const arcs = (container: HTMLElement): readonly Element[] => [
   ...container.querySelectorAll('[data-slot="arc"]'),
@@ -47,10 +59,16 @@ describe('the canvas draws a dependency as an arc', () => {
     expect(arc?.getAttribute('data-arc-to')).toBe(FEATURE_2)
   })
 
-  it('gives it a path and an arrowhead, so the direction is visible and not only in the markup', () => {
+  it('gives it a path and no arrowhead at all, the curve already running one way', () => {
     const [arc] = arcs(draw(atlasPlan()))
     expect(arc?.getAttribute('d')).toMatch(/^M [\d.]+ [\d.]+ C /)
-    expect(arc?.getAttribute('marker-end')).toBe('url(#mp-arrow-same)')
+    expect(arc?.getAttribute('marker-end')).toBeNull()
+  })
+
+  it('emits no marker and no defs anywhere, there being no arrowhead left to define', () => {
+    const container = draw(atlasPlan())
+    expect(container.querySelectorAll('marker')).toHaveLength(0)
+    expect(container.querySelectorAll('defs')).toHaveLength(0)
   })
 
   it('draws the layer under the rails, so bars and nodes sit on top of the lines joining them', () => {
@@ -63,7 +81,7 @@ describe('the canvas draws a dependency as an arc', () => {
     expect(slots.indexOf('arc-layer')).toBeLessThan(slots.indexOf('rail'))
   })
 
-  it('emits no layer and no arrowhead defs at all for a plan that depends on nothing', () => {
+  it('emits no layer at all for a plan that depends on nothing', () => {
     const container = draw(beaconPlan())
     expect(arcs(container)).toHaveLength(0)
     expect(container.querySelectorAll('[data-slot="arc-layer"]')).toHaveLength(0)
@@ -75,29 +93,25 @@ describe('the three kinds an arc is drawn as', () => {
   it('draws a same-rail arc faintly, since rail order already implies most of them', () => {
     const [arc] = arcs(draw(atlasPlan()))
     expect(arc?.getAttribute('data-arc-kind')).toBe('same')
-    expect(arc?.getAttribute('class')).toContain('stroke-muted-foreground/40')
+    expect(arc?.getAttribute('class')).toContain('stroke-opacity:0.4')
+  })
+
+  it('quiets it with stroke alpha and never with element opacity, which a group selection claims', () => {
+    const [arc] = arcs(draw(atlasPlan()))
+    expect(arc?.getAttribute('class')).not.toContain('opacity-')
   })
 
   it('draws a cross-rail arc at full weight, which design 3.1 makes the git-graph shape', () => {
-    const crossed = railedPlan()
-    const container = draw({
-      ...crossed,
-      features: crossed.features.map((one) =>
-        one.id === FEATURE_3 ? { ...one, dependsOn: [FEATURE_1] } : one,
-      ),
-    })
-    const arc = arcNamed(container, `${FEATURE_1}>${FEATURE_3}`)
+    const arc = arcNamed(crossRail(), `${FEATURE_1}>${FEATURE_3}`)
     expect(arc.getAttribute('data-arc-kind')).toBe('cross')
-    expect(arc.getAttribute('marker-end')).toBe('url(#mp-arrow-cross)')
     expect(arc.getAttribute('class')).toContain('stroke-[1.5]')
   })
 
-  it('draws an edge the pass dropped in destructive red and dashed, as a contradiction is drawn', () => {
+  it('draws an edge the pass dropped dashed, and no longer in red, hue now naming a track', () => {
     const arc = arcNamed(draw(tangledPlan()), `${FEATURE_4}>${FEATURE_3}`)
     expect(arc.getAttribute('data-arc-kind')).toBe('ignored')
-    expect(arc.getAttribute('class')).toContain('stroke-destructive')
     expect(arc.getAttribute('class')).toContain('stroke-dasharray:5_3')
-    expect(arc.getAttribute('marker-end')).toBe('url(#mp-arrow-ignored)')
+    expect(arc.getAttribute('class')).not.toContain('stroke-destructive')
   })
 
   it('omits the two edges of a cycle, whose members the pass gave no span to point at', () => {
@@ -106,10 +120,55 @@ describe('the three kinds an arc is drawn as', () => {
     expect(arcs(draw(tangledPlan())).map(edgeOf)).toEqual([`${FEATURE_4}>${FEATURE_3}`])
   })
 
-  it('carries no data-label-id, since an arc has two ends that may be in different groups', () => {
-    for (const arc of arcs(draw(atlasPlan()))) {
-      expect(arc.getAttribute('data-label-id')).toBeNull()
-    }
+  it('carries the group of the feature it leaves, so a chosen group keeps its own outgoing arcs lit', () => {
+    const plan = atlasPlan()
+    const from = plan.features.find((one) => one.id === FEATURE_1)
+    expect(from?.labelId).not.toBeNull()
+    const [arc] = arcs(draw(plan))
+    expect(arc?.getAttribute('data-arc-from')).toBe(FEATURE_1)
+    expect(arc?.getAttribute('data-label-id')).toBe(from?.labelId)
+  })
+
+  it('carries no data-label-id for an arc leaving a feature in no group, rather than an empty one', () => {
+    const plan = atlasPlan()
+    const container = draw({
+      ...plan,
+      features: plan.features.map((one) => (one.id === FEATURE_1 ? { ...one, labelId: null } : one)),
+    })
+    expect(arcs(container)[0]?.getAttribute('data-label-id')).toBeNull()
+  })
+})
+
+describe('the hue an arc takes, which is the track it leaves', () => {
+  it('strokes in the rail colour of the feature it runs out of, so a thread is followable', () => {
+    const hue = railedPlan().epics.find((epic) => epic.id === EPIC_1)?.colour
+    expect(hue).toBeTruthy()
+    const arc = arcNamed(crossRail(), `${FEATURE_1}>${FEATURE_3}`)
+    expect((arc as SVGElement).style.stroke).toBe(hue)
+  })
+
+  it('takes the source rail and never the target, two ends being one arc and one colour', () => {
+    const target = railedPlan().epics.find((epic) => epic.id !== EPIC_1)?.colour
+    const arc = arcNamed(crossRail(), `${FEATURE_1}>${FEATURE_3}`)
+    expect((arc as SVGElement).style.stroke).not.toBe(target)
+  })
+
+  // A stored epic always carries a colour, so `RailBox.colour` is `null` for exactly one reason: the
+  // rail's `epicId` names no epic in the plan. `railedPlan` has such a rail, and `FEATURE_5` is on it,
+  // so the fallback is reached by making something wait on that feature rather than by nulling a field
+  // the wire type does not admit.
+  it('falls back to the muted stroke for a rail no epic claims, rather than inventing a colour', () => {
+    const unclaimed = railedPlan()
+    const container = draw({
+      ...unclaimed,
+      features: unclaimed.features.map((one) =>
+        one.id === FEATURE_3 ? { ...one, dependsOn: [FEATURE_5] } : one,
+      ),
+    })
+    const arc = arcNamed(container, `${FEATURE_5}>${FEATURE_3}`)
+    expect(arc.getAttribute('data-arc-from')).toBe(FEATURE_5)
+    expect((arc as SVGElement).style.stroke).toBe('')
+    expect(arc.getAttribute('class')).toContain('stroke-muted-foreground')
   })
 })
 
