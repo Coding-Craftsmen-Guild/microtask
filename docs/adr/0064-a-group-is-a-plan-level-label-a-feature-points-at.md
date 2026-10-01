@@ -100,3 +100,41 @@ column groups added.
   cannot be a page's decision.
 - The schedule reads none of it. A group is a way of seeing a plan, never a constraint on it, so no bar
   moves because of a label and `@repo/schedule` is untouched.
+
+## Amendment — 2026-10-01: a group owns hue, and its drawer fills it
+
+Three parts of this ADR are superseded by product-owner instruction. The decision itself stands: a
+group is still a plan-level `id · name · colour` that a feature points at with one `labelId`, and
+selecting one is still a native radio group and one generated CSS rule, with no state, no URL and no
+round trip.
+
+**"Why the colour is a swatch and never a fill" is reversed.** A feature's hue is now its **group's**
+colour, falling back to its **rail's** where it is in no group. The rule that argued the original
+position — §5's "hue cannot carry two meanings" — is what keeps the new one honest: hue still carries
+exactly one meaning, and what it names has changed. A group cuts across rails by construction, which
+is why it is worth the channel; a rail is a lane the eye can already follow by position, and a phase
+spread over four of them is a set nothing else on the canvas can pick out.
+
+What it costs is real and accepted: on a plan where every feature is grouped, the canvas stops showing
+rail membership in hue at all. The rail band, the names column and the sidebar swatch carry it instead.
+`components/plan/canvas/view.ts`'s `hueOf` is the whole of the new rule.
+
+**The dimming rule was defective, and selecting by attribute is replaced by selecting by slot.** The
+rule was `[data-label-id]:not([data-label-id="X"])`. A feature in no group renders no `data-label-id`
+at all, so it matched nothing and was never dimmed — the rule only quieted features in some *other*
+group, and on a plan where most work is ungrouped, which is every new plan, choosing a group visibly
+changed nothing. The rule now names the five slots a group reaches — `feature-bar`, `item-mark`,
+`bar-label`, `arc` and `plan-table-row` — so "dim everything not in the chosen group" means all of it.
+Bar labels and arcs gained a `data-label-id` for this and for nothing else; an arc takes the label of
+the feature it *leaves*, so a chosen group keeps its own outgoing edges lit.
+
+**"A group with a list of members here would be a second place to write the same pointer" no longer
+rules out the group drawer's membership list.** The objection was about two places to *store* an
+answer. The list sends `feature:label` against the feature's own `labelId` — the same single write the
+feature's own drawer sends, against the same single record — so there is one place the answer lives and
+two places to invoke the write, which is not the same thing. The cost that remains is real and is
+stated in the panel rather than hidden: a feature holds one group, so ticking it here moves it out of
+whatever group it was in, silently from this panel's point of view.
+
+The chips also gained a `+ New group` pill and a double-click that opens a group's own drawer; see the
+amendment to ADR 0058 for the delegation root that second gesture needed.

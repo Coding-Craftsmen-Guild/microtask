@@ -188,3 +188,35 @@ holds what this screen chose"). Rejected because `railAtY` and `dropTargetFor` a
 model given two numbers, and those two numbers — `chromeHeight` and `railHeight` — are handed in as a
 `RailMetrics` for exactly that reason. The inverse projection belongs with the forward one, which is
 what the amendment to ADR 0055 records.
+
+## Amendment — 2026-10-01: the untestable line is gone, and a second root joined the first
+
+Two things changed under this ADR. Its decision is unchanged: the canvas still gains exactly one
+delegation root, which still resolves what was grabbed with `closest()` over server-rendered markup.
+
+**The one line no test in this repository could check no longer exists.** It was
+`canvas.getBoundingClientRect().width`, read to convert a client-pixel delta into the user units a
+`viewBox` defines, and the section above explains at length why no test here could cover it.
+
+The canvas carries **no `viewBox`** now. It has to fill a pane whose width a Server Component cannot
+measure, and stretching an SVG that carries one scales both axes — rail bands grow taller than the
+HTML name rows beside them, every `<circle>` becomes an ellipse, every label stretches. With no
+`viewBox` an SVG's user units *are* CSS pixels and there is no scaling transform at all, so `w-full`
+over a `minWidth` fills the pane and nothing is distorted.
+
+The conversion therefore has nothing to convert. `userScale`, `Origin.factor` and `CanvasBox.viewBox`
+are deleted, `travelledBy` subtracts two coordinates, and `originAt` takes a point and nothing else.
+The factor is not 1 by assumption but 1 by construction. **The browser-verification item this ADR
+handed forward is discharged** — there is no factor left to be wrong.
+
+What replaces the `viewBox`'s clipping is a bleed: `SprintGrid` and `TimeHeader` are drawn for a range
+extended past the marks', and the SVG viewport clips what it does not reach
+(`components/plan/canvas/view.ts`). No mark is bled; a bar past the range is a bar the plan does not
+have.
+
+**A second delegation root exists, over the group chips.** `components/plan/labels/group-chip-root.tsx`
+is the same shape for the same reasons — a Server Component holding a native radio group, wrapped
+rather than hydrated, with the double-clicked chip resolved by `closest()` and its `data-label-id`
+read off the markup. It is handed `children` and one string, so the `children` exception this ADR
+opened is now exercised by two components rather than one, and `module-boundaries.test.tsx` names both
+in the allowlist it asserts exact in both directions.
