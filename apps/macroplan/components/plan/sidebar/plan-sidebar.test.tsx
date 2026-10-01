@@ -18,6 +18,7 @@ import { featureRadioId, railRadioId } from './select-css'
 import { TREE_CSS } from './sidebar-css'
 import { sidebarRails } from './sidebar-rows'
 import { SIDEBAR_WORDS } from './sidebar-words'
+import { railFeatureFieldId } from '../rails/rail-anchors'
 
 vi.mock('next/link', async () => ({
   default: (await import('../testing/next-link')).LinkDouble,
@@ -383,5 +384,66 @@ describe('a rail as a dropdown', () => {
       expect(TREE_CSS, slot).toContain(`[data-slot="${slot}"]`)
       expect(document.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull()
     }
+  })
+})
+
+// Until this, a feature could only be created from a drawer already open on something else: the one
+// control that takes a rail rather than a subject is `rails/rail-feature.tsx`, mounted on the rail
+// drawer, three clicks deep. There was no `new/feature` route and there still is not — this is a link
+// to the field that already exists, which is `table/row-actions.tsx`'s pattern and for its reasons.
+describe('adding a feature from the rail it goes on', () => {
+  const adds = (): readonly HTMLElement[] => [
+    ...document.querySelectorAll<HTMLElement>('[data-slot="rail-add-feature"]'),
+  ]
+
+  it('offers one add per rail, landing on that rail’s own new-feature field', () => {
+    show()
+    expect(adds()).toHaveLength(RAILS.length)
+    expect(adds()[0]?.getAttribute('href')).toBe(
+      `${railPath(PLAN_A, EPIC_1)}#${railFeatureFieldId(EPIC_1)}`,
+    )
+  })
+
+  it('names the rail it would add to, so the controls are told apart by a screen reader', () => {
+    show()
+    const named = adds().map((add) => add.getAttribute('aria-label'))
+    expect(named[0]).toBe(`${SIDEBAR_WORDS.addFeature} to ${RAILS[0]?.name ?? ''}`)
+    expect(new Set(named).size).toBe(named.length)
+  })
+
+  it('offers none on a surface with no rail drawer, which is a seat holder with no cookie for one', () => {
+    render(
+      <PlanSidebar
+        actions={null}
+        found={NOTHING_WRONG}
+        rails={RAILS}
+        root="token"
+        routes={SEAT_DRAWER_ROUTES}
+      />,
+    )
+    expect(adds()).toEqual([])
+  })
+
+  it('puts it on the rail rows and never on a feature row, an item being added in its own drawer', () => {
+    show()
+    for (const add of adds()) {
+      expect(add.closest('[data-slot="sidebar-row"]')?.getAttribute('data-kind')).toBe('rail')
+    }
+  })
+})
+
+describe('what a row looks like under a pointer', () => {
+  it('lights the whole row rather than underlining the name, a row not being a word', () => {
+    show()
+    for (const row of rows()) expect(row.className).toContain('hover:bg-muted')
+    const names = [...document.querySelectorAll('[data-slot="sidebar-row"] a')]
+    expect(names.length).toBeGreaterThan(0)
+    for (const name of names) expect(name.getAttribute('class')).not.toContain('hover:underline')
+  })
+
+  it('keeps the add reachable from a keyboard, which a hover-only control would not be', () => {
+    show()
+    const add = document.querySelector('[data-slot="rail-add-feature"]')
+    expect(add?.closest('[data-slot="sidebar-row"]')?.className).toContain('focus-within:')
   })
 })

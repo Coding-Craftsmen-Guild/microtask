@@ -2,34 +2,8 @@ import Link from 'next/link'
 import type { AttentionMap } from '../attention/attention'
 import { AttentionDot } from '../attention/attention-mark'
 import { SELECT_RADIO_NAME } from './select-css'
+import { RailAdd, RailCaret, RailSwatch } from './row-parts'
 import { TREE } from './sidebar-css'
-
-const CARET = '▾'
-
-interface Disclosure {
-  readonly openId: string | undefined
-  readonly openLabel: string | undefined
-  readonly name: string
-}
-
-function RailCaret({ openId, openLabel, name }: Disclosure) {
-  if (openId === undefined) return null
-  return (
-    <label
-      aria-label={`${openLabel ?? ''} ${name}`}
-      className={TREE.caret}
-      data-slot="rail-caret"
-      htmlFor={openId}
-    >
-      {CARET}
-    </label>
-  )
-}
-
-function RailSwatch({ colour }: { readonly colour: string | undefined }) {
-  const painted = colour === undefined || colour === '' ? undefined : { backgroundColor: colour }
-  return <span className={TREE.swatch} data-slot="rail-swatch" style={painted} />
-}
 
 /** Props for {@link TreeRow}. */
 export interface TreeRowProps {
@@ -57,11 +31,8 @@ export interface TreeRowProps {
   /**
    * The id of the checkbox this row's caret toggles, for a rail. Absent on a feature, which has none.
    *
-   * The caret is rendered **inside** the row rather than beside it, so that a rail reads as one line
-   * with a disclosure at its start; what it does is `sidebar-css.ts`'s `TREE_CSS`, asked from the
-   * branch above, and the glyph points down because an open rail is the resting state. One character
-   * that turns rather than two swapped on `:checked`, so nothing in the markup can disagree with the
-   * state of the checkbox that drives it.
+   * `./row-parts.tsx` carries why the caret is drawn inside the row and why it is one glyph that turns
+   * rather than two swapped on `:checked`.
    */
   readonly openId?: string
 
@@ -77,22 +48,43 @@ export interface TreeRowProps {
    * two — the row is just another element carrying the same pair.
    */
   readonly detail?: string
+
+  /**
+   * Where a feature is added to this rail, or nothing for a feature row and for a surface with no
+   * rail drawer.
+   *
+   * It is absent on a **feature** row because a feature holds items, and an item is added from the
+   * feature's own drawer — the same asymmetry `table/row-actions.tsx` draws, where a feature row
+   * offers an add and an item row offers two links rather than three.
+   *
+   * It is absent on the **seat** surface because `DrawerRoutes.rail` is null there: a seat holder
+   * addresses features and items and has no cookie for an admin path (ADR 0032).
+   */
+  readonly addHref?: string
 }
 
 /**
- * One row of the tree: a grip that selects, a name that opens, and a mark when something is wrong.
+ * One row of the tree: a grip that selects, a name that opens, a mark when something is wrong, and —
+ * on a rail — a way to put a feature on it.
  *
  * Both kinds of row are this component because they differ only in indent, weight and whether the
  * grip paints a colour — and because writing them twice is how the rail row and the feature row came
  * to disagree about `min-w-0` in the first place, which is what put the sidebar on top of the canvas.
+ *
+ * ### Why the whole row lights and the name no longer underlines
+ *
+ * The name was the only thing that responded to a pointer, so a row read as a word with a link in it
+ * rather than as a row. `sidebar-css.ts` moves the hover to the row and takes the underline off, which
+ * also leaves the add control a place to appear that is not on top of the name.
  */
 export function TreeRow(props: TreeRowProps) {
-  const { name, radioId, href, found, id, kind, colour, detail, openId, openLabel } = props
+  const { name, radioId, href, found, id, kind, colour, detail, openId, openLabel, addHref } = props
   return (
     <div
       className={kind === 'rail' ? TREE.railRow : TREE.featureRow}
       data-detail={kind === 'feature' ? detail : undefined}
       data-hover-id={kind === 'feature' ? id : undefined}
+      data-kind={kind}
       data-search={name.toLowerCase()}
       data-slot="sidebar-row"
     >
@@ -110,6 +102,7 @@ export function TreeRow(props: TreeRowProps) {
         </Link>
       )}
       <AttentionDot on={found.get(id)} />
+      <RailAdd href={addHref} name={name} />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { NewName } from '../drawer/new-name'
+import { railFeatureFieldId } from './rail-anchors'
 import type { ActionResult } from '../../../actions/result'
 import type { NewFeature, Plan } from '@repo/api-client'
 
@@ -53,7 +54,7 @@ export function RailFeature({ planId, epicId, railName, createFeature }: RailFea
     <NewName
       action={RAIL_FEATURE_WORDS.action}
       add={(name) => createFeature(planId, { epicId, name })}
-      fieldId={`new-feature-${epicId}`}
+      fieldId={railFeatureFieldId(epicId)}
       hint={RAIL_FEATURE_WORDS.hint}
       label={`Name of a new feature on ${railName}`}
     />

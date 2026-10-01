@@ -29,24 +29,45 @@
  * whole row in a label would swallow the link; putting a second button beside the name is what
  * produced the `Open` links that escaped the column. The colour chip is the highlight control, and
  * it doubles as the thing the eye uses to match a row to its band.
+ *
+ * ### Why the row lights and the name does not underline
+ *
+ * The underline was on the name and nothing else in the row answered a pointer, so a row read as a
+ * word that happened to be a link rather than as a row — which is what the product owner saw. The
+ * hover moved to the row itself, and the name lost its underline; the whole line now responds, which
+ * is also what gives the add control somewhere to appear that is not on top of the name.
+ *
+ * `focus-within:` is there beside `hover:` because the row holds focusable children and a keyboard
+ * reaching one of them has to see the same thing a pointer does. It is what makes the add control
+ * reachable at all without a pointer: {@link TREE}.add rests at zero opacity, and both
+ * `group-hover/row` and its own `focus-visible` bring it back.
+ *
+ * ### Why the add is faint until pointed at
+ *
+ * A plan has as many rails as it has, and an always-visible `+` on every row is a column of plus
+ * signs competing with the names for the eye. Fading it in on the row is the usual answer and costs
+ * nothing a keyboard needs, because focus brings it back on its own. The hit areas — the caret, the
+ * grip and the add — are all 20px square now rather than 16, which is what stops three controls on
+ * one 24px row being three things to miss.
  */
 export const TREE = {
-  root: 'grid gap-px px-1.5 pb-2',
-  branch: 'grid gap-px',
+  root: 'grid gap-0.5 px-2 pt-1 pb-3',
+  branch: 'grid gap-0.5',
   toggle: 'sr-only',
-  kids: 'grid gap-px',
+  kids: 'grid gap-0.5',
   caret:
-    'flex size-4 shrink-0 cursor-pointer items-center justify-center text-[9px] text-muted-foreground transition-transform hover:text-foreground',
+    'flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-[9px] text-muted-foreground transition-transform hover:bg-muted-foreground/15 hover:text-foreground',
   railRow:
-    'flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-muted peer-checked:bg-brand-soft',
+    'group/row flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1.5 hover:bg-muted focus-within:bg-muted peer-checked:bg-brand-soft',
   featureRow:
-    'flex min-w-0 items-center gap-1.5 rounded-md py-1 pr-1.5 pl-6 hover:bg-muted peer-checked:bg-brand-soft',
-  grip: 'flex size-4 shrink-0 cursor-pointer items-center justify-center',
+    'group/row flex min-w-0 items-center gap-2 rounded-md py-1.5 pr-1.5 pl-7 hover:bg-muted focus-within:bg-muted peer-checked:bg-brand-soft',
+  grip: 'flex size-5 shrink-0 cursor-pointer items-center justify-center rounded hover:bg-muted-foreground/15',
   swatch: 'size-2.5 rounded-[3px] bg-muted-foreground',
-  railName: 'min-w-0 flex-1 truncate text-[13px] font-medium hover:underline',
+  railName: 'min-w-0 flex-1 truncate text-[13px] font-medium',
   railStatic: 'min-w-0 flex-1 truncate text-[13px] font-medium',
-  featureName: 'min-w-0 flex-1 truncate text-[13px] text-muted-foreground hover:text-foreground hover:underline',
-  empty: 'px-1.5 py-1 pl-6 text-[12px] text-muted-foreground',
+  featureName: 'min-w-0 flex-1 truncate text-[13px] text-muted-foreground',
+  add: 'flex size-5 shrink-0 items-center justify-center rounded text-[15px] leading-none text-muted-foreground opacity-0 transition-opacity hover:bg-muted-foreground/15 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand group-hover/row:opacity-100',
+  empty: 'px-1.5 py-1.5 pl-7 text-[12px] text-muted-foreground',
 } as const
 
 const BRANCH = '[data-slot="rail-branch"]'

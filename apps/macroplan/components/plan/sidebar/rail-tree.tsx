@@ -1,5 +1,6 @@
 import type { AttentionMap } from '../attention/attention'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
+import { railFeatureFieldId } from '../rails/rail-anchors'
 import { featureRadioId, railRadioId } from './select-css'
 import { TREE } from './sidebar-css'
 import { SIDEBAR_WORDS } from './sidebar-words'
@@ -64,6 +65,9 @@ export function RailTree({ root, routes, rails, noFeatures, found }: RailTreePro
             openId={openId(rail.id)}
             openLabel={SIDEBAR_WORDS.collapse}
             radioId={railRadioId(rail.id)}
+            {...(routes.rail === null
+              ? {}
+              : { addHref: `${routes.rail(root, rail.id)}#${railFeatureFieldId(rail.id)}` })}
           />
           <div className={TREE.kids} data-slot="rail-kids">
             {rail.features.length === 0 ? <p className={TREE.empty}>{noFeatures}</p> : null}
