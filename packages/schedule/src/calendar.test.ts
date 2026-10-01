@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanCalendar } from './structure.js'
-import { dateToDay, dayToDate, isWorkingDay, todayIn } from './calendar.js'
+import { dateToDay, dayToDate, isoWeek, isWorkingDay, todayIn } from './calendar.js'
 
 const MS_PER_DAY = 86_400_000
 
@@ -212,5 +212,31 @@ describe("today is asked of the plan's zone, never of the server's", () => {
 
   it('refuses an unresolvable zone rather than quietly drawing the plan in UTC', () => {
     expect(() => todayIn('Not/AZone', instant)).toThrow(RangeError)
+  })
+})
+
+describe('an ISO week number, so a timeline header can label a week the way a calendar does', () => {
+  it('counts weeks from the one holding the first Thursday, which is week 1', () => {
+    expect(isoWeek('2026-01-01')).toEqual({ year: 2026, week: 1 })
+  })
+
+  it('answers week 40 for the Monday a plan starting 2026-09-28 opens on', () => {
+    expect(isoWeek('2026-09-28')).toEqual({ year: 2026, week: 40 })
+  })
+
+  it('answers the previous ISO year for a January date whose week began in December', () => {
+    expect(isoWeek('2027-01-01')).toEqual({ year: 2026, week: 53 })
+  })
+
+  it('opens the new ISO year on the Monday after it, which is 2027-01-04', () => {
+    expect(isoWeek('2027-01-04')).toEqual({ year: 2027, week: 1 })
+  })
+
+  it('gives 2026 a 53rd week, because a long ISO year is a fact rather than an overflow', () => {
+    expect(isoWeek('2026-12-28')).toEqual({ year: 2026, week: 53 })
+  })
+
+  it('reads a Sunday as the end of its own week and not the start of the next', () => {
+    expect(isoWeek('2026-10-04')).toEqual({ year: 2026, week: 40 })
   })
 })

@@ -1,9 +1,10 @@
-import { SPRINTS_PER_QUARTER } from './bands.js'
 import type { DayRange } from './bands.js'
 
 const SPRINT_DAYS = 10
 
 const ITEM_RUNG_SPRINTS = 2
+
+const FEATURE_RUNG_SPRINTS = 6
 
 /**
  * Which of §5's three detail levels a canvas is drawing at.
@@ -43,13 +44,21 @@ export const ITEM_RUNG_MAX_DAYS = ITEM_RUNG_SPRINTS * SPRINT_DAYS
 /**
  * The widest view still on the feature rung, in working days; wider than this is the epic rung.
  *
- * §5's feature row is `~1 quarter`. A quarter is {@link SPRINTS_PER_QUARTER} sprints — imported
- * rather than written again here, so this boundary and a quarter band cannot disagree about what a
- * quarter is — which at ten working days a sprint is 60 working days. Deliberately *not* three
- * calendar months, about 65 working days: a rung boundary that meant a calendar quarter while the
- * bands beside it meant six sprints would be two different quarters on one screen.
+ * §5's feature row is `~1 quarter`, and six ten-day sprints are twelve weeks, which is a quarter to
+ * within a week — so 60 working days.
+ *
+ * It used to import a `SPRINTS_PER_QUARTER` from `bands.ts`, so that this boundary and a quarter
+ * band could not disagree about what a quarter was. There is nothing left to agree with: a band is
+ * a **calendar** quarter now, and a calendar quarter is not a fixed number of working days at all —
+ * it is 62 to 66 of them depending on which one and which year. No constant equals it.
+ *
+ * So this is openly an *approximation* of a quarter rather than a restatement of one, and it has to
+ * be. {@link rungFor} is handed a {@link DayRange} and no `PlanCalendar`, so it cannot know which
+ * quarter a viewport is over — the same limit that already makes {@link ITEM_RUNG_MAX_DAYS} assume a
+ * ten-day sprint. A rung that changed as a plan scrolled from Q1 into Q2 would re-layout the canvas
+ * for a reason nobody could see, which is the failure both constants exist to avoid.
  */
-export const FEATURE_RUNG_MAX_DAYS = SPRINTS_PER_QUARTER * SPRINT_DAYS
+export const FEATURE_RUNG_MAX_DAYS = FEATURE_RUNG_SPRINTS * SPRINT_DAYS
 
 /**
  * The rung a viewport is at: §5's detail level, derived from the view and never passed in.

@@ -18,11 +18,11 @@ describe('@repo/canvas entry points', () => {
 
   it('ships the scale, the rails, the marks, the chrome, the rungs, the treatments, the drop, the arcs, the milestones, the zoom, the labels, the window and two bridge thresholds, and nothing else', () => {
     expect(Object.keys(main).sort()).toEqual([
-      'SPRINTS_PER_QUARTER',
       'ZOOM_STOPS',
       'arcLayout',
       'barLabels',
       'bestFit',
+      'calendarBands',
       'countsAsDone',
       'countsAsStarted',
       'dayToX',
@@ -31,7 +31,6 @@ describe('@repo/canvas entry points', () => {
       'isMilestone',
       'itemsToMarks',
       'lastPlannedDay',
-      'quarterBands',
       'railAtY',
       'railLayout',
       'rangeFor',

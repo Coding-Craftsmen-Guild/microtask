@@ -121,3 +121,57 @@ export function todayIn(timezone: string, at: Date): string {
   }
   return `${field('year').padStart(4, '0')}-${field('month')}-${field('day')}`
 }
+
+/** An ISO-8601 week-numbering year and the week within it, as {@link isoWeek} answers them. */
+export interface IsoWeek {
+  /**
+   * The **week-numbering** year, which is not always the date's own calendar year.
+   *
+   * 2027-01-01 is a Friday whose week began on 2026-12-28, so it is week 53 of 2026 and says so.
+   * Carrying the year is what makes that statable at all: a bare week number would read as week 53
+   * of 2027, which is a week that does not exist.
+   */
+  readonly year: number
+
+  /** 1 through 52, or 53 in a long year. */
+  readonly week: number
+}
+
+const THURSDAY = 4
+
+const isoWeekday = (epochDay: number): number => {
+  const day = weekday(epochDay)
+  return day === 0 ? DAYS_PER_WEEK : day
+}
+
+const thursdayOfWeek = (epochDay: number): number => epochDay + (THURSDAY - isoWeekday(epochDay))
+
+const firstThursdayOf = (year: number): number => {
+  const january = toEpochDay(`${String(year).padStart(4, '0')}-01-01`)
+  return january + ((THURSDAY - isoWeekday(january) + DAYS_PER_WEEK) % DAYS_PER_WEEK)
+}
+
+/**
+ * The ISO-8601 week a calendar date falls in.
+ *
+ * Week 1 is the week holding the year's first Thursday, and weeks run Monday to Sunday. Both rules
+ * fall out of one step: take the **Thursday of this date's own week**, and that Thursday's calendar
+ * year is the week-numbering year by construction, because a week has exactly one Thursday and it
+ * is always in the year the week is numbered against. The week is then how many whole weeks that
+ * Thursday is past the first Thursday of its year.
+ *
+ * Doing it through the Thursday is what makes the year boundary need no special case. A long year
+ * answers 53 and a January date whose week began in December answers the December year, neither
+ * being an overflow to clamp — `W52–1` across a new year is a correct label and is drawn as one.
+ *
+ * Pure arithmetic over UTC midnight instants, as every other date function in this file is, so no
+ * zone is read and a plan's own `timezone` reaches only {@link todayIn}.
+ */
+export function isoWeek(date: string): IsoWeek {
+  const thursday = thursdayOfWeek(toEpochDay(date))
+  const year = new Date(thursday * MS_PER_DAY).getUTCFullYear()
+  return {
+    year,
+    week: (thursday - firstThursdayOf(year)) / DAYS_PER_WEEK + 1,
+  }
+}

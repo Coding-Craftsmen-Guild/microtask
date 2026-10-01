@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { quarterBands, sprintTicks } from './bands.js'
+import { calendarBands, sprintTicks } from './bands.js'
 import { rungFor } from './rungs.js'
 import type { Rung } from './rungs.js'
 import { scaleFor, widthOfDays } from './scale.js'
@@ -47,7 +47,7 @@ describe('ZOOM_STOPS is three views, one per rung of design 5', () => {
     RUNGS.forEach((rung) => {
       const stop = ZOOM_STOPS[rung]
       const scale = scaleFor({ pxPerDay: stop.pxPerDay, gutter: GUTTER })
-      expect(quarterBands(plan, scale, stop.range).length).toBeGreaterThan(0)
+      expect(calendarBands(plan, scale, stop.range).length).toBeGreaterThan(0)
       expect(sprintTicks(plan, scale, stop.range).length).toBeGreaterThan(0)
     })
   })

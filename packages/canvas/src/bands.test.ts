@@ -1,8 +1,8 @@
 import { dateToDay, dayToDate, rangeOfSprint } from '@repo/schedule'
 import type { PlanCalendar } from '@repo/schedule'
 import { describe, expect, it } from 'vitest'
-import type { DayRange, QuarterBand, SprintTick, TodayLine } from './bands.js'
-import { SPRINTS_PER_QUARTER, quarterBands, sprintTicks, todayLine } from './bands.js'
+import type { CalendarBand, DayRange, SprintTick, TodayLine } from './bands.js'
+import { calendarBands, sprintTicks, todayLine } from './bands.js'
 import type { PlanScale } from './scale.js'
 import { dayToX, scaleFor, widthOfDays } from './scale.js'
 
@@ -28,8 +28,10 @@ const labels = (ticks: readonly SprintTick[]): readonly string[] => ticks.map((t
 
 const sprints = (ticks: readonly SprintTick[]): readonly number[] => ticks.map((tick) => tick.sprint)
 
-const quarters = (bands: readonly QuarterBand[]): readonly number[] =>
-  bands.map((band) => band.quarter)
+const marks = (bands: readonly CalendarBand[]): readonly string[] => bands.map((band) => band.label)
+
+/** The quarter a date is in, worked out from its month rather than from the function under test. */
+const quarterOfDate = (date: string): number => Math.ceil(Number(date.slice(5, 7)) / 3)
 
 describe('sprintTicks', () => {
   it('draws a sprint band a full sprintLengthDays wide, because rangeOfSprint to is inclusive', () => {
@@ -68,12 +70,12 @@ describe('sprintTicks', () => {
     expect(ticks.map((tick) => tick.endDay)).toEqual([10, 20, 30])
   })
 
-  it('labels ticks W1-2 and W3-4 from the sprint index, exactly as spec section 5 writes them', () => {
-    expect(labels(sprintTicks(plan, SCALE, range(0, 20)))).toEqual(['W1–2', 'W3–4'])
+  it('labels ticks with the ISO weeks they fall in, so the header reads as a calendar', () => {
+    expect(labels(sprintTicks(plan, SCALE, range(0, 20)))).toEqual(['W2–3', 'W4–5'])
   })
 
   it('labels a one-week sprint with a single week number rather than W1-1', () => {
-    expect(labels(sprintTicks(weekly, SCALE, range(0, 10)))).toEqual(['W1', 'W2'])
+    expect(labels(sprintTicks(weekly, SCALE, range(0, 10)))).toEqual(['W2', 'W3'])
   })
 
   it('never puts a calendar date in a label, because dates are hover only and never permanent chrome', () => {
@@ -96,59 +98,110 @@ describe('sprintTicks', () => {
     expect(ticks[0]?.x).toBeLessThan(SCALE.gutter)
   })
 
-  it('labels a sprint before the plan started from the same arithmetic, rather than renumbering it to W1', () => {
-    expect(labels(sprintTicks(plan, SCALE, range(-10, 0)))).toEqual(['W-1–0'])
-    expect(labels(sprintTicks(daily, SCALE, range(-1, 0)))).toEqual(['W0'])
-    expect(labels(sprintTicks(plan, SCALE, range(-10, 10)))).toEqual(['W-1–0', 'W1–2'])
+  it('labels a sprint before the plan started by its own calendar weeks, crossing the new year', () => {
+    expect(labels(sprintTicks(plan, SCALE, range(-10, 0)))).toEqual(['W52–1'])
+    expect(labels(sprintTicks(daily, SCALE, range(-1, 0)))).toEqual(['W1'])
+    expect(labels(sprintTicks(plan, SCALE, range(-10, 10)))).toEqual(['W52–1', 'W2–3'])
   })
 
   it('shares a week number between adjacent labels at a length that is not a multiple of five', () => {
-    expect(labels(sprintTicks(odd, SCALE, range(0, 21)))).toEqual(['W1–2', 'W2–3', 'W3–5'])
+    expect(labels(sprintTicks(odd, SCALE, range(0, 21)))).toEqual(['W2–3', 'W3–4', 'W4–6'])
     expect(sprints(sprintTicks(odd, SCALE, range(0, 21)))).toEqual([0, 1, 2])
   })
 
-  it('repeats W1 across five one-day sprints, because five of them fit in the plan first week', () => {
+  it('repeats one week across five one-day sprints, because five of them fit in that week', () => {
     expect(labels(sprintTicks(daily, SCALE, range(0, 7)))).toEqual([
-      'W1', 'W1', 'W1', 'W1', 'W1', 'W2', 'W2',
+      'W2', 'W2', 'W2', 'W2', 'W2', 'W3', 'W3',
     ])
   })
 
   it('keeps every band a full sprintLengthDays wide at the longest length contracts allows', () => {
     const ticks = sprintTicks(longest, SCALE, range(0, 120))
-    expect(labels(ticks)).toEqual(['W1–12', 'W13–24'])
+    expect(labels(ticks)).toEqual(['W2–13', 'W14–25'])
     expect(ticks.map((tick) => tick.width)).toEqual([widthOfDays(60, SCALE), widthOfDays(60, SCALE)])
   })
 })
 
-describe('quarterBands', () => {
-  it('spans SPRINTS_PER_QUARTER sprints, so no band edge ever cuts a sprint tick in half', () => {
-    const [first] = quarterBands(plan, SCALE, range(0, 10))
-    expect(SPRINTS_PER_QUARTER).toBe(6)
-    expect(first?.endDay).toBe(plan.sprintLengthDays * SPRINTS_PER_QUARTER)
-    expect(first?.width).toBe(widthOfDays(plan.sprintLengthDays * SPRINTS_PER_QUARTER, SCALE))
+describe('calendarBands', () => {
+  it('names the real year quarter each band is in, so no band is labelled Q5', () => {
+    expect(marks(calendarBands(plan, SCALE, range(0, 130)))).toEqual([
+      'Q1 2026',
+      'Q2 2026',
+      'Q3 2026',
+    ])
   })
 
-  it('starts every band on a sprint boundary a tick also starts on', () => {
-    const bands = quarterBands(plan, SCALE, range(0, 200))
-    const starts = new Set(sprintTicks(plan, SCALE, range(0, 200)).map((tick) => tick.startDay))
-    expect(bands.every((band) => starts.has(band.startDay))).toBe(true)
+  it('carries on into the next year rather than counting a fifth quarter', () => {
+    const bands = calendarBands(plan, SCALE, range(0, 300))
+    expect(marks(bands).slice(-2)).toEqual(['Q4 2026', 'Q1 2027'])
+    expect(bands.at(-1)?.year).toBe(2027)
+    expect(bands.at(-1)?.quarter).toBe(1)
   })
 
-  it('takes the same DayRange as sprintTicks, with toDay exclusive', () => {
-    expect(quarters(quarterBands(plan, SCALE, range(0, 60)))).toEqual([0])
-    expect(quarters(quarterBands(plan, SCALE, range(0, 61)))).toEqual([0, 1])
-    expect(quarterBands(plan, SCALE, range(4, 4))).toEqual([])
+  it('agrees with the calendar about which quarter every band opens and closes in', () => {
+    for (const band of calendarBands(plan, SCALE, range(0, 300))) {
+      expect(quarterOfDate(dayToDate(band.startDay, plan))).toBe(band.quarter)
+      expect(quarterOfDate(dayToDate(band.endDay - 1, plan))).toBe(band.quarter)
+    }
   })
 
-  it('narrows a band with a shorter sprint, because a quarter here is counted in sprints', () => {
-    const [first] = quarterBands(weekly, SCALE, range(0, 10))
-    expect(first?.endDay).toBe(5 * SPRINTS_PER_QUARTER)
+  it('puts the day before a band in the previous quarter, so no working day is in two bands', () => {
+    const bands = calendarBands(plan, SCALE, range(0, 300))
+    for (const band of bands.slice(1)) {
+      expect(quarterOfDate(dayToDate(band.startDay - 1, plan))).not.toBe(band.quarter)
+    }
   })
 
-  it('labels bands from the plan start, one based, and carries no calendar date', () => {
-    const bands = quarterBands(plan, SCALE, range(0, 130))
-    expect(bands.map((band) => band.label)).toEqual(['Q1', 'Q2', 'Q3'])
-    expect(bands.map((band) => band.x)).toEqual([dayToX(0, SCALE), dayToX(60, SCALE), dayToX(120, SCALE)])
+  it('abuts exactly: one band endDay is the next band startDay, with no pixel drawn twice', () => {
+    const bands = calendarBands(plan, SCALE, range(0, 300))
+    for (const [index, band] of bands.slice(0, -1).entries()) {
+      expect(bands[index + 1]?.startDay).toBe(band.endDay)
+      expect(bands[index + 1]?.x).toBe(band.x + band.width)
+    }
+  })
+
+  it('places and sizes each band from its own days, at the scale it was given', () => {
+    for (const band of calendarBands(plan, SCALE, range(0, 300))) {
+      expect(band.x).toBe(dayToX(band.startDay, SCALE))
+      expect(band.width).toBe(widthOfDays(band.endDay - band.startDay, SCALE))
+    }
+  })
+
+  it('draws bands of different widths, because quarters hold different numbers of working days', () => {
+    const widths = new Set(calendarBands(plan, SCALE, range(0, 300)).map((band) => band.width))
+    expect(widths.size).toBeGreaterThan(1)
+  })
+
+  it('takes the same DayRange as sprintTicks, with toDay exclusive and an empty one empty', () => {
+    expect(marks(calendarBands(plan, SCALE, range(0, 62)))).toEqual(['Q1 2026'])
+    expect(marks(calendarBands(plan, SCALE, range(0, 63)))).toEqual(['Q1 2026', 'Q2 2026'])
+    expect(calendarBands(plan, SCALE, range(4, 4))).toEqual([])
+    expect(calendarBands(plan, SCALE, range(7, 3))).toEqual([])
+  })
+
+  it('returns a band the viewport only partly shows whole and unclipped, as the ticks are', () => {
+    const [first] = calendarBands(plan, SCALE, range(5, 15))
+    expect(first?.label).toBe('Q1 2026')
+    expect(first?.startDay).toBe(dateToDay('2026-01-01', plan))
+    expect(first?.x).toBe(dayToX(first?.startDay ?? 0, SCALE))
+  })
+
+  it('opens the plan first band before day zero, when the quarter started before the plan did', () => {
+    const [first] = calendarBands(plan, SCALE, range(0, 10))
+    expect(first?.startDay).toBe(-2)
+    expect(first?.x).toBeLessThan(dayToX(0, SCALE))
+  })
+
+  it('is not told anything by the sprint length, a calendar quarter being no count of sprints', () => {
+    expect(calendarBands(weekly, SCALE, range(0, 130))).toEqual(
+      calendarBands(plan, SCALE, range(0, 130)),
+    )
+  })
+
+  it('bands days before the plan started by their own calendar quarter, not by a renumbering', () => {
+    const [first] = calendarBands(plan, SCALE, range(-10, -9))
+    expect(first?.label).toBe('Q4 2025')
+    expect(first?.year).toBe(2025)
   })
 })
 

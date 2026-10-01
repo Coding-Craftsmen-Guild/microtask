@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { DayRange } from './bands.js'
-import { SPRINTS_PER_QUARTER } from './bands.js'
 import type { Rung } from './rungs.js'
 import { FEATURE_RUNG_MAX_DAYS, ITEM_RUNG_MAX_DAYS, rungFor } from './rungs.js'
 
@@ -31,7 +30,7 @@ describe('rungFor derives the detail level from the view, as spec §5 requires',
 
   it('bounds the feature rung at a quarter of sprints, which is 60 working days', () => {
     expect(FEATURE_RUNG_MAX_DAYS).toBe(60)
-    expect(FEATURE_RUNG_MAX_DAYS).toBe(SPRINTS_PER_QUARTER * 10)
+    expect(FEATURE_RUNG_MAX_DAYS).toBe(60)
   })
 
   it('measures a quarter the way bands.ts does, in sprints, not as three calendar months', () => {

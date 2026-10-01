@@ -1,6 +1,6 @@
-export type { DayRange, QuarterBand, SprintTick, TodayLine } from './bands.js'
+export type { CalendarBand, DayRange, Quarter, SprintTick, TodayLine } from './bands.js'
 
-export { SPRINTS_PER_QUARTER, quarterBands, sprintTicks, todayLine } from './bands.js'
+export { calendarBands, sprintTicks, todayLine } from './bands.js'
 
 export type { DragPoint, DropQuery, DropTarget, RailMetrics } from './drag.js'
 

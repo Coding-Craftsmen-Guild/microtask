@@ -13,7 +13,9 @@ export type {
   UnscheduledReason,
 } from './structure.js'
 
-export { dateToDay, dayToDate, isWorkingDay, todayIn } from './calendar.js'
+export type { IsoWeek } from './calendar.js'
+
+export { dateToDay, dayToDate, isoWeek, isWorkingDay, todayIn } from './calendar.js'
 
 export { rangeOfSprint, sprintOf } from './sprints.js'
 
