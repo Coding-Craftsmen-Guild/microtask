@@ -52,7 +52,7 @@ export function PlanBoard(props: PlanBoardProps) {
     <div className={BOARD.scroller} data-slot="plan-board">
       <RailNames rails={rails} root={root} routes={routes} />
       <div className={BOARD.timeline} data-slot="timeline-scroller">
-        <TimeHeader plan={plan} range={range} scale={scale} width={width} />
+        <TimeHeader plan={plan} range={range} rung={rung} scale={scale} width={width} />
         <PlanCanvas
           at={at}
           hrefOf={(featureId) => routes.feature(root, featureId)}

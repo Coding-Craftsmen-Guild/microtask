@@ -151,14 +151,14 @@ describe('what a pointer went down on', () => {
     })
   })
 
-  // `[data-slot="sprint-grid"]` in place of the chrome band that used to be asked about: the quarter
+  // `[data-slot="time-grid"]` in place of the chrome band that used to be asked about: the quarter
   // labels and the sprint ticks are an HTML row above the canvas now, and what is left inside the SVG
   // behind the bars is the grid's bands and rules. It is the layer a pointer most often lands on, so it
   // is the one that must resolve to no grab rather than to the bar nearest it.
   it('answers null for the canvas itself, for the grid behind the bars, for a band and for nothing', () => {
     const canvas = canvasOf()
     expect(grabbedAt(canvas)).toBeNull()
-    expect(grabbedAt(only('[data-slot="sprint-grid"]'))).toBeNull()
+    expect(grabbedAt(only('[data-slot="time-grid"]'))).toBeNull()
     expect(grabbedAt(only('[data-slot="rail"]'))).toBeNull()
     expect(grabbedAt(null)).toBeNull()
   })

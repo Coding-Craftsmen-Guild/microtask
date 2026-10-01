@@ -2,6 +2,10 @@ export type { CalendarBand, DayRange, Quarter, SprintTick, TodayLine } from './b
 
 export { calendarBands, sprintTicks, todayLine } from './bands.js'
 
+export type { MonthBand } from './months.js'
+
+export { monthBands } from './months.js'
+
 export type { DragPoint, DropQuery, DropTarget, RailMetrics } from './drag.js'
 
 export { dropTargetFor, railAtY } from './drag.js'

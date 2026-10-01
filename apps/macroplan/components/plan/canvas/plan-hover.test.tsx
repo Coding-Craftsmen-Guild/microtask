@@ -17,7 +17,7 @@ import { canvasWidth, CANVAS_RANGE, CANVAS_SCALE, chromeRange } from './view'
 //
 // Two things used to carry a date and now the second one is not on the canvas at all. The per-sprint
 // hover targets went with `SprintTickLayer`: a full-height transparent `<rect>` per sprint was one
-// invisible pointer target per sprint lying over every bar, and `SprintGrid` records why that was a
+// invisible pointer target per sprint lying over every bar, and `TimeGrid` records why that was a
 // worse thing to drag through than it was a good thing to point at. A sprint's two dates are still
 // revealed — on the `title` of its own HTML week heading in the row above the canvas — so the second
 // block below renders `TimeHeader`, which is where that sentence now lives. What went with the rects
@@ -91,6 +91,7 @@ const headingsOf = (plan: Plan = atlasPlan()): readonly Element[] => {
     <TimeHeader
       plan={planScreenModel(plan)}
       range={CANVAS_RANGE}
+      rung="feature"
       scale={CANVAS_SCALE}
       width={canvasWidth(CANVAS_SCALE, CANVAS_RANGE)}
     />,
@@ -205,7 +206,7 @@ describe('what the canvas still does not draw, and still does not name', () => {
 
   it('leaves the grid holding bands and rules only, so nothing per-sprint lies over the bars', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
-    const grid = [...only('[data-slot="sprint-grid"]').children]
+    const grid = [...only('[data-slot="time-grid"]').children]
     const bands = grid.filter((child) => child.getAttribute('data-slot') === 'quarter-band')
     const rules = grid.filter((child) => child.getAttribute('data-slot') === 'sprint-tick')
     expect(bands.length + rules.length).toBe(grid.length)
@@ -220,8 +221,8 @@ describe('what the canvas still does not draw, and still does not name', () => {
     const slotsInOrder = [...only('[data-slot="plan-canvas"]').children].map((child) =>
       child.getAttribute('data-slot'),
     )
-    expect(slotsInOrder.indexOf('sprint-grid')).toBe(0)
-    expect(slotsInOrder.indexOf('rail')).toBeGreaterThan(slotsInOrder.indexOf('sprint-grid'))
+    expect(slotsInOrder.indexOf('time-grid')).toBe(0)
+    expect(slotsInOrder.indexOf('rail')).toBeGreaterThan(slotsInOrder.indexOf('time-grid'))
     expect(nth(slotsInOrder, slotsInOrder.length - 1)).toBe('today')
   })
 

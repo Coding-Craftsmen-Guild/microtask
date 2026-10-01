@@ -3,7 +3,7 @@ import type { PlanScreenModel } from '../plan-screen-model'
 import { DragRoot, type FeaturePlace } from './drag-root'
 import { ArcLayer } from './arc-layer'
 import { Rail } from './rail'
-import { SprintGrid } from './sprint-grid'
+import { TimeGrid } from './time-grid'
 import { TodayMark } from './today-mark'
 import { axisX, canvasLayout, CANVAS_RANGE, CANVAS_SCALE, railTop, type Counted } from './view'
 
@@ -60,7 +60,7 @@ export interface PlanCanvasProps {
  * makes a plan too long to fit scroll rather than squash. It is an inline style rather than a class
  * because it is a runtime number and Tailwind's scanner reads class names as text.
  *
- * Two things follow elsewhere. `SprintGrid` is drawn for a **bled** range, so the grid reaches an
+ * Two things follow elsewhere. `TimeGrid` is drawn for a **bled** range, so the grid reaches an
  * edge the range alone would stop short of (`./view.ts`'s `chromeRange`). And the drag stops
  * converting units at all: `./selection.ts` records that `userScale` and the one measurement feeding
  * it are gone, because a client pixel is now a user unit by construction.
@@ -100,7 +100,7 @@ export function PlanCanvas({
         style={{ minWidth: width }}
         width={width}
       >
-        <SprintGrid height={height} plan={plan} range={range} scale={scale} />
+        <TimeGrid height={height} plan={plan} range={range} rung={rung} scale={scale} />
         <ArcLayer arcs={arcs} />
         {rails.map((rail, index) => (
           <Rail frame={frame} key={rail.epicId} rail={rail} top={railTop(index)} width={width} />

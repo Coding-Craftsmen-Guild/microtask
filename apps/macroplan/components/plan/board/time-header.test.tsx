@@ -1,11 +1,14 @@
 import { calendarBands } from '@repo/canvas'
+import type { Rung } from '@repo/canvas'
 import { dateToDay } from '@repo/schedule'
 import { cleanup, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan } from '../testing/plan-fixture'
 import { CANVAS_SCALE, canvasWidth, chromeRange } from '../canvas/view'
-import { NAMEABLE, TimeHeader } from './time-header'
+import { ZOOM_VIEW } from '../canvas/zoom-view'
+import { NAMEABLE } from './header-cells'
+import { TimeHeader } from './time-header'
 
 const plan = planScreenModel(atlasPlan())
 
@@ -14,11 +17,28 @@ const RANGE = { fromDay: 0, toDay: 60 }
 const draw = () => {
   cleanup()
   const width = canvasWidth(CANVAS_SCALE, RANGE)
-  render(<TimeHeader plan={plan} range={RANGE} scale={CANVAS_SCALE} width={width} />)
+  render(<TimeHeader plan={plan} range={RANGE} rung="feature" scale={CANVAS_SCALE} width={width} />)
 }
 
 const cells = (slot: string): readonly HTMLElement[] => {
   draw()
+  return [...document.querySelectorAll<HTMLElement>(`[data-slot="${slot}"]`)]
+}
+
+/** The header as one zoom stop actually draws it, scale and range both taken from that stop. */
+const atRung = (rung: Rung, slot: string): readonly HTMLElement[] => {
+  cleanup()
+  const { scale, rangeFor } = ZOOM_VIEW[rung]
+  const range = rangeFor(plan)
+  render(
+    <TimeHeader
+      plan={plan}
+      range={range}
+      rung={rung}
+      scale={scale}
+      width={canvasWidth(scale, range)}
+    />,
+  )
   return [...document.querySelectorAll<HTMLElement>(`[data-slot="${slot}"]`)]
 }
 
@@ -123,5 +143,49 @@ describe('a band too narrow to carry its own name', () => {
 
   it('still draws the band itself, so the grid is unbroken where the name is absent', () => {
     expect(cells('quarter-head')).toHaveLength(4)
+  })
+})
+
+describe('the row under the quarters, which is a month at Year and a sprint everywhere else', () => {
+  it('names months at the Year stop, a forty-pixel sprint cell being too narrow to carry W40–41', () => {
+    expect(atRung('epic', 'month-head').length).toBeGreaterThan(0)
+    expect(atRung('epic', 'week-head')).toEqual([])
+  })
+
+  it('leaves the Quarter stop on sprints, that being the unit the plan is scheduled against', () => {
+    expect(atRung('feature', 'week-head').length).toBeGreaterThan(0)
+    expect(atRung('feature', 'month-head')).toEqual([])
+  })
+
+  it('leaves the Sprint stop on sprints too', () => {
+    expect(atRung('item', 'week-head').length).toBeGreaterThan(0)
+    expect(atRung('item', 'month-head')).toEqual([])
+  })
+
+  it('opens every quarter cell on a month cell at Year, which is why the row was changed at all', () => {
+    const opens = new Set(atRung('epic', 'month-head').map((cell) => cell.style.left))
+    const quarters = atRung('epic', 'quarter-head')
+    expect(quarters.length).toBeGreaterThan(1)
+    for (const quarter of quarters.slice(1)) expect(opens.has(quarter.style.left)).toBe(true)
+  })
+
+  it('does not open every quarter on a sprint cell at Quarter, the misalignment being real there', () => {
+    const opens = new Set(atRung('feature', 'week-head').map((cell) => cell.style.left))
+    const quarters = atRung('feature', 'quarter-head')
+    expect(quarters.slice(1).some((quarter) => !opens.has(quarter.style.left))).toBe(true)
+  })
+
+  it('names a month in three letters and without its year, the quarter above it carrying the year', () => {
+    const named = atRung('epic', 'month-head')
+      .map((cell) => cell.textContent ?? '')
+      .filter((text) => text !== '')
+    expect(named.length).toBeGreaterThan(0)
+    for (const text of named) expect(text).toMatch(/^[A-Z][a-z]{2}$/)
+  })
+
+  it('keys each month cell on its year as well, two Januaries being two different bands', () => {
+    const keys = atRung('epic', 'month-head').map((cell) => cell.dataset['month'])
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys[0]).toMatch(/^\d{4}-\d{1,2}$/)
   })
 })

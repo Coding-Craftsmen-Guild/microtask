@@ -661,3 +661,42 @@ describe('the canvas at this product’s own cap', { timeout: CAP_RENDER_MS }, (
     expect(numberOf(only('[data-slot="plan-canvas"]'), 'width')).toBe(840)
   })
 })
+
+describe('what the grid rules at each stop, which follows what the header counts in', () => {
+  it('rules month boundaries at the Year stop and draws no sprint rule at all', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
+    expect(slot('month-rule').length).toBeGreaterThan(1)
+    expect(slot('sprint-tick')).toEqual([])
+  })
+
+  it('rules sprint boundaries at the Quarter stop and draws no month rule', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="feature" />)
+    expect(slot('sprint-tick').length).toBeGreaterThan(1)
+    expect(slot('month-rule')).toEqual([])
+  })
+
+  it('rules sprint boundaries at the Sprint stop too', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    expect(slot('sprint-tick').length).toBeGreaterThan(1)
+    expect(slot('month-rule')).toEqual([])
+  })
+
+  it('puts a month rule on every quarter band edge, so the wash and the rules cannot disagree', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
+    const ruled = new Set(slot('month-rule').map((rule) => rule.getAttribute('x1')))
+    const bands = calendarBands(atlasPlan(), CANVAS_SCALE, chromeRange(CANVAS_RANGE))
+    expect(bands.length).toBeGreaterThan(1)
+    for (const band of bands.slice(1)) expect(ruled.has(String(band.x))).toBe(true)
+  })
+
+  it('draws each month rule the full height of the canvas, as a sprint rule is drawn', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
+    const rules = slot('month-rule')
+    expect(rules.map((rule) => rule.tagName)).toEqual(rules.map(() => 'line'))
+    expect(numberOf(nth(rules, 1), 'x1')).toBe(numberOf(nth(rules, 1), 'x2'))
+    expect(numberOf(nth(rules, 1), 'y1')).toBe(0)
+    expect(numberOf(nth(rules, 1), 'y2')).toBe(
+      numberOf(only('[data-slot="plan-canvas"]'), 'height'),
+    )
+  })
+})

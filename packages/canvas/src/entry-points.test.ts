@@ -31,6 +31,7 @@ describe('@repo/canvas entry points', () => {
       'isMilestone',
       'itemsToMarks',
       'lastPlannedDay',
+      'monthBands',
       'railAtY',
       'railLayout',
       'rangeFor',
