@@ -64,6 +64,9 @@ export interface RailFrame {
 
   readonly groups: ReadonlyMap<string, string>
 
+  /** What each group is coloured, keyed by label id, for {@link hueOf} to prefer over a rail's. */
+  readonly hues: ReadonlyMap<string, string>
+
   readonly draws: RungDrawing
 
   /** Where each bar's name goes, keyed by feature id. */
@@ -85,6 +88,35 @@ export interface RailFrame {
    */
   readonly hrefOf: (featureId: string) => string | null
 }
+
+/** What each group is coloured, keyed by label id. */
+export const labelHues = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
+  new Map(plan.labels.map((label) => [label.id, label.colour]))
+
+/**
+ * The hue one feature's marks are drawn in: its **group's** colour, or its **rail's** where it is in
+ * no group.
+ *
+ * ### Why a group outranks a rail
+ *
+ * ADR 0064 fixed a group's colour as "a swatch and never a fill", on design §5's rule that an epic
+ * owns hue and hue cannot carry two meanings. The product owner has reassigned the channel, and this
+ * one line is the whole of the new rule — so hue stays single-valued, and what it names is the thing
+ * a reader most often came to find.
+ *
+ * A group cuts **across** rails by construction, which is why it is worth the channel: a rail is a
+ * lane the eye can already follow by position, and a phase spread over four of them is a set nothing
+ * else on the canvas can pick out. What it costs is stated rather than hidden — on a plan where every
+ * feature is grouped, the canvas stops showing rail membership in hue at all, and the band and the
+ * names column carry it instead.
+ *
+ * @param frame - The canvas's own frame, holding both the per-feature group and the per-group colour.
+ * @param featureId - The feature whose mark is being drawn.
+ * @param rail - Its rail's colour, or `null` for a rail no epic claims.
+ * @returns The colour to paint with, or `null` when neither a group nor a rail offers one.
+ */
+export const hueOf = (frame: RailFrame, featureId: string, rail: string | null): string | null =>
+  frame.hues.get(frame.groups.get(featureId) ?? '') ?? rail
 
 /** Which group each feature is in, keyed by feature id; a feature in no group is absent. */
 export const groupsOf = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
@@ -307,6 +339,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
       marks: marksByFeature(itemsToMarks(plan, plan.schedule, scale)),
       treatments: withProgress(treatmentsOf(plan.schedule), progress),
       groups: groupsOf(plan),
+      hues: labelHues(plan),
       draws: DRAWS[rung],
       labels: labelsOf(rails, DRAWS[rung].nodes),
       names: featureNames(plan),

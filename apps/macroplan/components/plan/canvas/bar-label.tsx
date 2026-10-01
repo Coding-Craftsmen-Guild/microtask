@@ -27,6 +27,15 @@ export interface BarLabelTextProps {
   readonly name: string
 
   readonly top: number
+
+  /**
+   * The group its feature is in, or `null` for one in no group.
+   *
+   * Drawn nowhere and read by one generated rule: choosing a group dims every mark outside it by
+   * slot (`labels/group-css.ts`), and a name is a mark. Without this the feature's **name** stayed
+   * bright over its own dimmed bar, which reads as a rendering fault rather than as a selection.
+   */
+  readonly labelId: string | null
 }
 
 /**
@@ -52,11 +61,12 @@ export interface BarLabelTextProps {
  * A bar is a translucent wash inside an outline rather than a slab of colour, so white text on one
  * is white text on the page — invisible on every rail whatever hue it carries.
  */
-export function BarLabelText({ label, name, top }: BarLabelTextProps) {
+export function BarLabelText({ label, name, top, labelId }: BarLabelTextProps) {
   if (label.maxChars < MIN_READABLE || name === '') return null
   return (
     <text
       className={label.inside ? INSIDE : OUTSIDE}
+      data-label-id={labelId ?? undefined}
       data-slot="bar-label"
       dominantBaseline="central"
       x={label.x}

@@ -2,6 +2,7 @@ import type { RailBox } from '@repo/canvas'
 import { BarLabelText } from './bar-label'
 import { FeatureBarMark } from './feature-bar'
 import { FeatureNode } from './feature-node'
+import { hueOf } from './view'
 import type { RailFrame } from './view'
 
 const LINK = 'outline-none [&>*]:transition-opacity hover:[&>*]:opacity-80 [[data-drag=true]_&]:cursor-grab'
@@ -57,7 +58,7 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
         const label = frame.labels.get(bar.id)
         const shared = {
           bar,
-          colour: rail.colour,
+          colour: hueOf(frame, bar.id, rail.colour),
           labelId: frame.groups.get(bar.id) ?? null,
           top,
           treatment: frame.treatments.get(bar.id) ?? ('solid' as const),
@@ -67,7 +68,12 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
           <>
             {frame.draws.nodes ? <FeatureNode {...shared} /> : <FeatureBarMark {...shared} />}
             {label === undefined ? null : (
-              <BarLabelText label={label} name={frame.names.get(bar.id) ?? ''} top={top} />
+              <BarLabelText
+                label={label}
+                labelId={shared.labelId}
+                name={frame.names.get(bar.id) ?? ''}
+                top={top}
+              />
             )}
           </>
         )

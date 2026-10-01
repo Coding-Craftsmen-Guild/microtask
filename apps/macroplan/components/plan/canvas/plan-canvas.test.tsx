@@ -11,6 +11,7 @@ import {
   FEATURE_1,
   FEATURE_2,
   ITEM_1,
+  LABEL_1,
   ITEM_2,
   ITEM_3,
   unplacedPlan,
@@ -106,6 +107,15 @@ const hued = (hue: string): Plan => {
   const plan = atlasPlan()
   return { ...plan, epics: plan.epics.map((epic) => ({ ...epic, colour: hue })) }
 }
+
+/** The same plan with every feature taken out of its group, so only the rail hue is left to take. */
+const ungrouped = (hue: string): Plan => {
+  const plan = hued(hue)
+  return { ...plan, features: plan.features.map((feature) => ({ ...feature, labelId: null })) }
+}
+
+/** `Phase 1`'s own colour in the fixture, which `FEATURE_1` is in and `FEATURE_2` is not. */
+const PHASE_1 = '#7c3aed'
 
 const stamps = { createdAt: '2026-09-01T09:00:00.000Z', updatedAt: '2026-09-01T09:00:00.000Z' }
 
@@ -255,7 +265,8 @@ describe('PlanCanvas', () => {
 
   it('leaves a rail whose epicId names no epic unhued, rather than guessing a colour for it', () => {
     const plan = atlasPlan()
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel({ ...plan, epics: [] })} rung="item" />)
+    const bare = { ...plan, epics: [], features: plan.features.map((one) => ({ ...one, labelId: null })) }
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(bare)} rung="item" />)
     // `Unclaimed rail` is the names column's sentence now. The canvas answers by painting nothing.
     expect(screen.queryByText('Unclaimed rail')).toBeNull()
     expect(only('[data-slot="rail"]').getAttribute('data-colour')).toBeNull()
@@ -263,11 +274,48 @@ describe('PlanCanvas', () => {
     expect(barFor(FEATURE_1).getAttribute('class')).toBe(SOLID)
   })
 
-  it('takes each bar hue from its epic colour, which the API validated and the canvas never chooses', () => {
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="item" />)
+  // The fallback is the rail's and not the only source, so an unclaimed rail does not strip the hue
+  // off a feature that has one of its own. Both halves of `hueOf` are exercised by one plan here.
+  it('still hues a grouped feature on an unclaimed rail, the group being the hue a plan chose', () => {
+    const plan = atlasPlan()
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel({ ...plan, epics: [] })} rung="item" />)
+    expect(only('[data-slot="rail"]').getAttribute('data-colour')).toBeNull()
+    expect(styleOf(barFor(FEATURE_1))).toContain(PHASE_1)
+    expect(styleOf(barFor(FEATURE_2))).toBe('')
+  })
+
+  it('takes a bar hue from its epic colour where the feature is in no group at all', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(ungrouped(ORANGE))} rung="item" />)
     expect(barFor(FEATURE_1).getAttribute('style')).toContain(ORANGE)
     expect(barFor(FEATURE_2).getAttribute('style')).toContain(ORANGE)
     expect(markFor(ITEM_1).getAttribute('style')).toContain(ORANGE)
+  })
+
+  // The product owner reassigned the hue channel: a group's colour used to be a swatch and never a
+  // fill (ADR 0064), because an epic owned hue. A grouped feature now takes its group's colour and an
+  // ungrouped one keeps its rail's, which keeps hue single-valued while letting a phase be the thing
+  // the eye picks out — a group cutting across rails being exactly what no other channel can say.
+  it('takes a bar hue from its group where the feature is in one, the rail being the fallback', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="item" />)
+    expect(barFor(FEATURE_1).getAttribute('data-label-id')).toBe(LABEL_1)
+    expect(barFor(FEATURE_1).getAttribute('style')).toContain(PHASE_1)
+    expect(barFor(FEATURE_1).getAttribute('style')).not.toContain(ORANGE)
+  })
+
+  it('leaves a feature in no group on its rail hue, so the fallback is not a colour nobody chose', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="item" />)
+    expect(barFor(FEATURE_2).getAttribute('data-label-id')).toBeNull()
+    expect(barFor(FEATURE_2).getAttribute('style')).toContain(ORANGE)
+  })
+
+  it('hues an item mark by its own feature’s group, so a tick matches the bar it sits under', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="item" />)
+    expect(markFor(ITEM_1).getAttribute('style')).toContain(PHASE_1)
+  })
+
+  it('draws a node at the rollup rungs in its group hue too, a point being a bar with no width', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="epic" />)
+    expect(barFor(FEATURE_1).getAttribute('style')).toContain(PHASE_1)
   })
 
   // A bar is a wash inside an outline now, and both are the rail's hue — so the style carries the

@@ -123,13 +123,19 @@ describe('the canvas draws the three progress levels and stays one element per i
     expect(weight(ITEM_1)).toBeLessThan(weight(ITEM_2))
   })
 
-  // The paint is split in two: the class fixes the treatment and an inline style carries the rail's hue. A
-  // rail no epic claims has no hue to carry — `RailBox.colour` is `null` there and `hueStyle` answers no
-  // style at all — so on that rail the class is the whole drawing, and the three levels still have to
-  // differ. They do, in two channels rather than one: `done` sits on its own chart ramp, while `started`
-  // keeps `solid`'s fill and is told apart by its outline, the thinner fill being the half in the style.
-  it('separates the three levels by class alone on the rail that has no hue to paint with', () => {
-    const container = canvasOf(EVERY_LEVEL, atlasPlan({ epics: [] }))
+  // The paint is split in two: the class fixes the treatment and an inline style carries the hue. A mark
+  // has no hue to carry only when **both** sources are empty — its feature is in no group and its rail is
+  // claimed by no epic, `hueOf` preferring the group and falling back to the rail — and `hueStyle` then
+  // answers no style at all. On such a mark the class is the whole drawing, and the three levels still
+  // have to differ. They do, in two channels rather than one: `done` sits on its own chart ramp, while
+  // `started` keeps `solid`'s fill and is told apart by its outline, the thinner fill being the half in
+  // the style.
+  it('separates the three levels by class alone on a mark that has no hue to paint with', () => {
+    const bare = atlasPlan({ epics: [] })
+    const container = canvasOf(EVERY_LEVEL, {
+      ...bare,
+      features: bare.features.map((one) => ({ ...one, labelId: null })),
+    })
     expect(styleOf(container, ITEM_1)).toBe('')
     expect(classOf(container, ITEM_3)).toContain('fill-chart-3')
     expect(classOf(container, ITEM_1)).toContain('fill-chart-3')

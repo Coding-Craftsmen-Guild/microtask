@@ -22,8 +22,17 @@ export const DIMMED_OPACITY = '0.32'
 
 const ROOT = '[data-slot="plan-root"]'
 
+const DIMMABLE = [
+  '[data-slot="feature-bar"]',
+  '[data-slot="item-mark"]',
+  '[data-slot="bar-label"]',
+  '[data-slot="arc"]',
+  '[data-slot="plan-table-row"]',
+].join(',')
+
 const ruleFor = (labelId: string): string =>
-  `${ROOT}:has(#${groupRadioId(labelId)}:checked) [data-label-id]:not([data-label-id="${labelId}"])` +
+  `${ROOT}:has(#${groupRadioId(labelId)}:checked) :is(${DIMMABLE})` +
+  `:not([data-label-id="${labelId}"])` +
   `{opacity:${DIMMED_OPACITY}}`
 
 /**
@@ -52,6 +61,24 @@ const ruleFor = (labelId: string): string =>
  * because nothing on the server knows what is selected: the browser holds that in the radio, so a chosen
  * group survives no reload and reaches no URL. That is deliberate for what this is — a way of looking at
  * the plan for a moment, not a filter somebody shares — and it is why choosing a group re-renders nothing.
+ *
+ * ### What the rule selects, and the defect that changed it
+ *
+ * It was `[data-label-id]:not([data-label-id="X"])`, and that was wrong in a way that made the whole
+ * feature look broken. A feature in **no** group renders `data-label-id={labelId ?? undefined}`, so the
+ * attribute is *absent*, so `[data-label-id]` never matched it and it was never dimmed. The rule only
+ * quieted features in some **other** group — and on a plan where most work is ungrouped, which is every
+ * new plan, choosing a group visibly changed nothing.
+ *
+ * {@link DIMMABLE} names the slots instead, which says what was meant: dim every mark that is not in the
+ * chosen group, whether it is in another one or in none.
+ *
+ * All five kinds are named for a reason. `bar-label` and `arc` carry a `data-label-id` for this rule and
+ * nothing else; without them a feature's **name** stays bright over its own dimmed bar, which reads as a
+ * rendering fault rather than a selection, and the arcs stay at full weight over a quiet plan. A
+ * `plan-table-row` is here because the table is the second rendering of the same plan (ADR 0056) and the
+ * chips filter both. An arc takes the label of the feature it **leaves** (`canvas/arc-view.ts`), so a
+ * chosen group keeps its own outgoing edges lit.
  *
  * An id that is not ULID-shaped is **skipped** rather than escaped: it cannot occur, since every id here
  * came out of a `PlanView` decode, and a rule is the wrong place to be clever about a value that should

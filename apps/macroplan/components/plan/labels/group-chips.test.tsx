@@ -112,10 +112,27 @@ describe('the rule that dims what is not in the chosen group', () => {
   it('selects the bars and rows of every other group from the plan root, by :has on the radio', () => {
     const css = groupCss(ROWS)
 
-    expect(css).toContain(
-      `[data-slot="plan-root"]:has(#${groupRadioId(LABEL_1)}:checked) ` +
-        `[data-label-id]:not([data-label-id="${LABEL_1}"]){opacity:${DIMMED_OPACITY}}`,
-    )
+    expect(css).toContain(`[data-slot="plan-root"]:has(#${groupRadioId(LABEL_1)}:checked) `)
+    expect(css).toContain(`:not([data-label-id="${LABEL_1}"]){opacity:${DIMMED_OPACITY}}`)
+  })
+
+  // The defect this replaced. The rule was `[data-label-id]:not([data-label-id="X"])`, and a feature in
+  // **no** group renders no `data-label-id` at all — so it matched nothing, stayed at full opacity, and
+  // choosing a group visibly changed nothing on a plan where most work is ungrouped, which is every new
+  // plan. Selecting by slot is what makes "grey out the others" mean all of the others.
+  it('dims a mark that is in no group at all, which selecting on the attribute alone never did', () => {
+    const css = groupCss(ROWS)
+
+    expect(css).toContain('[data-slot="feature-bar"]')
+    expect(css).not.toContain(`[data-label-id]:not(`)
+  })
+
+  it('names every kind of mark a group reaches, a lit name over a dimmed bar being worse than neither', () => {
+    const css = groupCss(ROWS)
+
+    for (const slot of ['feature-bar', 'item-mark', 'bar-label', 'arc', 'plan-table-row']) {
+      expect(css).toContain(`[data-slot="${slot}"]`)
+    }
   })
 
   it('skips an id that could not be a ULID, rather than escaping it into a selector', () => {
@@ -143,6 +160,21 @@ describe('the rule that dims what is not in the chosen group', () => {
     )
     expect(document.querySelector(`[data-testid="row-${FEATURE_2}"]`)?.hasAttribute('data-label-id'))
       .toBe(false)
+  })
+
+  // The other half of the same proof: the ungrouped row has to be reached by the rule that actually
+  // ships, which selects on the slot. Asserting it against the rendered table is what stops the rule
+  // from being a string nothing matches.
+  it('reaches the ungrouped row by slot, so choosing a group really does dim it', () => {
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
+    const dimmed = document.querySelectorAll(
+      `[data-slot="plan-table-row"]:not([data-label-id="${LABEL_1}"])`,
+    )
+
+    expect([...dimmed].map((row) => row.getAttribute('data-testid'))).toContain(`row-${FEATURE_2}`)
+    expect([...dimmed].map((row) => row.getAttribute('data-testid'))).not.toContain(
+      `row-${FEATURE_1}`,
+    )
   })
 
   it('ships the rules inside the chips, so a plan with groups carries exactly one style element', () => {
