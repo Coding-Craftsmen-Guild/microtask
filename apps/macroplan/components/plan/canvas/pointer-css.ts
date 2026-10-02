@@ -19,8 +19,22 @@ const lit = (slot: string): string => `[data-slot="${slot}"][data-lit]`
 
 const SHAPES = ['feature-bar', 'item-mark', 'arc'].map(lit).join(',')
 
+const GROUP = '[data-slot="feature-group"]'
+
+const ITEM = '[data-slot="item-mark"]'
+
+const ARC = '[data-slot="arc"]'
+
+const KEPT = ':not([data-lit]):not([data-near])'
+
+const DIMMED = [
+  `[data-hovering] ${GROUP}:not(:has([data-lit])):not(:has([data-near]))`,
+  `[data-hovering] ${ITEM}${KEPT}`,
+  `[data-hovering] ${ITEM}${KEPT} + text`,
+].join(',')
+
 /**
- * What lighting looks like, as one static sheet.
+ * What a hover looks like, as one static sheet.
  *
  * ### Why an attribute and not a generated rule per feature
  *
@@ -30,29 +44,44 @@ const SHAPES = ['feature-bar', 'item-mark', 'arc'].map(lit).join(',')
  * plan of a hundred features, generated on every render, to paint something that lasts as long as a
  * pointer rests on it.
  *
- * So `plan-pointer.tsx` sets `data-lit` on the handful of elements that share the hovered feature's
- * `data-hover-id`, and this paints them. It is the same move `sidebar/sidebar-search.tsx` makes when it
- * sets `hidden` on a row rather than generating a sheet: an attribute toggled on five elements costs
- * nothing and does not scale with the plan.
+ * So `./pointer-lights.ts` sets `data-lit` on the handful of elements that share the hovered feature's
+ * `data-hover-id`, `data-near` on the features at the other end of its arcs, and `data-hovering` on the
+ * root. This paints all three. An attribute toggled on a handful of elements costs nothing and does not
+ * scale with the plan.
  *
- * ### Why it brightens rather than dims
+ * ### Three levels, and why the board dims at all
  *
- * Dimming is the selection gesture's own language — a group chip, a chosen rail and the board's own
- * filter all quiet everything else. A hover that also dimmed would make a pointer crossing the board
- * look like a click that had already happened, and there would be no way to tell a chosen thread from
- * one the pointer is merely passing over.
+ * The thread is **lit**: full opacity, thicker stroke. Its dependency neighbours are **kept**: full
+ * opacity, ordinary stroke, because they are context rather than the subject. Everything else drops to
+ * 0.35, and the arcs it is not part of drop much further — an arc is a line across the whole board, so
+ * the ones that are not the answer are the ones most in the way of it.
  *
- * `opacity:1` is deliberate and is the one declaration that overrides something: a feature outside the
- * chosen group is dimmed to 0.32, and pointing at it should still show it. A reader asking "what is
- * that faint bar" gets an answer rather than a fainter version of the question.
+ * A board of two hundred features is otherwise a wall in which the thing under the pointer is no more
+ * legible than the rest. It does read like the selection gestures — a group chip, a chosen rail and the
+ * board's filter all quiet everything else — and that is the right family to be in: this is the same
+ * question asked for as long as a pointer rests somewhere, and it answers itself the moment it moves.
+ *
+ * `opacity:1` on the thread is the one declaration that overrides something: a feature outside the
+ * chosen group is dimmed to 0.32, and pointing at it should still show it. A reader asking "what is that
+ * faint bar" gets an answer rather than a fainter version of the question.
+ *
+ * ### Why the item's label is named separately
+ *
+ * An item mark is a `<rect>` with its label as the **next sibling**, not a wrapper around both: that is
+ * the element budget this canvas is drawn under (`./item-mark.tsx`). So the rule that dims the rect
+ * names the text beside it too, or a dimmed item would keep a bright name.
  *
  * ### Why the sheet is static
  *
- * It names slots and no ids, so there is nothing in it that depends on the plan. It is a module
- * constant beside `view-switch.ts`'s, rather than a generated string beside the group and selection
- * sheets, and it is mounted once by `PlanScreen`.
+ * It names slots and no ids, so there is nothing in it that depends on the plan. It is a module constant
+ * rather than a generated string, and it is mounted once by `PlanScreen`.
  */
-export const POINTER_CSS = `${SHAPES}{opacity:1;stroke-width:2.5px}`
+export const POINTER_CSS = [
+  `${SHAPES}{opacity:1;stroke-width:2.5px}`,
+  `${DIMMED}{opacity:0.35}`,
+  `[data-hovering] ${ARC}${KEPT}{opacity:0.12}`,
+  `${GROUP},${ITEM},${ARC}{transition:opacity .12s}`,
+].join('')
 
 /**
  * The hover card itself, as whole class strings.

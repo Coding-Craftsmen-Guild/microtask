@@ -83,6 +83,11 @@ const at = (selector: string): Element => {
 const lit = (): readonly string[] =>
   [...document.querySelectorAll('[data-lit]')].map((one) => one.getAttribute('data-slot') ?? '')
 
+const near = (): readonly string[] =>
+  [...document.querySelectorAll('[data-near]')].map((one) => one.getAttribute('data-hover-id') ?? '')
+
+const hovering = (): boolean => document.querySelector('[data-hovering]') !== null
+
 // happy-dom's `WheelEvent` constructor drops `ctrlKey` and `metaKey` from its init dictionary — it
 // carries `deltaY` and the `MouseEvent` coordinates and not the modifier state — so an event built the
 // ordinary way arrives with both undefined and every zoom gesture below would read as a plain scroll.
@@ -330,11 +335,29 @@ describe('what a hover lights', () => {
     for (const one of others) expect(one.getAttribute('data-lit')).toBeNull()
   })
 
+  // The board dims around the thread, so the three levels are three attributes: the thread is lit, the
+  // features at the other end of its arcs are kept, and the root says a hover is happening at all.
+  it('keeps the feature at the other end of an arc, without lighting it', () => {
+    show()
+    fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
+    expect(near()).toEqual([FEATURE_2])
+    expect(hovering()).toBe(true)
+  })
+
+  it('says a hover is happening, which is what dims everything else', () => {
+    show()
+    expect(hovering()).toBe(false)
+    fireEvent.pointerOver(at('[data-slot="item-mark"]'), { clientX: 100, clientY: 100 })
+    expect(hovering()).toBe(true)
+  })
+
   it('clears every light when the pointer leaves, leaving no mark stuck on', () => {
     show()
     fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
     fireEvent.pointerOut(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
     expect(lit()).toEqual([])
+    expect(near()).toEqual([])
+    expect(hovering()).toBe(false)
   })
 })
 

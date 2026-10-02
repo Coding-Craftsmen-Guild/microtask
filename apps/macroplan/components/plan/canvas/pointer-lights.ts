@@ -1,50 +1,65 @@
 const LIT = 'data-lit'
 
+const NEAR = 'data-near'
+
+const HOVERING = 'data-hovering'
+
 const HOVER_ID = 'data-hover-id'
 
 const ARC_FROM = 'data-arc-from'
 
 const ARC_TO = 'data-arc-to'
 
+const clear = (root: Element, name: string): void => {
+  for (const one of root.querySelectorAll(`[${name}]`)) one.removeAttribute(name)
+}
+
+const neighbours = (root: Element, id: string): ReadonlySet<string> => {
+  const near = new Set<string>()
+  for (const one of root.querySelectorAll(`[${ARC_FROM}]`)) {
+    const from = one.getAttribute(ARC_FROM) ?? ''
+    const to = one.getAttribute(ARC_TO) ?? ''
+    if (from !== id && to !== id) continue
+    one.setAttribute(LIT, '')
+    near.add(from === id ? to : from)
+  }
+  return near
+}
+
 /**
- * Lights every part of one feature's thread, and puts out whatever was lit before.
+ * What a hover does to the board: lights one thread, keeps its neighbours, dims the rest.
  *
- * ### Why ids are compared and never interpolated
+ * ### Three levels and not two
  *
- * The obvious implementation is `root.querySelectorAll(`[data-hover-id="${id}"]`)`, and it is the one
- * thing `labels/group-css.ts` guards against with `isStyleSafeId`: a value reaching a selector is a value
- * that can end the selector it is in. Reading the attribute back off each candidate removes the question
- * rather than answering it — there is no selector built from a plan's own data here at all, so no guard
- * is needed and none can be forgotten.
+ * The **thread** — the feature under the pointer, its items, and the arcs at either end of it — is lit:
+ * full opacity and a thicker stroke. Its direct dependency **neighbours** are merely kept: full opacity,
+ * ordinary stroke, because they are context rather than the subject. Everything else dims. A board of two
+ * hundred features is otherwise a wall in which the thing being pointed at is no more legible than the
+ * rest of it, and dimming is what the design asks for in place of a selection nobody made.
  *
- * The cost is a walk of every element carrying the attribute instead of an indexed match. That is a few
- * hundred nodes on a large plan, once per pointer entering a mark, which is nothing beside the paint it
- * causes.
+ * ### Why it is attributes and not React state
  *
- * ### Why an arc is matched on either end
+ * The canvas is server-rendered and two thousand marks deep, so a hover that re-rendered it would
+ * re-render the plan on every pointer move. One attribute per lit node and one on the root is what the
+ * browser then paints from (`./pointer-css.ts`), which is the same arrangement the drag ghost and the
+ * board filter use.
  *
- * A dependency belongs to two features, so a thread includes the arcs that leave it **and** the arcs that
- * arrive — the same test `sidebar/select-css.ts` makes for which arcs a feature selection leaves lit, and
- * the reason both say what a feature waits on and what waits on it without a second view.
- *
- * ### Why the attribute is set rather than rendered
- *
- * The marks are the server's and React did not render them. Setting an attribute on them is what
- * `sidebar/sidebar-search.tsx` does with `hidden`, and for its reason: a re-render that replaced them
- * would undo the thing just done to them. Passing `''` as the id is how the caller puts everything out.
- *
- * @param root - The element the pointer listens over, or `null` before it is mounted.
- * @param id - The feature whose thread to light, or `''` to light nothing.
+ * @param root - The pointer root, which every mark is somewhere inside.
+ * @param id - The feature whose thread is hovered, or `''` for a pointer over nothing.
  */
 export function lightThread(root: Element | null, id: string): void {
   if (root === null) return
-  for (const one of root.querySelectorAll(`[${LIT}]`)) one.removeAttribute(LIT)
-  if (id === '') return
-  for (const one of root.querySelectorAll(`[${HOVER_ID}]`)) {
-    if (one.getAttribute(HOVER_ID) === id) one.setAttribute(LIT, '')
+  clear(root, LIT)
+  clear(root, NEAR)
+  if (id === '') {
+    root.removeAttribute(HOVERING)
+    return
   }
-  for (const one of root.querySelectorAll(`[${ARC_FROM}]`)) {
-    const ends = [one.getAttribute(ARC_FROM), one.getAttribute(ARC_TO)]
-    if (ends.includes(id)) one.setAttribute(LIT, '')
+  root.setAttribute(HOVERING, '')
+  const near = neighbours(root, id)
+  for (const one of root.querySelectorAll(`[${HOVER_ID}]`)) {
+    const held = one.getAttribute(HOVER_ID) ?? ''
+    if (held === id) one.setAttribute(LIT, '')
+    else if (near.has(held)) one.setAttribute(NEAR, '')
   }
 }
