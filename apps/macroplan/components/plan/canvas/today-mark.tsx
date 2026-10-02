@@ -3,7 +3,7 @@ import type { PlanScale } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { todayHover } from './hover'
 
-const TODAY_STROKE = 'stroke-gold-deep stroke-2'
+const TODAY_STROKE = 'pointer-events-none stroke-gold-deep stroke-2'
 
 /** Props for {@link TodayMark}. */
 export interface TodayMarkProps {
@@ -56,11 +56,10 @@ export interface TodayMarkProps {
  * explicitly keeps `PlanCanvas`'s single `aria-label` the whole of what is announced, and does it by
  * construction rather than by trusting a user agent.
  *
- * Its hover target is the line itself, which is two px wide and is a small thing to hit. The
- * sprint's own full-height target sits directly behind it, so a pointer that misses the line still
- * lands on that sprint's dates **wherever nothing else is painted** — but a solid bar or an item
- * mark under the line absorbs the pointer and reveals nothing, because an SVG tooltip walks the hit
- * element's ancestors and not the paint order. `SprintTickLayer` measures which surfaces reach it.
+ * The line takes **no pointer events at all**, which costs it the tooltip and is still right: it is
+ * drawn last, so it lay over every bar it crossed, and a two-pixel column of the board in which a mark
+ * could not be hovered or clicked is a dead stripe nobody would ever explain. The date it names is in
+ * the header above it either way, as the `TODAY` tag on the sprint it falls in.
  */
 export function TodayMark({ plan, scale, at, height }: TodayMarkProps) {
   const today = todayLine(plan, at, scale)

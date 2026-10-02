@@ -11,8 +11,12 @@ import { SETTLE_MS } from './pointer-view'
 
 const pushed: string[] = []
 
+// The stack the mocked query answers with, which is what a click on a mark adds to.
+let opened = ''
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: (href: string) => pushed.push(href) }),
+  useSearchParams: () => new URLSearchParams(opened),
 }))
 
 const asked: string[] = []
@@ -189,7 +193,7 @@ describe('clicking a mark at a rung that is not the finest', () => {
     fireEvent.click(at('[data-slot="feature-link"] rect'))
     await act(async () => {})
     expect(asked).toEqual(['item'])
-    expect(pushed).toEqual([`/plans/p/f/${FEATURE_1}`])
+    expect(pushed).toEqual([`/plans/p/f/${FEATURE_1}?open=f:${FEATURE_1}`])
   })
 
   it('drills from the quarter rung too', async () => {
@@ -199,13 +203,33 @@ describe('clicking a mark at a rung that is not the finest', () => {
     expect(asked).toEqual(['item'])
   })
 
-  it('leaves the link to the browser at the sprint rung, so it still middle-clicks and opens in a tab', () => {
+  // The href on a mark cannot carry the open tabs — the board is drawn by a layout, and a layout cannot
+  // read the query — so a plain click is taken over at every rung and the stack added to it here.
+  it('takes a plain click over at the sprint rung too, where there is nothing to drill', () => {
     show({ rung: 'item' })
     const event = new window.MouseEvent('click', { bubbles: true, cancelable: true })
     at('[data-slot="feature-link"] rect').dispatchEvent(event)
     expect(asked).toEqual([])
+    expect(pushed).toEqual([`/plans/p/f/${FEATURE_1}?open=f:${FEATURE_1}`])
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  // A middle click and a modified click are the browser's own, and they open the bare route: one subject,
+  // no stack, which is what opening a link in a new tab means everywhere.
+  it('leaves a modified click to the browser, so it still opens in a new tab', () => {
+    show({ rung: 'item' })
+    const event = new window.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true })
+    at('[data-slot="feature-link"] rect').dispatchEvent(event)
     expect(pushed).toEqual([])
     expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('adds the subject to the stack the query already holds, rather than replacing it', () => {
+    opened = 'open=i:ITEM-ZERO'
+    show({ rung: 'item' })
+    fireEvent.click(at('[data-slot="feature-link"] rect'))
+    expect(pushed).toEqual([`/plans/p/f/${FEATURE_1}?open=i:ITEM-ZERO,f:${FEATURE_1}`])
+    opened = ''
   })
 
   it('takes over the navigation when it drills, so the drawer opens over the rung that was asked for', () => {

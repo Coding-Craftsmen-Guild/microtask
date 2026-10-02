@@ -1,10 +1,12 @@
 'use client'
 
 import type { Rung } from '@repo/canvas'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent, ReactNode } from 'react'
 import { splitDetail, type Detail } from './detail-lines'
+import { OPEN_PARAM } from '../drawer/tab-stack'
+import { openClick } from './open-click'
 import { HoverCard } from './hover-card'
 import { lightThread } from './pointer-lights'
 import { cardAt, plainClick } from './pointer-view'
@@ -13,8 +15,6 @@ import { useScrollAnchor } from './use-scroll-anchor'
 import { useWheelZoom } from './use-wheel-zoom'
 
 const FRAME = 'contents'
-
-const LINK = '[data-slot="feature-link"]'
 
 const HOVERABLE = '[data-hover-id]'
 
@@ -109,24 +109,25 @@ export interface PlanPointerProps {
  */
 export function PlanPointer({ children, rung, pxPerDay, axisX, zoomTo }: PlanPointerProps) {
   const router = useRouter()
+  const search = useSearchParams()
   const frame = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState<Shown | null>(null)
   const anchor = useScrollAnchor({ frame, axisX, pxPerDay })
   useWheelZoom({ frame, rung, pxPerDay, axisX, anchor, zoomTo })
   useGroupFit({ frame, rung, anchor, zoomTo })
 
-  const drill = async (href: string): Promise<void> => {
-    if (zoomTo !== null) await zoomTo(FINEST)
+  const opened = async (href: string): Promise<void> => {
+    if (zoomTo !== null && rung !== FINEST) await zoomTo(FINEST)
     router.push(href)
   }
 
   const onClick = (event: MouseEvent<HTMLDivElement>): void => {
-    if (zoomTo === null || rung === FINEST || !plainClick(event)) return
+    if (!plainClick(event)) return
     const target = event.target instanceof Element ? event.target : null
-    const href = target?.closest(LINK)?.getAttribute('href') ?? null
+    const href = openClick(target, search.get(OPEN_PARAM), window.location.pathname)
     if (href === null) return
     event.preventDefault()
-    void drill(href)
+    void opened(href)
   }
 
   const onOver = (event: PointerEvent<HTMLDivElement>): void => {

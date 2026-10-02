@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
+import type { TabRef } from './tab-stack'
 import type { DrawerValues } from './values'
 
 /**
@@ -43,4 +44,12 @@ export interface PanelParts {
 
   /** This item's link to a Microtask task, built by the page that read the bridge; `null` otherwise. */
   readonly link: ReactNode
+
+  /**
+   * The tabs open beside this one, so a link out of this panel joins the stack rather than replacing it.
+   *
+   * Clicking an item in the items list is the same gesture as clicking its mark on the board, and it has
+   * to mean the same thing: one more tab, not a panel that forgets what was open.
+   */
+  readonly stack: readonly TabRef[]
 }

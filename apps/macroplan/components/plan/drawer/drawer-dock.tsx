@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { CSSProperties, ReactNode } from 'react'
-import { PANEL, PANEL_HEIGHT, PANEL_SIZE, TAB, TAB_MARK } from './panel-css'
+import { PANEL, PANEL_HEIGHT, PANEL_SIZE, TAB } from './panel-css'
 import { PanelGrip } from './panel-grip'
 
 /** The id the panel's heading carries, so the panel can name itself by it. */
@@ -20,7 +20,7 @@ const heightStyle = (): CSSProperties =>
 
 /** Props for {@link DrawerDock}. */
 export interface DrawerDockProps {
-  /** The one tab in the strip. */
+  /** The strip's tabs: the one this panel is drawing, and every other one that is open. */
   readonly tab: ReactNode
 
   /**
@@ -82,50 +82,6 @@ export function DrawerDock({ tab, tools = null, children }: DrawerDockProps) {
   )
 }
 
-/** Props for {@link PanelTab}. */
-export interface PanelTabProps {
-  /** What kind of thing is open, which decides the marker and the eyebrow. */
-  readonly kind: 'feature' | 'item'
-
-  /** What it is called. */
-  readonly title: string
-
-  /** Its own hue, so the tab can be matched to the mark it opened. `''` draws a grey marker. */
-  readonly colour: string
-
-  readonly closeHref: string
-}
-
-/**
- * The one tab in the strip: a marker in the subject's hue, what kind it is, its name, and the way out.
- *
- * The heading is the **name**, and it carries {@link TITLE_ID} so the panel is named by what is open
- * rather than by the word `Panel`. It is an `<h2>` inside a tab, which is unusual and is right: a tab
- * strip holding one tab is a heading with a close button beside it, and a reader jumping to the
- * landmark should hear the feature's name.
- *
- * The close is last in the row and first in nothing: it is a `Link` to the plan's own path, so it is
- * reached by Tab in the order it is drawn and does the same thing Back does.
- */
-export function PanelTab({ kind, title, colour, closeHref }: PanelTabProps) {
-  return (
-    <div className={TAB.open} data-slot="panel-tab">
-      <span
-        className={TAB_MARK[kind]}
-        data-slot="tab-marker"
-        style={colour === '' ? undefined : { backgroundColor: kind === 'feature' ? colour : undefined, borderColor: colour }}
-      />
-      <span className={TAB.kind}>{kind === 'feature' ? 'Feature' : 'Item'}</span>
-      <h2 className={TAB.name} id={TITLE_ID} title={title}>
-        {title}
-      </h2>
-      <Link aria-label={PANEL_WORDS.close} className={TAB.close} href={closeHref}>
-        {CLOSE_MARK}
-      </Link>
-    </div>
-  )
-}
-
 /** Props for {@link PlainTab}, the strip's shape for a route that is not a feature or an item. */
 export interface PlainTabProps {
   /** What kind of thing is open — `Rail`, `Group`, `New rail` — or nothing where the title says it. */
@@ -140,10 +96,11 @@ export interface PlainTabProps {
  * The tab a rail, a group or a make-one form opens in.
  *
  * It carries no marker, because those routes are not marks on the board: there is no hue to match a
- * rail's form to, the rail's own row in the column beside the board is already its colour, and a
- * grey dot would be a channel saying nothing. Everything else about it is {@link PanelTab} — the same
- * shape, the same heading id, the same way out — which is what keeps six routes opening in one panel
- * rather than in two that drift.
+ * rail's form to, the rail's own row in the column beside the board is already its colour, and a grey
+ * dot would be a channel saying nothing. It is also the one tab that never stacks: a rail is not a mark,
+ * so there is nothing to compare it with. Everything else about it is `./panel-tabs.tsx`'s active tab —
+ * the same shape, the same heading id, the same way out — which is what keeps six routes opening in one
+ * panel rather than in two that drift.
  */
 export function PlainTab({ kind, title, closeHref }: PlainTabProps) {
   return (

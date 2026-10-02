@@ -3,6 +3,9 @@ import { itemLink } from '../../../../../components/plan/bridge/item-link'
 import { DrawerPanel } from '../../../../../components/plan/drawer/drawer-panel'
 import { LinkField } from '../../../../../components/plan/drawer/link-field'
 import { drawerSubject } from '../../../../../components/plan/drawer/subject'
+import { openParam, type SearchParams } from '../../../../../components/plan/drawer/tab-params'
+import { tabStack } from '../../../../../components/plan/drawer/tab-stack'
+import { tabViews } from '../../../../../components/plan/drawer/tab-view'
 import { attentionOf } from '../../../../../components/plan/attention/attention'
 import { AttentionCallout } from '../../../../../components/plan/attention/attention-mark'
 import { seatPlanActions } from '../../../../../components/plan/seat-actions'
@@ -15,6 +18,9 @@ import { readSeatPlan, readShare } from '../../read-share'
 export interface SeatItemDrawerPageProps {
   /** `token` and `itemId` from `/s/[token]/i/[itemId]`, both untrusted. */
   readonly params: Promise<{ readonly token: string; readonly itemId: string }>
+
+  /** The query, which carries the other open tabs. */
+  readonly searchParams: Promise<SearchParams>
 }
 
 /**
@@ -51,7 +57,7 @@ export interface SeatItemDrawerPageProps {
  * A `featureId` in this segment is `notFound()`, the kind being checked, so the two segments cannot answer
  * for each other.
  */
-export default async function SeatItemDrawerPage({ params }: SeatItemDrawerPageProps) {
+export default async function SeatItemDrawerPage({ params, searchParams }: SeatItemDrawerPageProps) {
   const { token, itemId } = await params
   const share = await readShare(token)
   if (!share.ok) return null
@@ -67,12 +73,14 @@ export default async function SeatItemDrawerPage({ params }: SeatItemDrawerPageP
   const controls = planCapabilities(share.value.role, share.value.scope)
   const writes = seatPlanActions(token)
   const state = itemLink(plan.value, bridge, itemId, null)
+  const active = { id: itemId, kind: 'item' as const }
+  const root = linkPath(token)
+  const open = openParam(await searchParams)
   return (
     <DrawerPanel
       actions={writes}
       attention={<AttentionCallout on={attentionOf(plan.value).get(subject.row.id)} />}
-      colour={subject.colour}
-      closeHref={linkPath(token)}
+      closeHref={root}
       controls={controls.content}
       description={described.ok ? described.value : null}
       link={
@@ -94,6 +102,7 @@ export default async function SeatItemDrawerPage({ params }: SeatItemDrawerPageP
       }
       planId={planId}
       row={subject.row}
+      tabs={tabViews(plan.value, tabStack(open, active), active, root)}
       values={subject.values}
     />
   )

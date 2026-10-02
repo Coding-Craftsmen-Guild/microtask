@@ -34,7 +34,7 @@ export function EdgesColumn({ parts }: EdgesColumnProps) {
         planId={planId}
         setDependencies={actions.setDependencies}
       />
-      <UnblocksBand root={closeHref} rows={values.panel.unblocks} />
+      <UnblocksBand root={closeHref} rows={values.panel.unblocks} stack={parts.stack} />
     </div>
   )
 }

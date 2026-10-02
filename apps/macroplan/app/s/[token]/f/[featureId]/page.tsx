@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation'
 import { DrawerPanel } from '../../../../../components/plan/drawer/drawer-panel'
 import { drawerSubject } from '../../../../../components/plan/drawer/subject'
+import { openParam, type SearchParams } from '../../../../../components/plan/drawer/tab-params'
+import { tabStack } from '../../../../../components/plan/drawer/tab-stack'
+import { tabViews } from '../../../../../components/plan/drawer/tab-view'
 import { attentionOf } from '../../../../../components/plan/attention/attention'
 import { AttentionCallout } from '../../../../../components/plan/attention/attention-mark'
 import { seatPlanActions } from '../../../../../components/plan/seat-actions'
@@ -12,6 +15,9 @@ import { readSeatPlan, readShare } from '../../read-share'
 export interface SeatFeatureDrawerPageProps {
   /** `token` and `featureId` from `/s/[token]/f/[featureId]`, both untrusted. */
   readonly params: Promise<{ readonly token: string; readonly featureId: string }>
+
+  /** The query, which carries the other open tabs. */
+  readonly searchParams: Promise<SearchParams>
 }
 
 /**
@@ -56,7 +62,7 @@ export interface SeatFeatureDrawerPageProps {
  * A refused read returns **nothing at all**. The layout met the same refusal from the same cached reads and
  * says it once, in place of the timeline; a sentence here would be a duplicate.
  */
-export default async function SeatFeatureDrawerPage({ params }: SeatFeatureDrawerPageProps) {
+export default async function SeatFeatureDrawerPage({ params, searchParams }: SeatFeatureDrawerPageProps) {
   const { token, featureId } = await params
   const share = await readShare(token)
   if (!share.ok) return null
@@ -64,17 +70,20 @@ export default async function SeatFeatureDrawerPage({ params }: SeatFeatureDrawe
   if (!plan.ok) return null
   const subject = drawerSubject(plan.value, 'feature', featureId)
   if (subject === undefined) notFound()
+  const active = { id: featureId, kind: 'feature' as const }
+  const root = linkPath(token)
+  const open = openParam(await searchParams)
   return (
     <DrawerPanel
       actions={seatPlanActions(token)}
       attention={<AttentionCallout on={attentionOf(plan.value).get(subject.row.id)} />}
-      colour={subject.colour}
-      closeHref={linkPath(token)}
+      closeHref={root}
       controls={planCapabilities(share.value.role, share.value.scope).content}
       description={null}
       link={null}
       planId={plan.value.id}
       row={subject.row}
+      tabs={tabViews(plan.value, tabStack(open, active), active, root)}
       values={subject.values}
     />
   )

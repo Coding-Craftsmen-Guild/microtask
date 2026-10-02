@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { drawerHref } from '../../../lib/drawer-routes'
+import { openedHref } from './tab-stack'
 import { EstimateField } from './estimate-field'
 import { ItemAdd } from './item-add'
 import { BAND, ITEMS } from './list-css'
@@ -54,7 +54,7 @@ export function ItemsColumn({ parts }: ItemsColumnProps) {
         {items.map((item, index) => (
           <div className={ITEMS.row} data-slot="item-row" key={item.id}>
             <span className={ITEMS.index}>{index + 1}</span>
-            <Link className={ITEMS.name} href={drawerHref(closeHref, 'item', item.id)}>
+            <Link className={ITEMS.name} href={openedHref(closeHref, { id: item.id, kind: 'item' }, parts.stack)}>
               {item.name}
             </Link>
             {controls.estimateItem ? (

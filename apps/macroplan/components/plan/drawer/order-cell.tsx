@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { drawerHref } from '../../../lib/drawer-routes'
+import { openedHref, type TabRef } from './tab-stack'
 import { BAND, ORDER } from './list-css'
 import type { ChildItem } from './values'
 
@@ -14,8 +14,11 @@ export interface OrderCellProps {
   /** What to say instead: the start of the feature, or its end. */
   readonly fallback: string
 
-  /** The plan's own path, which the link hangs off (`lib/drawer-routes.ts`). */
+  /** The plan's own path, which the link hangs off. */
   readonly root: string
+
+  /** The tabs open beside this one, so the link joins the stack (`./tab-stack.ts`). */
+  readonly stack: readonly TabRef[]
 }
 
 /**
@@ -25,14 +28,14 @@ export interface OrderCellProps {
  * item with — "Move later" on its own asks a reader to remember the list they came from. It is a link as
  * well as a label, so working down a breakdown is a chain rather than a trip back through the feature.
  */
-export function OrderCell({ label, item, fallback, root }: OrderCellProps) {
+export function OrderCell({ label, item, fallback, root, stack }: OrderCellProps) {
   return (
     <div className={ORDER.cell}>
       <span className={BAND.sub}>{label}</span>
       {item === undefined ? (
         <p className={ORDER.edge}>{fallback}</p>
       ) : (
-        <Link className={ORDER.name} href={drawerHref(root, 'item', item.id)}>
+        <Link className={ORDER.name} href={openedHref(root, { id: item.id, kind: 'item' }, stack)}>
           {item.name}
         </Link>
       )}

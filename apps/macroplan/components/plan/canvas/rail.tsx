@@ -1,8 +1,8 @@
 import type { RailBox } from '@repo/canvas'
 import { RailFeatures } from './rail-features'
-import { ItemMarkShape } from './item-mark'
+import { RailItems } from './rail-items'
 import { joinRailIds } from './selection'
-import { hueOf, LAYOUT, type RailFrame } from './view'
+import { LAYOUT, type RailFrame } from './view'
 
 const BAND = 'fill-transparent'
 
@@ -55,24 +55,7 @@ export function Rail({ rail, frame, top, width }: RailProps) {
         y2={top + LAYOUT.railHeight}
       />
       <RailFeatures frame={frame} rail={rail} top={top} />
-      {frame.draws.items
-        ? rail.bars.flatMap((bar) =>
-            (frame.marks.get(bar.id) ?? []).map((mark, index) => (
-              <ItemMarkShape
-                colour={hueOf(frame, bar.id, rail.colour)}
-                detail={frame.details.get(mark.id) ?? null}
-                hoverId={bar.id}
-                key={mark.id}
-                labelId={frame.groups.get(bar.id) ?? null}
-                mark={mark}
-                name={frame.names.get(mark.id) ?? ''}
-                position={index}
-                top={top}
-                treatment={frame.treatments.get(mark.id) ?? 'solid'}
-              />
-            )),
-          )
-        : null}
+      <RailItems frame={frame} rail={rail} top={top} />
     </g>
   )
 }

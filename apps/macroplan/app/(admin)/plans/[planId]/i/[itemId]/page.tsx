@@ -4,6 +4,9 @@ import { attentionOf } from '../../../../../../components/plan/attention/attenti
 import { AttentionCallout } from '../../../../../../components/plan/attention/attention-mark'
 import { DrawerPanel } from '../../../../../../components/plan/drawer/drawer-panel'
 import { drawerSubject } from '../../../../../../components/plan/drawer/subject'
+import { openParam, type SearchParams } from '../../../../../../components/plan/drawer/tab-params'
+import { tabStack } from '../../../../../../components/plan/drawer/tab-stack'
+import { tabViews } from '../../../../../../components/plan/drawer/tab-view'
 import { ADMIN_CONTROLS } from '../../../../../../lib/admin-controls'
 import { planPath } from '../../../../../../lib/routes'
 import { itemLink } from '../../../../../../components/plan/bridge/item-link'
@@ -17,6 +20,9 @@ import { readDescription } from './read-description'
 export interface ItemDrawerPageProps {
   /** `planId` and `itemId` from `/plans/[planId]/i/[itemId]`, both untrusted. */
   readonly params: Promise<{ readonly planId: string; readonly itemId: string }>
+
+  /** The query, which carries the other open tabs (`drawer/tab-stack.ts`). */
+  readonly searchParams: Promise<SearchParams>
 }
 
 /**
@@ -59,7 +65,7 @@ export interface ItemDrawerPageProps {
  * never a gate" (`lib/plan-capabilities.ts`). So this is a state a fixture can build and an endpoint
  * cannot.
  */
-export default async function ItemDrawerPage({ params }: ItemDrawerPageProps) {
+export default async function ItemDrawerPage({ params, searchParams }: ItemDrawerPageProps) {
   const { planId, itemId } = await params
   const loaded = await readPlan(planId)
   if (!loaded.ok) return null
@@ -72,12 +78,14 @@ export default async function ItemDrawerPage({ params }: ItemDrawerPageProps) {
   const rail = railOfItem(loaded.value, itemId)
   const tasks = rail === null ? null : await readBoundTasks(planId, rail)
   const state = itemLink(loaded.value, bridge, itemId, tasks)
+  const active = { id: itemId, kind: 'item' as const }
+  const root = planPath(planId)
+  const open = openParam(await searchParams)
   return (
     <DrawerPanel
       actions={ADMIN_PLAN_ACTIONS}
       attention={<AttentionCallout on={attentionOf(loaded.value).get(subject.row.id)} />}
-      colour={subject.colour}
-      closeHref={planPath(planId)}
+      closeHref={root}
       controls={ADMIN_CONTROLS.content}
       description={described.ok ? described.value : null}
       link={
@@ -99,6 +107,7 @@ export default async function ItemDrawerPage({ params }: ItemDrawerPageProps) {
       }
       planId={planId}
       row={subject.row}
+      tabs={tabViews(loaded.value, tabStack(open, active), active, root)}
       values={subject.values}
     />
   )

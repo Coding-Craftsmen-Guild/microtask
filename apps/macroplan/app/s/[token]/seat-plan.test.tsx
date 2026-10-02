@@ -62,6 +62,7 @@ vi.mock('next/navigation', () => ({
   // The pointer root calls `useRouter`, which throws outside an App Router tree. It is handed no zoom on
   // this surface and so writes nothing here; what it does with a router is asserted where it lives
   // (`components/plan/canvas/plan-pointer.test.tsx`).
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: () => undefined }),
 }))
 

@@ -121,6 +121,7 @@ vi.mock('next/link', async () => ({
   default: (await import('../../../../components/plan/testing/next-link')).LinkDouble,
 }))
 vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: () => undefined }),
   redirect: (location: string) => {
     throw new Redirected(location)

@@ -340,6 +340,7 @@ export interface CanvasQuery {
 
   /** Where a bar opens. See {@link RailFrame.hrefOf}. */
   readonly hrefOf: (featureId: string) => string | null
+
 }
 
 /** Everything a canvas draws, computed once from one pass over the plan. */

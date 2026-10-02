@@ -62,6 +62,7 @@ vi.mock('next/navigation', () => ({
   },
   // The drawer's delete navigates on success, so the panel holds a component that calls `useRouter`,
   // which throws outside an App Router tree. Nothing here clicks it; it only has to exist for a render.
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     back: () => undefined,
     forward: () => undefined,
@@ -105,6 +106,7 @@ afterEach(() => {
 
 const propsOf = (itemId: string, planId = PLAN_A) => ({
   params: Promise.resolve({ planId, itemId }),
+  searchParams: Promise.resolve({}),
 })
 
 const show = async (itemId = ITEM_1, planId = PLAN_A) =>

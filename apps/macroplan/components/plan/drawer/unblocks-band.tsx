@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { drawerHref } from '../../../lib/drawer-routes'
+import { openedHref, type TabRef } from './tab-stack'
 import { BAND, EDGES } from './list-css'
 import { PANEL_BANDS } from './panel-words'
 import type { EdgeCandidate } from './values'
@@ -11,8 +11,11 @@ export interface UnblocksBandProps {
   /** The features that wait on this one. */
   readonly rows: readonly EdgeCandidate[]
 
-  /** The plan's own path, which every chip's link hangs off (`lib/drawer-routes.ts`). */
+  /** The plan's own path, which every chip's link hangs off. */
   readonly root: string
+
+  /** The tabs open beside this one, so a chip joins the stack (`./tab-stack.ts`). */
+  readonly stack: readonly TabRef[]
 }
 
 /**
@@ -27,7 +30,7 @@ export interface UnblocksBandProps {
  * what it waits on, and nothing on screen would otherwise say what is waiting on **it** — which is the
  * question behind "can this slip".
  */
-export function UnblocksBand({ rows, root }: UnblocksBandProps) {
+export function UnblocksBand({ rows, root, stack }: UnblocksBandProps) {
   return (
     <section className={BAND.root} data-slot="unblocks-band">
       <p className={BAND.title}>{PANEL_BANDS.unblocks}</p>
@@ -38,7 +41,7 @@ export function UnblocksBand({ rows, root }: UnblocksBandProps) {
           {rows.map((row) => (
             <Link
               className={EDGES.flat}
-              href={drawerHref(root, 'feature', row.id)}
+              href={openedHref(root, { id: row.id, kind: 'feature' }, stack)}
               key={row.id}
               title={`${row.railName} ${ARROW} ${row.name}`}
             >

@@ -22,6 +22,7 @@ import { VIEW_SWITCH_CSS } from './view-switch'
 // is asserted where the gesture lives (`./canvas/plan-pointer.test.tsx`); here it only has to exist.
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: () => undefined }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 const AT = new Date('2026-10-05T09:00:00.000Z')

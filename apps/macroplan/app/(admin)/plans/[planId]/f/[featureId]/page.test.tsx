@@ -61,6 +61,7 @@ vi.mock('next/navigation', () => ({
   },
   // The drawer's delete navigates on success, so the panel holds a component that calls `useRouter`,
   // which throws outside an App Router tree. Nothing here clicks it; it only has to exist for a render.
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({
     back: () => undefined,
     forward: () => undefined,
@@ -106,6 +107,7 @@ afterEach(() => {
 
 const propsOf = (featureId: string, planId = PLAN_A) => ({
   params: Promise.resolve({ planId, featureId }),
+  searchParams: Promise.resolve({}),
 })
 
 const show = async (featureId = FEATURE_1, planId = PLAN_A) =>
@@ -311,12 +313,12 @@ describe('the drawer hands no share token to a component either', () => {
       'actions',
       'attention',
       'closeHref',
-      'colour',
       'controls',
       'description',
       'link',
       'planId',
       'row',
+      'tabs',
       'values',
     ])
     // A feature has no link to show: design §7.2 gives one to an item, which references a task within

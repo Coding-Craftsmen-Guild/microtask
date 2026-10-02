@@ -46,6 +46,7 @@ vi.mock('next/navigation', () => ({
   redirect: (location: string) => {
     throw new Redirected(location)
   },
+  useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ refresh: () => undefined, push: () => undefined }),
 }))
 
@@ -70,7 +71,10 @@ const seated = (token: string): string => {
 }
 
 const open = async (token: string, itemId = ITEM_1) =>
-  SeatItemDrawerPage({ params: Promise.resolve({ token, itemId }) })
+  SeatItemDrawerPage({
+    params: Promise.resolve({ token, itemId }),
+    searchParams: Promise.resolve({}),
+  })
 
 const propsOf = async (token: string, itemId = ITEM_1): Promise<Record<string, unknown>> => {
   const element = await open(token, itemId)

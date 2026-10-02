@@ -3,16 +3,17 @@ import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
 import { DeleteControl } from './delete-control'
-import { nameOf } from './drawer-heading'
-import { DrawerDock, PanelTab } from './drawer-dock'
+import { DrawerDock } from './drawer-dock'
 import { EdgesColumn } from './edges-column'
 import { FIELD_CSS } from './field-css'
 import { IdentityColumn } from './identity-column'
 import { ItemsColumn } from './items-column'
 import { OrderColumn } from './order-column'
 import { PANEL_GRID } from './panel-css'
+import { PanelTabs } from './panel-tabs'
 import type { PanelParts } from './panel-parts'
 import { removalFor } from './subject-writes'
+import type { TabView } from './tab-view'
 import type { DrawerValues } from './values'
 
 /** Props for {@link DrawerPanel}. */
@@ -76,13 +77,14 @@ export interface DrawerPanelProps {
   readonly attention: ReactNode
 
   /**
-   * The subject's own hue, for the marker on its tab, or `''` where nothing colours it.
+   * Every tab open in the strip, the active one being this subject.
    *
-   * The same rule the canvas paints a mark with — a group's colour where there is one, the rail's
-   * where there is not — resolved by the page rather than here, because this panel is handed a row
-   * and a set of values and neither holds a palette (`./subject-view.ts`).
+   * Resolved by the page rather than here, for the reason `values` is: a tab carries a name and a hue
+   * and two addresses, and this panel is handed one subject. The page reads the plan once and words the
+   * whole strip out of it (`./tab-view.ts`), which is also why a tab naming a subject the plan no longer
+   * holds never reaches this file.
    */
-  readonly colour: string
+  readonly tabs: readonly TabView[]
 }
 
 /**
@@ -141,13 +143,14 @@ export function DrawerPanel(props: DrawerPanelProps) {
     link: props.link,
     planId: props.planId,
     row,
+    stack: props.tabs.map((tab) => ({ id: tab.id, kind: tab.kind })),
     values: props.values,
   }
   const feature = row.kind === 'feature'
   const removal = removalFor(row.kind, props.controls, props.actions)
   return (
     <DrawerDock
-      tab={<PanelTab closeHref={closeHref} colour={props.colour} kind={row.kind} title={nameOf(row)} />}
+      tab={<PanelTabs tabs={props.tabs} />}
       tools={
         removal.deletable ? (
           <DeleteControl

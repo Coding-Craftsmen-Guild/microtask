@@ -23,6 +23,7 @@ import { nothingDrawn, stubActions } from '../testing/plan-writes'
 import { ITEM_ADD_WORDS } from './item-add'
 import { FIELDS_HINT_ID, PANEL_BANDS, PANEL_HINTS } from './panel-words'
 import { SPRINT_WORDS } from './sprint-view'
+import type { TabView } from './tab-view'
 import type { DrawerValues, PanelValues } from './values'
 
 vi.mock('next/link', async () => ({
@@ -126,6 +127,19 @@ const ITEM_VALUES: DrawerValues = valuesOf({ estimateDays: 3, name: 'Sessions' }
 
 const CLOSE = `/plans/${PLAN_A}`
 
+// One tab, which is what a drawer opened on its own has; `tab-stack.test.ts` holds the stack itself.
+const tabsOf = (row: TableRow): readonly TabView[] => [
+  {
+    active: true,
+    closeHref: CLOSE,
+    colour: '#3b82f6',
+    href: `${CLOSE}/${row.kind === 'feature' ? 'f' : 'i'}/${row.id}`,
+    id: row.id,
+    kind: row.kind,
+    name: row.kind === 'item' ? (row.item ?? row.feature) : row.feature,
+  },
+]
+
 // The scope a seat's controls are asked about, which carries the id the kernel compares.
 const SEAT: ScopeValue = { kind: 'plan', planId: PLAN_A }
 
@@ -149,13 +163,13 @@ const open = (over: Open = {}) =>
     <DrawerPanel
       attention={null}
       actions={over.actions ?? stubActions()}
-      colour="#3b82f6"
       closeHref={CLOSE}
       controls={over.controls ?? drawing()}
       link={null}
       description={over.description ?? null}
       planId={PLAN_A}
       row={over.row ?? FEATURE_ROW}
+      tabs={tabsOf(over.row ?? FEATURE_ROW)}
       values={over.values ?? VALUES}
     />,
   )
@@ -498,7 +512,7 @@ describe('the dependency column, and the one control an item drawer must never d
     open({ values: valuesOf({ panel: panelOf({ unblocks: [BILLING] }) }) })
     expect(screen.getByText(PANEL_BANDS.unblocks)).toBeTruthy()
     expect(screen.getByRole('link', { name: /Billing/ }).getAttribute('href')).toBe(
-      `${CLOSE}/f/${FEATURE_2}`,
+      `${CLOSE}/f/${FEATURE_2}?open=f:${FEATURE_1},f:${FEATURE_2}`,
     )
   })
 
@@ -522,7 +536,7 @@ describe('the items column, which is where a feature is broken down', () => {
     open()
     expect(itemRows()).toEqual(['Sessions', 'Tokens'])
     expect(screen.getByRole('link', { name: 'Tokens' }).getAttribute('href')).toBe(
-      `${CLOSE}/i/${ITEM_2}`,
+      `${CLOSE}/i/${ITEM_2}?open=f:${FEATURE_1},i:${ITEM_2}`,
     )
   })
 
@@ -588,7 +602,7 @@ describe('the order column, which is an item’s whole second subject', () => {
   it('names both neighbours, each a link to its own panel', () => {
     open({ row: { ...ITEM_ROW, id: ITEM_2 }, values: valuesOf({ name: 'Tokens' }) })
     expect(screen.getByRole('link', { name: 'Sessions' }).getAttribute('href')).toBe(
-      `${CLOSE}/i/${ITEM_1}`,
+      `${CLOSE}/i/${ITEM_1}?open=i:${ITEM_2},i:${ITEM_1}`,
     )
     expect(screen.getByText(PANEL_BANDS.end)).toBeTruthy()
   })

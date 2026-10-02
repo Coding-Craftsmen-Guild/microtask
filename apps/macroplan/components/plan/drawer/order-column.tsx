@@ -49,6 +49,7 @@ export function OrderColumn({ parts }: OrderColumnProps) {
           item={family[at - 1]}
           label={PANEL_BANDS.after}
           root={closeHref}
+          stack={parts.stack}
         />
         <OrderSteps parts={parts} />
         <OrderCell
@@ -56,6 +57,7 @@ export function OrderColumn({ parts }: OrderColumnProps) {
           item={family[at + 1]}
           label={PANEL_BANDS.before}
           root={closeHref}
+          stack={parts.stack}
         />
       </div>
       {parts.link}

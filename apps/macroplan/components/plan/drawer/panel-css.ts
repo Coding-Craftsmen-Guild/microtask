@@ -87,6 +87,8 @@ export const PANEL_GRID = {
  */
 export const TAB = {
   open: 'flex h-8 max-w-[280px] translate-y-px items-center gap-1.5 rounded-t-lg border border-border border-b-background bg-background px-2.5',
+  shut: 'flex h-8 max-w-[220px] items-center gap-1.5 rounded-t-lg border border-transparent px-2.5 hover:bg-background/60',
+  shutName: 'min-w-0 truncate text-[12px] text-muted-foreground',
   marker: 'size-2 shrink-0',
   kind: 'shrink-0 text-[11px] text-hint',
   name: 'min-w-0 truncate text-[12px] font-semibold text-foreground',

@@ -41,6 +41,7 @@ import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
 import { NameField } from './drawer/name-field'
 import { PanelGrip } from './drawer/panel-grip'
+import { tabViews } from './drawer/tab-view'
 import { GroupField } from './drawer/group-field'
 import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
@@ -275,11 +276,14 @@ interface Panel {
   readonly controls?: PlanContentControls
 }
 
+const PLAN_PATH = `/plans/${PLAN_A}`
+
+const tabRefOf = (row: TableRow) => ({ id: row.id, kind: row.kind })
+
 const panel = (over: Panel) => (
   <DrawerPanel
     actions={STUB_ACTIONS}
     attention={<AttentionCallout on={attentionOf(TANGLED).get(FEATURE_1)} />}
-    colour="#3b82f6"
     closeHref="/plans/atlas"
     controls={over.controls ?? ADMIN_CONTROLS.content}
     link={null}
@@ -287,6 +291,7 @@ const panel = (over: Panel) => (
     key={over.key}
     planId={PLAN_A}
     row={over.row ?? DRAWER_ROW}
+    tabs={tabViews(planScreenModel(atlasPlan()), [tabRefOf(over.row ?? DRAWER_ROW)], tabRefOf(over.row ?? DRAWER_ROW), PLAN_PATH)}
     values={over.values ?? FEATURE.values}
   />
 )
