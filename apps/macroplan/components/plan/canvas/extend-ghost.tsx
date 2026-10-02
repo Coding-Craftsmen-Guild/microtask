@@ -1,9 +1,8 @@
 import { dayToX, widthOfDays, type PlanScale } from '@repo/canvas'
-import { CHIP_LIFT, DRAW, STRIPES } from './extend-css'
+import { DrawStripes } from './draw-stripes'
+import { CHIP_LIFT, DRAW } from './extend-css'
 import type { DrawAim } from './extend-view'
 import { insideRail, LAYOUT, railTop } from './view'
-
-const STRIPE = 12
 
 const CHIP_HEIGHT = 20
 
@@ -20,6 +19,9 @@ export interface ExtendGhostProps {
 
   /** What a day is worth in px. */
   readonly scale: PlanScale
+
+  /** The end the draw started from, or `null` while it is still in that mark's own lane. */
+  readonly from: { readonly x: number; readonly y: number } | null
 }
 
 /**
@@ -41,7 +43,7 @@ export interface ExtendGhostProps {
  * It is a sheet over the canvas rather than nodes inside it, for `./drag-ghost.tsx`'s reason: the SVG is
  * server-rendered and must not re-render sixty times a second, so what moves is an overlay of three nodes.
  */
-export function ExtendGhost({ aim, forward, box, scale }: ExtendGhostProps) {
+export function ExtendGhost({ aim, forward, box, scale, from }: ExtendGhostProps) {
   const x = dayToX(aim.fromDay, scale)
   const width = Math.max(widthOfDays(aim.days, scale), 2)
   const top = railTop(aim.lane)
@@ -57,19 +59,17 @@ export function ExtendGhost({ aim, forward, box, scale }: ExtendGhostProps) {
         height={box.height}
         style={{ minWidth: box.width }}
       >
-        <defs>
-          <pattern
-            height={STRIPE}
-            id={STRIPES}
-            patternTransform="rotate(45)"
-            patternUnits="userSpaceOnUse"
-            width={STRIPE}
-          >
-            <rect className={DRAW.stripeOne} height={STRIPE} width={STRIPE / 2} x={0} y={0} />
-            <rect className={DRAW.stripeTwo} height={STRIPE} width={STRIPE / 2} x={STRIPE / 2} y={0} />
-          </pattern>
-        </defs>
+        <DrawStripes />
         <line className={DRAW.guide} x1={edge} x2={edge} y1={0} y2={box.height} />
+        {from === null ? null : (
+          <line
+            className={DRAW.link}
+            x1={from.x}
+            x2={forward ? x : x + width}
+            y1={from.y}
+            y2={y + LAYOUT.barHeight / 2}
+          />
+        )}
         <rect
           className={DRAW.bar}
           height={LAYOUT.barHeight}

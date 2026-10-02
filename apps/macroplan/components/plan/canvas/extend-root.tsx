@@ -95,7 +95,13 @@ export function ExtendRoot(props: ExtendRootProps) {
       {children}
       <ExtendOverlay box={draw.box} hovered={draw.hovered} onBegin={draw.begin} />
       {draw.aim === null ? null : (
-        <ExtendGhost aim={draw.aim} box={draw.box} forward={draw.forward} scale={draw.scale} />
+        <ExtendGhost
+          aim={draw.aim}
+          box={draw.box}
+          forward={draw.forward}
+          from={draw.from}
+          scale={draw.scale}
+        />
       )}
     </div>
   )

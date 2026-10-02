@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { openClick } from './open-click'
+import { railPathOf } from '../board/rail-route'
 import { planRootOf } from '../drawer/tab-stack'
 
 const ROOT = '/plans/atlas'
@@ -58,5 +59,18 @@ describe('where a click on a mark goes', () => {
   it('answers nothing for a click on the board itself, which opens nothing', () => {
     expect(openClick(markup('<rect data-slot="rail-band"></rect>'), null, ROOT)).toBeNull()
     expect(openClick(null, null, ROOT)).toBeNull()
+  })
+})
+
+// A dropped rail arrives called `New epic`, so the drop opens the one place it can be renamed.
+describe('where a dropped rail opens', () => {
+  it('is its own drawer, under the plan the browser is on', () => {
+    expect(railPathOf(ROOT, 'EP1')).toBe(`${ROOT}/r/EP1`)
+    expect(railPathOf(`${ROOT}/f/F1`, 'EP1')).toBe(`${ROOT}/r/EP1`)
+    expect(railPathOf('/s/TOKEN/i/I1', 'EP1')).toBe('/s/TOKEN/r/EP1')
+  })
+
+  it('encodes the id there too', () => {
+    expect(railPathOf(ROOT, '../elsewhere')).toBe(`${ROOT}/r/..%2Felsewhere`)
   })
 })

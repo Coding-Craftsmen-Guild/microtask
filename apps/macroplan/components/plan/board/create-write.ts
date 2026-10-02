@@ -37,16 +37,17 @@ export interface DropContext {
 const railAdded = (answer: ActionResult<Plan>): string | null =>
   answer.ok ? (answer.value.epics.at(-1)?.id ?? null) : null
 
-const addEpic = async (gap: number, context: DropContext): Promise<void> => {
+const addEpic = async (gap: number, context: DropContext): Promise<string | null> => {
   const { createEpic, reorderEpic } = context.writes
-  if (createEpic === null) return
+  if (createEpic === null) return null
   const made = await orNoAnswer(createEpic)(context.planId, {
     name: CREATE_NAMES.epic,
     colour: context.colour,
   })
   const added = railAdded(made)
-  if (added === null || reorderEpic === null) return
-  await orNoAnswer(reorderEpic)(context.planId, added, gap)
+  if (added === null) return null
+  if (reorderEpic !== null) await orNoAnswer(reorderEpic)(context.planId, added, gap)
+  return added
 }
 
 const moveRail = async (epicId: string, gap: number, context: DropContext): Promise<void> => {
@@ -67,12 +68,21 @@ const moveRail = async (epicId: string, gap: number, context: DropContext): Prom
  * A step this surface may not take is skipped rather than refusing the drop: a reader who may create a rail
  * but not reorder one gets it at the bottom, which is the honest outcome of what they hold.
  *
+ * A dropped **rail** is the one case that answers something: its id, so the board can open the panel
+ * where it is named. Nothing else needs opening — a feature or an item dropped on the board is already
+ * where it was dropped, and a rail arrives called `New epic` with nothing on it.
+ *
  * @param target - What the aim said this release would do.
  * @param context - The plan, the writes and the palette.
+ * @returns The new rail's id, or `null` for every other kind of drop.
  */
-export async function writeDrop(target: AimTarget, context: DropContext): Promise<void> {
+export async function writeDrop(target: AimTarget, context: DropContext): Promise<string | null> {
   if (target.kind === 'epic') return addEpic(target.gap, context)
-  if (target.kind === 'rail') return moveRail(target.epicId, target.gap, context)
-  if (target.kind === 'none') return
+  if (target.kind === 'rail') {
+    await moveRail(target.epicId, target.gap, context)
+    return null
+  }
+  if (target.kind === 'none') return null
   await writeDraw({ ...target.draft, planId: context.planId }, context.writes)
+  return null
 }

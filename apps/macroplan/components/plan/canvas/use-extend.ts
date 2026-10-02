@@ -54,6 +54,9 @@ export interface ExtendState {
   /** Which edge is the free one, for the guide. */
   readonly forward: boolean
 
+  /** The end the draw started from, drawn as a connector once it crosses into another lane. */
+  readonly from: { readonly x: number; readonly y: number } | null
+
   /** How big the sheet over the canvas should be. */
   readonly box: DrawBox
 
@@ -82,6 +85,17 @@ const boxOf = (frame: Element | null): DrawBox => {
     height: Number(canvas?.getAttribute('height') ?? 0),
     width: Number(canvas?.getAttribute('width') ?? 0),
   }
+}
+
+const startedFrom = (
+  drawing: Drawing | null,
+  sprintLengthDays: number,
+): { readonly x: number; readonly y: number } | null => {
+  if (drawing === null) return null
+  const aim = aimOf(drawnOf(drawing), drawing.at, sprintLengthDays)
+  if (aim.sameLane) return null
+  const { from, side } = drawing
+  return { x: side === 'end' ? from.x + from.width : from.x, y: from.y }
 }
 
 const drawnOf = (drawing: Drawing) => ({
@@ -168,6 +182,7 @@ export function useExtend(query: ExtendQuery): ExtendState {
     cancel: () => setDrawing(null),
     finish,
     forward: drawing?.side === 'end',
+    from: startedFrom(drawing, sprintLengthDays),
     frame,
     hovered: drawing === null ? hovered : null,
     move,

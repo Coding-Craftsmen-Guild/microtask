@@ -1,8 +1,10 @@
 import { scaleFor } from '@repo/canvas'
 import type { PlanCalendar } from '@repo/schedule'
+import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { aimedAt, type Aim } from './create-aim'
+import { railPathOf } from './rail-route'
 import { dragTypeOf, kindOfTypes } from './create-kinds'
 import { writeDrop, type CreateWrites } from './create-write'
 
@@ -70,6 +72,7 @@ export interface DropState {
  */
 export function useDrop(query: DropQuery): DropState {
   const { planId, pxPerDay, gutter, calendar, colour, writes } = query
+  const router = useRouter()
   const frame = useRef<HTMLDivElement>(null)
   const dragged = useRef('')
   const [aim, setAim] = useState<Aim | null>(null)
@@ -108,7 +111,10 @@ export function useDrop(query: DropQuery): DropState {
     setAim(null)
     if (landed === null) return
     event.preventDefault()
-    if (!landed.refused) void writeDrop(landed.target, { colour, planId, writes })
+    if (landed.refused) return
+    void writeDrop(landed.target, { colour, planId, writes }).then((made) => {
+      if (made !== null) router.push(railPathOf(window.location.pathname, made))
+    })
   }
 
   return { aim, frame, grab, land, leave: () => setAim(null), over }

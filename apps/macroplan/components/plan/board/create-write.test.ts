@@ -55,7 +55,8 @@ const draft = (over: Partial<Draft> = {}): Draft => ({
 describe('a dropped epic', () => {
   it('is created with the hue the server proposed, then moved to the gap the line was drawn at', async () => {
     const writes = doubles()
-    await writeDrop({ kind: 'epic', gap: 2 }, contextOf(writes))
+    const made = await writeDrop({ kind: 'epic', gap: 2 }, contextOf(writes))
+    expect(made).toBe(ADDED_RAIL)
     expect(writes.createEpic).toHaveBeenCalledWith(PLAN_A, {
       name: CREATE_NAMES.epic,
       colour: '#0e9f6e',
@@ -146,6 +147,6 @@ describe('a drop the aim refused', () => {
   })
 
   it('writes nothing where no action is offered either, rather than throwing', async () => {
-    await expect(writeDrop({ kind: 'none' }, contextOf(NOTHING))).resolves.toBeUndefined()
+    await expect(writeDrop({ kind: 'none' }, contextOf(NOTHING))).resolves.toBeNull()
   })
 })

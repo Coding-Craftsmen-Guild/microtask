@@ -33,6 +33,7 @@ export const DRAW = {
   sheet: 'pointer-events-none absolute top-0 left-0 block w-full',
   bar: 'fill-[url(#mp-draw-stripes)] stroke-brand stroke-[1.5] [stroke-dasharray:4_3]',
   guide: 'stroke-brand stroke-[1.5] [stroke-dasharray:3_3]',
+  link: 'stroke-brand stroke-[1.5] [stroke-dasharray:4_3]',
   chip: 'pointer-events-none absolute z-30 flex items-center gap-1.5 rounded-[5px] bg-brand px-2 py-[3px] text-[11px] font-semibold text-white',
   meta: 'text-gold',
   stripeOne: 'fill-[#efecfa]',
