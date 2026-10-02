@@ -123,6 +123,10 @@ const drawnOf = (drawing: Drawing) => ({
  * over the mark's edge, not inside the mark, so entering one would otherwise read as leaving the mark and
  * take the handle out from under the pointer.
  *
+ * A pointer with a button **down** moves no handles at all. That is a drag of something — a bar being moved
+ * to another rail, or a draw already in progress — and handles appearing under it would be two gestures
+ * offering themselves at once, with the second one's targets landing over the first one's.
+ *
  * ### Why the draw state is one object
  *
  * A half-updated draw is a bar drawn from one gesture to another's pointer. Every move replaces the whole
@@ -144,7 +148,7 @@ export function useExtend(query: ExtendQuery): ExtendState {
   const scale = scaleFor({ pxPerDay, gutter })
 
   const over = (event: PointerEvent<HTMLDivElement>): void => {
-    if (drawing !== null || onHandle(event.target)) return
+    if (drawing !== null || event.buttons !== 0 || onHandle(event.target)) return
     setHovered(markFrom(event.target))
   }
 

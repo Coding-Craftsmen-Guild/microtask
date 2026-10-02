@@ -248,3 +248,22 @@ describe('what a release writes', () => {
     expect(draw.createItem).not.toHaveBeenCalled()
   })
 })
+
+// A drag of something else is not a hover: a bar being moved to another rail would otherwise collect
+// handles under the pointer, whose own targets land over the drag's.
+describe('what the handles do while something else is being dragged', () => {
+  it('draws none for a pointer that moves with a button held down', () => {
+    show(writes())
+    fireEvent.pointerOver(mark(ITEM_1), { buttons: 1 })
+
+    expect(handles()).toEqual([])
+  })
+
+  it('draws them again once the button is released', () => {
+    show(writes())
+    fireEvent.pointerOver(mark(ITEM_1), { buttons: 1 })
+    fireEvent.pointerOver(mark(ITEM_1), { buttons: 0 })
+
+    expect(handles()).toHaveLength(2)
+  })
+})
