@@ -1,6 +1,6 @@
 import type { RailBox } from '@repo/canvas'
 import { FeatureBarMark } from './feature-bar'
-import { FeatureNode } from './feature-node'
+import { FeatureLine } from './feature-line'
 import { hueOf } from './view'
 import type { RailFrame } from './view'
 
@@ -16,50 +16,43 @@ export interface RailFeaturesProps {
 }
 
 /**
- * Every placed feature on one rail, as a mark and nothing else.
+ * Every placed feature on one rail: a bar at the wider stops, a line and two diamonds at the Sprint
+ * stop.
  *
- * ### Why there is no name here
+ * ### The names are back, and the budget is why
  *
- * There was one: a `<text>` beside each mark, cut to a budget `barLabels` worked out from the bar's
- * width and the gap to the next one. The whole mechanism is gone, and the rule it leaves behind is
- * flat — **the canvas draws geometry and never text**.
+ * There was a `<text>` beside every bar, cut to a budget worked out against the gap to the next one,
+ * and the whole mechanism was removed with the flat rule **the canvas draws geometry and never
+ * text**. That rule was right for what the canvas then was: a 14px-a-day finest stop, where a budget
+ * was routinely zero or wide enough to print over the neighbour.
  *
- * What a reader loses is naming a bar by looking at it. What answers that instead was already built
- * three times over: the rail tree names every feature, the table names every feature and item in a
- * cell with a header, and the hover card names whatever the pointer is on. The card is why this is a
- * trade rather than a loss, and why `canvas/pointer-css.ts` stopped truncating its title.
+ * The Sprint stop is 40px a day now and draws **item** bars, which are 80px for a two-day item. So a
+ * name fits where the plan is read closely, and `./mark-label.ts` is what keeps that from degrading:
+ * the budget is the mark's own width, and below four characters a mark gets no label at all rather
+ * than one clipped letter. What a reader loses is nothing; what they gain is a board that can be read
+ * without a pointer.
  *
- * What it gains is one fewer element per feature on a surface whose element count grows with the
- * plan, and an end to deciding how much of a name fits — a question with no good answer at four
- * pixels a day, where a label budgeted against the gap to the next dot was cut to nothing or drawn
- * over it.
+ * The hover card and the table are unchanged and still name whatever is pointed at or listed, which
+ * is what a mark too narrow for a label falls back to.
  *
  * ### Why a bar is a link, and why it is out of the tab order
  *
- * Clicking a bar opens its drawer, which is the thing a person tries first on a chart like this and
- * which the first revision did not do at all. It is a real `<a href>` rather than a click handler, so
- * it middle-clicks, it can be opened in a new tab, and it needs no JavaScript.
+ * Clicking a mark opens its drawer, which is the thing a person tries first on a chart like this. It
+ * is a real `<a href>` rather than a click handler, so it middle-clicks, it can be opened in a new
+ * tab, and it needs no JavaScript.
  *
  * It carries `tabIndex={-1}` because the canvas is `role="img"`, and that role prunes its whole
  * subtree from the accessibility tree: a focusable descendant of it is a stop a keyboard lands on and
- * a screen reader can say nothing about. The keyboard path to the same drawer is the sidebar tree,
- * where every feature is a named link — the same argument `drag-root.tsx` makes for its drag, whose
+ * a screen reader can say nothing about. The keyboard path to the same drawer is the table, where
+ * every feature is a named row header — the same argument `drag-root.tsx` makes for its drag, whose
  * keyboard equivalent is the drawer's own Move controls.
  *
- * It also says so under the pointer. The first revision gave a bar no cursor, no hover and no focus
- * treatment at all: it was draggable and clickable and signalled neither, so the only feedback was
- * the ghost that appears once a drag is already under way. The grab cursor is scoped to a frame that
- * actually listens — `DragRoot` sets `data-drag` — so a read-only seat shows the link cursor and does
- * not promise a gesture it would refuse.
- *
- * ### Why the Year rung draws a dot
- *
- * At four pixels a day a span is meaningless, so a feature there is a point at the day it starts
- * rather than a bar claiming a width nobody can read. The rung is a rollup, and the names column
- * beside it still says which rail each row is — which is the question that rung answers.
+ * It also says so under the pointer. The grab cursor is scoped to a frame that actually listens —
+ * `DragRoot` sets `data-drag` — so a read-only seat shows the link cursor and does not promise a
+ * gesture it would refuse.
  */
 export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
-  if (!frame.draws.bars && !frame.draws.nodes) return null
+  if (!frame.draws.bars && !frame.draws.lines) return null
   return (
     <>
       {rail.bars.map((bar) => {
@@ -69,15 +62,12 @@ export function RailFeatures({ rail, frame, top }: RailFeaturesProps) {
           detail: frame.details.get(bar.id) ?? null,
           hoverId: bar.id,
           labelId: frame.groups.get(bar.id) ?? null,
+          name: frame.names.get(bar.id) ?? '',
           top,
           treatment: frame.treatments.get(bar.id) ?? ('solid' as const),
         }
         const href = frame.hrefOf(bar.id)
-        const mark = frame.draws.nodes ? (
-          <FeatureNode {...shared} />
-        ) : (
-          <FeatureBarMark {...shared} />
-        )
+        const mark = frame.draws.lines ? <FeatureLine {...shared} /> : <FeatureBarMark {...shared} />
         return (
           <g data-search={frame.search.get(bar.id)} data-slot="feature-group" key={bar.id}>
             {href === null ? (

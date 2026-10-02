@@ -192,11 +192,13 @@ describe('the sprint dates the week headings reveal, now that the canvas has no 
 })
 
 describe('what the canvas still does not draw, and still does not name', () => {
-  // §5's condition was that no real calendar date is permanent chrome. The canvas now satisfies it the
-  // strongest way available: it draws no text of any kind, so there is nothing for a date to be in.
-  it('draws no text at all, which is more than §5’s condition on calendar dates asked for', () => {
+  // §5's condition is that no real calendar date is permanent chrome. The canvas satisfied it the
+  // strongest way available for a phase — it drew no text of any kind — and writes a mark's own name
+  // again now that there is room for one (`canvas/mark-label.ts`). The condition is unchanged and is
+  // asserted as itself: the only node on the canvas holding a date is a `<title>`, which draws
+  // nothing until it is pointed at.
+  it('writes no calendar date outside a title, which is what §5 reserves a hover for', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} />)
-    expect(all('[data-slot="plan-canvas"] text')).toEqual([])
     const leaves = all('[data-slot="plan-canvas"] *').filter((node) => node.children.length === 0)
     const dated = leaves.filter((node) => (node.textContent ?? '').match(ISO_DATE) !== null)
     expect(dated.map((node) => node.tagName)).toEqual(['title'])

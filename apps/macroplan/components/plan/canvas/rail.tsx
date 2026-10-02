@@ -63,6 +63,7 @@ export function Rail({ rail, frame, top, width }: RailProps) {
                 hoverId={bar.id}
                 key={mark.id}
                 labelId={frame.groups.get(bar.id) ?? null}
+                name={frame.names.get(mark.id) ?? ''}
                 mark={mark}
                 top={top}
                 treatment={frame.treatments.get(mark.id) ?? 'solid'}

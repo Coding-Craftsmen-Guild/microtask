@@ -18,7 +18,7 @@ import type {
 } from '@repo/canvas'
 import { canvasArcs } from './arc-view'
 import type { CanvasArc } from './arc-view'
-import { LAYOUT } from './mark-metrics'
+import { ARC_METRICS, LAYOUT } from './mark-metrics'
 import { DRAWS } from './rung-view'
 import { detailsOf } from './detail-lines'
 import type { RungDrawing } from './rung-view'
@@ -28,7 +28,7 @@ import type { PlanScreenModel } from '../plan-screen-model'
  * The numbers every mark is placed from, re-exported so a component reaches one module for the
  * geometry and the metrics together rather than importing from two that are always used as one.
  */
-export { BAR_GAP, LAYOUT, NODE_RADIUS } from './mark-metrics'
+export { BAR_GAP, ITEM_GAP, LAYOUT, NODE_RADIUS } from './mark-metrics'
 
 /**
  * The fallback window a canvas draws when a caller names none: one quarter of working days.
@@ -88,6 +88,15 @@ export interface RailFrame {
   readonly search: ReadonlyMap<string, string>
 
   /**
+   * What each feature and item is **called**, keyed by id — the name a mark writes on itself.
+   *
+   * Beside `search` rather than derived from it, because they are two different strings for two
+   * different readers: one is lowered so a filter can match it without lowering two hundred names on
+   * every keystroke, and this is the plan's own casing, which is what a reader sees.
+   */
+  readonly names: ReadonlyMap<string, string>
+
+  /**
    * Where a bar opens, or `null` for a canvas nobody can open anything from.
    *
    * A bar is a link as well as a drag handle. Clicking one is how a person opens the thing they are
@@ -118,6 +127,20 @@ export const labelHues = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
  */
 export const featureSearch = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
   new Map(plan.features.map((feature) => [feature.id, feature.name.toLowerCase()]))
+
+/**
+ * What everything on the canvas is called, keyed by id, features and items in one map.
+ *
+ * One map for both because the ids cannot collide — every id in a plan is minted from one space —
+ * and because a mark looking up its own name should not first have to know which kind it is. It is
+ * the same join `detailsOf` makes for the hover card, kept separate from it because a card's lines
+ * are sentences and this is one word.
+ */
+export const namesOf = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
+  new Map([
+    ...plan.features.map((feature) => [feature.id, feature.name] as const),
+    ...plan.items.map((item) => [item.id, item.name] as const),
+  ])
 
 /**
  * The hue one feature's marks are drawn in: its **group's** colour, or its **rail's** where it is in
@@ -153,9 +176,10 @@ export const groupsOf = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
 /** The y of a rail band's top, counting from the canvas origin. Band zero is the first rail. */
 export const railTop = (index: number): number => LAYOUT.chromeHeight + index * LAYOUT.railHeight
 
-const WITHIN_RAIL: Readonly<Record<'bar' | 'mark', number>> = {
+const WITHIN_RAIL: Readonly<Record<'line' | 'bar' | 'item', number>> = {
+  line: LAYOUT.lineTop,
   bar: LAYOUT.barTop,
-  mark: LAYOUT.markTop,
+  item: LAYOUT.itemTop,
 }
 
 /**
@@ -164,7 +188,8 @@ const WITHIN_RAIL: Readonly<Record<'bar' | 'mark', number>> = {
  * A band is a stack of fixed offsets, so a second rail is the first one shifted by
  * {@link LAYOUT}.railHeight and nothing about a part's place inside it is recomputed per rail.
  */
-export const insideRail = (top: number, part: 'bar' | 'mark'): number => top + WITHIN_RAIL[part]
+export const insideRail = (top: number, part: 'line' | 'bar' | 'item'): number =>
+  top + WITHIN_RAIL[part]
 
 /**
  * How tall the canvas is for a given number of rails.
@@ -348,7 +373,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
   const rails = railLayout(plan, plan.schedule, scale)
   return {
     rails,
-    arcs: canvasArcs(plan, rails, LAYOUT),
+    arcs: canvasArcs(plan, rails, ARC_METRICS[rung]),
     height: canvasHeight(rails.length),
     width: canvasWidth(scale, range),
     drawnWidth: canvasWidth(scale, chromeRange(range)),
@@ -359,6 +384,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
       hues: labelHues(plan),
       draws: DRAWS[rung],
       details: detailsOf(plan),
+      names: namesOf(plan),
       search: featureSearch(plan),
       hrefOf: query.hrefOf,
     },

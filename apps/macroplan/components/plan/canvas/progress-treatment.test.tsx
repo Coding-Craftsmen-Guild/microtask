@@ -98,14 +98,16 @@ describe('the canvas draws the three progress levels and stays one element per i
     expect(container.querySelectorAll('defs')).toHaveLength(0)
   })
 
-  // The canvas drew a name per bar once, and draws none now: `rail-features.tsx` carries the whole
-  // argument, which is that a name belongs where a reader can read it. The cost that mattered was per
-  // *item* and is now zero per mark of either kind, so what is left to assert is the absence itself.
-  it('names neither a bar nor an item, every name being in the sidebar, the table or the card', () => {
+  // The canvas names a mark again wherever the mark is wide enough to hold one — `mark-label.ts`
+  // carries the budget and why it exists. What is asserted here is the thing progress is about: a
+  // treatment does not change how many marks there are, and a label is drawn on the mark it names
+  // rather than beside it, so the count per item is still one mark whatever its treatment.
+  it('draws one mark per item at every progress level, a label going inside it and not beside it', () => {
     const container = canvasOf(EVERY_LEVEL)
     expect(container.querySelectorAll('[data-slot="item-mark"]')).toHaveLength(3)
-    expect(container.querySelectorAll('text')).toHaveLength(0)
-    expect(container.textContent).not.toContain('Sessions')
+    for (const mark of container.querySelectorAll('[data-slot="item-mark"]')) {
+      expect(mark.tagName).toBe('rect')
+    }
   })
 
   // Painted so the three differ in lightness as well as in outline, which is what makes them readable in

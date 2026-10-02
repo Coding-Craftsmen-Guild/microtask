@@ -189,17 +189,30 @@ describe('a feature that takes no time draws as a diamond', () => {
     })
   }
 
-  it('draws a polygon and never a rect of no width, which is to say never nothing', () => {
+  // These are drawn at the Sprint stop, where a feature is a **rule between two diamonds**. A
+  // milestone takes no time, so the rule has no length and the two diamonds land on one another: the
+  // shape is a diamond, which is the thing this case has always been about, reached by the geometry
+  // rather than by a branch. The mark is the group, because a line is four elements and none of them
+  // is the mark — `canvas/line-css.ts` carries why the slot sits where it does.
+  it('draws a diamond at each end and never a rule of no width, which is to say never nothing', () => {
     const container = draw(milestonePlan())
     const mark = container.querySelector(`[data-feature-id="${FEATURE_2}"]`)
-    expect(mark?.tagName).toBe('polygon')
+    expect(mark?.tagName).toBe('g')
     expect(mark?.getAttribute('data-milestone')).toBe('true')
-    expect(mark?.getAttribute('points')?.split(' ')).toHaveLength(4)
+    const diamonds = [...(mark?.querySelectorAll('polygon') ?? [])]
+    expect(diamonds).toHaveLength(2)
+    for (const diamond of diamonds) {
+      expect(diamond.getAttribute('points')?.split(' ')).toHaveLength(4)
+    }
+    expect(diamonds[0]?.getAttribute('points')).toBe(diamonds[1]?.getAttribute('points'))
   })
 
-  it('leaves an ordinary feature on the same rail a rect, so the shape is the feature and not the rung', () => {
+  it('leaves an ordinary feature on the same rail a rule with two ends apart', () => {
     const container = draw(milestonePlan())
-    expect(container.querySelector(`[data-feature-id="${FEATURE_1}"]`)?.tagName).toBe('rect')
+    const mark = container.querySelector(`[data-feature-id="${FEATURE_1}"]`)
+    expect(mark?.getAttribute('data-milestone')).toBeNull()
+    const rule = mark?.querySelector('line')
+    expect(Number(rule?.getAttribute('x2'))).toBeGreaterThan(Number(rule?.getAttribute('x1')))
   })
 
   it('still carries the drag geometry, so a milestone can be dragged like any other mark', () => {
@@ -215,7 +228,9 @@ describe('a feature that takes no time draws as a diamond', () => {
     const arc = arcNamed(container, `${FEATURE_1}>${FEATURE_2}`)
     const mark = container.querySelector(`[data-feature-id="${FEATURE_2}"]`)
     const arrivesAt = Number(arc.getAttribute('d')?.split(' ').at(-1))
-    const diamondCentre = Number(mark?.getAttribute('points')?.split(' ')[1]?.split(',')[1])
+    const diamondCentre = Number(
+      mark?.querySelector('polygon')?.getAttribute('points')?.split(' ')[1]?.split(',')[1],
+    )
     // Both read as real numbers first: `toBe(NaN)` passes, so comparing two absent attributes would
     // pass without either value existing.
     expect(arrivesAt).toBeGreaterThan(0)
@@ -223,11 +238,15 @@ describe('a feature that takes no time draws as a diamond', () => {
     expect(arrivesAt).toBe(diamondCentre)
   })
 
+  // The hue reaches a line through `--mark-hue` on the group rather than as an inline `fill`, because
+  // a line is four shapes each wanting it in a different channel and an inline value would have to be
+  // written onto each while the class beside it set the same property and won. It is still an inline
+  // value and still never a class, which is the rule `treatments.ts` states.
   it('keeps the rail it is on claimed, so the diamond takes its epic hue like a bar', () => {
     const container = draw(milestonePlan())
     expect(container.querySelector(`[data-epic-id="${EPIC_1}"]`)).toBeTruthy()
-    expect(
-      container.querySelector(`[data-feature-id="${FEATURE_2}"]`)?.getAttribute('style'),
-    ).toContain('fill')
+    const style = container.querySelector(`[data-feature-id="${FEATURE_2}"]`)?.getAttribute('style')
+    expect(style).toContain('--mark-hue')
+    expect(style).toContain('#')
   })
 })

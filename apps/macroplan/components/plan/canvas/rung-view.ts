@@ -2,39 +2,46 @@ import type { Rung } from '@repo/canvas'
 
 /** What one rung of the canvas draws for each feature on a rail. */
 export interface RungDrawing {
-  /** A bar spanning the days the feature takes. */
+  /** A bar spanning the days the feature takes, which is the two wider stops' mark. */
   readonly bars: boolean
 
-  /** A tick per item under each bar, which only means anything beside a bar. */
-  readonly items: boolean
+  /**
+   * A rule between two diamonds, which is the Sprint stop's mark for a feature.
+   *
+   * Never true beside {@link RungDrawing.bars}: they are two drawings of one span, and a stop that
+   * drew both would show every feature twice.
+   */
+  readonly lines: boolean
 
-  /** One point per feature, at the day it starts. */
-  readonly nodes: boolean
+  /** One bar per item under the feature's line, which only means anything beside a line. */
+  readonly items: boolean
 }
 
 /**
  * Which of the three each rung draws.
  *
- * ### Points above, bars at the bottom
+ * ### Bars above, a line with its parts at the bottom
  *
- * Year and Quarter draw **points**; only Sprint draws bars. A bar is a claim about duration, and a
- * claim about duration is only worth making at a scale where the duration is legible: at four pixels
- * a day a week-long feature and a fortnight-long one are a smear and a slightly wider smear, and the
- * eye reads the *position* either way. So the wider two rungs say the one thing they can say
- * honestly — when each piece of work starts, and what waits on what — and the graph they make of it
- * is the shape somebody actually reads a plan by.
+ * Year and Quarter draw a **bar** per feature and no items. Sprint draws a **line** per feature with
+ * its items as bars underneath, because at forty pixels a day there is room for the breakdown and a
+ * second row of filled bars under a filled bar would read as eight pieces of work rather than one
+ * with four parts.
  *
- * Quarter used to draw bars. At fourteen pixels a day most features came out under sixty pixels
- * wide, too narrow to hold their own name and too similar to each other to compare, so the rung cost
- * the clarity of a point and bought nothing with it.
+ * The wider two drew a **point** before this, on the argument that a bar's width is illegible at
+ * fourteen pixels a day and worse at four. That argument was about the *width* and it stands — what
+ * changed is that a width is no longer all a mark carries: `canvas/mark-label.ts` cuts a name to the
+ * room there is and drops it outright below four characters, so a bar at those stops gives a reader
+ * position, span and, wherever either is read closely enough to matter, a name. A point could give
+ * only the first.
  *
- * ### Why items follow bars
+ * ### Why items follow lines and not bars
  *
- * An item tick sits under its feature's bar and divides it. With no bar there is nothing to divide,
- * and a row of ticks under a point is a claim about a span the rung is deliberately not making.
+ * An item bar sits under its feature's line and divides the span into the pieces it is made of. The
+ * two wider stops draw the feature whole on purpose, and a row of item bars under a feature bar
+ * would be the same span claimed twice at two heights.
  */
 export const DRAWS: Readonly<Record<Rung, RungDrawing>> = {
-  epic: { bars: false, items: false, nodes: true },
-  feature: { bars: false, items: false, nodes: true },
-  item: { bars: true, items: true, nodes: false },
+  epic: { bars: true, lines: false, items: false },
+  feature: { bars: true, lines: false, items: false },
+  item: { bars: false, lines: true, items: true },
 }
