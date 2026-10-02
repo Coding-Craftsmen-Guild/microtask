@@ -1,6 +1,7 @@
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { TableWrites } from './plan-table'
 import type { CreateWrites } from '../board/create-write'
+import type { ExtendWrites } from '../canvas/extend-write'
 import type { PlanEditActions } from '../edit-actions'
 
 /**
@@ -50,3 +51,32 @@ export const addsFor = (
   createFeature: actions !== null && content.createFeature ? actions.createFeature : null,
   createItem: actions !== null && content.createItem ? actions.createItem : null,
 })
+
+/**
+ * The writes a draw from a mark's own end sends, each gated on its own capability.
+ *
+ * Six actions rather than the two creates, because one gesture makes a whole piece of work: the create,
+ * the placement that puts it where it was drawn, the group it inherits, the item that carries its
+ * estimate and the dependency the end it was drawn from implies. Each is `null` where the surface may
+ * not make it, and `./extend-write.ts` skips that step rather than refusing the draw — so a seat that may
+ * create but not reorder gets the work at the end of the rail instead of nothing.
+ *
+ * @param actions - Every write, or `null` for a surface with no credential at all.
+ * @param content - What this surface may do.
+ * @returns One record per action, `null` where it may not.
+ */
+export const drawsFor = (
+  actions: PlanEditActions | null,
+  content: PlanContentControls,
+): ExtendWrites => {
+  const may = <T,>(allowed: boolean, pick: (held: PlanEditActions) => T): T | null =>
+    actions === null || !allowed ? null : pick(actions)
+  return {
+    createFeature: may(content.createFeature, (held) => held.createFeature),
+    createItem: may(content.createItem, (held) => held.createItem),
+    labelFeature: may(content.labelFeature, (held) => held.labelFeature),
+    placeFeature: may(content.placeFeature, (held) => held.placeFeature),
+    placeItem: may(content.placeItem, (held) => held.placeItem),
+    setDependencies: may(content.setDependencies, (held) => held.setDependencies),
+  }
+}

@@ -2,6 +2,7 @@ import type { Rung } from '@repo/canvas'
 import type { ReactNode } from 'react'
 import { planAxis } from '../canvas/zoom-view'
 import type { FeaturePlace } from '../canvas/drag-root'
+import type { ExtendWrites } from '../canvas/extend-write'
 import type { Counted } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
@@ -21,6 +22,9 @@ export interface TimelinePanelProps {
   readonly progress: Counted
 
   readonly place: FeaturePlace | null
+
+  /** The writes a draw from a mark's own end sends. */
+  readonly draw: ExtendWrites
 
   /** The features with no bar, under the board. */
   readonly tray: ReactNode
@@ -58,11 +62,12 @@ export const anyAdd = (adds: CreateWrites): boolean =>
  * silent. A seat that may add nothing gets exactly the board, which is what it had.
  */
 export function TimelinePanel(props: TimelinePanelProps) {
-  const { plan, at, zoom, progress, place, tray, root, routes, adds, nextRailColour } = props
+  const { plan, at, zoom, progress, place, draw, tray, root, routes, adds, nextRailColour } = props
   const axis = planAxis(plan, at, zoom)
   const board = (
     <PlanBoard
       at={at}
+      draw={draw}
       place={place}
       plan={plan}
       progress={progress}

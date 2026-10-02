@@ -9,7 +9,7 @@ import { POINTER_CSS } from './canvas/pointer-css'
 import { axisX } from './canvas/view'
 import { planAxis } from './canvas/zoom-view'
 import { PlanViews } from './plan-views'
-import { addsFor } from './table/table-writes'
+import { addsFor, drawsFor } from './table/table-writes'
 import { writesFor } from './table/table-writes'
 import { nextRailColour } from './rails/rail-palette'
 import { PlanHead } from './shell/plan-head'
@@ -109,7 +109,6 @@ export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, controls, drawer, groups, progress } = props
   const { manage, newRailHref, root, routes, tray, zoom, zoomControl, zoomTo } = props
   const place = actions !== null && controls.content.placeFeature ? actions.placeFeature : null
-  const found = attentionOf(plan)
   const axis = planAxis(plan, at, zoom)
   const pointer = { axisX: axisX(axis.scale, axis.range), pxPerDay: axis.scale.pxPerDay }
   return (
@@ -122,7 +121,7 @@ export function PlanScreen(props: PlanScreenProps) {
           head={
             <PlanHead
               actions={manage}
-              attention={<AttentionChip count={attentionCount(plan, found)} />}
+              attention={<AttentionChip count={attentionCount(plan, attentionOf(plan))} />}
               groups={groups}
               plan={plan}
               zoom={zoomControl}
@@ -131,6 +130,7 @@ export function PlanScreen(props: PlanScreenProps) {
         >
           <PlanViews
             at={at}
+            draw={drawsFor(actions, controls.content)}
             newRailHref={controls.content.createEpic ? newRailHref : null}
             place={place}
             plan={plan}

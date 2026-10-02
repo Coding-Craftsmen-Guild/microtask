@@ -42,6 +42,7 @@ export function Rail({ rail, frame, top, width }: RailProps) {
     <g
       data-colour={rail.colour ?? undefined}
       data-epic-id={rail.epicId}
+      data-name={frame.rails.get(rail.epicId) ?? ''}
       data-feature-ids={joinRailIds(rail.featureIds)}
       data-slot="rail"
     >
@@ -56,15 +57,16 @@ export function Rail({ rail, frame, top, width }: RailProps) {
       <RailFeatures frame={frame} rail={rail} top={top} />
       {frame.draws.items
         ? rail.bars.flatMap((bar) =>
-            (frame.marks.get(bar.id) ?? []).map((mark) => (
+            (frame.marks.get(bar.id) ?? []).map((mark, index) => (
               <ItemMarkShape
                 colour={hueOf(frame, bar.id, rail.colour)}
                 detail={frame.details.get(mark.id) ?? null}
                 hoverId={bar.id}
                 key={mark.id}
                 labelId={frame.groups.get(bar.id) ?? null}
-                name={frame.names.get(mark.id) ?? ''}
                 mark={mark}
+                name={frame.names.get(mark.id) ?? ''}
+                position={index}
                 top={top}
                 treatment={frame.treatments.get(mark.id) ?? 'solid'}
               />

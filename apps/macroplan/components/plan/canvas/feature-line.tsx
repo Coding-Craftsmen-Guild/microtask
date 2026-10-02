@@ -92,6 +92,7 @@ export function FeatureLine(props: FeatureLineProps) {
       data-detail={detail ?? undefined}
       data-end-day={bar.endDay}
       data-feature-id={bar.id}
+      data-line="true"
       data-hover-id={hoverId}
       data-label-id={labelId ?? undefined}
       data-milestone={isMilestone(bar) ? 'true' : undefined}

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { TimelinePanel } from './board/timeline-panel'
 import type { CreateWrites } from './board/create-write'
 import type { FeaturePlace } from './canvas/drag-root'
+import type { ExtendWrites } from './canvas/extend-write'
 import type { PlanScreenModel } from './plan-screen-model'
 import { PlanTable, type TableWrites } from './table/plan-table'
 import type { DrawerRoutes } from '../../lib/drawer-routes'
@@ -20,6 +21,9 @@ export interface PlanViewsProps {
   readonly progress: PlanBridge['items']
 
   readonly place: FeaturePlace | null
+
+  /** The writes a draw from a mark's own end sends. */
+  readonly draw: ExtendWrites
 
   /** The unscheduled tray, shown under the board and not under the table. */
   readonly tray: ReactNode
@@ -62,7 +66,7 @@ export interface PlanViewsProps {
  * duplication this revision set out to remove.
  */
 export function PlanViews(props: PlanViewsProps) {
-  const { plan, at, zoom, progress, place, tray, root, routes, writes, newRailHref } = props
+  const { plan, at, zoom, progress, place, draw, tray, root, routes, writes, newRailHref } = props
   const { adds, nextRailColour } = props
   return (
     <>
@@ -70,6 +74,7 @@ export function PlanViews(props: PlanViewsProps) {
         <TimelinePanel
           adds={adds}
           at={at}
+          draw={draw}
           nextRailColour={nextRailColour}
           place={place}
           plan={plan}

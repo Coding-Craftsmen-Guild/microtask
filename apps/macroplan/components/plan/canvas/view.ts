@@ -97,6 +97,15 @@ export interface RailFrame {
   readonly names: ReadonlyMap<string, string>
 
   /**
+   * What each rail is called, which only a drawn chip needs.
+   *
+   * A draw that crosses lanes says "New feature on Payments", and the lane it crossed to is a rail the
+   * mark it came from knows nothing about. The names ride in the frame rather than being read off the
+   * epics by a mark, for the reason every other map here does: the canvas is handed one frame.
+   */
+  readonly rails: ReadonlyMap<string, string>
+
+  /**
    * Where a bar opens, or `null` for a canvas nobody can open anything from.
    *
    * A bar is a link as well as a drag handle. Clicking one is how a person opens the thing they are
@@ -383,6 +392,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
       groups: groupsOf(plan),
       hues: labelHues(plan),
       draws: DRAWS[rung],
+      rails: railNames(plan),
       details: detailsOf(plan),
       names: namesOf(plan),
       search: featureSearch(plan),

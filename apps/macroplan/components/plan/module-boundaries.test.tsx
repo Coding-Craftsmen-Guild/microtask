@@ -46,6 +46,7 @@ import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
 import { ListSearch } from './drawer/list-search'
 import { DragRoot } from './canvas/drag-root'
+import { ExtendRoot } from './canvas/extend-root'
 import { PlanPointer } from './canvas/plan-pointer'
 import { BindFields } from './bridge/bind-fields'
 import { BindForm } from './bridge/bind-form'
@@ -331,6 +332,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [PlaceControl, 'drawer/place-control.tsx'],
   [ListSearch, 'drawer/list-search.tsx'],
   [DragRoot, 'canvas/drag-root.tsx'],
+  [ExtendRoot, 'canvas/extend-root.tsx'],
   [PlanPointer, 'canvas/plan-pointer.tsx'],
   [TableRoot, 'table/table-root.tsx'],
   [BindForm, 'bridge/bind-form.tsx'],

@@ -2,6 +2,7 @@ import { railLayout } from '@repo/canvas'
 import type { DayRange, PlanScale, Rung } from '@repo/canvas'
 import { attentionOf } from '../attention/attention'
 import type { FeaturePlace } from '../canvas/drag-root'
+import type { ExtendWrites } from '../canvas/extend-write'
 import { PlanCanvas } from '../canvas/plan-canvas'
 import type { Counted } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
@@ -31,6 +32,9 @@ export interface PlanBoardProps {
   readonly progress: Counted
 
   readonly place: FeaturePlace | null
+
+  /** The writes a draw from a mark's own end sends (`canvas/extend-root.tsx`). */
+  readonly draw: ExtendWrites
 
   readonly root: string
 
@@ -62,7 +66,7 @@ export interface PlanBoardProps {
  * dimming on a keystroke from growing with the plan.
  */
 export function PlanBoard(props: PlanBoardProps) {
-  const { plan, at, range, scale, rung, progress, place, root, routes } = props
+  const { plan, at, range, scale, rung, progress, place, draw, root, routes } = props
   const rails = boardRails(plan, railLayout(plan, plan.schedule, scale), attentionOf(plan))
   const width = canvasWidth(scale, range)
   return (
@@ -95,6 +99,7 @@ export function PlanBoard(props: PlanBoardProps) {
           <div className={BOARD.canvas}>
             <PlanCanvas
               at={at}
+              draw={draw}
               hrefOf={(featureId) => routes.feature(root, featureId)}
               place={place}
               plan={plan}
