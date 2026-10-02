@@ -1,5 +1,5 @@
 import { scaleFor, type DayRange } from '@repo/canvas'
-import { fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { atlasPlan, EPIC_1, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { planScreenModel } from '../plan-screen-model'
@@ -268,38 +268,35 @@ describe('what the handles do while something else is being dragged', () => {
   })
 })
 
-// At Year and Quarter a feature is a **point** at the middle of its span, so a handle placed at the
-// span's edges is a handle nowhere near the mark the pointer is on: for a ten-day feature at Quarter
-// that is seventy pixels of empty track to either side of the dot. The days a draw extends from are
-// still the span's — only where the `+` is drawn follows the shape.
-describe('the handles on a feature drawn as a point', () => {
-  const atPoint = (rung: 'epic' | 'feature') => {
+// A handle sits on each end of the mark it extends, and at the two wider stops that mark is a nine-pixel
+// dot: both handles land on it, covering it and each other, and they take the pointer with them — so the
+// card that names the point, which at Year is the only place its name appears, never came up at all.
+describe('the handles at a stop that draws a point', () => {
+  const hover = (rung: 'epic' | 'feature' | 'item') => {
     render(
       <PlanCanvas at={AT} draw={writes()} place={null} plan={planScreenModel(atlasPlan())} range={RANGE} rung={rung} scale={SCALE} />,
     )
-    const point = document.querySelector(`circle[data-feature-id="${FEATURE_1}"]`)
-    if (point === null) throw new Error(`no point for ${FEATURE_1} at the ${rung} rung`)
-    fireEvent.pointerOver(point, { buttons: 0 })
-    return point
+    const found = document.querySelector(`[data-feature-id="${FEATURE_1}"]`)
+    if (found === null) throw new Error(`no mark for ${FEATURE_1} at the ${rung} rung`)
+    fireEvent.pointerOver(found, { buttons: 0 })
   }
 
-  const handleX = (side: 'start' | 'end'): number =>
-    Number(sideOf(side).querySelector('circle, polygon')?.getAttribute('cx'))
-
-  it('sits each one on an edge of the dot, and not on an edge of the span it stands for', () => {
-    const point = atPoint('feature')
-    const centre = Number(point.getAttribute('cx'))
-    const radius = Number(point.getAttribute('r'))
-    const span = { x: Number(point.getAttribute('data-x')), width: Number(point.getAttribute('data-width')) }
-
-    expect(span.width).toBeGreaterThan(radius * 4)
-    expect(handleX('start')).toBe(centre - radius)
-    expect(handleX('end')).toBe(centre + radius)
-    expect(handleX('start')).not.toBe(span.x)
+  it('draws none at either of them, the dot having no two ends to grab', () => {
+    for (const rung of ['epic', 'feature'] as const) {
+      cleanup()
+      hover(rung)
+      expect(handles(), rung).toEqual([])
+    }
   })
 
-  it('draws both of them at the year rung too, where a dot is all there is to grab', () => {
-    atPoint('epic')
+  it('mounts no draw root there at all, rather than an overlay with nothing in it', () => {
+    hover('feature')
+
+    expect(document.querySelector('[data-slot="extend-overlay"]')).toBeNull()
+  })
+
+  it('still draws both at the sprint stop, where a mark has two ends far enough apart', () => {
+    hover('item')
 
     expect(handles()).toHaveLength(2)
   })

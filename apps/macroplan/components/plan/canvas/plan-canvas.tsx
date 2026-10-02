@@ -40,7 +40,15 @@ export interface PlanCanvasProps {
   /** The placement write a drag sends, or `null` for a surface that may not move work. */
   readonly place: FeaturePlace | null
 
-  /** The writes a draw from a mark's own end sends; omitted for a surface that may create nothing. */
+  /**
+   * The writes a draw from a mark's own end sends; omitted for a surface that may create nothing.
+   *
+   * Its `placeItem` is also what lets an **item** be dragged to another feature, which is the one member
+   * two gestures share. It is read from here rather than threaded down beside `place` as a sixth prop
+   * because it is the same action under the same permission: a surface that may reorder a feature's items
+   * may do it by drawing one at a place or by dragging one there, and two props would be two chances to
+   * hand over one and forget the other.
+   */
   readonly draw?: ExtendWrites
 
   /** Where a bar opens. */
@@ -58,6 +66,17 @@ export interface PlanCanvasProps {
  *
  * A surface that may create nothing gets no draw root and no handles at all, which is a rendering answer
  * and not a gate: there is nothing for the gesture to do, and the actions are still what refuse a write.
+ *
+ * ### Why the stops that draw a point get no draw root either
+ *
+ * A handle sits on each end of the mark it extends, and at Year and Quarter the mark is a nine-pixel dot
+ * (`./rung-view.ts`): both handles land **on** the dot, covering it and each other. They take the pointer
+ * as well, so the one thing a reader gets from hovering a point — the card naming it, which is the only
+ * place its name appears when the board is too crowded to label it — never appeared at all.
+ *
+ * Two marks' worth of gesture cannot share nine pixels, so the stop that cannot hold both drops the one a
+ * reader can get elsewhere: drawing stays at Sprint, where a mark has two ends far enough apart to grab,
+ * and the strip's Feature pill still drops new work at any stop.
  */
 export function PlanCanvas({
   plan,
@@ -70,14 +89,15 @@ export function PlanCanvas({
   rung = 'feature',
   hrefOf = NOTHING_OPENS,
 }: PlanCanvasProps) {
-  const mayDraw = mayExtend(draw)
   const layout = canvasLayout({ plan, range, scale, rung, progress, hrefOf })
+  const mayDraw = mayExtend(draw) && !layout.frame.draws.points
   const board = <CanvasBoard at={at} layout={layout} plan={plan} range={range} scale={scale} />
   return (
     <DragRoot
       axisX={axisX(scale, range)}
       gutter={scale.gutter}
       place={place}
+      placeItem={draw.placeItem}
       planId={plan.id}
       pxPerDay={scale.pxPerDay}
     >

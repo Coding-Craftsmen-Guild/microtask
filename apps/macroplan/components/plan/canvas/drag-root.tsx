@@ -1,36 +1,21 @@
 'use client'
 
-import type { FeaturePlacement, Plan } from '@repo/api-client'
-import { orNoAnswer } from '@repo/app-session/no-answer'
-import { scaleFor } from '@repo/canvas'
-import type { DropTarget } from '@repo/canvas'
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import type { MouseEvent, PointerEvent, ReactNode } from 'react'
-import type { ActionResult } from '../../../actions/result'
 import { DragGhost } from './drag-ghost'
-import { DragNotice, MOVED, type Said } from './drag-notice'
-import { heldFrom, originAt, settledAt, travelledBy, unchanged, type Held, type Origin, type Settled } from './selection'
+import { DragNotice } from './drag-notice'
+import type { FeaturePlace, ItemPlace } from './drag-places'
+
+export type { FeaturePlace, ItemPlace } from './drag-places'
+import { ItemGhost } from './item-ghost'
+import { originAt, travelledBy, type Origin } from './selection'
+import { useDragWrites } from './use-drag-writes'
+import { useFeatureDrag } from './use-feature-drag'
+import { useItemDrag } from './use-item-drag'
 
 const FRAME = 'relative w-full min-w-fit'
 
 const A_CLICK = 4
-
-const CANVAS = '[data-slot="plan-canvas"]'
-
-/**
- * One feature moved: the plan, the feature, and the rail and place it lands at.
- *
- * `PlanEditActions['placeFeature']` is assignable to it, so this boundary takes that one member as a prop
- * and cannot reach the other seventeen — the rule `../drawer/field.ts` states for `SubjectWrite`, and the
- * reason a surface's writes are a prop rather than an import (`../edit-actions.ts`). `FeaturePlacement` and
- * `Plan` arrive through `import type`, which is erased, so no client module here imports
- * `@repo/api-client` for a value.
- */
-export type FeaturePlace = (
-  planId: string,
-  featureId: string,
-  to: FeaturePlacement,
-) => Promise<ActionResult<Plan>>
 
 /** Props for {@link DragRoot}. */
 export interface DragRootProps {
@@ -58,6 +43,15 @@ export interface DragRootProps {
 
   /** The placement write, or `null` on a surface that may not move a bar and so listens for nothing. */
   readonly place: FeaturePlace | null
+
+  /**
+   * The item placement write, or `null` on a surface that may not move one.
+   *
+   * Separate from {@link DragRootProps.place} because they are separate permissions and separate
+   * gestures: a seat that may reorder a rail's features is not thereby allowed to reparent their items,
+   * and a surface handed one and not the other listens for exactly the one it has.
+   */
+  readonly placeItem: ItemPlace | null
 }
 
 /**
@@ -158,31 +152,27 @@ export interface DragRootProps {
  * the frame is one that ended at the edge — which is honest about what was last seen rather than
  * extrapolating a position from a pointer the canvas stopped hearing from.
  */
-export function DragRoot({ children, planId, axisX, gutter, pxPerDay, place }: DragRootProps) {
+export function DragRoot(props: DragRootProps) {
+  const { children, planId, axisX, gutter, pxPerDay, place, placeItem } = props
   const frame = useRef<HTMLDivElement>(null)
   const origin = useRef<Origin | null>(null)
   const dragged = useRef(false)
-  const [held, setHeld] = useState<Held | null>(null)
-  const [said, setSaid] = useState<Said | null>(null)
-  const settled: Settled | null = held === null ? null : settledAt(held, scaleFor({ pxPerDay, gutter }), axisX)
-  const send = async (featureId: string, to: DropTarget, back: DropTarget | null) => {
-    if (place === null) return
-    const answer = await orNoAnswer(place)(planId, featureId, to)
-    setSaid({ text: answer.ok ? MOVED : answer.detail, featureId, back: answer.ok ? back : null })
-  }
+  const writes = useDragWrites({ place, placeItem, planId })
+  const item = useItemDrag({ enabled: placeItem !== null, frame, gutter, onMoved: writes.moveItem, pxPerDay })
+  const bar = useFeatureDrag({ axisX, enabled: place !== null, frame, gutter, onMoved: writes.moveFeature, pxPerDay })
   const start = (event: PointerEvent<HTMLDivElement>) => {
-    const canvas = place === null ? null : (frame.current?.querySelector(CANVAS) ?? null)
-    const begun = canvas === null ? null : heldFrom(event.target, canvas)
-    if (canvas === null || begun === null) return
     origin.current = originAt({ x: event.clientX, y: event.clientY })
     dragged.current = false
-    setHeld(begun)
+    if (!item.start(event)) bar.start(event)
   }
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const from = origin.current
     const at = { x: event.clientX, y: event.clientY }
-    if (from !== null && Math.abs(at.x - from.x) + Math.abs(at.y - from.y) > A_CLICK) dragged.current = true
-    setHeld((was) => (was === null || from === null ? was : { ...was, travelled: travelledBy(from, at) }))
+    if (from === null) return
+    if (Math.abs(at.x - from.x) + Math.abs(at.y - from.y) > A_CLICK) dragged.current = true
+    const travelled = travelledBy(from, at)
+    item.move(travelled)
+    bar.move(travelled)
   }
   const swallowAfterDrag = (event: MouseEvent<HTMLDivElement>) => {
     if (!dragged.current) return
@@ -190,16 +180,20 @@ export function DragRoot({ children, planId, axisX, gutter, pxPerDay, place }: D
     event.stopPropagation()
     dragged.current = false
   }
+  const away = () => {
+    bar.cancel()
+    item.cancel()
+  }
   const finish = () => {
-    setHeld(null)
-    if (held === null || settled === null || settled.to === null || unchanged(settled)) return
-    void send(held.grabbed.featureId, settled.to, settled.back)
+    item.finish()
+    bar.finish()
   }
   return (
-    <div className={FRAME} data-drag={place !== null} data-slot="drag-root" onClickCapture={swallowAfterDrag} onPointerDown={start} onPointerLeave={() => setHeld(null)} onPointerMove={move} onPointerUp={finish} ref={frame}>
+    <div className={FRAME} data-drag={place !== null} data-item-drag={placeItem !== null} data-slot="drag-root" onClickCapture={swallowAfterDrag} onPointerDown={start} onPointerLeave={away} onPointerMove={move} onPointerUp={finish} ref={frame}>
       {children}
-      {held === null || settled === null ? null : <DragGhost held={held} refused={settled.to === null} />}
-      <DragNotice said={said} undo={(featureId, back) => void send(featureId, back, null)} />
+      {bar.held === null || bar.settled === null ? null : <DragGhost held={bar.held} refused={bar.settled.to === null} />}
+      {item.held === null ? null : <ItemGhost box={item.held.box} held={item.held} refused={item.landing === null} />}
+      <DragNotice said={writes.said} undo={writes.undo} />
     </div>
   )
 }

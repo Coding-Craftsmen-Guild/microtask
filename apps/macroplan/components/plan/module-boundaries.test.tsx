@@ -518,6 +518,26 @@ const TREES = [
     plan={planScreenModel(atlasPlan())}
     range={{ fromDay: 0, toDay: 61 }}
   />,
+  // The same canvas at the stop that draws a feature as a **line**, which is the only stop with a draw
+  // root on it: the two wider ones draw a point, and two handles cannot share nine pixels
+  // (`canvas/plan-canvas.tsx`). Without a tree here the sweep would reach `canvas/extend-root.tsx`
+  // through nothing, which the assertion below is what catches.
+  <PlanCanvas
+    at={AT}
+    draw={{
+      createFeature: STUB_ACTIONS.createFeature,
+      createItem: STUB_ACTIONS.createItem,
+      labelFeature: STUB_ACTIONS.labelFeature,
+      placeFeature: STUB_ACTIONS.placeFeature,
+      placeItem: STUB_ACTIONS.placeItem,
+      setDependencies: STUB_ACTIONS.setDependencies,
+    }}
+    key="e2"
+    place={STUB_ACTIONS.placeFeature}
+    plan={planScreenModel(atlasPlan())}
+    range={{ fromDay: 0, toDay: 20 }}
+    rung="item"
+  />,
   <PlanTable key="f" plan={planScreenModel(unplacedPlan('in-cycle'))} />,
   // The bind form on its own. It used to be reached through the bindings panel, which is gone: a rail's
   // binding is one rail's concern and belongs in that rail's drawer rather than in a plan-wide panel over

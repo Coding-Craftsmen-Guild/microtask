@@ -2,11 +2,11 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DragNotice, MOVED, type Said } from './drag-notice'
 
-const BACK = { epicId: 'epic-1', position: 2 }
+const BACK = { kind: 'feature', to: { epicId: 'epic-1', position: 2 } } as const
 
 const said = (over: Partial<Said> = {}): Said => ({
   text: MOVED,
-  featureId: 'feature-1',
+  subjectId: 'feature-1',
   back: BACK,
   ...over,
 })

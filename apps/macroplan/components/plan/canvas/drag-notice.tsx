@@ -1,19 +1,33 @@
 import type { DropTarget } from '@repo/canvas'
+import type { ItemLanding } from './item-drag'
 
 const NOTICE = 'sticky left-0 z-20 w-fit pt-1 text-[13px] text-muted-foreground'
 
 const UNDO = 'ml-2 text-brand underline'
 
-/** What a bar moved by hand said, and what taking it back would send. */
+/**
+ * The place a dragged thing held before the drop, which is the whole of what an undo sends.
+ *
+ * Two members because there are two drags and they name different things: a feature's place is a rail
+ * and an index on it, and an item's is a feature and an index in it (`./item-drag.ts`). They are a
+ * **discriminated union** rather than two notices, so one line under the canvas says what the last drag
+ * of either kind did — two notices would stack, and the second would be about a gesture that is no
+ * longer the last thing that happened.
+ */
+export type Placed =
+  | { readonly kind: 'feature'; readonly to: DropTarget }
+  | { readonly kind: 'item'; readonly to: ItemLanding }
+
+/** What a mark moved by hand said, and what taking it back would send. */
 export interface Said {
   /** The sentence: {@link MOVED}, or whatever the write was refused with. */
   readonly text: string
 
-  /** The feature that was moved, so an undo is addressed at the same one. */
-  readonly featureId: string
+  /** The feature or item that was moved, so an undo is addressed at the same one. */
+  readonly subjectId: string
 
-  /** The `(epicId, position)` it held before the drop, or `null` when there is nothing to undo. */
-  readonly back: DropTarget | null
+  /** The place it held before the drop, or `null` when there is nothing to undo. */
+  readonly back: Placed | null
 }
 
 /** What a landed placement says. Short, because the timeline underneath it has already redrawn. */
@@ -24,8 +38,8 @@ export interface DragNoticeProps {
   /** What was said, or `null` before anything has been. */
   readonly said: Said | null
 
-  /** Sends the compensating placement, for the feature that moved and the place it held. */
-  readonly undo: (featureId: string, back: DropTarget) => void
+  /** Sends the compensating placement, for the mark that moved and the place it held. */
+  readonly undo: (subjectId: string, back: Placed) => void
 }
 
 /**
@@ -54,12 +68,12 @@ export interface DragNoticeProps {
 export function DragNotice({ said, undo }: DragNoticeProps) {
   if (said === null) return null
   const back = said.back
-  const featureId = said.featureId
+  const subjectId = said.subjectId
   return (
     <p className={NOTICE} role="status">
       {said.text}
       {back === null ? null : (
-        <button className={UNDO} onClick={() => undo(featureId, back)} type="button">
+        <button className={UNDO} onClick={() => undo(subjectId, back)} type="button">
           Undo
         </button>
       )}
