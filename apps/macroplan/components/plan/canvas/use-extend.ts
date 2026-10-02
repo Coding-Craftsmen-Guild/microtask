@@ -1,17 +1,17 @@
 import { scaleFor, type PlanScale } from '@repo/canvas'
 import { useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
-import { beforeOn, boardIn, markFrom, onHandle, pointerAt, type Hovered } from './extend-dom'
-import { aimOf, draftOf, type DrawAim, type DrawnAt, type DrawnSide } from './extend-view'
-import { writeDraw, type ExtendWrites } from './extend-write'
+import { boardIn, markFrom, onHandle, pointerAt, type Hovered } from './extend-dom'
+import { aimOf, type DrawAim, type DrawnSide } from './extend-view'
+import type { ExtendWrites } from './extend-write'
+import { drawnOf, releaseDraw, type Drawing } from './extend-release'
+import { sizeOfMark, type SizeAim } from './size-view'
+import { maySize, type SizeWrites } from './size-write'
+import { useHeldKey } from './use-held-key'
 
 const CANVAS = '[data-slot="plan-canvas"]'
 
-interface Drawing {
-  readonly from: Hovered
-  readonly side: DrawnSide
-  readonly at: DrawnAt
-}
+const MODIFIER = 'Control'
 
 /** How big the canvas is, read off its own attributes rather than measured. */
 export interface DrawBox {
@@ -38,6 +38,9 @@ export interface ExtendQuery {
 
   /** The actions a release spends, each `null` where this surface may not make it. */
   readonly writes: ExtendWrites
+
+  /** The two a **resize** spends, which is the Ctrl-held half of the gesture. */
+  readonly sizes: SizeWrites
 }
 
 /** Everything the draw root binds to its own element. */
@@ -50,6 +53,12 @@ export interface ExtendState {
 
   /** What the pointer has drawn, or `null` while nothing is being drawn. */
   readonly aim: DrawAim | null
+
+  /** Whether the handles on screen resize rather than create, which is Ctrl being held. */
+  readonly sizing: boolean
+
+  /** What a resize has dragged out, or `null` while none is in progress. */
+  readonly size: SizeAim | null
 
   /** Which edge is the free one, for the guide. */
   readonly forward: boolean
@@ -98,17 +107,6 @@ const startedFrom = (
   return { x: side === 'end' ? from.x + from.width : from.x, y: from.y }
 }
 
-const drawnOf = (drawing: Drawing) => ({
-  epicId: drawing.from.epicId,
-  featureId: drawing.from.featureId,
-  kind: drawing.from.kind,
-  labelId: drawing.from.labelId,
-  name: drawing.from.name,
-  originDay: drawing.side === 'end' ? drawing.from.endDay : drawing.from.startDay,
-  position: drawing.from.position,
-  side: drawing.side,
-  subjectId: drawing.from.subjectId,
-})
 
 /**
  * The whole gesture: which mark the handles are on, where a drag has got to, and what a release makes.
@@ -141,11 +139,13 @@ const drawnOf = (drawing: Drawing) => ({
  * @returns The ref, what is hovered, what is drawn, and the handlers the root binds.
  */
 export function useExtend(query: ExtendQuery): ExtendState {
-  const { planId, pxPerDay, gutter, sprintLengthDays, writes } = query
+  const { planId, pxPerDay, gutter, sprintLengthDays, writes, sizes } = query
   const frame = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState<Hovered | null>(null)
   const [drawing, setDrawing] = useState<Drawing | null>(null)
   const scale = scaleFor({ pxPerDay, gutter })
+  const held = useHeldKey(MODIFIER)
+  const sizing = held && maySize(sizes)
 
   const over = (event: PointerEvent<HTMLDivElement>): void => {
     if (drawing !== null || event.buttons !== 0 || onHandle(event.target)) return
@@ -158,7 +158,7 @@ export function useExtend(query: ExtendQuery): ExtendState {
     event.stopPropagation()
     event.preventDefault()
     frame.current?.setPointerCapture(event.pointerId)
-    setDrawing({ at: pointerAt(board, event), from: hovered, side })
+    setDrawing({ at: pointerAt(board, event), from: hovered, side, sizing })
   }
 
   const move = (event: PointerEvent<HTMLDivElement>): void => {
@@ -167,30 +167,30 @@ export function useExtend(query: ExtendQuery): ExtendState {
     setDrawing({ ...drawing, at: pointerAt(board, event) })
   }
 
+
   const finish = (event: PointerEvent<HTMLDivElement>): void => {
     const board = boardIn(frame.current, scale)
     setDrawing(null)
     if (drawing === null || board === null) return
-    const drawn = drawnOf(drawing)
-    const aim = aimOf(drawn, drawing.at, sprintLengthDays)
     const at = pointerAt(board, event)
-    const where = { ...at, before: beforeOn(board.rails, at.lane, aim.fromDay) }
-    const draft = draftOf(drawn, aim, where, sprintLengthDays)
-    if (draft !== null) void writeDraw({ ...draft, planId }, writes)
+    releaseDraw({ board, drawing: { ...drawing, at }, planId, sizes, sprintLengthDays, writes })
   }
 
+  const drawn = drawing === null || drawing.sizing ? null : drawing
   return {
-    aim: drawing === null ? null : aimOf(drawnOf(drawing), drawing.at, sprintLengthDays),
+    aim: drawn === null ? null : aimOf(drawnOf(drawn), drawn.at, sprintLengthDays),
     begin,
     box: boxOf(frame.current),
     cancel: () => setDrawing(null),
     finish,
     forward: drawing?.side === 'end',
-    from: startedFrom(drawing, sprintLengthDays),
+    from: startedFrom(drawn, sprintLengthDays),
     frame,
     hovered: drawing === null ? hovered : null,
     move,
     over,
     scale,
+    size: drawing === null || !drawing.sizing ? null : sizeOfMark(drawing.from, drawing.side, drawing.at.day, sprintLengthDays),
+    sizing,
   }
 }

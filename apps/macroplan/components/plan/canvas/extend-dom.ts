@@ -20,6 +20,14 @@ const textAt = (node: Element, name: string): string => node.getAttribute(name) 
 
 const numberAt = (node: Element, name: string): number => Number(node.getAttribute(name))
 
+const hasItems = (canvas: Element | null, featureId: string): boolean =>
+  canvas !== null && canvas.querySelector(`[data-slot="item-mark"][data-hover-id="${featureId}"]`) !== null
+
+const laneOf = (canvas: Element | null, rail: Element | null): number => {
+  if (canvas === null || rail === null) return 0
+  return Math.max([...canvas.querySelectorAll(RAIL)].indexOf(rail), 0)
+}
+
 /** The mark under the pointer: where it is, what it is, and what a draw from it would extend. */
 export interface Hovered {
   /** Whether it is a feature or one of a feature's items. */
@@ -63,6 +71,19 @@ export interface Hovered {
 
   /** Whether the rung draws it as a line, whose own diamonds the handles take the place of. */
   readonly diamond: boolean
+
+  /** Which band it is in, counted from the top, which a resize never leaves. */
+  readonly lane: number
+
+  /**
+   * Whether this mark's drawn length is its children's rather than its own.
+   *
+   * Read as "this feature has item marks on the board". An item is drawn only where it could be placed,
+   * which needs an estimate, so a feature with item marks is a feature with estimated items — which is
+   * exactly the condition ADR 0051 makes placement take the children under. `./size-view.ts` carries
+   * what it is for.
+   */
+  readonly brokenDown: boolean
 }
 
 const hueOfMark = (node: Element): string => {
@@ -130,10 +151,13 @@ export function markFrom(target: EventTarget | null): Hovered | null {
   const featureId = textAt(node, 'data-hover-id')
   if (epicId === '' || subjectId === '' || featureId === '') return null
   const line = node.getAttribute('data-line') !== null
+  const canvas = node.closest(CANVAS)
   return {
     ...widthOf(node, item),
+    brokenDown: !item && hasItems(canvas, featureId),
     colour: hueOfMark(node),
     diamond: line,
+    lane: laneOf(canvas, rail),
     endDay: numberAt(node, 'data-end-day'),
     epicId,
     featureId,

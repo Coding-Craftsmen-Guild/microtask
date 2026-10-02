@@ -480,3 +480,32 @@ describe('clearing the choice with the All work chip', () => {
     expect(at('[data-slot="plan-board"]').scrollLeft).toBe(0)
   })
 })
+
+// The root covers the board, the panel and the toolbar but not the brand bar above them, so a
+// Ctrl+wheel in that strip zoomed the whole page while the same gesture forty pixels lower zoomed the
+// timeline. A modifier is not aimed at anything.
+describe('where a Ctrl+wheel is heard', () => {
+  it('zooms the timeline from anywhere on the page, not only from inside the board', () => {
+    show({ rung: 'epic' })
+    const outside = document.createElement('div')
+    document.body.append(outside)
+    const event = wheelEvent({ ctrlKey: true, deltaY: -120 })
+    outside.dispatchEvent(event)
+    settle()
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(asked).toEqual(['feature'])
+    outside.remove()
+  })
+
+  // A plain wheel is the pane's own scroll everywhere but over the time header, and widening the
+  // listener must not have taken that away.
+  it('leaves a plain wheel outside the board alone, which is the page scrolling', () => {
+    show({ rung: 'epic' })
+    const event = wheelEvent({ deltaY: -120 })
+    document.body.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(asked).toEqual([])
+  })
+})

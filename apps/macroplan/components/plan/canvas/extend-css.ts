@@ -16,9 +16,21 @@ export const HANDLE = { circle: 7, diamond: 6, plus: 3.5 } as const
 export const EXTEND = {
   sheet: 'pointer-events-none absolute top-0 left-0 block w-full [&>*]:pointer-events-auto',
   handle: 'cursor-crosshair',
+  sizing: 'cursor-ew-resize',
   shape: 'fill-[var(--mark-hue)] [stroke:#fff] stroke-2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.18))]',
+  shut: 'fill-muted-foreground [stroke:#fff] stroke-2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.18))]',
   plus: 'pointer-events-none [stroke:#fff] stroke-[1.8] [stroke-linecap:round]',
+  arrow: 'pointer-events-none fill-none [stroke:#fff] stroke-[1.6] [stroke-linecap:round] [stroke-linejoin:round]',
 } as const
+
+/**
+ * How big the arrows inside a sizing handle are, in px.
+ *
+ * `reach` is half the span of the double arrow and `barb` the length of each chevron's arms. They are
+ * smaller than the plus they replace, because two arrowheads inside a 14px circle need the air a single
+ * crossed pair does not.
+ */
+export const ARROW = { reach: 3.6, barb: 2.1 } as const
 
 /**
  * The provisional bar a drag draws, which has to read as *not yet there*.

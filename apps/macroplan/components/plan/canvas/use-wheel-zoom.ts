@@ -32,6 +32,22 @@ export interface WheelZoom {
  * does nothing at all. The whole gesture depends on preventing the default: Ctrl+wheel's default is the
  * browser zooming the entire page, so without this the page and the plan would zoom at once.
  *
+ * ### Why it listens on the window and not on the root it is given
+ *
+ * The root is `./plan-pointer.tsx`'s frame, which covers the board, the panel and the toolbar but not
+ * the brand bar above them — so a Ctrl+wheel in that strip zoomed the whole page while the same gesture
+ * forty pixels lower zoomed the timeline. A modifier is not aimed at anything, and on a page whose
+ * subject is one timeline the only sensible reading of "zoom" anywhere on it is that timeline.
+ *
+ * The ref is still what the effect waits for, because it is what says the tree is mounted, and the
+ * **plain** wheel is unaffected: that one only zooms over the time header, which `wheelZoom` decides
+ * from the event's own target and which exists only inside the board.
+ *
+ * One thing no code here can reach: a trackpad **pinch** that the browser delivers as a non-cancelable
+ * `wheel`. `preventDefault` on it does nothing, by design, and the page zooms. If a zoom gesture ever
+ * appears to zoom the page rather than the plan, that is the one to rule out first — the key and the
+ * wheel together are handled, and a pinch may not be.
+ *
  * ### Why one gesture is one request
  *
  * A rung change is a Server Action, a `revalidatePath` and a re-render of the whole plan, and a flick of
@@ -62,7 +78,7 @@ export function useWheelZoom({ frame, rung, pxPerDay, axisX, anchor, zoomTo }: W
   const asked = useRef<Zooming | null>(null)
 
   useEffect(() => {
-    const root = frame.current
+    const root = frame.current === null ? null : window
     if (root === null || zoomTo === null) return undefined
     const remember = (clientX: number): void => {
       const scroller = scrollerIn(frame)

@@ -4,9 +4,15 @@ import { CanvasBoard } from './canvas-board'
 import { DragRoot, type FeaturePlace } from './drag-root'
 import { ExtendRoot } from './extend-root'
 import { mayExtend, type ExtendWrites } from './extend-write'
+import { maySize, type SizeWrites } from './size-write'
 import { axisX, canvasLayout, CANVAS_RANGE, CANVAS_SCALE, type Counted } from './view'
 
 const NOTHING_OPENS = (): null => null
+
+const NO_SIZES: SizeWrites = { estimateFeature: null, estimateItem: null }
+
+const gesturesOn = (draw: ExtendWrites, size: SizeWrites, points: boolean): boolean =>
+  !points && (mayExtend(draw) || maySize(size))
 
 const NO_WRITES: ExtendWrites = {
   createFeature: null,
@@ -51,6 +57,15 @@ export interface PlanCanvasProps {
    */
   readonly draw?: ExtendWrites
 
+  /**
+   * The two writes a **resize** sends, omitted for a surface that may change no estimate.
+   *
+   * Beside {@link PlanCanvasProps.draw} rather than inside it, because the two gestures are two sets of
+   * permissions: a seat may be allowed to draw new work and not to re-estimate what is there, or the
+   * reverse. One record would make the pair of capabilities a single answer.
+   */
+  readonly size?: SizeWrites
+
   /** Where a bar opens. */
   readonly hrefOf?: (featureId: string) => string | null
 }
@@ -83,6 +98,7 @@ export function PlanCanvas({
   at,
   place,
   draw = NO_WRITES,
+  size = NO_SIZES,
   progress = [],
   range = CANVAS_RANGE,
   scale = CANVAS_SCALE,
@@ -90,7 +106,7 @@ export function PlanCanvas({
   hrefOf = NOTHING_OPENS,
 }: PlanCanvasProps) {
   const layout = canvasLayout({ plan, range, scale, rung, progress, hrefOf })
-  const mayDraw = mayExtend(draw) && !layout.frame.draws.points
+  const mayDraw = gesturesOn(draw, size, layout.frame.draws.points)
   const board = <CanvasBoard at={at} layout={layout} plan={plan} range={range} scale={scale} />
   return (
     <DragRoot
@@ -105,6 +121,8 @@ export function PlanCanvas({
         <ExtendRoot
           createFeature={draw.createFeature}
           createItem={draw.createItem}
+          estimateFeature={size.estimateFeature}
+          estimateItem={size.estimateItem}
           gutter={scale.gutter}
           labelFeature={draw.labelFeature}
           placeFeature={draw.placeFeature}

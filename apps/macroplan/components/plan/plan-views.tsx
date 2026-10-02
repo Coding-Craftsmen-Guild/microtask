@@ -1,4 +1,5 @@
 import type { PlanBridge } from '@repo/api-client'
+import type { SizeWrites } from "./canvas/size-write"
 import type { Rung } from '@repo/canvas'
 import type { ReactNode } from 'react'
 import { TimelinePanel } from './board/timeline-panel'
@@ -24,6 +25,9 @@ export interface PlanViewsProps {
 
   /** The writes a draw from a mark's own end sends. */
   readonly draw: ExtendWrites
+
+  /** The two writes a resize sends, which travel beside the draw and are gated separately. */
+  readonly size: SizeWrites
 
   /** The unscheduled tray, shown under the board and not under the table. */
   readonly tray: ReactNode
@@ -66,7 +70,7 @@ export interface PlanViewsProps {
  * duplication this revision set out to remove.
  */
 export function PlanViews(props: PlanViewsProps) {
-  const { plan, at, zoom, progress, place, draw, tray, root, routes, writes, newRailHref } = props
+  const { plan, at, zoom, progress, place, draw, size, tray, root, routes, writes, newRailHref } = props
   const { adds, nextRailColour } = props
   return (
     <>
@@ -75,6 +79,7 @@ export function PlanViews(props: PlanViewsProps) {
           adds={adds}
           at={at}
           draw={draw}
+          size={size}
           nextRailColour={nextRailColour}
           place={place}
           plan={plan}

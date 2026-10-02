@@ -12,6 +12,9 @@ export interface ExtendOverlayProps {
   /** How big the sheet over the canvas should be. */
   readonly box: { readonly width: number; readonly height: number }
 
+  /** Whether Ctrl is held, which swaps both handles for the ones that resize the mark. */
+  readonly sizing: boolean
+
   /** Start a draw from one end of that mark. */
   readonly onBegin: (side: DrawnSide, event: PointerEvent<SVGGElement>) => void
 }
@@ -27,9 +30,16 @@ export interface ExtendOverlayProps {
  * Component: the handles move by re-rendering this overlay as the pointer crosses marks, and the two
  * thousand marks under it never re-render at all.
  */
-export function ExtendOverlay({ hovered, box, onBegin }: ExtendOverlayProps) {
+export function ExtendOverlay({ hovered, box, sizing, onBegin }: ExtendOverlayProps) {
   if (hovered === null) return null
-  const shared = { colour: hovered.colour, diamond: hovered.diamond, onBegin, y: hovered.y }
+  const shared = {
+    colour: hovered.colour,
+    diamond: hovered.diamond,
+    onBegin,
+    refused: sizing && hovered.brokenDown,
+    sizing,
+    y: hovered.y,
+  }
   return (
     <svg
       className={EXTEND.sheet}

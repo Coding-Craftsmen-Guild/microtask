@@ -1,6 +1,13 @@
 import type { PointerEvent } from 'react'
-import { EXTEND, HANDLE } from './extend-css'
+import { ARROW, EXTEND, HANDLE } from './extend-css'
 import type { DrawnSide } from './extend-view'
+
+const chevronAt = (x: number, y: number, way: 1 | -1): string =>
+  [
+    `M ${String(x + ARROW.reach * way - ARROW.barb * way)} ${String(y - ARROW.barb)}`,
+    `L ${String(x + ARROW.reach * way)} ${String(y)}`,
+    `L ${String(x + ARROW.reach * way - ARROW.barb * way)} ${String(y + ARROW.barb)}`,
+  ].join(' ')
 
 const diamondAt = (x: number, y: number, r: number): string =>
   [
@@ -27,7 +34,20 @@ export interface ExtendHandleProps {
   /** The diamond rendering, which is what a feature **line** uses instead of a circle. */
   readonly diamond: boolean
 
-  /** Start a draw from this end. */
+  /**
+   * Whether this handle resizes the mark rather than drawing new work beside it.
+   *
+   * Which one a reader gets is the **Ctrl key** (`./use-extend.ts`): the board's one modifier, held while
+   * the pointer is over a mark. Two gestures start from the same two points and cannot both have them, so
+   * the one a reader reaches for by default is the one that makes something — and the one that changes
+   * what is already there asks for the key.
+   */
+  readonly sizing: boolean
+
+  /** Whether a drag from it would write nothing, which is painted as a dead handle. */
+  readonly refused: boolean
+
+  /** Start a draw, or a resize, from this end. */
   readonly onBegin: (side: DrawnSide, event: PointerEvent<SVGGElement>) => void
 }
 
@@ -49,23 +69,37 @@ export interface ExtendHandleProps {
  * two a reader can reach. `./extend-overlay.tsx` holds the pair; `./extend-dom.ts` reads the mark under
  * the pointer.
  */
-export function ExtendHandle({ x, y, side, colour, diamond, onBegin }: ExtendHandleProps) {
+export function ExtendHandle(props: ExtendHandleProps) {
+  const { x, y, side, colour, diamond, sizing, refused, onBegin } = props
   const r = diamond ? HANDLE.diamond : HANDLE.circle
+  const shape = refused ? EXTEND.shut : EXTEND.shape
   return (
     <g
-      className={EXTEND.handle}
+      className={sizing ? EXTEND.sizing : EXTEND.handle}
+      data-refused={refused}
       data-side={side}
       data-slot="extend-handle"
+      data-sizing={sizing}
       onPointerDown={(event) => onBegin(side, event)}
       style={{ '--mark-hue': colour } as React.CSSProperties}
     >
       {diamond ? (
-        <polygon className={EXTEND.shape} points={diamondAt(x, y, r)} />
+        <polygon className={shape} points={diamondAt(x, y, r)} />
       ) : (
-        <circle className={EXTEND.shape} cx={x} cy={y} r={r} />
+        <circle className={shape} cx={x} cy={y} r={r} />
       )}
-      <line className={EXTEND.plus} x1={x - HANDLE.plus} x2={x + HANDLE.plus} y1={y} y2={y} />
-      <line className={EXTEND.plus} x1={x} x2={x} y1={y - HANDLE.plus} y2={y + HANDLE.plus} />
+      {sizing ? (
+        <>
+          <line className={EXTEND.arrow} x1={x - ARROW.reach} x2={x + ARROW.reach} y1={y} y2={y} />
+          <path className={EXTEND.arrow} d={chevronAt(x, y, 1)} />
+          <path className={EXTEND.arrow} d={chevronAt(x, y, -1)} />
+        </>
+      ) : (
+        <>
+          <line className={EXTEND.plus} x1={x - HANDLE.plus} x2={x + HANDLE.plus} y1={y} y2={y} />
+          <line className={EXTEND.plus} x1={x} x2={x} y1={y - HANDLE.plus} y2={y + HANDLE.plus} />
+        </>
+      )}
     </g>
   )
 }

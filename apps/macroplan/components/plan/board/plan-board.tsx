@@ -1,8 +1,7 @@
 import { railLayout } from '@repo/canvas'
+import type { BoardWrites } from '../table/table-writes'
 import type { DayRange, PlanScale, Rung } from '@repo/canvas'
 import { attentionOf } from '../attention/attention'
-import type { FeaturePlace } from '../canvas/drag-root'
-import type { ExtendWrites } from '../canvas/extend-write'
 import { PlanCanvas } from '../canvas/plan-canvas'
 import type { Counted } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
@@ -18,7 +17,7 @@ import { TimeHeader } from './time-header'
 import { canvasWidth } from '../canvas/view'
 
 /** Props for {@link PlanBoard}. */
-export interface PlanBoardProps {
+export interface PlanBoardProps extends Omit<BoardWrites, 'adds'> {
   readonly plan: PlanScreenModel
 
   readonly at: Date
@@ -30,11 +29,6 @@ export interface PlanBoardProps {
   readonly rung: Rung
 
   readonly progress: Counted
-
-  readonly place: FeaturePlace | null
-
-  /** The writes a draw from a mark's own end sends (`canvas/extend-root.tsx`). */
-  readonly draw: ExtendWrites
 
   /** Whether a rail row may be dragged to reorder the rails. */
   readonly mayReorder: boolean
@@ -69,7 +63,7 @@ export interface PlanBoardProps {
  * dimming on a keystroke from growing with the plan.
  */
 export function PlanBoard(props: PlanBoardProps) {
-  const { plan, at, range, scale, rung, progress, place, draw, root, routes } = props
+  const { plan, at, range, scale, rung, progress, place, draw, size, root, routes } = props
   const rails = boardRails(plan, railLayout(plan, plan.schedule, scale), attentionOf(plan))
   const width = canvasWidth(scale, range)
   return (
@@ -103,6 +97,7 @@ export function PlanBoard(props: PlanBoardProps) {
             <PlanCanvas
               at={at}
               draw={draw}
+              size={size}
               hrefOf={(featureId) => routes.feature(root, featureId)}
               place={place}
               plan={plan}

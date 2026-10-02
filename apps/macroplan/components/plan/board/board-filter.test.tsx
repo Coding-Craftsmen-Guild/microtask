@@ -28,6 +28,7 @@ const board = () => {
       draw={NO_WRITES}
       mayReorder={false}
       place={null}
+    size={{ estimateFeature: null, estimateItem: null }}
       plan={plan}
       progress={[]}
       range={axis.range}

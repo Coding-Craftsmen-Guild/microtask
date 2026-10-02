@@ -1,18 +1,17 @@
 import type { Rung } from '@repo/canvas'
+import type { CreateWrites } from './create-write'
+import type { BoardWrites } from '../table/table-writes'
 import type { ReactNode } from 'react'
 import { planAxis } from '../canvas/zoom-view'
-import type { FeaturePlace } from '../canvas/drag-root'
-import type { ExtendWrites } from '../canvas/extend-write'
 import type { Counted } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
 import { CreateRoot } from './create-root'
 import { CreateStrip } from './create-strip'
-import type { CreateWrites } from './create-write'
 import { PlanBoard } from './plan-board'
 
 /** Props for {@link TimelinePanel}. */
-export interface TimelinePanelProps {
+export interface TimelinePanelProps extends BoardWrites {
   readonly plan: PlanScreenModel
 
   readonly at: Date
@@ -21,11 +20,6 @@ export interface TimelinePanelProps {
 
   readonly progress: Counted
 
-  readonly place: FeaturePlace | null
-
-  /** The writes a draw from a mark's own end sends. */
-  readonly draw: ExtendWrites
-
   /** The features with no bar, under the board. */
   readonly tray: ReactNode
 
@@ -33,9 +27,6 @@ export interface TimelinePanelProps {
   readonly root: string
 
   readonly routes: DrawerRoutes
-
-  /** The four writes the Add strip's drops make, each `null` where this viewer may not make it. */
-  readonly adds: CreateWrites
 
   /** The hue to propose for a dropped rail, chosen on the server from how many the plan holds. */
   readonly nextRailColour: string
@@ -65,14 +56,15 @@ export const anyAdd = (adds: CreateWrites): boolean =>
  * silent. A seat that may add nothing gets exactly the board, which is what it had.
  */
 export function TimelinePanel(props: TimelinePanelProps) {
-  const { plan, at, zoom, progress, place, draw, tray, root, routes, adds, nextRailColour } = props
+  const { plan, at, zoom, progress, place, draw, size, tray, root, routes, adds, nextRailColour } = props
   const axis = planAxis(plan, at, zoom)
   const board = (
     <PlanBoard
       at={at}
       draw={draw}
-      mayReorder={adds.reorderEpic !== null}
       place={place}
+      size={size}
+      mayReorder={adds.reorderEpic !== null}
       plan={plan}
       progress={progress}
       range={axis.range}

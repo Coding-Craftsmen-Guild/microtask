@@ -3,7 +3,8 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import type { ActionResult } from '../../../actions/result'
 import { DRAWN_NAMES, type Draft } from './extend-view'
 
-type Answer = Promise<ActionResult<Plan>>
+/** What every write on this board answers: the whole recomputed plan, or a refusal. */
+export type Answer = Promise<ActionResult<Plan>>
 
 /** Every write a draw on the board can make, each `null` where this surface may not make it. */
 export interface ExtendWrites {

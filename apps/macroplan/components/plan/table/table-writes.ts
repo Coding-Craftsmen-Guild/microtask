@@ -1,4 +1,6 @@
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
+import type { FeaturePlace } from '../canvas/drag-places'
+import type { SizeWrites } from '../canvas/size-write'
 import type { TableWrites } from './plan-table'
 import type { CreateWrites } from '../board/create-write'
 import type { ExtendWrites } from '../canvas/extend-write'
@@ -52,6 +54,26 @@ export const addsFor = (
 })
 
 /**
+ * The two writes a **resize** sends, each gated on its own capability.
+ *
+ * Beside {@link drawsFor} and not inside it, because they are a different gesture under different
+ * permissions: Ctrl held over a mark resizes what is there, where a plain drag of a handle creates
+ * something new (`canvas/size-write.ts`). A seat may hold either without the other, and one record would
+ * make that one answer.
+ *
+ * @param actions - Every write, or `null` for a surface with no credential at all.
+ * @param content - What this surface may do.
+ * @returns One record per action, `null` where it may not.
+ */
+export const sizesFor = (
+  actions: PlanEditActions | null,
+  content: PlanContentControls,
+): SizeWrites => ({
+  estimateFeature: actions !== null && content.estimateFeature ? actions.estimateFeature : null,
+  estimateItem: actions !== null && content.estimateItem ? actions.estimateItem : null,
+})
+
+/**
  * The writes a draw from a mark's own end sends, each gated on its own capability.
  *
  * Six actions rather than the two creates, because one gesture makes a whole piece of work: the create,
@@ -79,3 +101,40 @@ export const drawsFor = (
     setDependencies: may(content.setDependencies, (held) => held.setDependencies),
   }
 }
+
+/** Every write the board surface holds, assembled once so a caller cannot hand over some and not others. */
+export interface BoardWrites {
+  /** What the Add strip drops, which is a draw's writes plus the two a rail needs. */
+  readonly adds: CreateWrites
+
+  /** What a draw from a mark's own end sends. */
+  readonly draw: ExtendWrites
+
+  /** What a dragged bar's drop sends, or `null` where this surface may not move one. */
+  readonly place: FeaturePlace | null
+
+  /** What a Ctrl-held drag of a mark's end sends. */
+  readonly size: SizeWrites
+}
+
+/**
+ * The four, gated together.
+ *
+ * One record rather than four props threaded side by side, because they are one question — what may this
+ * surface change about the board — and four separate hand-overs are four chances to add a gesture and
+ * forget to pass the write that makes it work. Each member is still gated on its own capability, so the
+ * grouping is in the plumbing and never in the permissions.
+ *
+ * @param actions - Every write, or `null` for a surface with no credential at all.
+ * @param content - What this surface may do.
+ * @returns The four records, each with `null` wherever a capability is absent.
+ */
+export const boardWritesFor = (
+  actions: PlanEditActions | null,
+  content: PlanContentControls,
+): BoardWrites => ({
+  adds: addsFor(actions, content),
+  draw: drawsFor(actions, content),
+  place: actions !== null && content.placeFeature ? actions.placeFeature : null,
+  size: sizesFor(actions, content),
+})

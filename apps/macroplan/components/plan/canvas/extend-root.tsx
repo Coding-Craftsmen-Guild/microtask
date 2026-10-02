@@ -5,6 +5,8 @@ import { DRAW } from './extend-css'
 import { ExtendGhost } from './extend-ghost'
 import { ExtendOverlay } from './extend-overlay'
 import type { ExtendWrites } from './extend-write'
+import { SizeGhost } from './size-ghost'
+import type { SizeWrites } from './size-write'
 import { useExtend } from './use-extend'
 
 /** Props for {@link ExtendRoot}. */
@@ -41,6 +43,12 @@ export interface ExtendRootProps {
 
   /** Put a feature in a group. */
   readonly labelFeature: ExtendWrites['labelFeature']
+
+  /** Re-estimate a feature, which is what a Ctrl-held drag of its end writes. */
+  readonly estimateFeature: SizeWrites['estimateFeature']
+
+  /** Re-estimate an item, the same gesture on the marks beneath it. */
+  readonly estimateItem: SizeWrites['estimateItem']
 }
 
 /**
@@ -79,11 +87,13 @@ export function ExtendRoot(props: ExtendRootProps) {
       placeItem: props.placeItem,
       setDependencies: props.setDependencies,
     },
+    sizes: { estimateFeature: props.estimateFeature, estimateItem: props.estimateItem },
   })
   return (
     <div
       className={DRAW.root}
       data-drawing={draw.aim === null ? undefined : ''}
+      data-sizing={draw.sizing ? '' : undefined}
       data-slot="extend-root"
       onPointerCancel={draw.cancel}
       onPointerLeave={draw.cancel}
@@ -93,7 +103,8 @@ export function ExtendRoot(props: ExtendRootProps) {
       ref={draw.frame}
     >
       {children}
-      <ExtendOverlay box={draw.box} hovered={draw.hovered} onBegin={draw.begin} />
+      <ExtendOverlay box={draw.box} hovered={draw.hovered} onBegin={draw.begin} sizing={draw.sizing} />
+      {draw.size === null ? null : <SizeGhost aim={draw.size} box={draw.box} scale={draw.scale} />}
       {draw.aim === null ? null : (
         <ExtendGhost
           aim={draw.aim}
