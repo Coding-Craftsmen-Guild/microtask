@@ -224,14 +224,24 @@ describe('clicking a mark at a rung that is not the finest', () => {
 })
 
 describe('the card a hover puts up', () => {
-  it('draws the title and every line the mark carried', () => {
+  it('draws the context, the title, every fact and the dates the mark carried', () => {
     show()
     fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
     const detail = splitDetail(detailOf(FEATURE_1))
+    expect(card()?.textContent).toContain(detail.context)
     expect(card()?.textContent).toContain(detail.title)
-    for (const line of detail.lines) {
-      expect(card()?.textContent, line.label).toContain(line.value)
+    for (const fact of detail.facts) {
+      expect(card()?.textContent, fact.label).toContain(fact.value)
     }
+  })
+
+  // The one line on the card that is not a fact about the plan, and it earns its place: a bar is a
+  // link with `tabIndex={-1}` inside a `role="img"`, so nothing else on the board says that pointing
+  // at a mark and clicking it opens the thing.
+  it('promises that clicking opens it, which nothing else on the board says', () => {
+    show()
+    fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
+    expect(card()?.textContent).toContain('Click to open')
   })
 
   it('shows the item’s own card over an item tick, not the feature’s', () => {
@@ -267,7 +277,7 @@ describe('the card a hover puts up', () => {
   it('wraps a long title onto another line rather than cutting it off at the card’s edge', () => {
     show()
     fireEvent.pointerOver(at('[data-slot="feature-bar"]'), { clientX: 100, clientY: 100 })
-    const title = card()?.querySelector('p')
+    const title = card()?.querySelector('[data-slot="hover-title"]')
     expect(title?.className).not.toContain('truncate')
     expect(title?.className).toContain('break-words')
     expect(title?.textContent).toBe(splitDetail(detailOf(FEATURE_1)).title)

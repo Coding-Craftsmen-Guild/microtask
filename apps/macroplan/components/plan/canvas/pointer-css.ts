@@ -75,9 +75,16 @@ export const POINTER_CSS = `${SHAPES}{opacity:1;stroke-width:2.5px}`
  * and `break-words` is what keeps an unspaced id from pushing past that.
  */
 export const CARD = {
-  root: 'pointer-events-none fixed z-50 max-w-80 rounded-md border border-border bg-background px-3 py-2 text-[12px] shadow-lg',
-  title: 'mb-1 break-words text-[13px] font-semibold text-foreground',
-  rows: 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5',
-  label: 'text-muted-foreground',
-  value: 'text-foreground',
+  root: 'pointer-events-none fixed z-50 w-[300px] overflow-hidden rounded-[10px] border border-border bg-background shadow-[0_12px_32px_rgba(46,36,86,.16),0_2px_6px_rgba(0,0,0,.06)]',
+  head: 'px-3 pt-2.5 pb-2',
+  context: 'flex items-center gap-1.5 text-[11px] text-muted-foreground',
+  dot: 'inline-block size-2 shrink-0 rounded-full',
+  title: 'mt-0.5 text-[14px] leading-[1.3] font-semibold break-words text-foreground',
+  facts: 'grid grid-cols-3 border-t border-border bg-sprint-alt px-3 py-2',
+  fact: 'min-w-0',
+  label: 'text-[10px] font-semibold tracking-[0.05em] text-label uppercase',
+  value: 'truncate text-[13px] font-medium text-foreground',
+  footer: 'flex items-center justify-between gap-2 border-t border-border px-3 py-1.5',
+  dates: 'text-[11px] tabular-nums text-muted-foreground',
+  open: 'shrink-0 text-[11px] font-medium text-brand',
 } as const

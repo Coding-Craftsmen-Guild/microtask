@@ -13,6 +13,19 @@
  * while the class beside it set the same property and won. The hue lands once on the group as
  * `--mark-hue`, and the classes below spend it. A bar is one element and takes `hueStyle` directly.
  *
+ * ### Why every label lets the pointer through
+ *
+ * A label covers most of the mark it names, and a pointer over it has to reach that mark. The hover
+ * root finds what is under the pointer by walking up from the event's target to the nearest element
+ * carrying a detail — and an item's detail is on the **rect**, not on a wrapper, so a `<text>` drawn
+ * over it is a sibling rather than a descendant. A hover that landed on the words therefore found
+ * nothing, and the card went missing over exactly the part of a bar a reader aims at.
+ *
+ * `pointer-events-none` is the whole fix and costs nothing, because no label is a target for
+ * anything: the mark under it is the link and the drag handle both. It is the same declaration the
+ * hover card and the drag ghost already carry, for the same reason — a thing drawn over the board
+ * must not stand between the pointer and the board.
+ *
  * ### What `[data-lit]` does
  *
  * Nothing here but on the line's rule, where the lit width is a different number. The hover sheet
@@ -29,8 +42,8 @@
 export const LINE = {
   rule: 'stroke-[var(--mark-hue)] stroke-2 [[data-lit]>&]:stroke-[3]',
   diamond: 'fill-[var(--mark-hue)] [stroke:#fff] stroke-[1.5]',
-  plate: 'fill-background',
-  label: 'fill-[var(--mark-ink)] text-[10.5px] font-semibold [dominant-baseline:auto]',
+  plate: 'pointer-events-none fill-background',
+  label: 'pointer-events-none fill-[var(--mark-ink)] text-[10.5px] font-semibold [dominant-baseline:auto]',
 } as const
 
 /**
@@ -46,5 +59,5 @@ export const LINE = {
  * scanner reads class names as text, and the one it cannot see is the one it emits no CSS for.
  */
 export const ITEM = {
-  label: 'text-[12px] font-medium [dominant-baseline:auto]',
+  label: 'pointer-events-none text-[12px] font-medium [dominant-baseline:auto]',
 } as const

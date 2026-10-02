@@ -770,3 +770,35 @@ describe('how far across the pane each layer is drawn', () => {
     expect(canvas.getAttribute('class')).toContain('w-full')
   })
 })
+
+// The defect that shipped the moment the canvas started writing text again. A label covers most of the
+// mark it names; the hover root walks up from the event's target to the nearest element carrying a
+// detail, and an **item's** detail is on the rect rather than on a wrapper — so a `<text>` over it is a
+// sibling, not a descendant, and a hover that landed on the words found nothing. The card went missing
+// over exactly the part of a bar a reader aims at.
+//
+// It is asserted as the declaration rather than as a dispatched hover, and that is a real limit worth
+// stating: `happy-dom` dispatches an event straight at the target it is given, so a pointer event aimed
+// at the text would reach it whether or not a browser would have let it through. The class is the thing
+// a test here can see; the browser is where the gesture was found broken and checked fixed.
+describe('the labels the canvas writes over its own marks', () => {
+  it('lets a pointer through every one of them, so a hover on a name still reaches its mark', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const labels = [...only('[data-slot="plan-canvas"]').querySelectorAll('text')]
+    expect(labels.length).toBeGreaterThan(0)
+    for (const label of labels) {
+      expect(label.getAttribute('class') ?? '', label.textContent ?? '').toContain(
+        'pointer-events-none',
+      )
+    }
+  })
+
+  it('keeps the plate under a feature’s label out of the way too, it being just as wide', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="item" />)
+    const plates = [...only('[data-slot="plan-canvas"]').querySelectorAll('.fill-background')]
+    expect(plates.length).toBeGreaterThan(0)
+    for (const plate of plates) {
+      expect(plate.getAttribute('class') ?? '').toContain('pointer-events-none')
+    }
+  })
+})
