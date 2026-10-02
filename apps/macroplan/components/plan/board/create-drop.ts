@@ -1,22 +1,25 @@
 import type { FeatureBar, RailBox } from '@repo/canvas'
 import { LAYOUT } from '../canvas/view'
 
-/** Where a pointer is over the canvas, in the canvas's own pixels: its left edge is x zero. */
+/** A point on the canvas, in the canvas's own coordinates. */
 export interface CanvasPoint {
+  /** How far across, in px. */
   readonly x: number
 
+  /** How far down, in px. */
   readonly y: number
 }
 
 /**
- * Which lane a y falls in, or `null` for a y past the last one.
+ * Which lane a point is in, or `null` for a point past the last rail.
  *
- * `Math.floor` and not a round, because a lane is a band and a point is in exactly one of them. The
- * canvas's own chrome height is zero — the dates are an HTML row above it — so lane zero starts at
- * the canvas's own top and the division needs no offset.
+ * A **floor**, because a lane is a band and a point is inside exactly one of them. Past the last rail is
+ * `null` rather than the last lane: a drop below the plan is a drop on the page, and answering it with the
+ * bottom rail would put work on a rail nobody pointed at.
  *
- * Past the last lane is `null` and not the last lane. A drop below the plan is a drop on the page,
- * and answering it with the bottom rail would put work on a rail nobody pointed at.
+ * @param y - How far down the canvas.
+ * @param rails - How many there are.
+ * @returns The lane, or `null`.
  */
 export const laneAt = (y: number, rails: number): number | null => {
   const lane = Math.floor(y / LAYOUT.railHeight)
@@ -24,51 +27,80 @@ export const laneAt = (y: number, rails: number): number | null => {
 }
 
 /**
- * Where a new rail goes for a y: the gap it is nearest, counted from zero.
+ * Which gap between rails a point is nearest, which is where a rail lands.
  *
- * A **round** where {@link laneAt} floors, and that difference is the whole of what a rail drop is:
- * a feature lands *on* a lane and an epic lands *between* two, so one asks which band a point is
- * inside and the other which boundary it is nearest. Dropping halfway down rail two therefore
- * inserts above or below it depending on which half, which is what the 3px line drawn at that
- * boundary is saying.
+ * A **round** where {@link laneAt} floors, and that difference is the whole of what a rail drop is: a
+ * feature lands on a lane and a rail lands between two. Clamped at both ends, so a drop above the first
+ * inserts at the top and one below the last appends.
  *
- * Clamped to the ends, so a drop above the first rail inserts at the top and one below the last
- * appends — both of which are real answers, where a lane past the end is not.
+ * @param y - How far down the canvas.
+ * @param rails - How many there are.
+ * @returns A gap index, from 0 to the number of rails.
  */
 export const gapAt = (y: number, rails: number): number =>
   Math.min(Math.max(Math.round(y / LAYOUT.railHeight), 0), rails)
 
-/** The y a gap's insertion line is drawn at, which is the boundary it names. */
+/** Where a gap's insertion line is drawn. */
 export const gapY = (gap: number): number => gap * LAYOUT.railHeight
 
-/** The y a lane's own band opens at. */
+/** Where a lane's top edge is. */
 export const laneY = (lane: number): number => lane * LAYOUT.railHeight
 
 /**
- * The feature under a point on one rail, or `null` where the point is on bare lane.
+ * Which feature a day falls inside, or `null` for a day in the space between them.
  *
- * Half-open on the right — `startDay` inclusive, `endDay` exclusive — which is the convention every
- * `…Day` in `@repo/canvas` keeps and the reason consecutive features on a rail abut exactly rather
- * than overlapping on one day. A point on the boundary between two features is therefore in the
- * second, consistently, rather than in whichever the search happened to reach first.
+ * Half-open on the right, so a point on a boundary is in the feature that opens there rather than in the
+ * one that closes.
  *
- * It reads the **drawn** bars and not the rail's `featureIds`: a feature with no estimate has no bar,
- * occupies no days, and cannot be the thing a pointer is over.
+ * @param rail - The rail being dropped on.
+ * @param day - The day under the pointer.
+ * @returns The bar, or `null`.
  */
 export const featureAt = (rail: RailBox, day: number): FeatureBar | null =>
   rail.bars.find((bar) => day >= bar.startDay && day < bar.endDay) ?? null
 
 /**
- * Which sprint a working day falls in, floored at zero.
+ * The feature a drop is near the **end** of, which is what makes a dropped feature follow another.
  *
- * Floored because a drop can land left of day zero — the canvas is bled and the axis origin is the
- * plan's own first working day — and a negative pin is not a sprint. It is the same arithmetic
- * `sprintOf` does in `@repo/schedule`, written here over a day the drop already holds rather than
- * reached for through a calendar: this is the one number a drop needs and it needs no zone to get it.
+ * "Near" is a window in days rather than in pixels, so the gesture means the same thing at every zoom: a
+ * drop a day and a half past the end of a feature is a drop that said *after this one*, whether that is
+ * six pixels or sixty. Only the end counts — a drop near a feature's start is a drop in the middle of
+ * whatever comes before it, and that is already an ordinary drop.
  *
- * @param day - The working day the drop landed on.
- * @param sprintLengthDays - The plan's own sprint length.
- * @returns The sprint index to pin to, counted from zero as the API counts them.
+ * @param rail - The rail being dropped on.
+ * @param day - The day under the pointer.
+ * @param within - How many days past an end still counts as after it.
+ * @returns The bar to follow, or `null`.
  */
+export const afterOn = (rail: RailBox, day: number, within: number): FeatureBar | null =>
+  rail.bars.find((bar) => day >= bar.endDay && day < bar.endDay + within) ?? null
+
+/** Which sprint a day is in, counted from zero and never negative. */
 export const sprintAt = (day: number, sprintLengthDays: number): number =>
   Math.max(Math.floor(day / sprintLengthDays), 0)
+
+/** One item of a feature as the board drew it, which is all a drop needs to order itself among them. */
+export interface ItemSlot {
+  /** The item. */
+  readonly id: string
+
+  /** Its left edge, in canvas coordinates. */
+  readonly x: number
+
+  /** Its width. */
+  readonly width: number
+}
+
+/**
+ * Where among a feature's items a drop lands: before the first one whose middle is right of the pointer.
+ *
+ * Middles rather than edges, because the question a reader is answering is "which gap", and the nearest
+ * gap to a pointer inside a bar is the one the pointer is in the half nearer to. A drop past every item
+ * appends, which is what an empty feature answers too.
+ *
+ * @param x - The pointer, in canvas coordinates.
+ * @param items - The feature's items, in the order the board drew them.
+ * @returns A position among them.
+ */
+export const insertAt = (x: number, items: readonly ItemSlot[]): number =>
+  items.filter((item) => item.x + item.width / 2 <= x).length

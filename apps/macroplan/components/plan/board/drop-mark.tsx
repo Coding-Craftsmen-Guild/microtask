@@ -5,52 +5,47 @@ import type { Aim } from './create-aim'
 
 const CHIP_LIFT = 6
 
+const TICK_WIDTH = 3
+
 /** Props for {@link DropMark}. */
 export interface DropMarkProps {
-  /** Where the drop would land, or `null` while nothing is over the board. */
+  /** What the drag is pointing at, or `null` while nothing is over the board. */
   readonly aim: Aim | null
 }
 
+const paintOf = (aim: Aim): string => {
+  if (aim.mark.shape !== 'box') return DROP_MARK.line
+  return aim.refused ? DROP_MARK.refused : DROP_MARK.box
+}
+
+const sizeOf = (aim: Aim): { readonly width: number | string; readonly height?: number } => {
+  if (aim.mark.shape === 'line') return { width: '100%' }
+  if (aim.mark.shape === 'tick') return { height: LAYOUT.itemHeight, width: TICK_WIDTH }
+  return { height: LAYOUT.barHeight, width: aim.mark.width }
+}
+
 /**
- * The line or box drawn where a drop would land, with a chip saying what it would make.
+ * The preview under a drag: a line between rails, a box on a lane, or a tick between two items.
  *
- * ### Why the offsets are constants and not a measurement
+ * Three shapes because there are three answers. A **line** spans both columns, since inserting a rail is
+ * about the plan's own order rather than about any day. A **box** is two days wide where a feature would
+ * land. A **tick** is the 3px marker an item slots in at — the gap it would take, drawn at item height so
+ * it reads against the items either side of it rather than over the whole lane.
  *
- * The mark is positioned in the **canvas's** own pixels, and it is drawn in a box that wraps the
- * whole board — so every y gains the header's height and every x the rail column's width to reach the
- * same place on screen. Both are constants this module imports from the one place that declares them
- * (`./board-css.ts`), which is what keeps the preview and the thing it is previewing in step without
- * either measuring the other. `happy-dom` measures nothing, so a layout that needed a measurement
- * here would be a layout no test could check at all.
- *
- * ### Why an epic's line crosses both columns
- *
- * It is drawn from x zero, across the rail names as well as the canvas, because a rail is a row of
- * both and inserting one inserts a name as much as a lane. A line that stopped at the column's edge
- * would say the new rail was going on the canvas only.
- *
- * ### Why the chip is above the mark
- *
- * Under it, it would cover the next lane down — which at a 44px lane is the thing the reader is
- * trying to aim between. Above it, the one case it covers is the lane the drop is already on.
+ * A refused drop is drawn in red with its reason rather than hidden, because a drag that stops previewing
+ * reads as a board that has stopped responding.
  */
 export function DropMark({ aim }: DropMarkProps) {
   if (aim === null) return null
-  const line = aim.mark.shape === 'line'
   const top = HEADER_HEIGHT + aim.mark.y
-  const left = line ? 0 : RAIL_WIDTH + aim.mark.x
+  const left = aim.mark.shape === 'line' ? 0 : RAIL_WIDTH + aim.mark.x
   return (
     <>
       <span
-        className={line ? DROP_MARK.line : aim.refused ? DROP_MARK.refused : DROP_MARK.box}
+        className={paintOf(aim)}
         data-refused={aim.refused ? '' : undefined}
         data-slot="drop-mark"
-        style={{
-          top,
-          left,
-          width: line ? '100%' : aim.mark.width,
-          height: line ? undefined : LAYOUT.barHeight,
-        }}
+        style={{ ...sizeOf(aim), left, top }}
       />
       <span
         className={DROP_MARK.chip}

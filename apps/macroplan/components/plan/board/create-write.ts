@@ -1,40 +1,36 @@
-import type { NewEpic, NewFeature, NewItem, Plan } from '@repo/api-client'
+import type { NewEpic, Plan } from '@repo/api-client'
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import type { ActionResult } from '../../../actions/result'
+import { writeDraw, type ExtendWrites } from '../canvas/extend-write'
 import type { AimTarget } from './create-aim'
-import { CREATE_NAMES, DROPPED_ESTIMATE } from './create-kinds'
+import { CREATE_NAMES } from './create-kinds'
 
 type Answer = Promise<ActionResult<Plan>>
 
 /**
- * The four writes a drop can make, each `null` where this viewer may not make it.
+ * Every write a drop on the board can make.
  *
- * Four flat members and not a `PlanEditActions`, which is the rule the boundary states: a client
- * component may be handed primitives, unbound functions and `null`, and seventeen writes reachable
- * from a drop handler is sixteen more than it has any business with — the argument
- * `drawer/field.ts` makes for `SubjectWrite`, at the size this gesture actually needs.
- *
- * `reorderEpic` is here beside `createEpic` because the create route has no position in it: a rail is
- * appended, and the drop is about **where**. So an epic drop is two calls and says so, rather than a
- * create that quietly lands somewhere other than where the line was drawn.
+ * It is {@link ExtendWrites} plus the two about rails, and that is not a coincidence: a feature dropped
+ * from the strip and a feature drawn from a mark's end are the same piece of work made two ways, so they
+ * end in the same five calls. Only a rail is this record's own — nothing is ever *drawn* into a rail.
  */
-export interface CreateWrites {
+export interface CreateWrites extends ExtendWrites {
+  /** Add a rail to the plan. */
   readonly createEpic: ((planId: string, epic: NewEpic) => Answer) | null
 
+  /** Move a rail to a position among the others. */
   readonly reorderEpic: ((planId: string, epicId: string, railOrder: number) => Answer) | null
-
-  readonly createFeature: ((planId: string, feature: NewFeature) => Answer) | null
-
-  readonly createItem: ((planId: string, item: NewItem) => Answer) | null
 }
 
-/** Everything a drop needs beyond where it landed: which plan, what it may write, and a hue. */
+/** One drop: the plan, the writes this surface holds, and the hue a new rail would take. */
 export interface DropContext {
+  /** The plan every write is addressed at. */
   readonly planId: string
 
+  /** The actions, each `null` where this surface may not make it. */
   readonly writes: CreateWrites
 
-  /** The hue to propose for a new rail, chosen on the server from how many the plan holds. */
+  /** The next hue in the palette, which a new rail is created with. */
   readonly colour: string
 }
 
@@ -53,53 +49,30 @@ const addEpic = async (gap: number, context: DropContext): Promise<void> => {
   await orNoAnswer(reorderEpic)(context.planId, added, gap)
 }
 
+const moveRail = async (epicId: string, gap: number, context: DropContext): Promise<void> => {
+  const { reorderEpic } = context.writes
+  if (reorderEpic === null || epicId === '') return
+  await orNoAnswer(reorderEpic)(context.planId, epicId, gap)
+}
+
 /**
- * Makes whatever a drop landed on, through the actions the surface handed in.
+ * What a release on the board writes.
  *
- * ### Why a feature is pinned to the sprint it was dropped in
+ * Four gestures and three paths: a new rail is a create and then a move, because the route appends and the
+ * line was drawn somewhere; an existing rail is the move alone; and everything else is a piece of work,
+ * which `canvas/extend-write.ts` already knows how to make. Sharing that path is what makes a feature
+ * dropped after another one carry the dependency and the group, which is the same thing a feature drawn
+ * from that feature's end does.
  *
- * A pin is a **floor** and never a date: it can delay a feature and can never move one earlier. So
- * pinning to the dropped sprint says exactly what the gesture meant — *not before here* — and the
- * schedule still has the last word about where the bar lands. Dropping in a sprint earlier than the
- * rail's own next free day is therefore a no-op on the position rather than a contradiction, which is
- * the behaviour a reader gets anyway and the one the pin field already documents.
+ * A step this surface may not take is skipped rather than refusing the drop: a reader who may create a rail
+ * but not reorder one gets it at the bottom, which is the honest outcome of what they hold.
  *
- * ### Why a dropped feature gets an item and an estimate
- *
- * A feature with no estimate has no bar: it lands in the unscheduled tray, which is the one place a
- * reader who has just dropped something onto the board will not look for it. The estimate is on the
- * **feature** and the item carries the same number, which is the shape `estimateFeature` and
- * `createItem` already produce between them — a feature's own estimate is what the forward pass uses
- * until its children outweigh it (ADR 0051).
- *
- * ### Why nothing is written for a refused aim
- *
- * The caller checks `refused` before reaching here, and `none` is handled anyway: a drop with nowhere
- * to land writes nothing at all rather than guessing at a nearest rail. §6's rule — "there is no
- * packing algorithm and nothing is ever auto-moved" — applies as much to a thing being made as to one
- * being dragged.
- *
- * @param target - What the aim resolved to.
- * @param context - The plan, what may be written, and the hue for a new rail.
+ * @param target - What the aim said this release would do.
+ * @param context - The plan, the writes and the palette.
  */
 export async function writeDrop(target: AimTarget, context: DropContext): Promise<void> {
-  const { createFeature, createItem } = context.writes
   if (target.kind === 'epic') return addEpic(target.gap, context)
-  if (target.kind === 'feature') {
-    if (createFeature === null) return
-    await orNoAnswer(createFeature)(context.planId, {
-      epicId: target.epicId,
-      name: CREATE_NAMES.feature,
-      estimateDays: DROPPED_ESTIMATE,
-      pinSprint: target.sprint,
-    })
-    return
-  }
-  if (target.kind === 'item' && createItem !== null) {
-    await orNoAnswer(createItem)(context.planId, {
-      featureId: target.featureId,
-      name: CREATE_NAMES.item,
-      estimateDays: DROPPED_ESTIMATE,
-    })
-  }
+  if (target.kind === 'rail') return moveRail(target.epicId, target.gap, context)
+  if (target.kind === 'none') return
+  await writeDraw({ ...target.draft, planId: context.planId }, context.writes)
 }

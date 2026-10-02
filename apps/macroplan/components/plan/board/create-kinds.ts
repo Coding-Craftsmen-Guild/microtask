@@ -1,29 +1,49 @@
-/** The three things the Add strip makes, which is the whole hierarchy a plan holds. */
+/** What a pill on the Add strip makes when it is dropped on the board. */
 export type CreateKind = 'epic' | 'feature' | 'item'
 
-/** The order the strip offers them in: outermost first, which is how the plan nests. */
+/** The three pills, in the order they are offered: outside in, biggest first. */
 export const CREATE_KINDS: readonly CreateKind[] = ['epic', 'feature', 'item']
 
 /**
- * The `dataTransfer` type a dragged pill is carried under.
+ * Everything the board accepts a drop of, which is the three creates plus a rail being moved.
  *
- * A custom MIME type rather than `text/plain`, so that a drag from somewhere else — a word selected
- * in another tab, a file from the desktop — does not look like a pill to the board's drop handler.
- * `dataTransfer.types.includes` is readable during `dragover`, where the **value** is deliberately
- * not: the platform withholds payloads until the drop, so a drop target may know what kind of thing
- * is coming only by the type it is offered under. That is the whole reason the kind is in the type
- * and not in the data.
+ * A rail drag is the odd one out and deliberately in the same list: it lands in a **gap** between rails
+ * exactly as a new epic does, draws the same insertion line, and is answered by the same drop handler. The
+ * only difference is which write it ends in, so keeping them apart would have meant two of everything
+ * between the pointer and that choice.
  */
-export const DRAG_TYPE = 'application/x-macroplan-add'
+export type DragKind = CreateKind | 'rail'
 
-/** The same, one type per kind, so the drop knows what it was given before it is given it. */
-export const dragTypeOf = (kind: CreateKind): string => `${DRAG_TYPE}+${kind}`
+const DRAG_TYPE = 'application/x-macroplan-add'
 
-/** Which kind a `dataTransfer`'s types name, or `null` for a drag that is not one of these. */
-export const kindOfTypes = (types: readonly string[]): CreateKind | null =>
-  CREATE_KINDS.find((kind) => types.includes(dragTypeOf(kind))) ?? null
+/** The drag type a rail row carries, which is what makes a reorder legible to the board's drop root. */
+export const RAIL_DRAG_TYPE = 'application/x-macroplan-move+rail'
 
-/** What each pill says, and what the strip calls itself. */
+/**
+ * The MIME-ish type one kind of drag announces itself with.
+ *
+ * A type and not a payload, because `dataTransfer.getData` is **unreadable during a drag**: the browser
+ * only hands the data over on the drop, so anything the preview needs has to be in the type itself. What
+ * the preview needs is the kind, and nothing more.
+ *
+ * @param kind - What is being dragged.
+ * @returns The type to set on the drag and to look for while it is over the board.
+ */
+export const dragTypeOf = (kind: DragKind): string =>
+  kind === 'rail' ? RAIL_DRAG_TYPE : `${DRAG_TYPE}+${kind}`
+
+const DRAG_KINDS: readonly DragKind[] = [...CREATE_KINDS, 'rail']
+
+/**
+ * Which kind of drag is over the board, read off the types it carries.
+ *
+ * @param types - `dataTransfer.types`, which is readable throughout a drag.
+ * @returns The kind, or `null` for a drag that is none of this board's business.
+ */
+export const kindOfTypes = (types: readonly string[]): DragKind | null =>
+  DRAG_KINDS.find((kind) => types.includes(dragTypeOf(kind))) ?? null
+
+/** What the strip and its three pills are called. */
 export const CREATE_WORDS = {
   add: 'ADD',
   epic: 'Epic',
@@ -32,31 +52,21 @@ export const CREATE_WORDS = {
 } as const
 
 /**
- * What the hint says while nothing is being dragged, and while each kind is.
+ * The sentence under the strip, which changes as soon as something is picked up.
  *
- * The idle sentence names the gestures this strip is the only sign of, which is the whole reason the
- * strip has a hint at all: a pill that can be dragged somewhere looks exactly like a button, and the
- * board it is dragged onto gives no sign of taking a drop until something is over it.
- *
- * Each dragging sentence says **where** the drop lands rather than what it makes, because the pill in
- * the pointer already says what it makes. They are what a reader has instead of a tooltip, and they
- * change the moment a drag starts rather than the moment it is over something — a hint that only
- * appears once you are already in the right place is a hint for somebody who did not need it.
+ * One per kind, because what a drop means is different for each: a rail lands between two rails, a feature
+ * on a lane at a day, an item inside a feature. The idle line is what the strip says the rest of the time.
  */
-export const CREATE_HINTS: Readonly<Record<'idle' | CreateKind, string>> = {
-  idle: 'Drag a pill onto the board to add it. Click a rail’s name to open it, or its swatch to light that lane.',
+export const CREATE_HINTS: Readonly<Record<'idle' | DragKind, string>> = {
+  idle: 'Drag a pill onto the board to add it, or a rail by its grip to reorder the rails. Click a rail’s name to open it, or its swatch to light that lane.',
   epic: 'Drop between two rails to insert a new epic there, or below them all to add one at the end.',
-  feature: 'Drop on a rail, at the sprint you want it to start in. Its sprint is a floor, not a date.',
-  item: 'Drop inside a feature. It is added at the end of that feature’s items.',
+  feature:
+    'Drop on a rail. Near the end of a feature it goes after it and takes its group; anywhere else it starts in the sprint you dropped it in.',
+  item: 'Drop inside a feature. It lands between the items under the pointer.',
+  rail: 'Drop between two rails to move this one there.',
 }
 
-/**
- * What each newly dropped thing is called before anybody has named it.
- *
- * A name and not an empty one, because `EntityName` refuses empty and because a drop that produced a
- * nameless row would be a row a reader has to guess the purpose of. The drawer the drop opens is
- * where it gets its real name, with the field already on screen.
- */
+/** What a dropped thing is called before anybody renames it. */
 export const CREATE_NAMES: Readonly<Record<CreateKind, string>> = {
   epic: 'New epic',
   feature: 'New feature',
@@ -64,10 +74,13 @@ export const CREATE_NAMES: Readonly<Record<CreateKind, string>> = {
 }
 
 /**
- * How many days of work a dropped feature and its first item are given.
+ * How long a dropped piece of work is, in days.
  *
- * Two, because a feature with no estimate has no bar at all — it lands in the unscheduled tray, which
- * is the one place a reader who has just dropped something on the board will not look for it. Two
- * working days is the smallest span wide enough to see at every stop.
+ * Two days rather than one, because a one-day bar at Quarter zoom is four pixels wide and a reader who
+ * has just made something needs to see where it landed. It is an estimate like any other and the panel's
+ * stepper is next to it.
  */
 export const DROPPED_ESTIMATE = 2
+
+/** How near the end of a feature a drop has to be to land after it, in working days. */
+export const AFTER_WITHIN = 1.5

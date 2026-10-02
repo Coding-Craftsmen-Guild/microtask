@@ -10,11 +10,22 @@ const UNCLAIMED = 'Unclaimed rail'
 
 const GRIP = '⋮⋮'
 
+const REORDER = 'Drag to reorder the rails'
+
 const features = (count: number): string => (count === 1 ? '1 feature' : `${String(count)} features`)
 
 /** Props for {@link RailColumn}. */
 export interface RailColumnProps {
   readonly root: string
+
+  /**
+   * Whether a row may be dragged to reorder the rails.
+   *
+   * An attribute and nothing more: `dragstart` bubbles, so the board's own drop root sets the drag type
+   * and remembers which rail it was (`./create-root.tsx`). That is what keeps this column a Server
+   * Component with forty rows in it and no islands.
+   */
+  readonly mayReorder: boolean
 
   readonly routes: DrawerRoutes
 
@@ -53,7 +64,7 @@ export interface RailColumnProps {
  * was, kept because it is the one gesture on this page that answers *read this lane against the
  * others*.
  */
-export function RailColumn({ root, routes, rails }: RailColumnProps) {
+export function RailColumn({ root, routes, rails, mayReorder }: RailColumnProps) {
   return (
     <div className={RAIL_ROW.column} data-slot="rail-names" style={{ width: RAIL_WIDTH }}>
       {rails.map((rail) => (
@@ -62,10 +73,11 @@ export function RailColumn({ root, routes, rails }: RailColumnProps) {
           data-epic-id={rail.id}
           data-search={rail.search}
           data-slot="rail-row"
+          draggable={mayReorder}
           key={rail.id}
           style={{ height: LAYOUT.railHeight }}
         >
-          <span aria-hidden="true" className={RAIL_ROW.grip}>
+          <span aria-hidden="true" className={RAIL_ROW.grip} title={mayReorder ? REORDER : undefined}>
             {GRIP}
           </span>
           <input className="sr-only" id={railRadioId(rail.id)} name="plan-selection" type="radio" />

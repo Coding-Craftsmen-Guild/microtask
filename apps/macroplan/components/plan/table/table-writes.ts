@@ -46,10 +46,9 @@ export const addsFor = (
   actions: PlanEditActions | null,
   content: PlanContentControls,
 ): CreateWrites => ({
+  ...drawsFor(actions, content),
   createEpic: actions !== null && content.createEpic ? actions.createEpic : null,
   reorderEpic: actions !== null && content.reorderEpic ? actions.reorderEpic : null,
-  createFeature: actions !== null && content.createFeature ? actions.createFeature : null,
-  createItem: actions !== null && content.createItem ? actions.createItem : null,
 })
 
 /**

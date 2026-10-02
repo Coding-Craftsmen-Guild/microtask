@@ -716,9 +716,9 @@ const TREES = [
   // The rail column inside the board, which is the admin surface's whole navigation now. Rendered from
   // the **railed** plan so it paints a rail with features, a rail with none and the rail no epic claims
   // — three row states the Atlas fixture has only one of.
-  <RailColumn key="l" rails={RAILED} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} />,
+  <RailColumn key="l" mayReorder rails={RAILED} root={PLAN_A} routes={ADMIN_DRAWER_ROUTES} />,
   // And as the seat surface mounts it, where a rail is a heading rather than a link.
-  <RailColumn key="l3" rails={RAILED} root={SEAT_TOKEN} routes={SEAT_DRAWER_ROUTES} />,
+  <RailColumn key="l3" mayReorder={false} rails={RAILED} root={SEAT_TOKEN} routes={SEAT_DRAWER_ROUTES} />,
   // The board's own filter, which is the one client component in that column's own chrome. It takes two
   // strings, which is why it needs no tree of its own the way RailFields does.
   <BoardFilter hint="Filter rails and features" key="bf" label="Filter rails and features by name" />,
@@ -733,11 +733,17 @@ const TREES = [
     createItem={STUB_ACTIONS.createItem}
     gutter={0}
     key="cr"
+    labelFeature={STUB_ACTIONS.labelFeature}
     nextRailColour="#3355ff"
+    placeFeature={STUB_ACTIONS.placeFeature}
+    placeItem={STUB_ACTIONS.placeItem}
     planId={PLAN_A}
     pxPerDay={14}
     reorderEpic={STUB_ACTIONS.reorderEpic}
+    setDependencies={STUB_ACTIONS.setDependencies}
     sprintLengthDays={10}
+    startDate='2026-09-28'
+    timezone='Europe/Belgrade'
   >
     <p>the board</p>
   </CreateRoot>,

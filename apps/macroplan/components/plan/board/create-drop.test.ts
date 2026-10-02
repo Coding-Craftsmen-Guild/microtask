@@ -1,7 +1,7 @@
 import type { RailBox } from '@repo/canvas'
 import { describe, expect, it } from 'vitest'
 import { LAYOUT } from '../canvas/view'
-import { featureAt, gapAt, gapY, laneAt, laneY, sprintAt } from './create-drop'
+import { afterOn, featureAt, gapAt, gapY, insertAt, laneAt, laneY, sprintAt } from './create-drop'
 
 const bar = (id: string, startDay: number, endDay: number) => ({
   id,
@@ -96,5 +96,57 @@ describe('which sprint a dropped day pins to', () => {
   it('floors at sprint zero for a drop left of the plan’s first day', () => {
     expect(sprintAt(-1, 10)).toBe(0)
     expect(sprintAt(-40, 10)).toBe(0)
+  })
+})
+
+// A drop a day and a half past the end of a feature is a drop that said *after this one*. The window is
+// days rather than pixels, so the gesture means the same thing at Sprint zoom and at Year zoom.
+describe('which feature a drop lands after', () => {
+  const lane = rail(bar('F1', 0, 4), bar('F2', 10, 14))
+
+  it('answers the feature whose end the drop is just past', () => {
+    expect(afterOn(lane, 4, 1.5)?.id).toBe('F1')
+    expect(afterOn(lane, 5, 1.5)?.id).toBe('F1')
+    expect(afterOn(lane, 14.5, 1.5)?.id).toBe('F2')
+  })
+
+  it('answers nothing past the window, that being an ordinary drop on empty rail', () => {
+    expect(afterOn(lane, 6, 1.5)).toBeNull()
+    expect(afterOn(lane, 9, 1.5)).toBeNull()
+  })
+
+  // A drop *inside* a feature is already a drop in the middle of that feature's days, and answering it
+  // with "after the one before it" would move work a reader pointed somewhere else.
+  it('answers nothing for a drop inside a feature, only an end counting', () => {
+    expect(afterOn(lane, 0, 1.5)).toBeNull()
+    expect(afterOn(lane, 3, 1.5)).toBeNull()
+    expect(afterOn(lane, 12, 1.5)).toBeNull()
+  })
+
+  it('answers nothing on a rail with no bars on it at all', () => {
+    expect(afterOn(rail(), 4, 1.5)).toBeNull()
+  })
+})
+
+describe('where among a feature’s items a drop lands', () => {
+  const slots = [
+    { id: 'I1', x: 0, width: 20 },
+    { id: 'I2', x: 20, width: 20 },
+    { id: 'I3', x: 40, width: 20 },
+  ]
+
+  // Middles rather than edges: the nearest gap to a pointer inside a bar is the one the pointer is in
+  // the half nearer to.
+  it('counts the items whose middle the pointer is past', () => {
+    expect(insertAt(0, slots)).toBe(0)
+    expect(insertAt(9, slots)).toBe(0)
+    expect(insertAt(11, slots)).toBe(1)
+    expect(insertAt(31, slots)).toBe(2)
+    expect(insertAt(51, slots)).toBe(3)
+  })
+
+  it('appends for a pointer past every item, and for a feature with none', () => {
+    expect(insertAt(500, slots)).toBe(3)
+    expect(insertAt(0, [])).toBe(0)
   })
 })

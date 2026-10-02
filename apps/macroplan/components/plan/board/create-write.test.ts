@@ -1,6 +1,7 @@
-import type { NewEpic, NewFeature, NewItem, Plan } from '@repo/api-client'
+import type { NewEpic, Plan } from '@repo/api-client'
 import { describe, expect, it, vi } from 'vitest'
 import { atlasPlan, EPIC_1, FEATURE_1, PLAN_A } from '../testing/plan-fixture'
+import type { Draft } from '../canvas/extend-view'
 import { CREATE_NAMES, DROPPED_ESTIMATE } from './create-kinds'
 import { writeDrop, type CreateWrites } from './create-write'
 
@@ -17,23 +18,39 @@ const doubles = () => ({
   createEpic: vi.fn<(planId: string, epic: NewEpic) => Promise<{ ok: true; value: Plan }>>(() =>
     Promise.resolve({ ok: true, value: withRail() }),
   ),
+  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  labelFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  placeFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  placeItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
   reorderEpic: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  createFeature: vi.fn<(planId: string, feature: NewFeature) => Promise<{ ok: true; value: Plan }>>(
-    () => Promise.resolve({ ok: true, value: atlasPlan() }),
-  ),
-  createItem: vi.fn<(planId: string, item: NewItem) => Promise<{ ok: true; value: Plan }>>(() =>
-    Promise.resolve({ ok: true, value: atlasPlan() }),
-  ),
+  setDependencies: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
 })
 
 const contextOf = (writes: CreateWrites) => ({ planId: PLAN_A, writes, colour: '#0e9f6e' })
 
 const NOTHING: CreateWrites = {
   createEpic: null,
-  reorderEpic: null,
   createFeature: null,
   createItem: null,
+  labelFeature: null,
+  placeFeature: null,
+  placeItem: null,
+  reorderEpic: null,
+  setDependencies: null,
 }
+
+const draft = (over: Partial<Draft> = {}): Draft => ({
+  days: DROPPED_ESTIMATE,
+  edge: 'none',
+  epicId: EPIC_1,
+  featureId: FEATURE_1,
+  kind: 'feature',
+  labelId: '',
+  position: 0,
+  sprint: 1,
+  ...over,
+})
 
 describe('a dropped epic', () => {
   it('is created with the hue the server proposed, then moved to the gap the line was drawn at', async () => {
@@ -57,66 +74,75 @@ describe('a dropped epic', () => {
   it('writes nothing at all for a viewer who may not create one', async () => {
     const writes = doubles()
     await writeDrop({ kind: 'epic', gap: 1 }, contextOf({ ...writes, createEpic: null }))
-    expect(writes.createEpic).not.toHaveBeenCalled()
     expect(writes.reorderEpic).not.toHaveBeenCalled()
   })
 })
 
-describe('a dropped feature', () => {
-  // A pin is a **floor** and never a date, so pinning to the dropped sprint says exactly what the
-  // gesture meant — not before here — and the schedule still has the last word about where it lands.
+// A rail dragged by its grip, which lands in the same gaps a new epic does and is one call rather than two:
+// the rail already exists, so there is nothing to create.
+describe('a rail moved to another gap', () => {
+  it('is reordered to the gap the line was drawn at', async () => {
+    const writes = doubles()
+    await writeDrop({ kind: 'rail', epicId: EPIC_1, gap: 2 }, contextOf(writes))
+    expect(writes.reorderEpic).toHaveBeenCalledExactlyOnceWith(PLAN_A, EPIC_1, 2)
+    expect(writes.createEpic).not.toHaveBeenCalled()
+  })
+
+  it('writes nothing for a viewer who may not reorder one', async () => {
+    const writes = doubles()
+    await writeDrop({ kind: 'rail', epicId: EPIC_1, gap: 2 }, contextOf({ ...writes, reorderEpic: null }))
+    expect(writes.createEpic).not.toHaveBeenCalled()
+  })
+
+  // A drag the root never saw a dragstart for, which is a drag from somewhere else entirely.
+  it('writes nothing where the drag named no rail', async () => {
+    const writes = doubles()
+    await writeDrop({ kind: 'rail', epicId: '', gap: 2 }, contextOf(writes))
+    expect(writes.reorderEpic).not.toHaveBeenCalled()
+  })
+})
+
+// Work dropped from the strip and work drawn from a mark's end are the same piece of work made two ways, so
+// both end in `canvas/extend-write.ts`. What this file checks is the handover; that module's own test holds
+// the five calls it makes.
+describe('dropped work, which is the same write as drawn work', () => {
   it('lands on the rail it was dropped on, pinned to the sprint it was dropped in', async () => {
     const writes = doubles()
-    await writeDrop({ kind: 'feature', epicId: EPIC_1, sprint: 3 }, contextOf(writes))
+    await writeDrop({ kind: 'work', draft: draft({ sprint: 3 }) }, contextOf(writes))
     expect(writes.createFeature).toHaveBeenCalledWith(PLAN_A, {
       epicId: EPIC_1,
-      name: CREATE_NAMES.feature,
       estimateDays: DROPPED_ESTIMATE,
+      name: CREATE_NAMES.feature,
       pinSprint: 3,
     })
   })
 
-  // A feature with no estimate has no bar: it lands in the unscheduled tray, which is the one place a
-  // reader who has just dropped something onto the board will not look for it.
-  it('is given an estimate, so it has a bar rather than a row in the tray', async () => {
+  it('adds an item to the feature it was dropped inside, at the position it was dropped at', async () => {
     const writes = doubles()
-    await writeDrop({ kind: 'feature', epicId: EPIC_1, sprint: 0 }, contextOf(writes))
-    const sent = writes.createFeature.mock.calls[0]?.[1]
-    expect(sent?.estimateDays).toBeGreaterThan(0)
-  })
-
-  it('writes nothing for a viewer who may not create one', async () => {
-    const writes = doubles()
-    await writeDrop({ kind: 'feature', epicId: EPIC_1, sprint: 0 }, contextOf({ ...writes, createFeature: null }))
-    expect(writes.createFeature).not.toHaveBeenCalled()
-  })
-})
-
-describe('a dropped item', () => {
-  it('is added to the feature it was dropped inside, at the end of that feature', async () => {
-    const writes = doubles()
-    await writeDrop({ kind: 'item', featureId: FEATURE_1 }, contextOf(writes))
+    await writeDrop(
+      { kind: 'work', draft: draft({ kind: 'item', position: 1, sprint: null }) },
+      contextOf(writes),
+    )
     expect(writes.createItem).toHaveBeenCalledWith(PLAN_A, {
+      estimateDays: DROPPED_ESTIMATE,
       featureId: FEATURE_1,
       name: CREATE_NAMES.item,
-      estimateDays: DROPPED_ESTIMATE,
     })
+    expect(writes.createFeature).not.toHaveBeenCalled()
   })
 
   it('writes nothing for a viewer who may not create one', async () => {
     const writes = doubles()
-    await writeDrop({ kind: 'item', featureId: FEATURE_1 }, contextOf({ ...writes, createItem: null }))
-    expect(writes.createItem).not.toHaveBeenCalled()
+    await writeDrop({ kind: 'work', draft: draft() }, contextOf({ ...writes, createFeature: null }))
+    expect(writes.placeFeature).not.toHaveBeenCalled()
   })
 })
 
-// §6: "there is no packing algorithm and nothing is ever auto-moved". A drop with nowhere to land
-// writes nothing at all rather than guessing at a nearest rail.
-describe('a drop with nowhere to land', () => {
+describe('a drop the aim refused', () => {
   it('writes nothing, even where every action is offered', async () => {
     const writes = doubles()
     await writeDrop({ kind: 'none' }, contextOf(writes))
-    for (const call of Object.values(writes)) expect(call).not.toHaveBeenCalled()
+    expect(Object.values(writes).every((one) => one.mock.calls.length === 0)).toBe(true)
   })
 
   it('writes nothing where no action is offered either, rather than throwing', async () => {

@@ -36,6 +36,9 @@ export interface PlanBoardProps {
   /** The writes a draw from a mark's own end sends (`canvas/extend-root.tsx`). */
   readonly draw: ExtendWrites
 
+  /** Whether a rail row may be dragged to reorder the rails. */
+  readonly mayReorder: boolean
+
   readonly root: string
 
   readonly routes: DrawerRoutes
@@ -95,7 +98,7 @@ export function PlanBoard(props: PlanBoardProps) {
           />
         </div>
         <div className={BOARD.bodyRow}>
-          <RailColumn rails={rails} root={root} routes={routes} />
+          <RailColumn mayReorder={props.mayReorder} rails={rails} root={root} routes={routes} />
           <div className={BOARD.canvas}>
             <PlanCanvas
               at={at}

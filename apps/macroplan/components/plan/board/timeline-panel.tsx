@@ -43,7 +43,10 @@ export interface TimelinePanelProps {
 
 /** Whether any of the three pills is offered at all, which is what decides the strip exists. */
 export const anyAdd = (adds: CreateWrites): boolean =>
-  adds.createEpic !== null || adds.createFeature !== null || adds.createItem !== null
+  adds.createEpic !== null ||
+  adds.createFeature !== null ||
+  adds.createItem !== null ||
+  adds.reorderEpic !== null
 
 /**
  * The timeline as a whole: what can be added, the board it is added to, and what has no bar.
@@ -68,6 +71,7 @@ export function TimelinePanel(props: TimelinePanelProps) {
     <PlanBoard
       at={at}
       draw={draw}
+      mayReorder={adds.reorderEpic !== null}
       place={place}
       plan={plan}
       progress={progress}
@@ -91,11 +95,17 @@ export function TimelinePanel(props: TimelinePanelProps) {
         createFeature={adds.createFeature}
         createItem={adds.createItem}
         gutter={axis.scale.gutter}
+        labelFeature={adds.labelFeature}
         nextRailColour={nextRailColour}
+        placeFeature={adds.placeFeature}
+        placeItem={adds.placeItem}
         planId={plan.id}
         pxPerDay={axis.scale.pxPerDay}
         reorderEpic={adds.reorderEpic}
+        setDependencies={adds.setDependencies}
         sprintLengthDays={plan.sprintLengthDays}
+        startDate={plan.startDate}
+        timezone={plan.timezone}
       >
         {board}
       </CreateRoot>

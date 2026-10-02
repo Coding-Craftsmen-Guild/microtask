@@ -1,136 +1,106 @@
-import { dayToX, widthOfDays, xToDay } from '@repo/canvas'
-import type { PlanScale } from '@repo/canvas'
-import { LAYOUT } from '../canvas/view'
+import { xToDay, type PlanScale } from '@repo/canvas'
+import type { PlanCalendar } from '@repo/schedule'
+import type { Draft } from '../canvas/extend-view'
 import { railsFrom } from '../canvas/selection'
-import { featureAt, gapAt, gapY, laneAt, laneY, sprintAt, type CanvasPoint } from './create-drop'
-import { CREATE_NAMES, DROPPED_ESTIMATE, type CreateKind } from './create-kinds'
+import { laneAt, type CanvasPoint } from './create-drop'
+import { CREATE_NAMES, type DragKind } from './create-kinds'
+import { featureAim, gapAim, itemAim, refusedOn, type Landing } from './create-work'
 
-/** The two numbers a drop is read against: how wide a day is, and how long a sprint is. */
+/** What a drop is measured against: the scale it is drawn at and the calendar its days belong to. */
 export interface DropAxis {
+  /** What a day is worth in px. */
   readonly scale: PlanScale
 
-  readonly sprintLengthDays: number
+  /** The plan's calendar, for the sprint a drop pins to and the date its chip says. */
+  readonly calendar: PlanCalendar
+
+  /**
+   * The rail being dragged, or '' for every other kind of drag.
+   *
+   * It rides here because a rail's own id is the one thing about a drag that the **types** cannot carry:
+   * `dataTransfer` hands over its data only on the drop, and a type is lowercased, which a ULID is not
+   * (`./create-kinds.ts`). The root remembers it from the dragstart it saw bubble past.
+   */
+  readonly railId: string
 }
 
-/** What a drop would make, once the pointer has told it where. */
+/** What a release will do, which is the only thing `./create-write.ts` is handed. */
 export type AimTarget =
   | { readonly kind: 'epic'; readonly gap: number }
-  | { readonly kind: 'feature'; readonly epicId: string; readonly sprint: number }
-  | { readonly kind: 'item'; readonly featureId: string }
+  | { readonly kind: 'rail'; readonly epicId: string; readonly gap: number }
+  | { readonly kind: 'work'; readonly draft: Draft }
   | { readonly kind: 'none' }
 
-/** The mark drawn where a drop would land: a line between lanes, or a box on one. */
+/** The preview: a line between rails, a box on a lane, or a tick between two items. */
 export type AimMark =
   | { readonly shape: 'line'; readonly y: number }
   | { readonly shape: 'box'; readonly x: number; readonly y: number; readonly width: number }
+  | { readonly shape: 'tick'; readonly x: number; readonly y: number }
 
-/** Everything the board draws and does for one pointer position during a drag. */
+/** Everything a drag over the board shows and would do. */
 export interface Aim {
-  readonly kind: CreateKind
+  /** What is being dragged. */
+  readonly kind: DragKind
 
-  /** What the chip over the mark says, which is where the drop lands in words. */
+  /** The sentence over the preview. */
   readonly chip: string
 
+  /** The preview itself. */
   readonly mark: AimMark
 
-  /**
-   * Whether this position has nowhere to drop.
-   *
-   * A refused aim still draws — in red, and with a chip saying what is wrong — rather than drawing
-   * nothing. A preview that disappears when the pointer is in the wrong place is indistinguishable
-   * from a board that has stopped listening, and the one thing a reader needs at that moment is to be
-   * told which of the two it is.
-   */
+  /** Whether this drop would do nothing, which is drawn in red rather than hidden. */
   readonly refused: boolean
 
+  /** What a release writes. */
   readonly target: AimTarget
 }
 
-const boxAt = (x: number, lane: number, width: number): AimMark => ({
-  shape: 'box',
-  x,
-  y: laneY(lane) + LAYOUT.barTop,
-  width,
-})
-
-const epicAim = (point: CanvasPoint, rails: number): Aim => {
-  const gap = gapAt(point.y, rails)
-  return {
-    kind: 'epic',
-    chip: `${CREATE_NAMES.epic} goes here`,
-    mark: { shape: 'line', y: gapY(gap) },
-    refused: false,
-    target: { kind: 'epic', gap },
-  }
-}
-
-const NOWHERE: AimTarget = { kind: 'none' }
-
-const refusedOn = (kind: CreateKind, point: CanvasPoint, chip: string): Aim => ({
-  kind,
-  chip,
-  mark: boxAt(point.x, Math.max(Math.floor(point.y / LAYOUT.railHeight), 0), LAYOUT.railHeight),
-  refused: true,
-  target: NOWHERE,
-})
+const ON_A_RAIL = 'Drop on a rail'
 
 /**
- * Where a drop would land, and what to draw there.
+ * What a drag over the board is pointing at, and what it would do if it were released now.
  *
- * ### Why the rails are read back off the canvas
+ * ### One function, four gestures
  *
- * `railsFrom` rebuilds the whole `RailBox[]` out of the SVG the server drew, which is what
- * `canvas/selection.ts` already does for the bar drag and for the reason it records: a client
- * component may be handed primitives, an unbound function or `null` and nothing else, so the layout
- * cannot cross as a prop and the plan it came from may not cross at all. It is also the better
- * answer rather than merely the permitted one — the drop is resolved against *what is on screen*.
+ * A rail and a new epic both land in the **gap** between two rails, so both answer a line and a chip. A
+ * feature lands on a lane, at a sprint or after the feature it was dropped past. An item lands between two
+ * of a feature's items. The preview and the write come out of the same pass, which is what keeps them from
+ * disagreeing — a chip that says "after Auth rewrite" over a drop that lands somewhere else is the failure
+ * this shape makes unreachable.
  *
- * ### The three kinds ask three different questions
+ * ### Why a feature near an end follows it
  *
- * An epic lands **between** lanes, so it asks which boundary the pointer is nearest. A feature lands
- * **on** one, so it asks which band the pointer is inside. An item lands **in a feature**, so it asks
- * that and then which bar on that lane holds the day. `./create-drop.ts` is each of those as a
- * function over numbers, which is where they can be checked.
+ * Dropping a feature a day past the end of another one is how a reader says "and then this". The window is
+ * measured in **days** rather than pixels, so it means the same thing at every zoom, and what it writes is
+ * the dependency as well as the position: the two features are then ordered by the schedule rather than by
+ * where the bar happened to land (`./create-drop.ts`).
  *
- * @param kind - Which pill is being dragged.
- * @param point - Where the pointer is, in the canvas's own pixels.
- * @param canvas - The server-rendered SVG, read for its rails.
- * @param axis - The scale the canvas was drawn at, and the plan's sprint length.
- * @returns What to draw and what to write, or a refusal that still draws.
+ * ### Why a refused drop is drawn
+ *
+ * An item dropped outside every feature draws a red box and the reason, rather than nothing: a drag that
+ * stops previewing reads as a board that has stopped responding.
+ *
+ * @param kind - What is being dragged.
+ * @param point - Where the pointer is, in canvas coordinates.
+ * @param canvas - The SVG, which the rails and the marks are read from.
+ * @param axis - The scale and the calendar.
+ * @returns The preview and the write, together.
  */
-export function aimedAt(
-  kind: CreateKind,
-  point: CanvasPoint,
-  canvas: Element,
-  axis: DropAxis,
-): Aim {
+export function aimedAt(kind: DragKind, point: CanvasPoint, canvas: Element, axis: DropAxis): Aim {
   const rails = railsFrom(canvas)
-  if (kind === 'epic') return epicAim(point, rails.length)
+  const gap = { kind, point, railId: axis.railId, rails: rails.length }
+  if (kind === 'epic') return gapAim({ ...gap, chip: `${CREATE_NAMES.epic} goes here` })
+  if (kind === 'rail') return gapAim({ ...gap, chip: 'Move this rail here' })
   const lane = laneAt(point.y, rails.length)
   const rail = lane === null ? undefined : rails[lane]
-  if (lane === null || rail === undefined) return refusedOn(kind, point, 'Drop on a rail')
-  const day = xToDay(point.x, axis.scale)
-  if (kind === 'feature') {
-    const sprint = sprintAt(day, axis.sprintLengthDays)
-    return {
-      kind,
-      chip: `${CREATE_NAMES.feature} · S${String(sprint + 1)}`,
-      mark: boxAt(
-        dayToX(sprint * axis.sprintLengthDays, axis.scale),
-        lane,
-        widthOfDays(DROPPED_ESTIMATE, axis.scale),
-      ),
-      refused: false,
-      target: { kind, epicId: rail.epicId, sprint },
-    }
+  if (lane === null || rail === undefined) return refusedOn(kind, point, ON_A_RAIL)
+  const on: Landing = {
+    axis,
+    canvas,
+    day: xToDay(point.x, axis.scale),
+    epicId: rail.epicId,
+    lane,
+    point,
   }
-  const bar = featureAt(rail, day)
-  if (bar === null) return refusedOn(kind, point, 'Drop inside a feature')
-  return {
-    kind,
-    chip: `${CREATE_NAMES.item} at the end`,
-    mark: boxAt(bar.x, lane, bar.width),
-    refused: false,
-    target: { kind, featureId: bar.id },
-  }
+  return kind === 'feature' ? featureAim(on) : itemAim(on)
 }

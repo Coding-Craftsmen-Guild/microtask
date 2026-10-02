@@ -1,134 +1,113 @@
 'use client'
 
-import { scaleFor } from '@repo/canvas'
-import { useRef, useState } from 'react'
-import type { DragEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { DROP_MARK } from './create-css'
-import { aimedAt, type Aim } from './create-aim'
-import { kindOfTypes } from './create-kinds'
-import { writeDrop, type CreateWrites } from './create-write'
+import type { CreateWrites } from './create-write'
 import { DropMark } from './drop-mark'
-
-const CANVAS = '[data-slot="plan-canvas"]'
+import { useDrop } from './use-drop'
 
 /** Props for {@link CreateRoot}. */
 export interface CreateRootProps {
-  /** The board, server-rendered, handed through untouched. */
+  /** The board, which is server-rendered and only listened over. */
   readonly children: ReactNode
 
   /** The plan every write is addressed at. */
   readonly planId: string
 
-  /** The scale's px per working day, the same number the canvas was drawn at. */
+  /** What a day is worth in px. */
   readonly pxPerDay: number
 
-  /** The scale's left inset, which with `pxPerDay` is the whole of a `PlanScale`. */
+  /** The gutter before day zero. */
   readonly gutter: number
 
-  /** The plan's own sprint length, which turns a dropped day into a pin. */
+  /** The plan's first working day. */
+  readonly startDate: string
+
+  /** How many working days a sprint holds. */
   readonly sprintLengthDays: number
 
-  /** The hue to propose for a dropped rail, chosen on the server from how many there already are. */
+  /** The zone the dates are read in. */
+  readonly timezone: string
+
+  /** The hue a dropped rail would take. */
   readonly nextRailColour: string
 
-  /**
-   * The four writes a drop can make, **flat**, each `null` where this viewer may not make it.
-   *
-   * Four props and not one `CreateWrites`, because this is the boundary: every prop of a client
-   * component is serialised into the Flight payload, and `../module-boundaries.test.tsx` admits
-   * primitives, unbound functions and markup on `children` — an object of any kind is refused there by
-   * shape, which is the check that would have caught a plan or a seat list riding in beside them.
-   * `ShareManager` is flat for the same reason and says so. They are regrouped into one record on this
-   * side of the line, where the record is a local value rather than a thing that crossed.
-   */
+  /** Add a rail. */
   readonly createEpic: CreateWrites['createEpic']
 
-  /** Moves a dropped rail to the gap the line was drawn at; see `./create-write.ts`. */
+  /** Move a rail, which is both what a dropped new rail needs and what a dragged one is. */
   readonly reorderEpic: CreateWrites['reorderEpic']
 
-  /** Adds a feature to the rail a pill was dropped on. */
+  /** Add a feature. */
   readonly createFeature: CreateWrites['createFeature']
 
-  /** Adds an item to the feature a pill was dropped inside. */
+  /** Add an item. */
   readonly createItem: CreateWrites['createItem']
+
+  /** Order a feature on its rail. */
+  readonly placeFeature: CreateWrites['placeFeature']
+
+  /** Order an item in its feature. */
+  readonly placeItem: CreateWrites['placeItem']
+
+  /** Set a feature's dependencies, for work dropped after another feature. */
+  readonly setDependencies: CreateWrites['setDependencies']
+
+  /** Put a feature in a group, so work dropped after another joins its group. */
+  readonly labelFeature: CreateWrites['labelFeature']
 }
 
 /**
- * The board, and what happens when one of the strip's pills is let go of over it.
+ * The board as a drop target: the preview while a drag is over it, and the write when it lands.
  *
- * ### What it measures, and why it has to
+ * ### Why the whole board and not each rail
  *
- * One rectangle: the canvas's own, read on `dragover`. `DragRoot` inside it measures nothing at all
- * and says why — a drag it starts has an **anchor**, so every position is `anchor + delta`. A drop
- * from outside the board has no anchor; the only thing the platform offers is a client point, and
- * turning that into a working day needs to know where the canvas's left edge is.
+ * A drop is answered in the board's own coordinates — which lane, which day, which gap between two rails —
+ * so one listener over the canvas is the shape that question has. Per-rail targets would each have to know
+ * where they are, and a drag between two of them would land on neither.
  *
- * So ADR 0055's warning applies in full: `happy-dom` answers `getBoundingClientRect` with a zero
- * `DOMRect`, so no test here can tell a correct conversion from one off by the board's own offset.
- * `./create-drop.ts` holds every decision that *can* be checked — which lane, which gap, which
- * feature, which sprint — as functions over numbers, and what is left here is the subtraction.
- * **This is the browser-verification item this change hands forward:** drag each pill onto the board
- * and check the preview lands under the pointer rather than offset from it.
+ * ### Why a rail being dragged is handled here too
  *
- * ### Why `dragover` must cancel
- *
- * A target that does not `preventDefault` its `dragover` is not a drop target: the platform's default
- * is to refuse, and refusing is silent. That one line is the difference between pills that can be
- * picked up and pills that can be let go of. It is called only for a drag this board knows — a file
- * dragged in from the desktop is left to the browser rather than swallowed.
- *
- * ### Why the kind is in the `dataTransfer` **type**
- *
- * A drag's payload is withheld until the drop, so `dragover` can read only what it is offered under.
- * `./create-kinds.ts` carries why that makes the kind a MIME type: the preview has to know a whole
- * gesture before the drop does.
+ * `dragstart` bubbles, so a rail row needs no JavaScript of its own: the row carries `draggable` and this
+ * root sets the drag type and remembers which rail it was. That keeps the rail column a Server Component —
+ * forty rows, no islands — and it is why the id travels in a ref rather than in the drag's data, which the
+ * browser refuses to hand over until the drop (`./create-kinds.ts`).
  */
 export function CreateRoot(props: CreateRootProps) {
-  const { children, planId, pxPerDay, gutter, sprintLengthDays, nextRailColour } = props
-  const frame = useRef<HTMLDivElement>(null)
-  const [aim, setAim] = useState<Aim | null>(null)
-  const writes: CreateWrites = {
-    createEpic: props.createEpic,
-    reorderEpic: props.reorderEpic,
-    createFeature: props.createFeature,
-    createItem: props.createItem,
-  }
-
-  const aimFor = (event: DragEvent<HTMLDivElement>): Aim | null => {
-    const kind = kindOfTypes([...event.dataTransfer.types])
-    const canvas = frame.current?.querySelector(CANVAS) ?? null
-    if (kind === null || canvas === null) return null
-    const box = canvas.getBoundingClientRect()
-    const point = { x: event.clientX - box.left, y: event.clientY - box.top }
-    return aimedAt(kind, point, canvas, { scale: scaleFor({ pxPerDay, gutter }), sprintLengthDays })
-  }
-
-  const over = (event: DragEvent<HTMLDivElement>): void => {
-    const next = aimFor(event)
-    if (next === null) return
-    event.preventDefault()
-    setAim(next)
-  }
-
-  const land = (event: DragEvent<HTMLDivElement>): void => {
-    const landed = aimFor(event)
-    setAim(null)
-    if (landed === null) return
-    event.preventDefault()
-    if (!landed.refused) void writeDrop(landed.target, { planId, writes, colour: nextRailColour })
-  }
-
+  const { children, planId, pxPerDay, gutter, nextRailColour } = props
+  const drop = useDrop({
+    calendar: {
+      sprintLengthDays: props.sprintLengthDays,
+      startDate: props.startDate,
+      timezone: props.timezone,
+    },
+    colour: nextRailColour,
+    gutter,
+    planId,
+    pxPerDay,
+    writes: {
+      createEpic: props.createEpic,
+      createFeature: props.createFeature,
+      createItem: props.createItem,
+      labelFeature: props.labelFeature,
+      placeFeature: props.placeFeature,
+      placeItem: props.placeItem,
+      reorderEpic: props.reorderEpic,
+      setDependencies: props.setDependencies,
+    },
+  })
   return (
     <div
       className={DROP_MARK.root}
       data-slot="create-root"
-      onDragLeave={() => setAim(null)}
-      onDragOver={over}
-      onDrop={land}
-      ref={frame}
+      onDragLeave={drop.leave}
+      onDragOver={drop.over}
+      onDragStart={drop.grab}
+      onDrop={drop.land}
+      ref={drop.frame}
     >
       {children}
-      <DropMark aim={aim} />
+      <DropMark aim={drop.aim} />
     </div>
   )
 }
