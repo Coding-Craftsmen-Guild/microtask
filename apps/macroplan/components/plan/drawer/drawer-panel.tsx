@@ -2,12 +2,10 @@ import type { ReactNode } from 'react'
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
-import { CreateControls } from './create-controls'
-import { DrawerEdits } from './drawer-edits'
-import { DrawerFacts } from './drawer-facts'
-import { KINDS, nameOf } from './drawer-heading'
-import { DRAWER, DrawerBody, DrawerHead, DrawerScrim, TITLE_ID } from './drawer-dock'
-import { DrawerManage } from './drawer-manage'
+import { nameOf } from './drawer-heading'
+import { DrawerDock, PanelTab } from './drawer-dock'
+import { PANEL_GRID } from './panel-css'
+import { ChildrenColumn, IdentityColumn, ManageColumn, type PanelParts } from './panel-columns'
 import type { DrawerValues } from './values'
 
 /** Props for {@link DrawerPanel}. */
@@ -71,6 +69,16 @@ export interface DrawerPanelProps {
 
   /** What is wrong with this subject, as a callout over its fields. Nothing when it is fine. */
   readonly attention: ReactNode
+
+  /**
+   * The subject's own hue, for the marker on its tab, or `''` where nothing colours it.
+   *
+   * The same rule the canvas paints a mark with — a group's colour where there is one, the rail's
+   * where there is not — resolved by the page rather than here, because this panel is handed a row
+   * and a set of values and neither holds a palette. It is a string and not a lookup so that nothing
+   * about the plan crosses into the tab for the sake of one dot.
+   */
+  readonly colour: string
 }
 
 /**
@@ -151,50 +159,31 @@ export interface DrawerPanelProps {
  * `rows.ts` refuses the same split for the same reason.
  */
 export function DrawerPanel(props: DrawerPanelProps) {
-  const { link, planId, row, values, description, controls, actions, closeHref } = props
-  const { attention } = props
+  const { link, row, closeHref, attention } = props
+  const parts: PanelParts = {
+    planId: props.planId,
+    row,
+    values: props.values,
+    description: props.description,
+    controls: props.controls,
+    actions: props.actions,
+    closeHref,
+  }
   return (
-    <>
-      <DrawerScrim closeHref={closeHref} />
-      <aside
-        aria-labelledby={TITLE_ID}
-        className={DRAWER.dock}
+    <DrawerDock
+      tab={<PanelTab closeHref={closeHref} colour={props.colour} kind={row.kind} title={nameOf(row)} />}
+    >
+      <div
+        className={PANEL_GRID.root}
         data-kind={row.kind}
         data-slot="drawer-panel"
         data-treatment={row.treatment}
       >
-        <DrawerHead closeHref={closeHref} kind={KINDS[row.kind]} title={nameOf(row)} />
-        <DrawerBody>
-      {attention}
-      <DrawerFacts row={row} sizedByItems={values.sizedByItems} />
-      <DrawerEdits
-        actions={actions}
-        controls={controls}
-        description={description}
-        planId={planId}
-        row={row}
-        values={values}
-      />
-      {link}
-      <DrawerManage
-        actions={actions}
-        closeHref={closeHref}
-        controls={controls}
-        planId={planId}
-        row={row}
-        values={values}
-      />
-      <CreateControls
-        createFeature={actions.createFeature}
-        createItem={actions.createItem}
-        featureId={values.place.featureId}
-        newFeature={controls.createFeature}
-        newItem={controls.createItem}
-        planId={planId}
-        railId={values.place.railId}
-      />
-        </DrawerBody>
-      </aside>
-    </>
+        {attention === null ? null : <div className={PANEL_GRID.wide}>{attention}</div>}
+        <IdentityColumn parts={parts} />
+        <ManageColumn parts={parts} />
+        <ChildrenColumn link={link} parts={parts} />
+      </div>
+    </DrawerDock>
   )
 }

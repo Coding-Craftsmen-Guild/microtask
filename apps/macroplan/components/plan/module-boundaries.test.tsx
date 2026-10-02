@@ -40,6 +40,7 @@ import { DependencyToggle } from './drawer/dependency-toggle'
 import { DescriptionField } from './drawer/description-field'
 import { EstimateField } from './drawer/estimate-field'
 import { NameField } from './drawer/name-field'
+import { PanelGrip } from './drawer/panel-grip'
 import { GroupField } from './drawer/group-field'
 import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
@@ -277,6 +278,7 @@ const panel = (over: Panel) => (
   <DrawerPanel
     actions={STUB_ACTIONS}
     attention={<AttentionCallout on={attentionOf(TANGLED).get(FEATURE_1)} />}
+    colour="#3b82f6"
     closeHref="/plans/atlas"
     controls={over.controls ?? ADMIN_CONTROLS.content}
     link={null}
@@ -323,6 +325,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [DescriptionField, 'drawer/description-field.tsx'],
   [EstimateField, 'drawer/estimate-field.tsx'],
   [NameField, 'drawer/name-field.tsx'],
+  [PanelGrip, 'drawer/panel-grip.tsx'],
   [PinField, 'drawer/pin-field.tsx'],
   [GroupField, 'drawer/group-field.tsx'],
   [PlaceControl, 'drawer/place-control.tsx'],

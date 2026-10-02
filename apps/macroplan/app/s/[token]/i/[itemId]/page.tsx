@@ -71,6 +71,7 @@ export default async function SeatItemDrawerPage({ params }: SeatItemDrawerPageP
     <DrawerPanel
       actions={writes}
       attention={<AttentionCallout on={attentionOf(plan.value).get(subject.row.id)} />}
+      colour={subject.colour}
       closeHref={linkPath(token)}
       controls={controls.content}
       description={described.ok ? described.value : null}

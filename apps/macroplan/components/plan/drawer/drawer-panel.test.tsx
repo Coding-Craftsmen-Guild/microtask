@@ -109,6 +109,7 @@ const open = (over: Open = {}) =>
     <DrawerPanel
       attention={null}
       actions={over.actions ?? stubActions()}
+      colour="#3b82f6"
       closeHref={CLOSE}
       controls={over.controls ?? drawing()}
       link={null}

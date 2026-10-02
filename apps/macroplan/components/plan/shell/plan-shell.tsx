@@ -10,11 +10,12 @@ export interface PlanShellProps {
   readonly children: ReactNode
 
   /**
-   * Whatever route is open beside the plan, positioned by the drawer itself.
+   * Whatever route is open beneath the plan, which is a panel and no longer an overlay.
    *
-   * Last, and outside every scrolling pane: the drawer is `fixed`, so it is laid out against the
-   * viewport wherever it sits in the tree, and putting it after the panes keeps it above them
-   * without a larger `z-index` than the one it already carries.
+   * Last, and a **flex child** rather than a `fixed` box: the panel declares its own height and
+   * `shrink-0`, the body above it is `flex-1 min-h-0`, so opening one makes the board shorter instead
+   * of covering it. That is the whole of the change — `drawer/panel-css.ts` carries why a dock over
+   * the plan was the wrong shape for a page whose point is that a plan is read while it is changed.
    */
   readonly drawer: ReactNode
 }

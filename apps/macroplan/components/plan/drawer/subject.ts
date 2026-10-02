@@ -21,6 +21,12 @@ const featureOf = (plan: PlanScreenModel, kind: SubjectKind, id: string) => {
   return plan.features.find((one) => one.id === item?.featureId)
 }
 
+const hueOf = (plan: PlanScreenModel, feature: { readonly epicId: string; readonly labelId: string | null } | undefined): string => {
+  if (feature === undefined) return ''
+  const grouped = plan.labels.find((label) => label.id === feature.labelId)
+  return grouped?.colour ?? plan.epics.find((epic) => epic.id === feature.epicId)?.colour ?? ''
+}
+
 const ordered = <T extends { readonly id: string; readonly position: number }>(
   group: readonly T[],
 ): readonly T[] => [...group].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
@@ -89,6 +95,18 @@ export interface DrawerSubject {
    * beside it (`./values.ts` argues each, and says which half of the shape is the subject's).
    */
   readonly values: DrawerValues
+
+  /**
+   * The hue the board paints this subject's mark in, or `''` where nothing colours it.
+   *
+   * `hueOf`'s own rule, resolved here: a group's colour where the feature is in one, its rail's where
+   * it is not. It is answered beside the row rather than looked up by the page, because this is the
+   * one function that has already found which feature a subject belongs to — an item's hue is its
+   * **feature's**, and a page would have to repeat that walk to ask.
+   *
+   * A string so that the panel's tab can carry a dot without anything about the plan crossing into it.
+   */
+  readonly colour: string
 }
 
 /**
@@ -198,6 +216,7 @@ export function drawerSubject(
   if (row === undefined || values === undefined || place === undefined) return undefined
   return {
     row,
+    colour: hueOf(plan, featureOf(plan, kind, id)),
     values: {
       ...values,
       place,

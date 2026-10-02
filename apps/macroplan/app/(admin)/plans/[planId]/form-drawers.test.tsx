@@ -104,9 +104,7 @@ const closeOf = (): string | null => closeLink().getAttribute('href')
 
 const dockOf = (): Element | null => document.querySelector('[data-slot="drawer-shell"]')
 
-// The scrim is hidden from the accessibility tree on purpose, so no role query can reach it and its
-// place is what identifies it: the one element drawn immediately before the dock.
-const scrimOf = (): Element | null => dockOf()?.previousElementSibling ?? null
+const tabOf = (): Element | null => document.querySelector('[data-slot="panel-tab"]')
 
 const thrownBy = async (run: () => Promise<unknown>): Promise<unknown> => {
   try {
@@ -123,35 +121,35 @@ describe('every form is a drawer route, and every one of them closes back to the
     ['a new group', async () => NewGroupPage(planOnly), 'Add a group'],
     ['one rail', async () => RailDrawerPage(railParams(EPIC_1)), 'Platform'],
     ['one group', async () => GroupDrawerPage(groupParams(LABEL_1)), 'Phase 1'],
-  ])('draws %s in a shell headed %s', async (_what, open, title) => {
+  ])('draws %s in a panel tabbed %s', async (_what, open, title) => {
     render(await open())
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe(title)
     expect(dockOf()).toBeTruthy()
-    // Both ways out, on all four: the control in the title bar and the scrim over the page behind it
-    // address the same plan, so clicking away and clicking Close cannot end up meaning two things.
+    // The one way out, on all four, and it is a link to the plan's own path — so the tab's close, the
+    // browser's Back and a bookmark of the plan all mean one thing.
     expect(closeOf()).toBe(planPath(PLAN_A))
-    expect(scrimOf()?.getAttribute('href')).toBe(planPath(PLAN_A))
+    expect(tabOf()?.contains(closeLink())).toBe(true)
   })
 })
 
-// ADR 0068 §6. Through phase 4 the dock was a bordered panel that scrolled as a whole, with a text link
-// reading `Close` at the very bottom — past however many fields the subject had, which on plan settings or
-// a rail's three forms meant the only way out was off screen until you scrolled to find it, and the plan
-// behind it stayed fully lit. The dock is a scrim, a title bar that keeps the way out in place, and a body
-// that scrolls under it. All four routes take all three from `drawer-dock.tsx` without asking for them, so
-// one route can stand for the rest here: what these check is the dock a route is handed, and the case above
-// is what checks that each of the four is handed it.
-describe('the dock they open in: a scrim, a bar that keeps the way out on screen, a body that scrolls', () => {
-  it('puts the way out in the title bar beside the name, and not under the fields', async () => {
+// ADR 0068 §6, and the restyle. Through phase 4 the dock was a bordered panel that scrolled as a whole,
+// with a text link reading `Close` at the very bottom — past however many fields the subject had. That
+// became a right-hand dock with a scrim, a title bar and a scrolling body; it is a **bottom panel** now,
+// and `drawer/panel-css.ts` carries why: the dock covered the bars a reader had just clicked, the scrim
+// said *finish here first* about a page whose point is that a plan is read while it is changed, and 28rem
+// is a column. All four routes take the frame from `drawer-dock.tsx` without asking for it, so one route
+// can stand for the rest here; the case above is what checks that each of the four is handed it.
+describe('the panel they open in: a grip, a tab that keeps the way out on screen, a body that scrolls', () => {
+  it('puts the way out in the tab beside the name, and not under the fields', async () => {
     render(await RailDrawerPage(railParams(EPIC_1)))
-    const bar = dockOf()?.firstElementChild
-    expect(bar?.contains(closeLink())).toBe(true)
-    expect(closeLink().textContent).toBe('✕')
-    expect(bar?.querySelector('h2')?.textContent).toBe('Platform')
-    expect(bar?.querySelector('input')).toBeNull()
+    const tab = tabOf()
+    expect(tab?.contains(closeLink())).toBe(true)
+    expect(closeLink().textContent).toBe(String.fromCharCode(0x2715))
+    expect(tab?.querySelector('h2')?.textContent).toBe('Platform')
+    expect(tab?.querySelector('input')).toBeNull()
   })
 
-  it('scrolls the fields under that bar rather than the drawer, so a long form cannot push it away', async () => {
+  it('scrolls the fields under that strip rather than the panel, so a long form cannot push it away', async () => {
     render(await RailDrawerPage(railParams(EPIC_1)))
     const pane = dockOf()?.lastElementChild
     expect(pane?.querySelector('input')).toBeTruthy()
@@ -159,19 +157,23 @@ describe('the dock they open in: a scrim, a bar that keeps the way out on screen
     expect(dockOf()?.className).not.toContain('overflow-y-auto')
   })
 
-  it('dims the plan behind with an anchor, so clicking away closes the drawer with no JavaScript', async () => {
+  // What left with the right-hand dock. There is no scrim, and nothing to click away from: the board
+  // beside the panel is live, and a click on it opens whatever was clicked rather than dismissing this.
+  it('dims nothing and covers nothing, the board above it merely being shorter', async () => {
     render(await NewRailPage(newRail))
-    expect(scrimOf()?.tagName).toBe('A')
-    expect(scrimOf()?.getAttribute('href')).toBe(planPath(PLAN_A))
-  })
-
-  it('keeps that scrim out of the reading order, a second unnamed stop over the page being worse', async () => {
-    render(await NewRailPage(newRail))
-    expect(scrimOf()?.getAttribute('aria-hidden')).toBe('true')
-    expect(scrimOf()?.getAttribute('tabindex')).toBe('-1')
+    expect(document.querySelector('[aria-hidden="true"][tabindex="-1"]')).toBeNull()
+    expect(dockOf()?.className).not.toContain('fixed')
+    expect(dockOf()?.className).toContain('shrink-0')
     expect(screen.getAllByRole('link', { name: 'Close' })).toHaveLength(1)
   })
 
+  // The height is an inline `var()` with a fallback, so the panel opens at its own size with no
+  // JavaScript at all and a reader who has dragged it gets their own the moment the grip restores it.
+  it('opens at its own height without JavaScript, and offers a grip a keyboard can reach', async () => {
+    render(await NewRailPage(newRail))
+    expect(dockOf()?.getAttribute('style')).toContain('var(--plan-panel, 360px)')
+    expect(screen.getByRole('button', { name: /resize the panel/ })).toBeTruthy()
+  })
   // The chrome moved into a file `DrawerPanel` shares, so this is the invariant that could have been
   // dropped in the move without a form route noticing: a drawer is a route, not an overlay.
   it('is still an aside named by its own heading, and still claims no dialog role', async () => {

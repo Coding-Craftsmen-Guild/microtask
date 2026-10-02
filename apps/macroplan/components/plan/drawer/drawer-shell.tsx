@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { DRAWER, DrawerBody, DrawerHead, DrawerScrim, TITLE_ID } from './drawer-dock'
+import { DrawerDock, PlainTab } from './drawer-dock'
+import { PANEL_GRID } from './panel-css'
 
 /** Props for {@link DrawerShell}. */
 export interface DrawerShellProps {
@@ -14,21 +15,20 @@ export interface DrawerShellProps {
 }
 
 /**
- * The dock the form drawers open in: a rail, a group, the plan's settings, its seats.
+ * The panel the form drawers open in: a rail, a group, a new one of either.
  *
  * `DrawerPanel` is the other one, for a feature or an item. The two differ only in what fills the
- * body — a heading built from a table row against a title handed in — and both take their chrome
- * from `drawer-dock.ts`, which is what keeps the scrim, the title bar and the way out the same
- * whichever route is open.
+ * body — a heading built from a table row against a title handed in — and in which tab they draw:
+ * this one has no marker, because a rail's form is not a mark on the board and there is no hue to
+ * match it to. Both take their chrome from `./drawer-dock.tsx`, which is what keeps six routes
+ * opening in one panel rather than in two that drift.
  */
 export function DrawerShell({ title, kind = null, closeHref, children }: DrawerShellProps) {
   return (
-    <>
-      <DrawerScrim closeHref={closeHref} />
-      <aside aria-labelledby={TITLE_ID} className={DRAWER.dock} data-slot="drawer-shell">
-        <DrawerHead closeHref={closeHref} kind={kind} title={title} />
-        <DrawerBody>{children}</DrawerBody>
-      </aside>
-    </>
+    <DrawerDock tab={<PlainTab closeHref={closeHref} kind={kind} title={title} />}>
+      <div className={PANEL_GRID.root}>
+        <div className={PANEL_GRID.column}>{children}</div>
+      </div>
+    </DrawerDock>
   )
 }

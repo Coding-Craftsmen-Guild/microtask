@@ -88,6 +88,7 @@ export default async function FeatureDrawerPage({ params }: FeatureDrawerPagePro
     <DrawerPanel
       actions={ADMIN_PLAN_ACTIONS}
       attention={<AttentionCallout on={attentionOf(loaded.value).get(subject.row.id)} />}
+      colour={subject.colour}
       closeHref={planPath(planId)}
       controls={ADMIN_CONTROLS.content}
       description={null}

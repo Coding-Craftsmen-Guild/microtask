@@ -68,6 +68,7 @@ export default async function SeatFeatureDrawerPage({ params }: SeatFeatureDrawe
     <DrawerPanel
       actions={seatPlanActions(token)}
       attention={<AttentionCallout on={attentionOf(plan.value).get(subject.row.id)} />}
+      colour={subject.colour}
       closeHref={linkPath(token)}
       controls={planCapabilities(share.value.role, share.value.scope).content}
       description={null}

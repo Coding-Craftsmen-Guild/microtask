@@ -306,6 +306,7 @@ describe('the drawer hands no share token to a component either', () => {
       'actions',
       'attention',
       'closeHref',
+      'colour',
       'controls',
       'description',
       'link',
