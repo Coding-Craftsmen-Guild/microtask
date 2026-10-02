@@ -33,7 +33,7 @@ export const NAME_PLAIN = 'text-[17px] font-semibold leading-tight'
 export const FIELD_ROW = 'flex flex-wrap items-end gap-2.5'
 
 /** One field and its label, stacked. */
-export const FIELD_CELL = 'grid shrink-0 gap-1'
+export const FIELD_CELL = 'relative grid shrink-0 gap-1'
 
 /** The hairline between the fields about this subject and the group chips, which are about a set. */
 export const FIELD_DIVIDER = 'h-[34px] w-px shrink-0 self-end bg-line'
@@ -75,7 +75,7 @@ export const SPRINT = {
   caret: 'ml-auto text-[9px] text-muted-foreground',
   pill: 'flex h-[34px] w-fit items-center gap-2 rounded-lg bg-panel-strip px-2.5 text-[13px] font-semibold',
   pillNote: 'text-[11px] font-normal text-muted-foreground',
-  list: 'mt-1 grid max-h-[240px] w-[240px] gap-0.5 overflow-y-auto rounded-[10px] border border-line-strong bg-background p-1 shadow-[0_8px_24px_rgba(46,36,86,.12)]',
+  list: 'absolute top-full left-0 z-30 mt-1 grid max-h-[240px] w-[240px] gap-0.5 overflow-y-auto rounded-[10px] border border-line-strong bg-background p-1 shadow-[0_8px_24px_rgba(46,36,86,.12)]',
   row: 'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12.5px] hover:bg-brand-soft',
   rowOn: 'flex w-full items-center gap-2 rounded-md bg-brand-soft px-2 py-1 text-left text-[12.5px] font-semibold',
   note: 'ml-auto shrink-0 text-[11px] text-hint',
@@ -86,18 +86,19 @@ export const SPRINT = {
 /**
  * The picker that moves work: a rail for a feature, a feature for an item.
  *
- * It is a `details` that opens **in flow** rather than a floating popover, and that is the panel it
- * lives in talking: the body scrolls, so anything absolutely positioned inside it is clipped at the
- * bottom edge, which is the same reason the design puts the dependency search inline. Opening one
- * pushes the fields under it down; nothing is ever half-visible.
+ * It floats over the fields rather than opening in flow, and the fields row is why: it is a wrapping row
+ * of bottom-aligned cells, so a 260px list inside one of them would push every other field to the bottom
+ * of it the moment it opened. An absolutely positioned list inside a scrolling panel still extends that
+ * panel's own scrollable area, so a list opened near the bottom edge is reached by scrolling rather than
+ * clipped.
  */
 export const PICKER = {
-  root: 'grid gap-1',
+  root: 'relative grid gap-1',
   opener: 'flex h-[34px] min-w-[150px] max-w-[300px] cursor-pointer list-none items-center gap-2 rounded-lg border border-line-strong px-2.5 text-[13px] open:border-brand',
   swatch: 'size-[9px] shrink-0 rounded-full',
   name: 'min-w-0 truncate',
   caret: 'ml-auto shrink-0 text-[9px] text-muted-foreground',
-  panel: 'mt-1 grid max-h-[260px] w-[260px] gap-1 overflow-y-auto rounded-[10px] border border-line-strong bg-background p-1.5 shadow-[0_8px_24px_rgba(46,36,86,.1)]',
+  panel: 'absolute top-full left-0 z-30 mt-1 grid max-h-[260px] w-[260px] gap-1 overflow-y-auto rounded-[10px] border border-line-strong bg-background p-1.5 shadow-[0_8px_24px_rgba(46,36,86,.1)]',
   search: 'h-[30px] rounded-md border border-line-strong px-2 text-[12.5px] outline-none focus:border-brand',
   rows: 'grid gap-0.5',
   row: 'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] hover:bg-brand-soft disabled:opacity-50',

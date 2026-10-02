@@ -23,6 +23,7 @@ import { DRAWS } from './rung-view'
 import { detailsOf } from './detail-lines'
 import type { RungDrawing } from './rung-view'
 import type { PlanScreenModel } from '../plan-screen-model'
+import { searchOf } from '../table/row-keys'
 
 /**
  * The numbers every mark is placed from, re-exported so a component reaches one module for the
@@ -130,12 +131,18 @@ export const labelHues = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
  * (`../board/board-filter.tsx`), which is why it is lowered here rather than at the keystroke: a
  * plan of two hundred features would otherwise lower two hundred names on every letter typed.
  *
- * It is the feature's **own** name and not its rail's or its group's. Typing a rail's name already
- * matches that rail's row in the column beside the board, and a filter that also lit every feature
- * on it would make a search for one feature indistinguishable from a search for its lane.
+ * Its **rail** and its group are in the key as well as its own name, built by the very function a table
+ * row's key is built by, so the two searches cannot come to mean different things. A filter that matched a feature's own name alone
+ * dimmed every bar on a rail whose name had just been typed — the rail's row stayed lit in the column
+ * beside a lane of faded work, which reads as "nothing here matches" about the one rail that did.
  */
-export const featureSearch = (plan: PlanScreenModel): ReadonlyMap<string, string> =>
-  new Map(plan.features.map((feature) => [feature.id, feature.name.toLowerCase()]))
+export const featureSearch = (plan: PlanScreenModel): ReadonlyMap<string, string> => {
+  const rails = railNames(plan)
+  const groups = new Map(plan.labels.map((label) => [label.id, label.name]))
+  const key = (one: { epicId: string; labelId: string | null; name: string }): string =>
+    searchOf([one.name, rails.get(one.epicId) ?? null, groups.get(one.labelId ?? '') ?? null])
+  return new Map(plan.features.map((feature) => [feature.id, key(feature)]))
+}
 
 /**
  * What everything on the canvas is called, keyed by id, features and items in one map.

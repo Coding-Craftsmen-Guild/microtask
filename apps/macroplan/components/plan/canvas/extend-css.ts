@@ -7,9 +7,14 @@ export const HANDLE = { circle: 7, diamond: 6, plus: 3.5 } as const
  * It is painted in the mark's own hue so that a handle reads as belonging to the work it extends rather
  * than as chrome the board has grown. The ring is what keeps it visible where it overlaps a bar of the
  * same colour, and the shadow is what lifts it off the rail behind it.
+ *
+ * The sheet it is drawn on must be `pointer-events-none` with the handles turned back **on**: an SVG root
+ * is an ordinary box for hit testing, so a sheet the size of the canvas would take every pointer event
+ * that lands on the board — including the one that says which mark is hovered, which is what decides
+ * whether this sheet is drawn at all. The handles would then flicker on and off under the pointer.
  */
 export const EXTEND = {
-  sheet: 'absolute top-0 left-0 block w-full [&>*]:pointer-events-auto',
+  sheet: 'pointer-events-none absolute top-0 left-0 block w-full [&>*]:pointer-events-auto',
   handle: 'cursor-crosshair',
   shape: 'fill-[var(--mark-hue)] [stroke:#fff] stroke-2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.18))]',
   plus: 'pointer-events-none [stroke:#fff] stroke-[1.8] [stroke-linecap:round]',
