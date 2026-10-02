@@ -2,14 +2,18 @@
 
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import { DELETE_ANCHOR } from '../table/row-actions'
-import { Button } from '@repo/ui/components/button'
 import { ConfirmDialog } from '@repo/ui/shell/confirm-dialog'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { DELETE_FEATURE, DELETE_ITEM, PROBLEM, type SubjectRemove } from './field'
+import { DELETE_FEATURE, DELETE_ITEM, type SubjectRemove } from './field'
 import type { SubjectKind } from './values'
 
-const GROUP = 'grid justify-items-start gap-1'
+const GROUP = 'flex shrink-0 items-center gap-1'
+
+const SAID = 'max-w-[220px] shrink-0 truncate text-[12px] text-danger'
+
+const QUIET =
+  'rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-danger/10 hover:text-danger'
 
 const CONFIRMS: Readonly<Record<SubjectKind, string>> = {
   feature: 'Delete feature',
@@ -119,17 +123,11 @@ export function DeleteControl({
   }
   return (
     <div className={GROUP} id={DELETE_ANCHOR}>
-      <Button
-        onClick={() => setAsking(true)}
-        size="sm"
-        title={CONFIRMS[kind]}
-        type="button"
-        variant="destructive"
-      >
+      <button className={QUIET} onClick={() => setAsking(true)} title={CONFIRMS[kind]} type="button">
         Delete
-      </Button>
+      </button>
       {problem === '' ? null : (
-        <p className={PROBLEM} role="alert">
+        <p className={SAID} role="alert" title={problem}>
           {problem}
         </p>
       )}

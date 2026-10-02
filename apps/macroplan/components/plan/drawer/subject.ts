@@ -1,6 +1,7 @@
 import { breakdown, effectiveEstimate, type PlanCalendar } from '@repo/schedule'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { tableRows, type TableRow } from '../table/rows'
+import { hueOfFeature, panelValues } from './subject-view'
 import {
   subjectValues,
   type DrawerValues,
@@ -21,12 +22,6 @@ const featureOf = (plan: PlanScreenModel, kind: SubjectKind, id: string) => {
   return plan.features.find((one) => one.id === item?.featureId)
 }
 
-const hueOf = (plan: PlanScreenModel, feature: { readonly epicId: string; readonly labelId: string | null } | undefined): string => {
-  if (feature === undefined) return ''
-  const grouped = plan.labels.find((label) => label.id === feature.labelId)
-  return grouped?.colour ?? plan.epics.find((epic) => epic.id === feature.epicId)?.colour ?? ''
-}
-
 const ordered = <T extends { readonly id: string; readonly position: number }>(
   group: readonly T[],
 ): readonly T[] => [...group].sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
@@ -44,10 +39,10 @@ const targetsOf = (plan: PlanScreenModel, kind: SubjectKind, own: string): reado
   kind === 'feature'
     ? ordered(plan.epics.map((one) => ({ ...one, position: one.railOrder })))
         .filter((one) => one.id !== own)
-        .map((one) => ({ id: one.id, name: one.name }))
+        .map((one) => ({ colour: one.colour, id: one.id, name: one.name }))
     : ordered(plan.features)
         .filter((one) => one.id !== own)
-        .map((one) => ({ id: one.id, name: one.name }))
+        .map((one) => ({ colour: hueOfFeature(plan, one), id: one.id, name: one.name }))
 
 const placeOf = (
   plan: PlanScreenModel,
@@ -214,13 +209,15 @@ export function drawerSubject(
   const values = subjectValues(plan, kind, id)
   const place = placeOf(plan, kind, id)
   if (row === undefined || values === undefined || place === undefined) return undefined
+  const calendar = calendarOf(plan)
   return {
     row,
-    colour: hueOf(plan, featureOf(plan, kind, id)),
+    colour: hueOfFeature(plan, featureOf(plan, kind, id)),
     values: {
       ...values,
+      panel: panelValues({ calendar, featureId: place.featureId, plan, subjectId: id }),
       place,
-      plan: { calendar: calendarOf(plan), features: plan.features, labels: plan.labels },
+      plan: { calendar, features: plan.features, labels: plan.labels },
       sizedByItems: sizedByItems(plan, kind, id),
     },
   }

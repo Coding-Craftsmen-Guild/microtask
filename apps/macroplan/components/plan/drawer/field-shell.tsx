@@ -3,6 +3,8 @@ import { BUDGET, LABEL, PROBLEM } from './field'
 
 const GROUP = 'grid gap-1'
 
+const HIDDEN = 'sr-only'
+
 /**
  * What a field's own control must carry for its label, its hint and its refusal to reach a reader.
  *
@@ -36,6 +38,16 @@ export interface FieldShellProps {
   /** The refusal to show, `''` for none, which is also what decides `aria-invalid`. */
   readonly problem: string
 
+  /**
+   * Whether the caption is for a screen reader alone, the field being self-evident on screen.
+   *
+   * One field is: the name, which is the panel's own heading drawn at 17px over the subject's dates,
+   * and a 10px "FEATURE NAME" above that would be labelling a title. It is still a field and still
+   * needs a name, so the label is rendered `sr-only` rather than dropped — the wiring, the hint and
+   * the refusal are untouched, which is the whole reason this is a flag here and not a second shell.
+   */
+  readonly labelHidden?: boolean
+
   /** The control itself, built from the wiring this shell derives for it. */
   readonly children: (wiring: FieldWiring) => ReactNode
 }
@@ -68,7 +80,14 @@ export interface FieldShellProps {
  * bundle — a directive here would put a fourth name in `module-boundaries.test.tsx`'s allowlist for a
  * boundary that is not here. The boundary is each field, and the props crossing it are each field's.
  */
-export function FieldShell({ fieldId, label, hint, problem, children }: FieldShellProps) {
+export function FieldShell({
+  fieldId,
+  label,
+  hint,
+  problem,
+  labelHidden = false,
+  children,
+}: FieldShellProps) {
   const hintId = `${fieldId}-hint`
   const problemId = `${fieldId}-problem`
   const described = [hint === null ? '' : hintId, problem === '' ? '' : problemId]
@@ -76,7 +95,7 @@ export function FieldShell({ fieldId, label, hint, problem, children }: FieldShe
     .join(' ')
   return (
     <div className={GROUP}>
-      <label className={LABEL} htmlFor={fieldId}>
+      <label className={labelHidden ? HIDDEN : LABEL} htmlFor={fieldId}>
         {label}
       </label>
       {children({

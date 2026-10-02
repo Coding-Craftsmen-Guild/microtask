@@ -117,6 +117,15 @@ export interface LabelChoice {
 
   /** What it is called. */
   readonly name: string
+
+  /**
+   * Its own hue, which is the chip's dot and, on the chosen chip, its border.
+   *
+   * A group's colour is the one in this list a reader is actually navigating by — the canvas paints a
+   * grouped feature in it, so the chip that says "Phase 1" and the bars that are in Phase 1 have to be
+   * the same colour or the chips are a second, contradicting legend.
+   */
+  readonly colour: string
 }
 /** One other parent this subject could be moved under, named the way a control labels it. */
 export interface PlaceTarget {
@@ -125,6 +134,93 @@ export interface PlaceTarget {
 
   /** Its stored name, which is the only half of a control's label that is not a constant. */
   readonly name: string
+
+  /** The rail's hue, or its feature's rail hue, as the swatch beside the name in the picker. */
+  readonly colour: string
+}
+
+/** One item of a feature, as the items list draws it: an index, a name and a stepper. */
+export interface ChildItem {
+  /** The item. */
+  readonly id: string
+
+  /** Its stored name. */
+  readonly name: string
+
+  /** Its authored estimate, which the mini stepper beside it writes. */
+  readonly estimateDays: number | null
+}
+
+/**
+ * One end of a dependency, worded for a chip and for a row of the search.
+ *
+ * Four strings resolved on the server, because every one of them takes a second record to answer: the
+ * rail a candidate sits on, that rail's hue, and the day the schedule has it finishing. A client
+ * component handed `plan.features` could word none of them, and a client component handed the plan is
+ * what ADR 0033 refuses.
+ */
+export interface EdgeCandidate {
+  /** The feature at the other end. */
+  readonly id: string
+
+  /** Its stored name. */
+  readonly name: string
+
+  /** The rail it sits on, for the sub-line that says where it is. */
+  readonly railName: string
+
+  /** That rail's hue, or its group's, for the dot. */
+  readonly colour: string
+
+  /** When the schedule has it finishing, already worded; empty for a feature it could not place. */
+  readonly ends: string
+}
+
+/**
+ * What the panel **shows** about the open subject, as against what a field writes.
+ *
+ * A group of its own for {@link PlanValues}' reason turned around: none of these is a value anything
+ * sends, and none is re-read after a write. They are the readings a 1.45fr column needs to say where
+ * this subject is — the days it occupies, the sprint the schedule gave it, the items under it, the
+ * features at both ends of its dependencies — and each takes the plan plus the schedule to answer, so
+ * each is resolved in the one lookup the panel is handed (`./subject-view.ts`).
+ */
+export interface PanelValues {
+  /** The days this subject occupies, worded `from` to `to`; empty for work nothing placed. */
+  readonly dates: string
+
+  /** The 0-based sprint the **schedule** put it in, which is what a pin is measured against. */
+  readonly scheduledSprint: number | null
+
+  /** How many sprints the sprint list offers, which is far enough past the plan to pin into. */
+  readonly sprintTotal: number
+
+  /** The items of this feature, or of the feature an open item belongs to, in stored order. */
+  readonly family: readonly ChildItem[]
+
+  /** The features that wait on this one, which is the same relation read from the other end. */
+  readonly unblocks: readonly EdgeCandidate[]
+
+  /** Every other feature of the plan, as the dependency search lists them. */
+  readonly candidates: readonly EdgeCandidate[]
+
+  /**
+   * The hue of the parent this subject sits under: its rail, or its feature.
+   *
+   * The swatch on the Epic picker's opener, and not the same thing as the subject's own `colour`: a
+   * feature in a group is painted in the **group's** hue, so the rail it sits on and the bar on the
+   * board can legitimately be two different colours, and the picker is about the rail.
+   */
+  readonly hereColour: string
+
+  /**
+   * A position past the end of any parent in this plan, which is where a move between parents lands.
+   *
+   * One number rather than a count per target: `placeAmong` clamps a position past the end to last
+   * (`services/positions.ts`), and the end is the only position that means anything for a subject
+   * moving in beside children it has never been ordered against.
+   */
+  readonly atTheEnd: number
 }
 
 /**
@@ -226,6 +322,9 @@ export interface DrawerValues extends SubjectValues {
 
   /** Where this subject sits: the two parents a create adds a new sibling under. */
   readonly place: SubjectPlace
+
+  /** What the panel draws about it that no field writes: its dates, its sprint, its items, its edges. */
+  readonly panel: PanelValues
 }
 
 /**

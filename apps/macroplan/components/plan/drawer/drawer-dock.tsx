@@ -23,6 +23,15 @@ export interface DrawerDockProps {
   /** The one tab in the strip. */
   readonly tab: ReactNode
 
+  /**
+   * What sits beside the tab: an action about the whole subject rather than a value of it.
+   *
+   * Delete, and nothing else so far. It is here rather than among the fields because that is what it
+   * is, and because a destructive button at the foot of a column of inputs is a destructive button in
+   * tab order after every one of them.
+   */
+  readonly tools?: ReactNode
+
   /** Everything under the strip. */
   readonly children: ReactNode
 }
@@ -54,7 +63,7 @@ export interface DrawerDockProps {
  * scrim is clicking away to close — deliberately, because there is no longer anything to click away
  * *from*: the board beside it is live, and a click on it opens whatever was clicked.
  */
-export function DrawerDock({ tab, children }: DrawerDockProps) {
+export function DrawerDock({ tab, tools = null, children }: DrawerDockProps) {
   return (
     <aside
       aria-labelledby={TITLE_ID}
@@ -65,6 +74,7 @@ export function DrawerDock({ tab, children }: DrawerDockProps) {
       <PanelGrip label={PANEL_WORDS.resize} />
       <div className={PANEL.strip} data-slot="panel-tabs">
         {tab}
+        {tools}
         <p className={PANEL.hint}>{PANEL_WORDS.hint}</p>
       </div>
       <div className={PANEL.body}>{children}</div>

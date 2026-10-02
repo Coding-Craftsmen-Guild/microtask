@@ -5,330 +5,163 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
 import { atlasPlan, FEATURE_1, PLAN_A } from '../testing/plan-fixture'
-import { pinCeiling, PIN_HINT, WHOLE_SPRINTS } from './field'
-import { pinHint, PinField } from './pin-field'
+import { PinField } from './pin-field'
+import { SPRINT_WORDS } from './sprint-view'
 
-type Pin = (planId: string, featureId: string, pinSprint: number | null) => Promise<ActionResult<Plan>>
+type Pin = (planId: string, featureId: string, sprint: number | null) => Promise<ActionResult<Plan>>
 
-const PLAN = atlasPlan()
+const ATLAS = { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' }
 
-const pinned = (pinSprint: number | null): ActionResult<Plan> => ({
-  ok: true,
-  value: atlasPlan({
-    features: atlasPlan().features.map((one) =>
-      one.id === FEATURE_1 ? { ...one, pinSprint } : one,
-    ),
-  }),
-})
+const kept: Pin = () => Promise.resolve({ ok: true, value: atlasPlan() })
 
-const kept: Pin = (_planId, _featureId, pinSprint) => Promise.resolve(pinned(pinSprint))
+interface Setup {
+  readonly pinSprint?: number | null
+  readonly scheduledSprint?: number | null
+  readonly sprintTotal?: number
+  readonly pin?: Pin
+}
 
-const field = () => screen.getByRole<HTMLInputElement>('textbox', { name: 'Pinned to sprint' })
-
-const described = (): string =>
-  (field().getAttribute('aria-describedby') ?? '')
-    .split(' ')
-    .filter((one) => one !== '')
-    .map((id) => document.getElementById(id)?.textContent ?? '')
-    .join(' | ')
-
-const setup = (pinSprint: number | null = null, pin: Pin = kept) => {
-  const onPin = vi.fn(pin)
-  const view = render(
+const setup = (over: Setup = {}) => {
+  const onPin = vi.fn(over.pin ?? kept)
+  render(
     <PinField
       featureId={FEATURE_1}
       pin={onPin}
-      pinSprint={pinSprint}
+      pinSprint={over.pinSprint ?? null}
       planId={PLAN_A}
-      sprintLengthDays={PLAN.sprintLengthDays}
-      startDate={PLAN.startDate}
-      timezone={PLAN.timezone}
+      scheduledSprint={over.scheduledSprint ?? 0}
+      sprintLengthDays={ATLAS.sprintLengthDays}
+      sprintTotal={over.sprintTotal ?? 4}
+      startDate={ATLAS.startDate}
+      timezone={ATLAS.timezone}
     />,
   )
-  return { onPin, view, user: userEvent.setup() }
+  return { onPin, user: userEvent.setup() }
 }
 
-const retype = async (user: ReturnType<typeof userEvent.setup>, typed: string) => {
-  await user.clear(field())
-  if (typed !== '') await user.type(field(), typed)
-  await user.tab()
-}
+const value = () => screen.getByRole('button', { name: 'Sprint' })
 
-describe('the two states a pin can be left in, and the number the box is counted in', () => {
-  it('shows an empty box for a feature nobody pinned', () => {
-    setup(null)
-    expect(field().value).toBe('')
+const less = () => screen.getByRole('button', { name: SPRINT_WORDS.less })
+
+const more = () => screen.getByRole('button', { name: SPRINT_WORDS.more })
+
+describe('the sprint a feature is pinned to, as a stepper over a list of dates', () => {
+  it('shows the pin and says it is pinned, counted from 1 as the table numbers them', () => {
+    setup({ pinSprint: 2 })
+
+    expect(value().textContent).toContain('S3')
+    expect(value().textContent).toContain(SPRINT_WORDS.pinned)
   })
 
-  // The conversion, on screen: the table calls the plan's first sprint `S1`, so a stored 0 must read 1.
-  it('shows a stored 0 as sprint 1, which is what the rest of the screen calls it', () => {
-    setup(0)
-    expect(field().value).toBe('1')
+  it('shows the schedule’s own sprint where nothing is pinned, and says so', () => {
+    setup({ pinSprint: null, scheduledSprint: 1 })
+
+    expect(value().textContent).toContain('S2')
+    expect(value().textContent).toContain(SPRINT_WORDS.loose)
   })
 
-  it('shows a stored 2 as sprint 3', () => {
-    setup(2)
-    expect(field().value).toBe('3')
-  })
+  it('is named by the caption above it, so the value is not a button called "S3"', () => {
+    setup({ pinSprint: 2 })
 
-  it('sends the sprint before the one typed, so a pin lands where the label says', async () => {
-    const { onPin, user } = setup(null)
-    await retype(user, '3')
-    expect(onPin).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 2)
-  })
-
-  it('sends null when the box is emptied, which is the unpin', async () => {
-    const { onPin, user } = setup(2)
-    await retype(user, '')
-    expect(onPin).toHaveBeenCalledWith(PLAN_A, FEATURE_1, null)
-  })
-
-  it('sends 0 for sprint 1 where nothing was pinned, the first sprint being a real pin', async () => {
-    const { onPin, user } = setup(null)
-    await retype(user, '1')
-    expect(onPin).toHaveBeenCalledTimes(1)
-    expect(onPin).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 0)
-  })
-
-  it('sends nothing when an empty box is left empty', async () => {
-    const { onPin, user } = setup(null)
-    await retype(user, '')
-    expect(onPin).not.toHaveBeenCalled()
-  })
-
-  it('sends nothing when the pin is left where it was, spellings included', async () => {
-    const { onPin, user } = setup(2)
-    await retype(user, '3')
-    expect(onPin).not.toHaveBeenCalled()
-    await retype(user, ' 03 ')
-    expect(onPin).not.toHaveBeenCalled()
+    expect(value().getAttribute('aria-expanded')).toBe('false')
   })
 })
 
-describe('the ceiling this field owns, the contract having none at all', () => {
-  it('refuses a sprint past the ceiling and sends nothing, keeping what was typed', async () => {
-    const { onPin, user } = setup(null)
-    await retype(user, '500')
-    expect(onPin).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert').textContent).toContain(
-      String(pinCeiling(PLAN.sprintLengthDays)),
-    )
-    expect(field().value).toBe('500')
+describe('what the two buttons write', () => {
+  it('pins one sprint later than what is on screen', async () => {
+    const { onPin, user } = setup({ pinSprint: null, scheduledSprint: 1 })
+    await user.click(more())
+
+    expect(onPin).toHaveBeenCalledExactlyOnceWith(PLAN_A, FEATURE_1, 2)
   })
 
-  it('accepts the ceiling itself, so the refusal is a bound and not a fear of large numbers', async () => {
-    const { onPin, user } = setup(null)
-    await retype(user, String(pinCeiling(PLAN.sprintLengthDays)))
-    expect(onPin).toHaveBeenCalledWith(PLAN_A, FEATURE_1, pinCeiling(PLAN.sprintLengthDays) - 1)
+  it('walks a pin down towards the sprint the schedule chose', async () => {
+    const { onPin, user } = setup({ pinSprint: 4, scheduledSprint: 1 })
+    await user.click(less())
+
+    expect(onPin).toHaveBeenCalledExactlyOnceWith(PLAN_A, FEATURE_1, 3)
   })
 
-  it('refuses a 0, a fraction and a word rather than reading any of them as an unpin', async () => {
-    const { onPin, user } = setup(2)
-    for (const typed of ['0', '2.5', 'soon']) {
-      await retype(user, typed)
-      expect(onPin, typed).not.toHaveBeenCalled()
-      expect(screen.getByRole('alert').textContent, typed).toBe(WHOLE_SPRINTS)
-    }
+  // A pin below the scheduled sprint changes nothing at all, so clearing it is the real end of that
+  // road rather than a stepper whose presses stop having an effect.
+  it('clears the pin at the scheduled sprint rather than pinning below it', async () => {
+    const { onPin, user } = setup({ pinSprint: 1, scheduledSprint: 1 })
+    await user.click(less())
+
+    expect(onPin).toHaveBeenCalledExactlyOnceWith(PLAN_A, FEATURE_1, null)
   })
 
-  it('clears its own refusal once the value is fixed', async () => {
-    const { onPin, user } = setup(null)
-    await retype(user, '500')
-    await retype(user, '4')
-    expect(onPin).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 3)
-    expect(screen.queryByRole('alert')).toBeNull()
-  })
-})
+  it('disables the step down on a feature with no pin, there being nothing to clear', () => {
+    setup({ pinSprint: null })
 
-describe('what a reader is told about the sprint a pin names', () => {
-  it('says the rule and nothing about dates while the box is empty', () => {
-    setup(null)
-    expect(described()).toBe(PIN_HINT)
+    expect(less().hasAttribute('disabled')).toBe(true)
   })
 
-  // The inclusive end, on screen. Atlas runs fourteen-working-day sprints from Monday 2026-09-28, so
-  // its first sprint's fourteenth working day is Thursday 2026-10-15 — not Friday 2026-10-16, the next
-  // working day, which is what reading `rangeOfSprint`'s `to` as an exclusive `endDay` would have
-  // printed.
-  it('names the first and last day of the stored sprint, the range being inclusive', () => {
-    setup(0)
-    expect(described()).toContain('Sprint 1 runs 2026-09-28 to 2026-10-15')
-    expect(described()).toContain('both days included')
-    expect(described()).not.toContain('2026-10-16')
-  })
+  it('disables the step up at the end of the list, so no press goes into silence', () => {
+    setup({ pinSprint: 3, sprintTotal: 4 })
 
-  it('re-dates the sprint as the number is typed, before anything is committed', async () => {
-    const { onPin, user } = setup(0)
-    await user.clear(field())
-    await user.type(field(), '3')
-    expect(described()).toContain('Sprint 3 runs 2026-11-05 to 2026-11-24')
-    expect(onPin).not.toHaveBeenCalled()
-  })
-
-  it('falls back to the rule while the box holds something it would refuse', async () => {
-    const { user } = setup(0)
-    await user.clear(field())
-    await user.type(field(), 'soon')
-    expect(described()).toContain(PIN_HINT)
-    expect(described()).not.toContain('runs')
-  })
-
-  it('describes the field by the hint and then the refusal, which is reading order', async () => {
-    const { user } = setup(null)
-    await retype(user, '500')
-    expect(described()).toBe(`${PIN_HINT} | ${screen.getByRole('alert').textContent ?? ''}`)
-    expect(field().getAttribute('aria-invalid')).toBe('true')
-  })
-
-  it('says a pin only delays, that being the whole of what the forward pass does with one', () => {
-    setup(2)
-    expect(described()).toContain('never moves one earlier')
+    expect(more().hasAttribute('disabled')).toBe(true)
   })
 })
 
-describe('what is on screen once the server has answered', () => {
-  it('shows the pin the answered plan holds, not the number that was sent', async () => {
-    const { user } = setup(null, () => Promise.resolve(pinned(5)))
-    await retype(user, '3')
-    expect(field().value).toBe('6')
+describe('the list, which is where a sprint becomes dates', () => {
+  it('stays shut until the value is opened, the panel having no room for it otherwise', async () => {
+    const { user } = setup()
+
+    expect(screen.queryByRole('button', { name: /^S2/ })).toBeNull()
+    await user.click(value())
+    expect(screen.getByRole('button', { name: /^S2/ })).toBeTruthy()
   })
 
-  it('shows an empty box when the answered plan holds no pin for it', async () => {
-    const { user } = setup(2, () => Promise.resolve(pinned(null)))
-    await retype(user, '4')
-    expect(field().value).toBe('')
+  it('says the days each sprint covers, which is the whole reason it exists', async () => {
+    const { user } = setup()
+    await user.click(value())
+
+    expect(screen.getByRole('button', { name: /^S1/ }).textContent).toContain('2026-09-28')
   })
 
-  it('re-dates the hint from the answer rather than from what was typed', async () => {
-    const { user } = setup(null, () => Promise.resolve(pinned(0)))
-    await retype(user, '9')
-    expect(described()).toContain('Sprint 1 runs 2026-09-28')
+  it('writes the sprint a row names and shuts itself', async () => {
+    const { onPin, user } = setup()
+    await user.click(value())
+    await user.click(screen.getByRole('button', { name: /^S3/ }))
+
+    expect(onPin).toHaveBeenCalledExactlyOnceWith(PLAN_A, FEATURE_1, 2)
+    expect(screen.queryByRole('button', { name: /^S3/ })).toBeNull()
   })
 
-  // The refusal a `write` seat meets on this field and on neither of its two neighbours.
-  it('restores the stored pin and says why when the server refuses the write', async () => {
-    const { user } = setup(2, () =>
-      Promise.resolve({ ok: false, status: 403, detail: 'Not permitted: feature:pin' }),
-    )
-    await retype(user, '9')
+  it('clears the pin from the Auto row, which is the same write as stepping off the floor', async () => {
+    const { onPin, user } = setup({ pinSprint: 2 })
+    await user.click(value())
+    await user.click(screen.getByRole('button', { name: new RegExp(SPRINT_WORDS.auto) }))
+
+    expect(onPin).toHaveBeenCalledExactlyOnceWith(PLAN_A, FEATURE_1, null)
+  })
+
+  it('marks the sprints a pin could not reach rather than leaving them out of the list', async () => {
+    const { user } = setup({ scheduledSprint: 2 })
+    await user.click(value())
+
+    expect(screen.getByRole('button', { name: /^S1/ }).textContent).toContain(SPRINT_WORDS.earlier)
+  })
+})
+
+describe('what a reader is told when the server refuses', () => {
+  it('says the API’s own sentence and keeps the field on screen', async () => {
+    const { user } = setup({
+      pin: () => Promise.resolve({ ok: false, status: 403, detail: 'Not permitted: feature:pin' }),
+      pinSprint: null,
+      scheduledSprint: 0,
+    })
+    await user.click(more())
+
     expect(screen.getByRole('alert').textContent).toBe('Not permitted: feature:pin')
-    expect(field().value).toBe('3')
+    expect(value()).toBeTruthy()
   })
 
-  it('restores it and says so when the server never answers, leaving no rejection unhandled', async () => {
-    const { user } = setup(2, () => Promise.reject(new TypeError('Failed to fetch')))
-    await retype(user, '9')
+  it('says so when the server never answers, leaving no rejection unhandled', async () => {
+    const { user } = setup({ pin: () => Promise.reject(new TypeError('Failed to fetch')) })
+    await user.click(more())
+
     expect((await screen.findByRole('alert')).textContent).toBe(NO_ANSWER.detail)
-    expect(field().value).toBe('3')
-  })
-
-  // The box is the authority on what the user sees, so the line under it must date what the box holds
-  // and never what a re-render tried to put there: `paintUnfocused` declines to write a focused box, and
-  // a state set to the declined value would name a sprint nothing on screen shows.
-  it('leaves a focused box and the line under it on what is being typed', async () => {
-    const { view, user } = setup(2)
-    await user.clear(field())
-    await user.type(field(), '5')
-    view.rerender(
-      <PinField
-        featureId={FEATURE_1}
-        pin={kept}
-        pinSprint={0}
-        planId={PLAN_A}
-        sprintLengthDays={PLAN.sprintLengthDays}
-        startDate={PLAN.startDate}
-        timezone={PLAN.timezone}
-      />,
-    )
-    expect(field().value).toBe('5')
-    expect(described()).toContain('Sprint 5 runs')
-  })
-
-  it('takes the new subject’s pin from a re-render while the box is not focused', () => {
-    const { view } = setup(2)
-    view.rerender(
-      <PinField
-        featureId={FEATURE_1}
-        pin={kept}
-        pinSprint={null}
-        planId={PLAN_A}
-        sprintLengthDays={PLAN.sprintLengthDays}
-        startDate={PLAN.startDate}
-        timezone={PLAN.timezone}
-      />,
-    )
-    expect(field().value).toBe('')
-    expect(described()).toBe(PIN_HINT)
-  })
-
-  it('reverts to the stored pin on Escape and sends nothing', async () => {
-    const { onPin, user } = setup(2)
-    await user.clear(field())
-    await user.type(field(), '9{Escape}')
-    expect(onPin).not.toHaveBeenCalled()
-    expect(field().value).toBe('3')
-  })
-
-  it('commits on Enter without waiting for the box to be left', async () => {
-    const { onPin, user } = setup(null)
-    await user.type(field(), '2{Enter}')
-    expect(onPin).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 1)
-  })
-})
-
-// The plan fixture's own calendar, and a Monday. Ten-working-day sprints as well, because the boundary
-// case that catches an exclusive read is a sprint whose last working day is the Friday of the week after.
-const ATLAS_SPRINT = PLAN.sprintLengthDays
-
-const ATLAS = { startDate: '2026-09-28', sprintLengthDays: ATLAS_SPRINT, timezone: 'Europe/Belgrade' }
-
-const TEN = { startDate: '2026-09-21', sprintLengthDays: 10, timezone: 'UTC' }
-
-describe('showing a pin as the dates it means rather than as a bare index', () => {
-  it('says the rule and no dates for an empty box, there being nothing to date', () => {
-    expect(pinHint('', ATLAS)).toBe(PIN_HINT)
-    expect(pinHint('   ', ATLAS)).toBe(PIN_HINT)
-  })
-
-  it('says the rule for text it would refuse, rather than dating a number it will not send', () => {
-    expect(pinHint('abc', ATLAS)).toBe(PIN_HINT)
-    expect(pinHint('0', ATLAS)).toBe(PIN_HINT)
-    expect(pinHint('500', ATLAS)).toBe(PIN_HINT)
-  })
-
-  // The inclusive end, checked against `sprints.test.ts`'s own case rather than against the note: ten
-  // working days from Monday 2026-09-21 end on Friday 2026-10-02, the Friday of the week after. An
-  // exclusive read would print 2026-10-05, the Monday after, and every pin would look a day long.
-  it('names the sprint’s last working day and not the first day after it', () => {
-    expect(pinHint('1', TEN)).toContain('2026-09-21 to 2026-10-02')
-    expect(pinHint('1', TEN)).toContain('both days included')
-    expect(pinHint('1', TEN)).not.toContain('2026-10-05')
-  })
-
-  it('gives a one-day sprint the same date at both ends, which no exclusive range could', () => {
-    const one = { startDate: '2026-09-21', sprintLengthDays: 1, timezone: 'UTC' }
-    expect(pinHint('4', one)).toContain('2026-09-24 to 2026-09-24')
-  })
-
-  it('labels the sprint the way the box is counted, so the sentence and the number agree', () => {
-    expect(pinHint('3', TEN)).toMatch(/^Sprint 3 runs/)
-    expect(pinHint('1', TEN)).toMatch(/^Sprint 1 runs/)
-  })
-
-  it('moves the dates with the sprint, so the line is derived and not a fixed sentence', () => {
-    expect(pinHint('1', ATLAS)).not.toBe(pinHint('2', ATLAS))
-    expect(pinHint('3', ATLAS)).toContain('2026-11-05 to 2026-11-24')
-  })
-
-  // The zone is on `PlanCalendar` and read by `todayIn` alone, per `calendar.ts`. Asserted rather than
-  // trusted, because the prop that carries it through the pin field would otherwise be unexplained.
-  it('answers the same dates whatever zone the plan names, the conversion being UTC throughout', () => {
-    const kolkata = { ...TEN, timezone: 'Asia/Kolkata' }
-    expect(pinHint('2', kolkata)).toBe(pinHint('2', TEN))
-  })
-
-  it('says a pin only delays, both with dates and without, that being the whole of what one does', () => {
-    expect(PIN_HINT).toContain('never move it earlier')
-    expect(pinHint('2', TEN)).toContain('never moves one earlier')
   })
 })

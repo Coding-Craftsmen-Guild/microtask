@@ -1,113 +1,107 @@
 'use client'
 
-import { orNoAnswer } from '@repo/app-session/no-answer'
-import { useEffect, useRef, useState } from 'react'
-import {
-  commitKeys,
-  estimateEntry,
-  paintUnfocused,
-  ESTIMATE_HINT,
-  FIELD,
-  type SubjectWrite,
-} from './field'
-import { FieldShell } from './field-shell'
-import { subjectValues, type SubjectKind } from './values'
+import { ESTIMATE_NAME, EstimateBox, problemIdOf } from './estimate-box'
+import { FIELD_CELL, FIELD_PROBLEM, MICRO } from './field-css'
+import type { SubjectWrite } from './field'
+import { useEstimate } from './use-estimate'
+import type { SubjectKind } from './values'
 
-const FIELD_ID = 'plan-drawer-estimate'
-
-const shown = (days: number | null): string => (days === null ? '' : String(days))
+const SR_ONLY = 'sr-only'
 
 /** Props for {@link EstimateField}. */
 export interface EstimateFieldProps {
-  /** The plan this subject belongs to, which every write is addressed at. */
+  /** The plan the write is addressed at. */
   readonly planId: string
 
-  /** The feature id or the item id, whichever kind this is. */
+  /** The feature or item being sized. */
   readonly subjectId: string
 
-  /** Which of the two this is, which decides where the answer is read back from. */
+  /** Which of the two, so the answered plan is re-read from the right array. */
   readonly kind: SubjectKind
 
-  /** The **authored** estimate as stored: days, `0` for a milestone, `null` for nothing sized. */
+  /** The authored estimate: days, `0` for a milestone, `null` for nothing sized. */
   readonly estimateDays: number | null
 
-  /** Sends the new estimate — `null` clears it — and answers the plan, or why it was refused. */
+  /** The write, unbound, which the page read the credential for. */
   readonly estimate: SubjectWrite<number | null>
+
+  /** The small rendering, which is how one row of the items list sizes its item. */
+  readonly mini?: boolean
+
+  /** What this estimate belongs to, which is how twenty mini steppers get twenty names. */
+  readonly of?: string
 }
 
 /**
- * The authored estimate, in the three states the field really has.
+ * The estimate, as a stepper that can also be typed in.
  *
- * Empty means `null`, **nothing was sized**; `0` is a milestone, a real estimate meaning no time; a
- * number is that many working days. `packages/contracts/src/plan.ts` is where the pair is fixed —
- * "`estimateDays` is nullable rather than defaulted to zero, because zero is a real answer" — and
- * `effectiveEstimate` reads it with `=== null` precisely so that three items sized at 0 answer 0
- * rather than resurrecting a feature's authored 40. So `0` → empty and empty → `0` are two different
- * commits, and both are sent: the string idiom this drawer's name field follows, where an empty box
- * means "no change, send nothing", cannot express either of them. What means "no change" here is a
- * value **equal to the one stored**, which is checked against the number rather than the text, so
- * `007` over a stored `7` is no change either.
+ * ### Why both a stepper and an input
  *
- * `inputMode="numeric"` on a text input rather than `type="number"`, and that is a correctness
- * decision rather than a style one: the HTML sanitisation algorithm empties a number input whose
- * content is not a valid floating-point number, so `2.5x` reads back as `''` — which this field must
- * treat as a clear. A typo would delete a real estimate and report success. Keeping the text means
- * {@link estimateEntry} can refuse it and say what a day is instead, which is the same reason the
- * negative and the fraction are refused here rather than sent for the API to answer 422 with its own
- * generic sentence.
+ * Half a day either way is almost every edit this field ever gets, and before this it cost a reader a
+ * click into the box, a select-all, a retype and a blur. The buttons make that one press. What they do
+ * **not** do is answer "make it 12", which is why the number stayed an `input` and not a read-out: a
+ * stepper alone turns a two-key edit into twenty-four presses. `./use-estimate.ts` holds what the two
+ * paths share, and argues why they commit at different moments.
  *
- * `2.5x` is a claim about the **spec** and not about this test environment, which does not reproduce
- * it: happy-dom hands `2.5x` back off a number input unchanged, and empties only a value with no
- * numeric prefix at all — `abc`. So the case `./estimate-field.test.tsx` pins is the word, which is
- * emptied here as well as in a browser, and the fraction with a trailing letter is argued rather than
- * demonstrated. Both are refused by this field either way: the rule is digits only, so nothing about
- * its behaviour rests on which of the two the DOM would have thrown away.
+ * ### What it refuses before the API does
  *
- * **A refusal leaves what was typed on screen.** It is the one thing the user still needs in order to
- * fix it, where a refused *write* restores the stored value because the server is the authority on
- * what that is — read back out of the answered plan by `subjectValues` (`./values.ts`), never assumed
- * from what was sent. Everything else is the drawer's field idiom: commit on Enter or blur, revert on
- * Escape, an inline `role="alert"` the shell points `aria-describedby` at, and no `useTransition`
- * (`./name-field.tsx` argues all of it). The hint under the box is always there and the refusal only
- * while it stands, and {@link FieldShell} names both in that order, so a reader tabbing back to a
- * refused field hears the rule **and** what was refused about it.
+ * `estimateEntry` is the one rule for both halves: halves only, nothing over the contract's maximum,
+ * and text that is not a number refused rather than read as a clear. A `type="number"` input empties
+ * its own value when it cannot parse one, which would make a typo over a real estimate read as "nobody
+ * sized this" and delete it. `steppedDays` keeps the buttons inside the same range, so the floor of a
+ * long press is a milestone and its ceiling is the contract's own.
+ *
+ * ### Why its rule is not under it
+ *
+ * The fields are a wrapping row of 34px controls and a paragraph in any one cell would stretch that cell
+ * to the paragraph's width, so the rule is one sentence under the **row** and this field names it as its
+ * description instead ({@link FIELDS_HINT_ID}).
+ *
+ * ### Two sizes, one control
+ *
+ * `mini` is the items list's rendering: the same control at 24px, no label, and its name built from the
+ * item it belongs to — a column of them needs twenty distinct names, and "Estimate in days" twenty times
+ * over is a column a screen reader cannot navigate. A refusal there is the box's `title` and an `sr-only`
+ * alert rather than a sentence, the row being one line of a list.
  */
-export function EstimateField({ planId, subjectId, kind, estimateDays, estimate }: EstimateFieldProps) {
-  const field = useRef<HTMLInputElement>(null)
-  const stored = useRef(estimateDays)
-  const [problem, setProblem] = useState('')
-  useEffect(() => {
-    stored.current = estimateDays
-    paintUnfocused(field.current, shown(estimateDays))
-  }, [estimateDays])
-  const commit = async (input: HTMLInputElement) => {
-    const entry = estimateEntry(input.value)
-    if (entry.kind === 'refused') {
-      setProblem(entry.detail)
-      return
-    }
-    if (entry.days !== stored.current) {
-      const result = await orNoAnswer(estimate)(planId, subjectId, entry.days)
-      const kept = result.ok ? subjectValues(result.value, kind, subjectId) : undefined
-      if (kept !== undefined) stored.current = kept.estimateDays
-      setProblem(result.ok ? '' : result.detail)
-    } else setProblem('')
-    paintUnfocused(field.current, shown(stored.current))
+export function EstimateField(props: EstimateFieldProps) {
+  const { estimateDays, subjectId, mini = false, of = '' } = props
+  const state = useEstimate(props)
+  const fieldId = `plan-drawer-estimate-${subjectId}`
+  const box = (
+    <EstimateBox
+      estimateDays={estimateDays}
+      fieldId={fieldId}
+      mini={mini}
+      of={of}
+      state={state}
+    />
+  )
+  const said =
+    state.problem === '' ? null : (
+      <p
+        className={mini ? SR_ONLY : FIELD_PROBLEM}
+        id={mini ? undefined : problemIdOf(fieldId)}
+        role="alert"
+      >
+        {state.problem}
+      </p>
+    )
+  if (mini) {
+    return (
+      <>
+        {box}
+        {said}
+      </>
+    )
   }
   return (
-    <FieldShell fieldId={FIELD_ID} hint={ESTIMATE_HINT} label="Estimate in days" problem={problem}>
-      {(wiring) => (
-        <input
-          {...wiring}
-          className={FIELD}
-          defaultValue={shown(estimateDays)}
-          inputMode="numeric"
-          onBlur={(event) => void commit(event.currentTarget)}
-          onKeyDown={(event) => commitKeys(event, shown(stored.current))}
-          ref={field}
-          type="text"
-        />
-      )}
-    </FieldShell>
+    <div className={FIELD_CELL} data-slot="estimate-field">
+      <label className={MICRO} htmlFor={fieldId}>
+        {ESTIMATE_NAME}
+      </label>
+      {box}
+      {said}
+    </div>
   )
 }

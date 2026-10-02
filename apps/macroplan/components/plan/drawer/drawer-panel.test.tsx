@@ -9,17 +9,29 @@ import { ADMIN_CONTROLS } from '../../../lib/admin-controls'
 import { planCapabilities, type PlanContentControls } from '../../../lib/plan-capabilities'
 import type { PlanEditActions } from '../edit-actions'
 import type { TableRow } from '../table/rows'
-import { atlasPlan, EPIC_1, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
+import {
+  atlasPlan,
+  EPIC_1,
+  EPIC_2,
+  FEATURE_1,
+  FEATURE_2,
+  ITEM_1,
+  ITEM_2,
+  PLAN_A,
+} from '../testing/plan-fixture'
 import { nothingDrawn, stubActions } from '../testing/plan-writes'
-import type { DrawerValues } from './values'
+import { ITEM_ADD_WORDS } from './item-add'
+import { FIELDS_HINT_ID, PANEL_BANDS, PANEL_HINTS } from './panel-words'
+import { SPRINT_WORDS } from './sprint-view'
+import type { DrawerValues, PanelValues } from './values'
 
 vi.mock('next/link', async () => ({
   default: (await import('../testing/next-link')).LinkDouble,
 }))
 
-// The delete navigates on success, so the panel now holds a component that calls `useRouter` — which
-// throws outside an App Router tree. Only `replace` is exercised here; `./delete-control.test.tsx` is
-// where what it is called with is asserted.
+// The delete navigates on success, so the panel holds a component that calls `useRouter` — which throws
+// outside an App Router tree. Only `replace` is exercised here; `./delete-control.test.tsx` is where what
+// it is called with is asserted.
 const replaced: string[] = []
 
 vi.mock('next/navigation', async (importOriginal) => ({
@@ -72,9 +84,35 @@ const CALENDAR = {
   timezone: atlasPlan().timezone,
 }
 
+const BILLING = {
+  colour: '#3b82f6',
+  ends: '2026-10-20',
+  id: FEATURE_2,
+  name: 'Billing',
+  railName: 'Platform',
+}
+
+// Every reading the columns draw, as `./subject-view.ts` resolves it: the days this subject occupies, the
+// sprint the schedule chose, the items under its feature, and both ends of its dependencies.
+const panelOf = (over: Partial<PanelValues> = {}): PanelValues => ({
+  atTheEnd: 9,
+  candidates: [BILLING],
+  dates: '2026-09-28 → 2026-10-07',
+  family: [
+    { estimateDays: 3, id: ITEM_1, name: 'Sessions' },
+    { estimateDays: 2, id: ITEM_2, name: 'Tokens' },
+  ],
+  hereColour: '#3b82f6',
+  scheduledSprint: 0,
+  sprintTotal: 8,
+  unblocks: [],
+  ...over,
+})
+
 const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
   name: 'Auth rewrite',
   estimateDays: 5,
+  panel: panelOf(),
   pinSprint: null,
   place: { featureId: FEATURE_1, railId: EPIC_1, siblingIds: [FEATURE_1, FEATURE_2], targets: [] },
   plan: { calendar: CALENDAR, features: atlasPlan().features, labels: atlasPlan().labels },
@@ -83,6 +121,8 @@ const valuesOf = (over: Partial<DrawerValues> = {}): DrawerValues => ({
 })
 
 const VALUES: DrawerValues = valuesOf()
+
+const ITEM_VALUES: DrawerValues = valuesOf({ estimateDays: 3, name: 'Sessions' })
 
 const CLOSE = `/plans/${PLAN_A}`
 
@@ -113,21 +153,27 @@ const open = (over: Open = {}) =>
       closeHref={CLOSE}
       controls={over.controls ?? drawing()}
       link={null}
-    description={over.description ?? null}
+      description={over.description ?? null}
       planId={PLAN_A}
       row={over.row ?? FEATURE_ROW}
       values={over.values ?? VALUES}
     />,
   )
 
-const labels = (): readonly string[] =>
-  [...document.querySelectorAll('dt')].map((node) => node.textContent ?? '')
+const column = (name: string): Element | null => document.querySelector(`[data-slot="panel-${name}"]`)
 
-const valueOf = (label: string): string =>
-  [...document.querySelectorAll('dt')]
-    .filter((node) => node.textContent === label)
-    .map((node) => node.nextElementSibling?.textContent ?? '')
-    .join('')
+const meta = (): string => document.querySelector('[data-slot="panel-meta"]')?.textContent ?? ''
+
+const reading = (): string | null =>
+  document.querySelector('[data-slot="estimate-reading"]')?.textContent ?? null
+
+const sprintValue = () => screen.queryByRole('button', { name: 'Sprint' })
+
+const breakdownLine = (): string | null =>
+  document.querySelector('[data-slot="drawer-breakdown"]')?.textContent ?? null
+
+const itemRows = (): readonly string[] =>
+  [...document.querySelectorAll('[data-slot="item-row"] a')].map((one) => one.textContent ?? '')
 
 describe('the panel one selection is drawn in', () => {
   it('names the feature as a heading under the plan’s own, not as a second h1', () => {
@@ -137,7 +183,7 @@ describe('the panel one selection is drawn in', () => {
   })
 
   it('is a landmark named for what is open, so a reader can jump to it', () => {
-    open({ row: ITEM_ROW })
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
     expect(screen.getByRole('complementary', { name: 'Sessions' })).toBeTruthy()
   })
 
@@ -150,28 +196,30 @@ describe('the panel one selection is drawn in', () => {
   })
 
   it('carries the treatment as data, because two subjects can render the same words', () => {
-    open({ row: ITEM_ROW })
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
     const panel = document.querySelector('[data-slot="drawer-panel"]')
     expect(panel?.getAttribute('data-treatment')).toBe('hollow')
     expect(panel?.getAttribute('data-kind')).toBe('item')
   })
 
-  it('repeats not one word the row already decided, reading each straight off it', () => {
+  // The `<dl>` of facts this panel used to open with is gone: Epic, Estimate and Sprint were each printed
+  // as a read-only fact **and** offered as a field below, so a reader was given the same values twice and
+  // had to work out which copy they could change. What is left as a reading is the line that no field can
+  // state — where this subject is, and the days the schedule gave it.
+  it('says where the subject is and the days it occupies, in one line over the name', () => {
     open()
-    expect(valueOf('Epic')).toBe('Platform')
-    expect(valueOf('Estimate')).toBe('5d')
-    expect(valueOf('Sprint')).toBe('S1')
+    expect(meta()).toBe('Platform · 2026-09-28 → 2026-10-07')
+    expect(document.querySelector('dl')).toBeNull()
   })
 
-  it('names the feature an item flows under, which a feature’s own panel has no room to repeat', () => {
-    open({ row: ITEM_ROW })
-    expect(labels()).toEqual(['Epic', 'Feature', 'Estimate', 'Sprint'])
-    expect(valueOf('Feature')).toBe('Auth rewrite')
+  it('names the feature an item flows under, that being where an item is', () => {
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(meta()).toBe('Auth rewrite · 2026-09-28 → 2026-10-07')
   })
 
-  it('leaves the feature row out of that list, the heading having just said it', () => {
-    open()
-    expect(labels()).toEqual(['Epic', 'Estimate', 'Sprint'])
+  it('says the context alone for work the schedule placed nowhere, rather than a bare separator', () => {
+    open({ values: valuesOf({ panel: panelOf({ dates: '' }) }) })
+    expect(meta()).toBe('Platform')
   })
 
   it('closes by going back to the plan’s own URL, since the selection is the address', () => {
@@ -179,23 +227,33 @@ describe('the panel one selection is drawn in', () => {
     expect(screen.getByRole('link', { name: 'Close' }).getAttribute('href')).toBe(CLOSE)
   })
 
-  // The row carries the dependency and the read half is documented not to draw it. Every other row in
-  // this file has an empty `blockedBy`, so nothing there could tell "deliberately not drawn" from
-  // "there was nothing to draw" — and a later edit could start wording an edge here in a second
-  // vocabulary with no case going red. What the `<dl>` must not word is both of `PlanTableRow`'s
-  // halves: the name it would print, and the suffix `EDGE_SUFFIX` would print after it.
-  //
-  // The **editor** does name the plan's other features, and must: a candidate list is what one looks
-  // like (`drawer-manage.tsx`). So the claim is narrowed to the half it was always about — the facts
-  // `<dl>` words no edge, and the four things a stated edge can turn out to be stay the table's
-  // sentences — rather than to "this panel never prints another feature's name", which a dependency
-  // control makes false on purpose.
-  it('words no dependency in the facts list, that vocabulary being the table’s alone', () => {
-    open({ row: { ...FEATURE_ROW, blockedBy: [{ id: FEATURE_2, name: 'Billing', state: 'set-aside' }] } })
-    expect(labels()).toEqual(['Epic', 'Estimate', 'Sprint'])
-    expect(document.querySelector('dl')?.textContent).not.toContain('Billing')
+  // The row carries the dependency and the identity column is documented not to word it: the four things
+  // a stated edge can turn out to be stay the table's sentences. The **dependency column** does name the
+  // plan's other features, and must — a candidate list is what one looks like — so the claim is about the
+  // column that reads the subject, not about the panel.
+  it('words no dependency in the readings, that vocabulary being the table’s alone', () => {
+    open({
+      row: { ...FEATURE_ROW, blockedBy: [{ id: FEATURE_2, name: 'Billing', state: 'set-aside' }] },
+    })
+    expect(column('identity')?.textContent).not.toContain('Billing')
     expect(screen.queryByText(/set aside to keep rail order/)).toBeNull()
-    expect(document.body.textContent).not.toContain(FEATURE_2)
+  })
+
+  // Two layouts rather than one, because an item has no items and no dependencies of its own: a third
+  // column on an item would be an empty column, and the order controls that are its second subject need
+  // the width to name both neighbours.
+  it('draws a feature three columns and an item two, the first being the same on both', () => {
+    open()
+    expect(column('identity')).toBeTruthy()
+    expect(column('edges')).toBeTruthy()
+    expect(column('items')).toBeTruthy()
+    expect(column('order')).toBeNull()
+    cleanup()
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(column('identity')).toBeTruthy()
+    expect(column('order')).toBeTruthy()
+    expect(column('edges')).toBeNull()
+    expect(column('items')).toBeNull()
   })
 })
 
@@ -210,23 +268,56 @@ describe('the fields it draws, from the values rather than from the words', () =
     )
   })
 
-  // The two halves of the same subject, disagreeing on purpose: the `<dd>` says what the schedule made
-  // of the estimate and the field holds what was authored. A panel that fed the field from the row
-  // would have put that whole sentence in the box.
-  it('keeps the schedule’s sentence in the list and the authored number in the field', () => {
+  // The two halves of the same subject, disagreeing on purpose: the reading says what the schedule made
+  // of the estimate and the field holds what was authored. A panel that fed the field from the row would
+  // have put that whole sentence in the box.
+  it('keeps the schedule’s sentence as a reading and the authored number in the field', () => {
     open({
       row: { ...FEATURE_ROW, estimate: 'planned 40d · broken down to 5d · -35d' },
       values: valuesOf({ estimateDays: 40 }),
     })
-    expect(valueOf('Estimate')).toBe('planned 40d · broken down to 5d · -35d')
+    expect(reading()).toBe('planned 40d · broken down to 5d · -35d')
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
       '40',
     )
   })
 
+  // Where the row's verdict is simply the number in the field, printing it would charge a line of the
+  // column for a fact already on screen.
+  it('prints no reading at all where the schedule agrees with the field', () => {
+    open()
+    expect(reading()).toBeNull()
+  })
+
+  // One sentence under the row rather than one under each field, which is the layout the wrapping row of
+  // 34px controls forces: a paragraph in any one cell stretches that cell to the paragraph's width. The
+  // estimate field names this element as its description (`estimate-field.test.tsx` asserts that half).
+  it('says the rule once, under the row, and the fields point at it', () => {
+    open()
+    const hint = document.getElementById(FIELDS_HINT_ID)
+    expect(hint?.textContent).toBe(PANEL_HINTS.feature)
+    expect(
+      screen
+        .getByRole('textbox', { name: 'Estimate in days' })
+        .getAttribute('aria-describedby'),
+    ).toBe(FIELDS_HINT_ID)
+  })
+
+  it('says the item’s own rule on an item, items running one after another inside a feature', () => {
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(document.getElementById(FIELDS_HINT_ID)?.textContent).toBe(PANEL_HINTS.item)
+  })
+
   it('labels the name field for an item as an item’s, the actions behind the two being different', () => {
-    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
     expect(screen.getByRole('textbox', { name: 'Item name' })).toBeTruthy()
+  })
+
+  it('draws the name as plain text where there is no rename to offer, and not a dead box', () => {
+    open({ controls: drawing({ renameFeature: false }) })
+    expect(screen.queryByRole('textbox', { name: 'Feature name' })).toBeNull()
+    expect(column('identity')?.textContent).toContain('Auth rewrite')
+    expect(screen.getByRole('textbox', { name: 'Estimate in days' })).toBeTruthy()
   })
 
   it('draws no description box on a feature, there being no description to draw', () => {
@@ -235,21 +326,15 @@ describe('the fields it draws, from the values rather than from the words', () =
   })
 
   it('draws the description box for an item whose file was read', () => {
-    open({ row: ITEM_ROW, description: 'Ship behind a flag' })
+    open({ row: ITEM_ROW, description: 'Ship behind a flag', values: ITEM_VALUES })
     expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Description' }).value).toBe(
       'Ship behind a flag',
     )
   })
 
   it('draws none for an item whose description was not read, rather than an empty box', () => {
-    open({ row: ITEM_ROW, description: null })
+    open({ row: ITEM_ROW, description: null, values: ITEM_VALUES })
     expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
-  })
-
-  it('draws each field only where its own control says so', () => {
-    open({ controls: drawing({ renameFeature: false }) })
-    expect(screen.queryByRole('textbox', { name: 'Feature name' })).toBeNull()
-    expect(screen.getByRole('textbox', { name: 'Estimate in days' })).toBeTruthy()
   })
 
   it('draws no field at all for a surface that may write nothing', () => {
@@ -262,7 +347,7 @@ describe('the fields it draws, from the values rather than from the words', () =
     const renameFeature = vi.fn(() => Promise.resolve(served))
     open({
       row: ITEM_ROW,
-      values: valuesOf({ name: 'Sessions', estimateDays: 3 }),
+      values: ITEM_VALUES,
       actions: stubActions({ renameItem, renameFeature }),
     })
     const user = userEvent.setup()
@@ -272,9 +357,9 @@ describe('the fields it draws, from the values rather than from the words', () =
     expect(renameFeature).not.toHaveBeenCalled()
   })
 
-  // The assertion that matters about a control, per `lib/plan-capabilities.ts`: a control is a
-  // rendering answer and never a gate, so the thing worth pinning is that a write the API refuses
-  // still says so on screen — not that anything was hidden.
+  // The assertion that matters about a control, per `lib/plan-capabilities.ts`: a control is a rendering
+  // answer and never a gate, so the thing worth pinning is that a write the API refuses still says so on
+  // screen — not that anything was hidden.
   it('surfaces the sentence a refused write came back with, the control having decided nothing', async () => {
     const renameFeature = vi.fn(() =>
       Promise.resolve<ActionResult<Plan>>({
@@ -293,47 +378,89 @@ describe('the fields it draws, from the values rather than from the words', () =
   })
 })
 
-const featureOne = () => {
-  const found = atlasPlan().features.find((one) => one.id === FEATURE_1)
-  if (found === undefined) throw new Error('the fixture no longer holds FEATURE_1')
-  return found
-}
+// The picker that replaced "Move to another rail": the opener is the field — *which rail is this on* —
+// and opening it offers the alternatives. A pick lands at the end of that rail, which is the only
+// position a subject has among children it has never been beside (`./place-picker.tsx`).
+describe('the picker that moves work between parents', () => {
+  const targets = [{ colour: '#112233', id: EPIC_2, name: 'Payments' }]
 
-const itemsOfOne = () => atlasPlan().items.filter((one) => one.featureId === FEATURE_1)
-
-const pinBox = () => screen.queryByRole<HTMLInputElement>('textbox', { name: 'Pinned to sprint' })
-
-// The three control bands, in the order the panel draws them: the `write` fields about the subject, the
-// `manage` controls, then the creates — which are `write`-tier and outside the tier split, being about a
-// parent rather than about this subject. Found by the variant that hides an empty one, which is what each
-// of them *is*.
-const bands = (): readonly Element[] => [...document.querySelectorAll('[class*="empty:hidden"]')]
-
-const breakdownLine = (): string | null =>
-  document.querySelector('[data-slot="drawer-breakdown"]')?.textContent ?? null
-
-// The pin is the one control on this panel a `write` seat is refused, so the thing worth pinning is
-// that it is drawn on its own boolean and on the feature kind — and that a seat holding the other two
-// still gets those. It is never a gate: the API answers the click (`lib/plan-capabilities.ts`).
-describe('the pin, which is the manage-tier control among the write-tier fields', () => {
-  it('draws it for a feature, seeded one above the stored 0-based index', () => {
-    open({ values: valuesOf({ pinSprint: 2 }) })
-    expect(pinBox()?.value).toBe('3')
-  })
-
-  it('draws an empty box for a feature nobody pinned, rather than no box at all', () => {
+  it('shows the rail a feature is on, and the feature an item is under', () => {
     open()
-    expect(pinBox()?.value).toBe('')
+    expect(column('identity')?.textContent).toContain('Epic')
+    cleanup()
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(column('identity')?.textContent).toContain('Feature')
   })
 
-  it('draws none for an item, PlanItem carrying no pin to edit', () => {
-    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
-    expect(pinBox()).toBeNull()
+  it('offers every other rail of the plan and marks the one the feature is already on', () => {
+    open({ values: valuesOf({ place: { ...VALUES.place, targets } }) })
+    expect(screen.getByRole('button', { name: 'Payments' })).toBeTruthy()
+    expect(screen.getByText('current')).toBeTruthy()
   })
 
-  it('draws none where pinFeature is false while still drawing the two write fields', () => {
+  it('moves the feature to the end of the rail that was picked', async () => {
+    const actions = stubActions()
+    open({ actions, values: valuesOf({ place: { ...VALUES.place, targets } }) })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Payments' }))
+    expect(actions.placeFeature).toHaveBeenCalledWith(PLAN_A, FEATURE_1, {
+      epicId: EPIC_2,
+      position: 9,
+    })
+  })
+
+  it('moves an item to the end of the feature that was picked, which is the other placement', async () => {
+    const actions = stubActions()
+    open({
+      actions,
+      row: ITEM_ROW,
+      values: valuesOf({
+        estimateDays: 3,
+        name: 'Sessions',
+        place: { ...VALUES.place, targets: [{ colour: '#3b82f6', id: FEATURE_2, name: 'Billing' }] },
+      }),
+    })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Billing' }))
+    expect(actions.placeItem).toHaveBeenCalledWith(PLAN_A, ITEM_1, {
+      featureId: FEATURE_2,
+      position: 9,
+    })
+  })
+
+  it('draws none where the placement control says so, or where no epic claims the rail', () => {
+    open({ controls: drawing({ placeFeature: false }) })
+    expect(screen.queryByText('current')).toBeNull()
+    cleanup()
+    open({ values: valuesOf({ place: { ...VALUES.place, railId: null } }) })
+    expect(screen.queryByText('current')).toBeNull()
+  })
+})
+
+// The pin is the one control on this panel a `write` seat is refused, so the thing worth pinning is that
+// it is drawn on its own boolean and on the feature kind. It is never a gate: the API answers the click.
+describe('the sprint, which a feature pins and an item only reads', () => {
+  it('draws the stepper for a feature, showing the pin where there is one', () => {
+    open({ values: valuesOf({ pinSprint: 2 }) })
+    expect(sprintValue()?.textContent).toContain('S3')
+    expect(sprintValue()?.textContent).toContain(SPRINT_WORDS.pinned)
+  })
+
+  it('shows the schedule’s own sprint for a feature nobody pinned, rather than an empty box', () => {
+    open()
+    expect(sprintValue()?.textContent).toContain('S1')
+    expect(sprintValue()?.textContent).toContain(SPRINT_WORDS.loose)
+  })
+
+  // Only a feature carries a pin: an item's dates follow its order inside its feature, so a stepper
+  // there would be a control with nothing to write.
+  it('draws a flat reading for an item, PlanItem carrying no pin to edit', () => {
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(sprintValue()).toBeNull()
+    expect(document.querySelector('[data-slot="sprint-pill"]')?.textContent).toContain('S1')
+  })
+
+  it('draws none where pinFeature is false while still drawing the fields beside it', () => {
     open({ controls: drawing({ pinFeature: false }) })
-    expect(pinBox()).toBeNull()
+    expect(sprintValue()).toBeNull()
     expect(screen.getByRole('textbox', { name: 'Feature name' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: 'Estimate in days' })).toBeTruthy()
   })
@@ -342,93 +469,163 @@ describe('the pin, which is the manage-tier control among the write-tier fields'
     const pinFeature = vi.fn(() => Promise.resolve(served))
     const estimateFeature = vi.fn(() => Promise.resolve(served))
     open({ actions: stubActions({ pinFeature, estimateFeature }) })
-    const user = userEvent.setup()
-    await user.type(screen.getByRole('textbox', { name: 'Pinned to sprint' }), '3{Enter}')
-    expect(pinFeature).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 2)
+    await userEvent.setup().click(screen.getByRole('button', { name: SPRINT_WORDS.more }))
+    expect(pinFeature).toHaveBeenCalledWith(PLAN_A, FEATURE_1, 1)
     expect(estimateFeature).not.toHaveBeenCalled()
-  })
-
-  it('says the sprint’s own dates under the box rather than leaving a bare index on screen', () => {
-    open({ values: valuesOf({ pinSprint: 0 }) })
-    expect(document.body.textContent).toContain('Sprint 1 runs 2026-09-28 to 2026-10-15')
   })
 })
 
-// The second band the panel draws: every control in it is granted to `manage` alone, and the two it
-// holds today are a **feature's** alone (`drawer-manage.tsx`).
-describe('the manage band, and the one control an item drawer must never draw', () => {
+describe('the dependency column, and the one control an item drawer must never draw', () => {
   // Spec §3.1: a feature is a contiguous block, and "contiguity is what makes an edge between two
-  // features mean something at the year rung, and it is why edges exist at the feature level and
-  // nowhere else". `PlanItem` carries no `dependsOn` at all, so there is no item form of this to draw.
+  // features mean something at the year rung, and it is why edges exist at the feature level and nowhere
+  // else". `PlanItem` carries no `dependsOn` at all, so there is no item form of this to draw.
   it('draws no dependency control at all on an item, edges existing at the feature level only', () => {
-    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
     expect(screen.queryAllByRole('checkbox')).toEqual([])
-    expect(screen.queryByText('Waits on')).toBeNull()
+    expect(screen.queryByText(PANEL_BANDS.waits)).toBeNull()
   })
 
   it('draws one box per other feature of the plan for a feature, named by what it waits on', () => {
     open()
-    expect(screen.getByText('Waits on')).toBeTruthy()
+    expect(screen.getByText(PANEL_BANDS.waits)).toBeTruthy()
     expect(screen.getByRole('checkbox', { name: 'Billing' })).toBeTruthy()
     expect(screen.queryByRole('checkbox', { name: 'Auth rewrite' })).toBeNull()
   })
 
-  it('draws none where setDependencies is false while still drawing the pin beside it', () => {
+  // The same relation read from the other end, which is the half a feature's own panel cannot deduce:
+  // nothing else on screen says what is waiting on **this**.
+  it('says what waits on this feature, as links rather than as controls', () => {
+    open({ values: valuesOf({ panel: panelOf({ unblocks: [BILLING] }) }) })
+    expect(screen.getByText(PANEL_BANDS.unblocks)).toBeTruthy()
+    expect(screen.getByRole('link', { name: /Billing/ }).getAttribute('href')).toBe(
+      `${CLOSE}/f/${FEATURE_2}`,
+    )
+  })
+
+  it('says nothing waits on it where nothing does, rather than leaving the band out', () => {
+    open()
+    expect(screen.getByText(PANEL_BANDS.noUnblocks)).toBeTruthy()
+  })
+
+  it('draws neither band where setDependencies is false, while still drawing the pin beside it', () => {
     open({ controls: drawing({ setDependencies: false }) })
     expect(screen.queryAllByRole('checkbox')).toEqual([])
-    expect(pinBox()).toBeTruthy()
-  })
-
-  // `empty:hidden` is a Tailwind variant and not a count, so what makes a band disappear is the
-  // element being **childless** — which is the thing worth asserting, a stylesheet not being loaded
-  // here. Both bands are checked, because a read-only seat must be shown neither box.
-  it('leaves every band childless for a surface that may write nothing, so none is shown', () => {
-    open({ controls: nothingDrawn() })
-    expect(screen.queryAllByRole('checkbox')).toEqual([])
-    expect(pinBox()).toBeNull()
-    expect(bands().map((band) => band.childElementCount)).toEqual([0, 0, 0])
-  })
-
-  // **The claim the second band was opened for**, which four files' prose asserted and no test asked:
-  // `feature:pin` and `feature:depend` are `manage`-only where `feature:rename`, `feature:estimate` and
-  // `item:describe` are `write` (`MANAGE` and `WRITE` in `packages/kernel/src/access/policy.ts`), so the
-  // split between the two files *is* the role line. `lib/plan-capabilities.test.ts` pins the policy side
-  // row by row, so a policy change goes red there; what nothing caught until now is a control mounted in
-  // the **wrong band**, which is the mistake three more groups make easy. The controls come from
-  // `planCapabilities` rather than from an object written here, so the seat asked about is the one the
-  // server would answer for.
-  it('shows a write seat the edits band and an empty manage band, and a manage seat both', () => {
-    open({ controls: planCapabilities('write', SEAT).content })
-    expect(screen.getByRole('textbox', { name: 'Feature name' })).toBeTruthy()
-    expect(pinBox()).toBeNull()
-    expect(screen.queryAllByRole('checkbox')).toEqual([])
-    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, false, true])
-    cleanup()
-    open({ controls: planCapabilities('manage', SEAT).content })
-    expect(bands().map((band) => band.childElementCount > 0)).toEqual([true, true, true])
-    expect(pinBox()).toBeTruthy()
-    expect(screen.getByRole('checkbox', { name: 'Billing' })).toBeTruthy()
-  })
-
-  // The create band is the `true` in the middle case above, and it is the one band whose tier is not the
-  // band's: `feature:create` and `item:create` are `write` actions, so a `write` seat is shown the creates
-  // and refused the pin, the edges and the delete beside them (`packages/kernel/src/access/policy.ts`).
-  it('shows a write seat the creates, whose actions are write-tier, and not the delete', () => {
-    open({ controls: planCapabilities('write', SEAT).content })
-    expect(screen.getByRole('textbox', { name: 'New feature on this rail' })).toBeTruthy()
-    expect(screen.getByRole('textbox', { name: 'New item in this feature' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
-  })
-
-  it('shows a view seat no band at all, there being nothing on this panel it may write', () => {
-    open({ controls: planCapabilities('view', SEAT).content })
-    expect(bands().map((band) => band.childElementCount)).toEqual([0, 0, 0])
+    expect(screen.queryByText(PANEL_BANDS.unblocks)).toBeNull()
+    expect(sprintValue()).toBeTruthy()
   })
 })
 
-// The one destructive control, which is `manage`-tier and so lives in the second band. What is asserted
-// here is the mount: that it is drawn for both kinds, on its own boolean, and wired to **this** kind's
-// write. `./delete-control.test.tsx` holds the dialog, the focus and the navigation.
+// The column the panel moved under the board for: breaking a feature down was eight navigations before
+// it, and is one screen now.
+describe('the items column, which is where a feature is broken down', () => {
+  it('lists the feature’s items in order, each a link to its own panel', () => {
+    open()
+    expect(itemRows()).toEqual(['Sessions', 'Tokens'])
+    expect(screen.getByRole('link', { name: 'Tokens' }).getAttribute('href')).toBe(
+      `${CLOSE}/i/${ITEM_2}`,
+    )
+  })
+
+  it('says how many there are and what they add up to', () => {
+    open()
+    expect(screen.getByText('2 · 5d total')).toBeTruthy()
+  })
+
+  it('says none are sized where no item of the feature is', () => {
+    const unsized = panelOf({
+      family: [
+        { estimateDays: null, id: ITEM_1, name: 'Sessions' },
+        { estimateDays: null, id: ITEM_2, name: 'Tokens' },
+      ],
+    })
+    open({ values: valuesOf({ panel: unsized }) })
+    expect(screen.getByText('2 · none sized')).toBeTruthy()
+  })
+
+  it('sizes one item from its own row, sending that item’s id and not the feature’s', async () => {
+    const actions = stubActions()
+    open({ actions })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Half a day more for Tokens' }))
+    expect(actions.estimateItem).toHaveBeenCalledWith(PLAN_A, ITEM_2, 2.5)
+    expect(actions.estimateFeature).not.toHaveBeenCalled()
+  })
+
+  it('adds an item to this feature from the last row of the list', async () => {
+    const actions = stubActions()
+    open({ actions })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('textbox', { name: ITEM_ADD_WORDS.label }))
+    await user.paste('Token rotation')
+    await user.click(screen.getByRole('button', { name: ITEM_ADD_WORDS.action }))
+    expect(actions.createItem).toHaveBeenCalledWith(PLAN_A, {
+      featureId: FEATURE_1,
+      name: 'Token rotation',
+    })
+  })
+
+  it('says a feature with no items has none, that being how a feature gets a size of its own', () => {
+    open({ values: valuesOf({ panel: panelOf({ family: [] }) }) })
+    expect(screen.getByText(PANEL_BANDS.noItems)).toBeTruthy()
+  })
+
+  it('draws no steppers and no add row where those controls say so', () => {
+    open({ controls: drawing({ createItem: false, estimateItem: false }) })
+    expect(itemRows()).toEqual(['Sessions', 'Tokens'])
+    expect(screen.queryByRole('textbox', { name: ITEM_ADD_WORDS.label })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Half a day more for/ })).toBeNull()
+  })
+})
+
+// An item's second column: its dates are not its own — items run one after another inside their feature
+// — so order is the only thing on its panel that changes when it happens.
+describe('the order column, which is an item’s whole second subject', () => {
+  it('says where this item sits among its siblings', () => {
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(screen.getByText(PANEL_BANDS.order)).toBeTruthy()
+    expect(screen.getByText('1 of 2 · 2026-09-28 → 2026-10-07')).toBeTruthy()
+  })
+
+  it('names both neighbours, each a link to its own panel', () => {
+    open({ row: { ...ITEM_ROW, id: ITEM_2 }, values: valuesOf({ name: 'Tokens' }) })
+    expect(screen.getByRole('link', { name: 'Sessions' }).getAttribute('href')).toBe(
+      `${CLOSE}/i/${ITEM_1}`,
+    )
+    expect(screen.getByText(PANEL_BANDS.end)).toBeTruthy()
+  })
+
+  it('says the ends of the feature where there is no neighbour that way', () => {
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(screen.getByText(PANEL_BANDS.start)).toBeTruthy()
+    expect(screen.getByText('Tokens')).toBeTruthy()
+  })
+
+  it('moves the item one place later, as a placement among its siblings', async () => {
+    const actions = stubActions()
+    open({ actions, row: ITEM_ROW, values: ITEM_VALUES })
+    await userEvent.setup().click(screen.getByRole('button', { name: PANEL_BANDS.later }))
+    expect(actions.placeItem).toHaveBeenCalledWith(PLAN_A, ITEM_1, {
+      featureId: FEATURE_1,
+      position: 1,
+    })
+  })
+
+  it('disables the step that would move it off the end of its feature', () => {
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
+    expect(
+      screen.getByRole('button', { name: PANEL_BANDS.earlier }).hasAttribute('disabled'),
+    ).toBe(true)
+  })
+
+  it('draws no steps where placeItem is false, while still naming the neighbours', () => {
+    open({ controls: drawing({ placeItem: false }), row: ITEM_ROW, values: ITEM_VALUES })
+    expect(screen.queryByRole('button', { name: PANEL_BANDS.later })).toBeNull()
+    expect(screen.getByText(PANEL_BANDS.start)).toBeTruthy()
+  })
+})
+
+// The one destructive control, which is `manage`-tier and now sits on the **tab** rather than among the
+// fields: it is an action on the thing the tab names rather than a value of it, and a destructive button
+// at the foot of a column of inputs is one in tab order after every input.
 describe('the delete, and the fact that the kind picks the write rather than a caller', () => {
   it('draws it for a feature and sends removeFeature with the plan and the feature', async () => {
     const actions = stubActions()
@@ -442,12 +639,19 @@ describe('the delete, and the fact that the kind picks the write rather than a c
 
   it('draws it for an item and sends removeItem, the two ids being indistinguishable strings', async () => {
     const actions = stubActions()
-    open({ actions, row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    open({ actions, row: ITEM_ROW, values: ITEM_VALUES })
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     await user.click(screen.getByRole('button', { name: 'Delete item' }))
     expect(actions.removeItem).toHaveBeenCalledWith(PLAN_A, ITEM_1)
     expect(actions.removeFeature).not.toHaveBeenCalled()
+  })
+
+  it('sits in the tab strip rather than in a column, so no column ends in a red button', () => {
+    open()
+    expect(
+      screen.getByRole('button', { name: 'Delete' }).closest('[data-slot="panel-tabs"]'),
+    ).toBeTruthy()
   })
 
   // The stored value and not the row's wording: the two are the same string on the fixture, so the
@@ -461,65 +665,64 @@ describe('the delete, and the fact that the kind picks the write rather than a c
   it('draws none where removeFeature is false while still drawing the pin beside it', () => {
     open({ controls: drawing({ removeFeature: false }) })
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
-    expect(pinBox()).toBeTruthy()
+    expect(sprintValue()).toBeTruthy()
   })
 
   it('draws none for an item where removeItem is false, the two booleans being two actions', () => {
-    open({
-      controls: drawing({ removeItem: false }),
-      row: ITEM_ROW,
-      values: valuesOf({ name: 'Sessions' }),
-    })
+    open({ controls: drawing({ removeItem: false }), row: ITEM_ROW, values: ITEM_VALUES })
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
   })
 })
 
-// The create group, which is the one group mounted by the frame rather than by a band: its parents are
-// `values.place`, resolved in the same lookup as the row, so a drawer open on an **item** adds a feature
-// to that item's rail and an item to that item's feature — never to the item.
-describe('the creates, which are about a parent and not about the subject', () => {
-  it('adds a feature to the open feature’s own rail', async () => {
-    const actions = stubActions()
-    open({ actions })
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('textbox', { name: 'New feature on this rail' }))
-    await user.paste('Sessions rework')
-    await user.click(screen.getByRole('button', { name: 'Add feature' }))
-    expect(actions.createFeature).toHaveBeenCalledWith(PLAN_A, {
-      epicId: EPIC_1,
-      name: 'Sessions rework',
-    })
+// `feature:pin` and `feature:depend` are `manage`-only where `feature:rename`, `feature:estimate` and
+// `item:describe` are `write` (`MANAGE` and `WRITE` in `packages/kernel/src/access/policy.ts`), so which
+// control a seat is shown *is* the role line. `lib/plan-capabilities.test.ts` pins the policy side row by
+// row; what nothing would otherwise catch is a control drawn for the wrong tier.
+describe('what each seat is shown, which is the capability line drawn as layout', () => {
+  it('shows a write seat the fields and neither the pin nor the edges', () => {
+    open({ controls: planCapabilities('write', SEAT).content })
+    expect(screen.getByRole('textbox', { name: 'Feature name' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: 'Estimate in days' })).toBeTruthy()
+    expect(sprintValue()).toBeNull()
+    expect(screen.queryAllByRole('checkbox')).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
   })
 
-  it('adds an item to the open item’s **feature**, which is the parent an item drawer cannot invent', async () => {
-    const actions = stubActions()
-    open({
-      actions,
-      row: ITEM_ROW,
-      values: valuesOf({ estimateDays: 3, name: 'Sessions', place: { featureId: FEATURE_1, railId: EPIC_1, siblingIds: [FEATURE_1, FEATURE_2], targets: [] } }),
-    })
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('textbox', { name: 'New item in this feature' }))
-    await user.paste('Token rotation')
-    await user.click(screen.getByRole('button', { name: 'Add item' }))
-    expect(actions.createItem).toHaveBeenCalledWith(PLAN_A, {
-      featureId: FEATURE_1,
-      name: 'Token rotation',
-    })
+  // `item:create` is a `write` action, so the one thing a write seat may do in the items column is add
+  // to it — which is the asymmetry worth pinning, the column itself being a reading.
+  it('shows a write seat the items column with its add row, the creates being write-tier', () => {
+    open({ controls: planCapabilities('write', SEAT).content })
+    expect(screen.getByRole('textbox', { name: ITEM_ADD_WORDS.label })).toBeTruthy()
   })
 
-  it('draws each box only where its own control says so', () => {
-    open({ controls: drawing({ createFeature: false }) })
-    expect(screen.queryByRole('textbox', { name: 'New feature on this rail' })).toBeNull()
-    expect(screen.getByRole('textbox', { name: 'New item in this feature' })).toBeTruthy()
+  it('shows a manage seat the pin, the edges and the delete as well', () => {
+    open({ controls: planCapabilities('manage', SEAT).content })
+    expect(sprintValue()).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: 'Billing' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeTruthy()
   })
 
-  it('draws no feature box where no epic of the plan claims the subject’s rail', () => {
-    open({ values: valuesOf({ place: { featureId: FEATURE_1, railId: null, siblingIds: [FEATURE_1, FEATURE_2], targets: [] } }) })
-    expect(screen.queryByRole('textbox', { name: 'New feature on this rail' })).toBeNull()
-    expect(screen.getByRole('textbox', { name: 'New item in this feature' })).toBeTruthy()
+  it('shows a view seat no control at all, there being nothing on this panel it may write', () => {
+    open({ controls: planCapabilities('view', SEAT).content })
+    expect(screen.queryAllByRole('textbox')).toEqual([])
+    expect(screen.queryAllByRole('checkbox')).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+  })
+
+  it('still reads the plan to a view seat, a panel with no controls not being an empty panel', () => {
+    open({ controls: planCapabilities('view', SEAT).content })
+    expect(meta()).toBe('Platform · 2026-09-28 → 2026-10-07')
+    expect(itemRows()).toEqual(['Sessions', 'Tokens'])
   })
 })
+
+const featureOne = () => {
+  const found = atlasPlan().features.find((one) => one.id === FEATURE_1)
+  if (found === undefined) throw new Error('the fixture no longer holds FEATURE_1')
+  return found
+}
+
+const itemsOfOne = () => atlasPlan().items.filter((one) => one.featureId === FEATURE_1)
 
 // §3.2's own sentence is the row's and appears in the Estimate cell. What this line adds is which of a
 // feature's two estimates the timeline used, and the assertion below is that it repeats none of the row.
@@ -530,7 +733,7 @@ describe('the breakdown line, which says what the Estimate cell has no room to',
   })
 
   it('draws nothing where the items did not, which is what an item always resolves to', () => {
-    open({ row: ITEM_ROW, values: valuesOf({ name: 'Sessions', estimateDays: 3 }) })
+    open({ row: ITEM_ROW, values: ITEM_VALUES })
     expect(breakdownLine()).toBeNull()
   })
 
@@ -539,7 +742,7 @@ describe('the breakdown line, which says what the Estimate cell has no room to',
       row: { ...FEATURE_ROW, estimate: 'planned 40d · broken down to 62d · +22d' },
       values: valuesOf({ estimateDays: 40, sizedByItems: true }),
     })
-    expect(valueOf('Estimate')).toBe('planned 40d · broken down to 62d · +22d')
+    expect(reading()).toBe('planned 40d · broken down to 62d · +22d')
     expect(breakdownLine()).not.toMatch(/[0-9]/)
   })
 
@@ -557,32 +760,25 @@ describe('the breakdown line, which says what the Estimate cell has no room to',
     expect(breakdownLine()).toBe(overrun)
   })
 
-  // The state the line used to be silent in, end to end: the cell shows what the items came to and the
-  // field beside it is empty, because nothing was authored. Only the line accounts for the two.
-  it('is on screen where the cell reads the items’ sum and the estimate field holds nothing', () => {
+  // The state the line used to be silent in, end to end: the reading shows what the items came to and
+  // the field beside it is empty, because nothing was authored. Only the line accounts for the two.
+  it('is on screen where the reading is the items’ sum and the estimate field holds nothing', () => {
     open({
       row: { ...FEATURE_ROW, estimate: '5d' },
       values: valuesOf({ estimateDays: null, sizedByItems: true }),
     })
-    expect(valueOf('Estimate')).toBe('5d')
+    expect(reading()).toBe('5d')
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe('')
     expect(breakdownLine()).toContain('changing it moves no bar')
-  })
-
-  it('sits outside the facts list, a sentence with no <dt> being no part of one', () => {
-    open({ values: valuesOf({ sizedByItems: true }) })
-    expect(labels()).toEqual(['Epic', 'Estimate', 'Sprint'])
-    expect(document.querySelector('dl [data-slot="drawer-breakdown"]')).toBeNull()
-    expect(breakdownLine()).toBeTruthy()
   })
 })
 
 // ADR 0051, asserted rather than described, because it reads as a bug to anyone who has not been told:
 // `effectiveEstimate` takes the items whenever at least one of them is estimated, so a `write` seat
-// typing into the estimate field of a broken-down feature sees the discrepancy change and the canvas
-// stay still. The panel's half of that is what this file can check — the field really sends the new
-// authored number, the row's sentence is what moves, and the spans the canvas draws come from the
-// schedule the API answered rather than from anything this field wrote.
+// typing into the estimate field of a broken-down feature sees the discrepancy change and the canvas stay
+// still. The panel's half of that is what this file can check — the field really sends the new authored
+// number, the row's sentence is what moves, and the spans the canvas draws come from the schedule the API
+// answered rather than from anything this field wrote.
 describe('an estimate authored on a broken-down feature: the gap moves and the bar does not', () => {
   it('sends the authored estimate while the timeline keeps placing the feature by its items', async () => {
     const estimateFeature = vi.fn(() => Promise.resolve(served))

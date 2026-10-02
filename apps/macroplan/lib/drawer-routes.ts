@@ -85,6 +85,25 @@ export const featurePath = (planId: string, featureId: string): string =>
 export const itemPath = (planId: string, itemId: string): string =>
   drawerPath(planPath(planId), ITEM_SEGMENT, itemId)
 
+const SEGMENTS = { feature: FEATURE_SEGMENT, item: ITEM_SEGMENT } as const
+
+/**
+ * The address of another subject's drawer, from the root this one was handed.
+ *
+ * The panel is given `closeHref` — "the plan's own path, this same address with nothing selected" —
+ * and that is exactly the root every drawer route hangs off, on both surfaces: `/plans/<id>` for the
+ * cookie surface and `/s/<token>` for a seat. So a panel can link to a sibling drawer without being
+ * handed a route builder and without either page learning that its links are now relative to it. The
+ * dependency chips and the items list are both built this way.
+ *
+ * @param root - The plan's own path, which is the panel's `closeHref`.
+ * @param kind - Which drawer: a feature's or an item's.
+ * @param id - The subject to open.
+ * @returns The path, with the id encoded.
+ */
+export const drawerHref = (root: string, kind: 'feature' | 'item', id: string): string =>
+  drawerPath(root, SEGMENTS[kind], id)
+
 const SEAT_FEATURE = (token: string, featureId: string): string =>
   drawerPath(linkPath(token), FEATURE_SEGMENT, featureId)
 

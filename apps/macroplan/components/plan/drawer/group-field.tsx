@@ -2,66 +2,62 @@
 
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import { useState } from 'react'
-import { FIELD, type SubjectWrite } from './field'
-import { FieldShell } from './field-shell'
-import { NO_GROUP, splitGroups } from './group-options'
+import { CHIP, FIELD_CELL, FIELD_PROBLEM, MICRO } from './field-css'
+import type { SubjectWrite } from './field'
+import { NO_GROUP, splitPicks } from './pick-list'
 
 const FIELD_ID = 'plan-drawer-group'
 
 /** Props for {@link GroupField}. */
 export interface GroupFieldProps {
-  /** The plan this write is addressed at. */
+  /** The plan the write is addressed at. */
   readonly planId: string
 
-  /** The feature whose group this sets. There is no item form: `PlanItem` carries no group. */
+  /** The feature being grouped. */
   readonly featureId: string
 
-  /** The group as stored, or `null` for a feature in none — which is what the box opens on. */
+  /** The group it is in now, or `null` for none. */
   readonly labelId: string | null
 
-  /** Every group of the plan, joined — {@link splitGroups} is what undoes it. */
+  /** Every group of the plan, joined — {@link splitPicks} is what undoes it. */
   readonly options: string
 
-  /** Sends the new group — `null` takes the feature out of one — and answers the plan. */
+  /** The write, unbound: a group id, or `null` to take the feature out of its group. */
   readonly setLabel: SubjectWrite<string | null>
 }
 
-/** The line under the box, and what the option that clears the group is called. */
+/** The caption, the chip that is not a group, and what a plan with no groups is told. */
 export const GROUP_FIELD_WORDS = {
-  none: 'In no group',
-  hint: 'A group spans rails: choosing its chip above lights every feature in it and dims the rest. It changes no date.',
-  empty: 'This plan has no groups yet. Add one from the groups panel beside the plan’s name.',
+  label: 'Group',
+  none: 'No group',
+  empty: 'No groups yet. Add one from the Groups menu above the board.',
 } as const
 
 /**
- * Which group this feature is in, as a `<select>` over the plan's own groups.
+ * The groups, as chips in their own colours.
  *
- * ### A separate control because it is a separate authority
+ * ### Why chips and not a select
  *
- * `feature:label` is granted to `manage`, like `feature:pin` beside it, and `PUT …/features/{id}/label`
- * is its own route rather than a key on the feature `PATCH` — so this sends one field and is drawn on
- * `controls.labelFeature` alone. The API is still the gate, asked again at the instant of the change.
+ * A group is the one field on this panel whose **value is a colour**: the canvas paints a grouped
+ * feature in its group's hue, and a reader scanning the board is navigating by those hues. A `select`
+ * can show a name and nothing else, so it asked a reader to remember which name went with the colour
+ * they were looking at. Chips carry the dot, so the field and the board agree on sight.
  *
- * ### Why a group is set here and chosen there
+ * They are also the whole set at a glance, which matters because this field is how a plan's groups are
+ * *used*: four chips are four one-click answers, where a select is a click, a scan and a click.
  *
- * The chips beside the plan's name are for **reading** a plan: they select a group so an admin can see
- * what is in it across every rail, and they write nothing. This is the write, and it is in the drawer
- * because the drawer is where one feature's own fields are edited. Putting the assignment on the chips
- * would have made one control mean "show me this" and "put this in that" depending on what was open.
+ * ### Why they are radios
  *
- * ### It commits on change and shows what the server stored
- *
- * A `<select>` has no half-typed state, so there is nothing to commit on blur and no Escape to revert:
- * one change is one request. What is on screen afterwards is the answered plan's own value, re-rendered
- * from the server, exactly as every other field in this drawer reads itself back rather than assuming
- * what it sent.
- *
- * A plan with no groups draws the box anyway, disabled, and says where groups are made. Hiding the field
- * would leave an admin who has never made one with nothing on screen to explain why.
+ * A feature is in one group or in none, and that is exactly what a radio group means — one name for
+ * the set, arrow keys between the options, and a reader on a screen reader told "Group, Phase 1,
+ * 2 of 4" rather than hearing four unrelated buttons. The inputs are `sr-only` and each label carries
+ * the paint, because the dot and the hue border cannot be drawn on a native radio. `No group` is a
+ * real option in the set and not an empty one, since taking a feature out of its group is a write
+ * somebody means to make.
  */
 export function GroupField({ planId, featureId, labelId, options, setLabel }: GroupFieldProps) {
   const [problem, setProblem] = useState('')
-  const choices = splitGroups(options)
+  const choices = [{ colour: '', id: NO_GROUP, name: GROUP_FIELD_WORDS.none }, ...splitPicks(options)]
 
   const send = async (value: string): Promise<void> => {
     const result = await orNoAnswer(setLabel)(planId, featureId, value === NO_GROUP ? null : value)
@@ -69,28 +65,44 @@ export function GroupField({ planId, featureId, labelId, options, setLabel }: Gr
   }
 
   return (
-    <FieldShell
-      fieldId={FIELD_ID}
-      hint={choices.length === 0 ? GROUP_FIELD_WORDS.empty : GROUP_FIELD_WORDS.hint}
-      label="Group"
-      problem={problem}
-    >
-      {(wiring) => (
-        <select
-          {...wiring}
-          className={FIELD}
-          disabled={choices.length === 0}
-          onChange={(event) => void send(event.currentTarget.value)}
-          value={labelId ?? NO_GROUP}
-        >
-          <option value={NO_GROUP}>{GROUP_FIELD_WORDS.none}</option>
-          {choices.map((choice) => (
-            <option key={choice.id} value={choice.id}>
-              {choice.name}
-            </option>
-          ))}
-        </select>
+    <fieldset className={FIELD_CELL} data-slot="group-field">
+      <legend className={MICRO}>{GROUP_FIELD_WORDS.label}</legend>
+      {choices.length === 1 ? (
+        <p className={FIELD_PROBLEM}>{GROUP_FIELD_WORDS.empty}</p>
+      ) : (
+        <div className={CHIP.row}>
+          {choices.map((choice) => {
+            const on = (labelId ?? NO_GROUP) === choice.id
+            return (
+              <label
+                className={on ? CHIP.on : CHIP.off}
+                data-slot="group-chip"
+                key={choice.id}
+                style={on && choice.colour !== '' ? { borderColor: choice.colour } : undefined}
+              >
+                <input
+                  checked={on}
+                  className="sr-only"
+                  name={`${FIELD_ID}-${featureId}`}
+                  onChange={() => void send(choice.id)}
+                  type="radio"
+                  value={choice.id}
+                />
+                <span
+                  className={choice.colour === '' ? CHIP.hollow : CHIP.dot}
+                  style={choice.colour === '' ? undefined : { backgroundColor: choice.colour }}
+                />
+                {choice.name}
+              </label>
+            )
+          })}
+        </div>
       )}
-    </FieldShell>
+      {problem === '' ? null : (
+        <p className={FIELD_PROBLEM} role="alert">
+          {problem}
+        </p>
+      )}
+    </fieldset>
   )
 }

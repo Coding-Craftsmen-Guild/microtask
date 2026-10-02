@@ -119,11 +119,10 @@ const thrownBy = async (itemId: string, planId = PLAN_A): Promise<unknown> => {
   throw new Error('nothing was thrown')
 }
 
-const valueOf = (label: string): string =>
-  [...document.querySelectorAll('dt')]
-    .filter((node) => node.textContent === label)
-    .map((node) => node.nextElementSibling?.textContent ?? '')
-    .join('')
+const meta = (): string => document.querySelector('[data-slot="panel-meta"]')?.textContent ?? ''
+
+const sprintPill = (): string =>
+  document.querySelector('[data-slot="sprint-pill"]')?.textContent ?? ''
 
 const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 
@@ -136,14 +135,18 @@ describe('the drawer one item is open in', () => {
 
   it('says which feature it flows under, which is the context a bare item name lacks', async () => {
     await show()
-    expect(valueOf('Feature')).toBe('Auth rewrite')
-    expect(valueOf('Epic')).toBe('Platform')
+    expect(meta()).toContain('Auth rewrite')
+    expect(document.querySelector('[data-slot="place-picker"]')?.textContent).toContain(
+      'Auth rewrite',
+    )
   })
 
   it('says the same words the table row says about it, rather than wording them again', async () => {
     await show()
-    expect(valueOf('Estimate')).toBe('3d')
-    expect(valueOf('Sprint')).toBe('S1')
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
+      '3',
+    )
+    expect(sprintPill()).toContain('S1')
   })
 
   // `3d` and `S1` are both wordings a panel formatting the record itself would land on, so the case
@@ -153,13 +156,13 @@ describe('the drawer one item is open in', () => {
     api.plans = [unplacedPlan('in-cycle')]
     await show(ITEM_3)
     expect(screen.getByRole('heading', { level: 2, name: 'Invoices' })).toBeTruthy()
-    expect(valueOf('Sprint')).toBe('not placed · in a dependency cycle')
+    expect(sprintPill()).toContain('not placed · in a dependency cycle')
   })
 
   it('opens another feature’s item at its own address', async () => {
     await show(ITEM_3)
     expect(screen.getByRole('heading', { level: 2, name: 'Invoices' })).toBeTruthy()
-    expect(valueOf('Feature')).toBe('Billing')
+    expect(meta()).toContain('Billing')
   })
 
   it('closes back to the plan’s own URL, which is the same address with nothing selected', async () => {

@@ -3,77 +3,72 @@
 import type { FeaturePlacement, ItemPlacement } from '@repo/api-client'
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import { useState } from 'react'
-import { PROBLEM, type SubjectWrite } from './field'
+import { FIELD_PROBLEM, PICKER } from './field-css'
+import type { SubjectWrite } from './field'
+import { ORDER } from './list-css'
 import type { SubjectKind } from './values'
 
-const STEP =
-  'rounded-md px-2 py-1 text-left text-[13px] ring-1 ring-foreground/15 hover:bg-foreground/5 disabled:opacity-40'
+const TONES = { row: PICKER.row, step: ORDER.step } as const
 
 /** Props for {@link PlaceControl}. */
 export interface PlaceControlProps {
-  /** The plan this write is addressed at. */
+  /** The plan the placement is written to. */
   readonly planId: string
 
-  /** The feature or item being moved. */
+  /** The subject being moved. */
   readonly subjectId: string
 
-  /** Which of the two it is, which is what chooses the write and the payload's parent key. */
+  /** Which kind it is, since the two placements name different parents. */
   readonly kind: SubjectKind
 
-  /** The parent to send: the subject's own rail or feature, or another one. */
+  /** The parent it lands under: an epic for a feature, a feature for an item. */
   readonly parentId: string
 
-  /** The place among the siblings left once the subject is lifted out (`./placement.ts`). */
+  /** Where among that parent's children it lands, as an index. */
   readonly position: number
 
-  /** This control's whole accessible name — `Move up`, or `Move to Platform`. */
+  /** What the button shows, which for an order step is a glyph. */
   readonly label: string
 
-  /** Whether there is nowhere to go, which is how an end of the list is drawn. */
+  /** What it is called, where that is not what it shows. */
+  readonly name?: string
+
+  /** The hue of the parent it names, drawn as a swatch; `''` for a control with nothing to colour. */
+  readonly colour?: string
+
+  /** Which of the two shapes: a row of a picker, or one of the two order steps. */
+  readonly tone: 'row' | 'step'
+
+  /** Whether this move is already where the subject is, in which case the button says so. */
   readonly disabled: boolean
 
-  /** Moves one feature along its rail or onto another. */
+  /** The feature write, unbound. */
   readonly placeFeature: SubjectWrite<FeaturePlacement>
 
-  /** Moves one item inside its feature or under another. */
+  /** The item write, unbound. */
   readonly placeItem: SubjectWrite<ItemPlacement>
 }
 
 /**
- * One place a subject can be sent, as a button that sends it.
+ * One placement, as one button: a row of a picker, or a step in an order.
  *
- * ### A control per step, because the steps are a list and a list cannot cross
+ * ### One control for two very different-looking things
  *
- * `./place-controls.tsx` stays on the server, works out every step there is, and mounts one of these per
- * step with that step's own primitives — the shape `./dependency-toggle.tsx` and `./cycle-check.ts`
- * established, and for the same reason: a client component may be handed primitives, an unbound function or
- * `null` and nothing else (`../module-boundaries.test.tsx`). So this control can see one destination and
- * cannot enumerate the others, and no list of rails, features or names is ever serialised.
+ * "Move this item one place later" and "move this feature to the Billing rail" are the same write with
+ * different arguments — a parent and a position — so they are the same component with different paint.
+ * That is what keeps the two surfaces honest: the picker cannot grow a second way of placing work, and
+ * the refusal a seat gets is worded once.
  *
- * ### Two actions cross, and the `kind` picks between them here
+ * ### Why it is the island rather than the picker around it
  *
- * `FeaturePlacementPayload` names an `epicId` and `ItemPlacementPayload` a `featureId`, so there is no one
- * `SubjectWrite<Value>` both fit and no closure that could unify them — a closure cannot cross this boundary
- * at all, which is React's rule and not an ADR's. `./placement.ts` argues that in full; what lands here is the two action references and
- * the one primitive that says which is right, and the payload is built beside the call.
- *
- * ### A button, disabled at the ends, and nothing controlled
- *
- * `disabled` rather than absent, because a control that vanishes at the end of a list moves the next control
- * under a keyboard user's fingers — Microtask's `task-menu.tsx` draws the same two entries the same way. The
- * button holds no state of its own and reads nothing back: a placement answers the whole recomputed plan and
- * `adminWrite` calls `refresh()`, so the drawer and the timeline are both re-rendered from what the server
- * stored, and there is no local copy of an order here to keep in step with it. That is the difference from
- * every field in this drawer: a field re-reads its own value out of the write's answer because it holds text
- * a user typed; a step holds nothing.
- *
- * The refusal is the drawer's own idiom — one `role="alert"` line under the control that was refused, in this
- * app's words rather than the API's (`lib/refusal.ts`). It is not a gate: the write is sent in every case, and
- * whatever comes back — a 403 for a seat re-roled since the render, a 404 for a subject someone else deleted —
- * is said here.
+ * The picker is a `details` full of server-rendered rows, and this is the only part of it that has to
+ * be in the browser: a button that calls an action and says what came back. Nothing else about a list
+ * of rails needs JavaScript, and a client component handed the rails would be handed an array of
+ * objects, which `../module-boundaries.test.tsx` refuses for the reason ADR 0033 gives.
  */
 export function PlaceControl(step: PlaceControlProps) {
   const [problem, setProblem] = useState('')
+  const colour = step.colour ?? ''
   const commit = async () => {
     const answer =
       step.kind === 'feature'
@@ -90,15 +85,20 @@ export function PlaceControl(step: PlaceControlProps) {
   return (
     <>
       <button
-        className={STEP}
+        aria-label={step.name ?? undefined}
+        className={TONES[step.tone]}
+        data-slot="place-control"
         disabled={step.disabled}
         onClick={() => void commit()}
         type="button"
       >
-        {step.label}
+        {colour === '' ? null : (
+          <span className={PICKER.swatch} style={{ backgroundColor: colour }} />
+        )}
+        <span className={PICKER.name}>{step.label}</span>
       </button>
       {problem === '' ? null : (
-        <p className={PROBLEM} role="alert">
+        <p className={FIELD_PROBLEM} role="alert">
           {problem}
         </p>
       )}

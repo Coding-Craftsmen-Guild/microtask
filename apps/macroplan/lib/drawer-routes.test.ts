@@ -4,6 +4,7 @@ import {
   ADMIN_DRAWER_ROUTES,
   PLAN_DRAWERS,
   SEAT_DRAWER_ROUTES,
+  drawerHref,
   featurePath,
   groupPath,
   itemPath,
@@ -107,11 +108,27 @@ describe('each surface addresses its own drawer, and neither can address the oth
       'ADMIN_DRAWER_ROUTES',
       'PLAN_DRAWERS',
       'SEAT_DRAWER_ROUTES',
+      'drawerHref',
       'featurePath',
       'groupPath',
       'itemPath',
       'railPath',
     ])
+  })
+
+  // What the panel uses: it is handed `closeHref`, which is the plan's own path on both surfaces, so a
+  // link to a sibling drawer needs no route builder and no page has to hand it one.
+  it('builds a sibling drawer’s address off whatever root it is given', () => {
+    expect(drawerHref(`/plans/${PLAN_A}`, 'item', ITEM_1)).toBe(`/plans/${PLAN_A}/i/${ITEM_1}`)
+    expect(drawerHref(`/s/${SEAT_TOKEN}`, 'feature', FEATURE_1)).toBe(
+      `/s/${SEAT_TOKEN}/f/${FEATURE_1}`,
+    )
+  })
+
+  it('encodes the id there too, a root being the only part of it this takes on trust', () => {
+    expect(drawerHref(`/plans/${PLAN_A}`, 'feature', '../elsewhere')).toBe(
+      `/plans/${PLAN_A}/f/..%2Felsewhere`,
+    )
   })
 
   it('addresses a rail and a group by one letter each, as a feature and an item are', () => {

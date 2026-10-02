@@ -68,8 +68,10 @@ export const PANEL = {
  */
 export const PANEL_GRID = {
   root: 'grid gap-x-6 gap-y-4 px-5 py-4 lg:grid-cols-[1.45fr_1fr_1fr] max-sm:px-3',
+  pair: 'grid gap-x-6 gap-y-4 px-5 py-4 lg:grid-cols-[1.45fr_2fr] max-sm:px-3',
   wide: 'lg:col-span-3',
   column: 'grid min-w-0 content-start gap-3',
+  split: 'grid min-w-0 content-start gap-3 lg:border-l lg:border-line lg:pl-6',
 } as const
 
 /**

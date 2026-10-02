@@ -3,7 +3,8 @@
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import { LIMITS } from '@repo/contracts'
 import { useEffect, useRef, useState } from 'react'
-import { commitKeys, paintUnfocused, FIELD, type SubjectWrite } from './field'
+import { commitKeys, paintUnfocused, type SubjectWrite } from './field'
+import { NAME_INPUT } from './field-css'
 import { FieldShell } from './field-shell'
 import { subjectValues, type SubjectKind } from './values'
 
@@ -87,11 +88,11 @@ export function NameField({ planId, subjectId, kind, name, rename }: NameFieldPr
     paintUnfocused(field.current, stored.current)
   }
   return (
-    <FieldShell fieldId={FIELD_ID} hint={null} label={NAMES[kind]} problem={problem}>
+    <FieldShell fieldId={FIELD_ID} hint={null} label={NAMES[kind]} labelHidden problem={problem}>
       {(wiring) => (
         <input
           {...wiring}
-          className={FIELD}
+          className={NAME_INPUT}
           defaultValue={name}
           maxLength={LIMITS.nameLength}
           onBlur={(event) => void commit(event.currentTarget)}

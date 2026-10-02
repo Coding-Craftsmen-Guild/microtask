@@ -1,6 +1,6 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
 import type { Plan } from '@repo/api-client'
-import { act, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
@@ -8,7 +8,8 @@ import { ACTION_REFUSALS } from '../../../lib/refusal'
 import { atlasPlan, EPIC_1, FEATURE_1, FEATURE_2, PLAN_A } from '../testing/plan-fixture'
 import type { CycleFeature } from './cycle-check'
 import { DependencyEditor } from './dependency-editor'
-import { NOTHING_TO_WAIT_ON } from './field'
+import { PANEL_BANDS } from './panel-words'
+import type { EdgeCandidate } from './values'
 
 type Write = (
   planId: string,
@@ -37,6 +38,22 @@ const graph = (edges: Readonly<Record<string, readonly string[]>> = {}): readonl
 
 const ONLY_ONE = ATLAS.filter((one) => one.id === FEATURE_1)
 
+// The same features as the server words them for a chip and a row: a rail, a hue and an end date, all
+// three resolved by `./subject-view.ts` in the one lookup the panel is handed.
+const asCandidates = (
+  features: readonly CycleFeature[],
+  featureId: string,
+): readonly EdgeCandidate[] =>
+  features
+    .filter((one) => one.id !== featureId)
+    .map((one) => ({
+      colour: '#7c3aed',
+      ends: '2026-10-07',
+      id: one.id,
+      name: one.name,
+      railName: 'Platform',
+    }))
+
 // What the API really answers: the plan, with the edge list the write asked for actually stored.
 const stored = (featureId: string, dependsOn: readonly string[]): ActionResult<Plan> => ({
   ok: true,
@@ -60,6 +77,7 @@ const setup = (
   const onWrite = vi.fn(write)
   render(
     <DependencyEditor
+      candidates={asCandidates(features, featureId)}
       featureId={featureId}
       features={features}
       planId={PLAN_A}
@@ -72,7 +90,7 @@ const setup = (
 const box = (name: string) => screen.getByRole<HTMLInputElement>('checkbox', { name })
 
 const labelled = (input: Element): string =>
-  document.querySelector(`label[for="${input.getAttribute('id') ?? ''}"]`)?.textContent ?? ''
+  input.closest('label')?.querySelector('[data-slot="edge-name"]')?.textContent ?? ''
 
 const names = (): readonly string[] => screen.getAllByRole('checkbox').map(labelled)
 
@@ -82,7 +100,8 @@ const said = (): readonly string[] =>
 describe('the candidates, which are this plan’s other features and never a search', () => {
   it('captions the group by what an edge means rather than by the field it writes', () => {
     setup()
-    expect(screen.getByText('Waits on')).toBeTruthy()
+    expect(screen.getByText(PANEL_BANDS.waits)).toBeTruthy()
+    expect(screen.getByText(PANEL_BANDS.waitsSub)).toBeTruthy()
   })
 
   it('offers every other feature of this plan, and never the feature the drawer is open on', () => {
@@ -99,7 +118,17 @@ describe('the candidates, which are this plan’s other features and never a sea
   it('draws no control at all for a plan with nothing else to wait on, and says so', () => {
     setup(FEATURE_1, ONLY_ONE)
     expect(screen.queryAllByRole('checkbox')).toEqual([])
-    expect(screen.getByText(NOTHING_TO_WAIT_ON)).toBeTruthy()
+    expect(screen.getByText(PANEL_BANDS.noWaits)).toBeTruthy()
+  })
+
+  // The chips are the set and the search is the alternatives, so a feature waiting on nothing shows the
+  // empty sentence and an Add, and one waiting on something shows a chip for it.
+  it('says nothing is waited on where no edge is set, and shows a chip where one is', () => {
+    setup(FEATURE_1)
+    expect(screen.getByText(PANEL_BANDS.noWaits)).toBeTruthy()
+    cleanup()
+    setup(FEATURE_2)
+    expect(screen.queryByText(PANEL_BANDS.noWaits)).toBeNull()
   })
 })
 
@@ -212,8 +241,9 @@ describe('the cycle refusal this phase is gated on', () => {
   it('names the refusal as the box’s own description, so it is heard on the way back to it', async () => {
     const { user } = setup(FEATURE_1)
     await user.click(box('Billing'))
-    const described = box('Billing').getAttribute('aria-describedby') ?? ''
-    expect(document.getElementById(described)?.textContent).toContain('wait on each other')
+    const described = (box('Billing').getAttribute('aria-describedby') ?? '').split(' ')
+    const text = described.map((id) => document.getElementById(id)?.textContent ?? '').join(' ')
+    expect(text).toContain('wait on each other')
     expect(box('Billing').getAttribute('aria-invalid')).toBe('true')
   })
 
@@ -249,10 +279,12 @@ describe('the cycle refusal this phase is gated on', () => {
 // It is the row's hint now, which is a message and not a gate — nothing is disabled and every click
 // the local check passes is still sent.
 describe('the refusal a row already knows, said before the click rather than after it', () => {
-  const hintOf = (name: string): string => {
-    const described = box(name).getAttribute('aria-describedby') ?? ''
-    return document.getElementById(described)?.textContent ?? ''
-  }
+  const hintOf = (name: string): string =>
+    (box(name).getAttribute('aria-describedby') ?? '')
+      .split(' ')
+      .filter((one) => one !== '')
+      .map((id) => document.getElementById(id)?.textContent ?? '')
+      .join(' | ')
 
   it('describes the box that would close a cycle before anything has been clicked', () => {
     setup(FEATURE_1)
@@ -261,16 +293,19 @@ describe('the refusal a row already knows, said before the click rather than aft
     expect(box('Billing').getAttribute('aria-invalid')).toBeNull()
   })
 
-  it('describes nothing on a box whose click the local check has nothing to say about', () => {
+  // Every row of the search has a sub-line, because every candidate has somewhere it is and a day it
+  // ends on: that is the context a reader needs to answer "should this wait on that", and the refusal
+  // takes its place where there is one.
+  it('describes a box the check has nothing to say about by where that feature is', () => {
     setup(FEATURE_1)
-    expect(box('Reporting').getAttribute('aria-describedby')).toBeNull()
+    expect(hintOf('Reporting')).toBe('Platform · ends 2026-10-07')
   })
 
-  it('says it once, the alert replacing the hint rather than standing beside it', async () => {
+  it('says it once, the alert standing beside the row’s own sub-line', async () => {
     const { user } = setup(FEATURE_1)
     await user.click(box('Billing'))
     expect(said()).toEqual(['These features would wait on each other: Auth rewrite, Billing.'])
-    expect(hintOf('Billing')).toBe('These features would wait on each other: Auth rewrite, Billing.')
+    expect(hintOf('Billing')).toContain('wait on each other')
     expect(box('Billing').getAttribute('aria-invalid')).toBe('true')
   })
 

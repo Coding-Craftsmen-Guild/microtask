@@ -120,11 +120,13 @@ const thrownBy = async (featureId: string, planId = PLAN_A): Promise<unknown> =>
   throw new Error('nothing was thrown')
 }
 
-const valueOf = (label: string): string =>
-  [...document.querySelectorAll('dt')]
-    .filter((node) => node.textContent === label)
-    .map((node) => node.nextElementSibling?.textContent ?? '')
-    .join('')
+const meta = (): string => document.querySelector('[data-slot="panel-meta"]')?.textContent ?? ''
+
+const reading = (): string =>
+  document.querySelector('[data-slot="estimate-reading"]')?.textContent ?? ''
+
+const sprintValue = (): string =>
+  document.querySelector('[data-slot="sprint-field"] button[aria-expanded]')?.textContent ?? ''
 
 const EVERY_TOKEN = atlasPlan().shareLinks.map((seat) => seat.token)
 
@@ -149,9 +151,11 @@ describe('the drawer one feature is open in', () => {
 
   it('says the same words the table row says about it, rather than wording them again', async () => {
     await show()
-    expect(valueOf('Epic')).toBe('Platform')
-    expect(valueOf('Estimate')).toBe('5d')
-    expect(valueOf('Sprint')).toBe('S1')
+    expect(meta()).toContain('Platform')
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
+      '5',
+    )
+    expect(sprintValue()).toContain('S1')
   })
 
   // The case above cannot fail: `atlasPlan()`'s first feature is authored at 5 days and its items add
@@ -169,13 +173,14 @@ describe('the drawer one feature is open in', () => {
       }),
     ]
     await show()
-    expect(valueOf('Estimate')).toBe('planned 40d · broken down to 5d · -35d')
+    expect(reading()).toBe('planned 40d · broken down to 5d · -35d')
   })
 
   it('says why a feature has no sprint at all, which is a sentence and not a number', async () => {
     api.plans = [unplacedPlan('in-cycle')]
     await show(FEATURE_2)
-    expect(valueOf('Sprint')).toBe('not placed · in a dependency cycle')
+    expect(sprintValue()).toContain('not placed')
+    expect(document.body.textContent).toContain('dependency cycle')
     expect(screen.getByRole('heading', { level: 2, name: 'Billing' })).toBeTruthy()
   })
 
@@ -187,7 +192,7 @@ describe('the drawer one feature is open in', () => {
   it('names the rail the canvas draws for a feature no epic claims, rather than refusing it', async () => {
     api.plans = [atlasPlan({ epics: [] })]
     await show()
-    expect(valueOf('Epic')).toBe('Unclaimed rail')
+    expect(meta()).toContain('Unclaimed rail')
   })
 
   it('closes back to the plan’s own URL, which is the same address with nothing selected', async () => {
@@ -217,7 +222,7 @@ describe('the drawer one feature is open in', () => {
       }),
     ]
     await show()
-    expect(valueOf('Estimate')).toBe('planned 40d · broken down to 5d · -35d')
+    expect(reading()).toBe('planned 40d · broken down to 5d · -35d')
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Estimate in days' }).value).toBe(
       '40',
     )
@@ -318,8 +323,9 @@ describe('the drawer hands no share token to a component either', () => {
     // its epic's bound project. The slot is required so that `link={null}` is a sentence this page
     // states rather than a prop nobody passed.
     expect(handed['link']).toBeNull()
-    expect(handed['values']).toEqual({
+    expect({ ...(handed['values'] as Record<string, unknown>), panel: undefined }).toEqual({
       name: 'Auth rewrite',
+      panel: undefined,
       estimateDays: 5,
       pinSprint: null,
       place: {

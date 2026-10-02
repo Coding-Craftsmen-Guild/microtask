@@ -1,111 +1,101 @@
 import { edgeChoices, type CycleFeature } from './cycle-check'
 import { DependencyToggle } from './dependency-toggle'
-import { BUDGET, LABEL, NOTHING_TO_WAIT_ON, type SubjectWrite } from './field'
+import { splitEdges, type SubjectWrite } from './field'
+import { BAND, EDGES } from './list-css'
+import { PANEL_BANDS } from './panel-words'
+import type { EdgeCandidate } from './values'
+import { WaitsSearch } from './waits-search'
 
-const GROUP = 'grid gap-1 border-0 p-0'
-
-const LIST = 'grid list-none gap-2 p-0'
+const whereOf = (candidate: EdgeCandidate): string =>
+  candidate.ends === ''
+    ? candidate.railName
+    : `${candidate.railName} ${String.fromCharCode(0xb7)} ends ${candidate.ends}`
 
 /** Props for {@link DependencyEditor}. */
 export interface DependencyEditorProps {
-  /** The plan every write below is addressed at. */
+  /** The plan the write is addressed at. */
   readonly planId: string
 
-  /** The feature the drawer is open on, whose dependency list this edits. */
+  /** The feature whose dependencies these are. */
   readonly featureId: string
 
-  /** Every feature of the plan: the graph a cycle is a property of, and the candidate list itself. */
+  /** Every feature of the plan, which is the graph a cycle is a property of. */
   readonly features: readonly CycleFeature[]
 
-  /** Replaces the whole set this feature waits on; the API refuses a cycle as a 409. */
+  /** The same features worded for a chip and a row: rail, hue, end date (`./subject-view.ts`). */
+  readonly candidates: readonly EdgeCandidate[]
+
+  /** The write, unbound. */
   readonly setDependencies: SubjectWrite<readonly string[]>
 }
 
 /**
- * What one feature waits on, as a box per other feature of the plan.
+ * What this feature waits on: the edges it has, and a search for one more.
  *
- * ### Edges exist at the feature level and nowhere else
+ * ### What this replaced
  *
- * There is no item form of this control and there will not be one. Spec §3.1 says why: a feature is a
- * contiguous block, and "contiguity is what makes an edge between two features mean something at the
- * year rung, and it is why edges exist at the feature level and nowhere else". `PlanItem` carries no
- * `dependsOn` at all (`packages/contracts/src/plan.ts`), so the omission is the contract's rather than
- * this component's, and `./drawer-manage.tsx` asks `row.kind === 'feature'` before mounting this.
+ * Every other feature of the plan, as a checkbox, all of them on screen at once. That is unusable at
+ * thirty features and misleading at three: a list of ticked and unticked boxes gives equal weight to
+ * the two edges that exist and the twenty-eight that do not, when the first question a reader has is
+ * *what does this wait on*. Now the set is chips, the alternatives are behind one Add, and the search
+ * is what makes a long plan navigable.
  *
- * The candidate list is **this plan's features, so there is nothing to search**. Spec §8 records
- * cross-plan dependencies as rejected and ADR 0050 is the rule behind it — an id naming something
- * outside the plan is refused rather than followed — so every candidate there could ever be is already
- * in the `features` prop, and nothing here has anywhere else to look. A plan holding one feature gets
- * {@link NOTHING_TO_WAIT_ON} rather than an empty list, an empty control being indistinguishable from
- * a broken one.
+ * ### Why the search list is server-rendered
  *
- * That settles where the candidates come from and **not** how many of them a screen should draw. §8
- * licenses no remote lookup; it licenses no unfiltered fieldset either, and at
- * `LIMITS.featuresPerPlan` this one is 199 boxes a keyboard tabs through in order, whose props are
- * about 1.1 MB of Flight payload in the worst case (`./cycle-check.ts` measures it). A **local** filter
- * over the rows — no search, the list being complete already — is what would fix the tabbing half, and
- * it is not built here: it is a control with its own state, its own label and its own accessible
- * relationship to the group, and this file is the place that records the debt rather than the place to
- * pay it in passing.
+ * Each row carries the candidate's rail, that rail's hue and the day the schedule has it finishing —
+ * three readings that each take a second record — and whether the edge would close a loop, which is a
+ * property of the whole graph. `./subject-view.ts` resolves the first three and `./cycle-check.ts` the
+ * last, both on the server; the browser gets one island per row and a box that hides the rows that do
+ * not match (`./list-search.tsx`).
  *
- * ### The whole list, because the route replaces it
+ * ### Why it opens in flow
  *
- * `PUT .../dependencies` takes a complete `dependsOn` and there is no add and no remove, so the model
- * of this control is the feature's current list plus or minus one, sent entire. **A list sent that way
- * overwrites what another one stored**: whoever sends the second complete list wins, nothing tells the
- * loser, and the route takes no `If-Match` (`packages/api-client/src/operations/features.ts`). The
- * loss is per **render** and not per person, which is the likelier half and the one that is fixed:
- * every row of one render was built from the same pre-write list, so one user ticking two boxes before
- * the re-render landed lost the first edge. `./edge-list.ts` is where a click's list is built now, from
- * what this browser has sent rather than from what this render found. What is left is what one browser
- * cannot see: another editor's write between this render and this click.
- *
- * ### This file stays on the server, and that is what makes the rows crossable
- *
- * `./cycle-check.ts` is called here, twice per candidate, and each answer is one `EdgeChoice` of
- * primitives: the candidate's id and name, and the refusal a click that added it would meet and the
- * one a click that removed it would, each `''` for none. That, with the subject's own stored list as a
- * string, is what crosses into the browser, because a client component may be handed primitives, an
- * unbound function or `null` and a **list of features is none of those**
- * (`../module-boundaries.test.tsx`). Keeping the walk here is also what keeps `findCycles` out of the
- * browser bundle: `./dependency-toggle.tsx` reaches its codec through `./field.ts`, which names
- * `@repo/contracts` as its only value import.
- *
- * ### A fieldset, because the rows are one question
- *
- * The `<legend>` is the group's name — "Waits on", which is what an edge means rather than what the
- * field is called — and each box keeps its own `<label>` through {@link DependencyToggle}'s
- * `FieldShell`, so a reader tabbing onto one hears the candidate's name and, while a refusal stands,
- * the refusal as its description. A `<legend>` alone would name the group and leave the boxes
- * unnamed; a label alone would leave a reader landing on the third box with no idea what the list is.
+ * The panel body scrolls. A floating list opened from a column near the bottom of it would be clipped
+ * with no way to reach the rest, which is why the design calls for this one to be inline.
  */
-export function DependencyEditor({
-  planId,
-  featureId,
-  features,
-  setDependencies,
-}: DependencyEditorProps) {
+export function DependencyEditor(props: DependencyEditorProps) {
+  const { planId, featureId, features, candidates, setDependencies } = props
   const { rows, storedIds } = edgeChoices(features, featureId)
+  const waiting = new Set(splitEdges(storedIds))
+  const shown = candidates.filter((one) => rows.some((each) => each.featureId === one.id))
+  const toggle = (candidate: EdgeCandidate, chip: boolean) => {
+    const choice = rows.find((each) => each.featureId === candidate.id)
+    return (
+      <DependencyToggle
+        addRefusal={choice?.addRefusal ?? ''}
+        candidateColour={candidate.colour}
+        candidateId={candidate.id}
+        candidateName={candidate.name}
+        candidateWhere={whereOf(candidate)}
+        chip={chip}
+        featureId={featureId}
+        key={candidate.id}
+        planId={planId}
+        removeRefusal={choice?.removeRefusal ?? ''}
+        setDependencies={setDependencies}
+        storedIds={storedIds}
+      />
+    )
+  }
+  const set = shown.filter((one) => waiting.has(one.id))
+  const rest = shown.filter((one) => !waiting.has(one.id))
   return (
-    <fieldset className={GROUP}>
-      <legend className={LABEL}>Waits on</legend>
-      {rows.length === 0 ? <p className={BUDGET}>{NOTHING_TO_WAIT_ON}</p> : null}
-      <ul className={LIST}>
-        {rows.map((row) => (
-          <li key={row.featureId}>
-            <DependencyToggle
-              addRefusal={row.addRefusal}
-              candidateId={row.featureId}
-              candidateName={row.name}
-              featureId={featureId}
-              planId={planId}
-              removeRefusal={row.removeRefusal}
-              setDependencies={setDependencies}
-              storedIds={storedIds}
-            />
-          </li>
-        ))}
-      </ul>
-    </fieldset>
+    <section className={BAND.root} data-slot="waits-band">
+      <p className={BAND.title}>{PANEL_BANDS.waits}</p>
+      <p className={BAND.sub}>{PANEL_BANDS.waitsSub}</p>
+      {set.length === 0 ? <p className={BAND.empty}>{PANEL_BANDS.noWaits}</p> : null}
+      {set.length === 0 ? null : (
+        <div className={EDGES.chips}>{set.map((one) => toggle(one, true))}</div>
+      )}
+      {rest.length === 0 ? null : (
+        <WaitsSearch>
+          {rest.map((one) => (
+            <div data-pick-row data-search={one.name.toLowerCase()} key={one.id}>
+              {toggle(one, false)}
+            </div>
+          ))}
+        </WaitsSearch>
+      )}
+    </section>
   )
 }

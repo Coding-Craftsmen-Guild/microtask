@@ -2,6 +2,7 @@ import type { Plan } from '@repo/api-client'
 import type { ActionResult } from '../../../actions/result'
 import { MAX_ESTIMATE_DAYS, MAX_ITEM_DESCRIPTION_BYTES } from '@repo/contracts'
 import type { KeyboardEvent } from 'react'
+import { MICRO } from './field-css'
 
 const ENCODER = new TextEncoder()
 
@@ -79,11 +80,12 @@ export type EstimateEntry =
  * The small uppercase label this drawer draws over every fact and every field.
  *
  * One constant because they are one typographic thing, and the same string under two names would be
- * a diff away from claiming they are two. It lives in this module rather than beside either use so
- * that a client field and the server-rendered `<dl>` share the definition without the field pulling a
- * component into the browser bundle to get at it.
+ * a diff away from claiming they are two. It is {@link MICRO} under this module's name rather than a
+ * second spelling of it: the fields row is where that label is load-bearing — five controls side by
+ * side, each one named only by the 10px caption over it — and a field drawn by `./field-shell.tsx`
+ * must be the same size as one drawn by hand beside it.
  */
-export const LABEL = 'text-[11px] font-semibold tracking-wide text-muted-foreground uppercase'
+export const LABEL = MICRO
 
 /** The box itself: one border that answers hover and focus, sized for the drawer's 13px text. */
 export const FIELD =

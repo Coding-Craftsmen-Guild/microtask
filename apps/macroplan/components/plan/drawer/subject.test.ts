@@ -20,9 +20,10 @@ describe('resolving the one subject a drawer is open on', () => {
     const subject = drawerSubject(plan(), 'feature', FEATURE_1)
     expect(subject?.row.feature).toBe('Auth rewrite')
     expect(subject?.row.estimate).toBe('5d')
-    expect(subject?.values).toEqual({
+    expect({ ...subject?.values, panel: undefined }).toEqual({
       name: 'Auth rewrite',
       estimateDays: 5,
+      panel: undefined,
       pinSprint: null,
       place: {
         featureId: FEATURE_1,
@@ -37,6 +38,23 @@ describe('resolving the one subject a drawer is open on', () => {
       },
       sizedByItems: true,
     })
+  })
+
+  // The panel group is every reading the columns draw and no field writes, and it is `./subject-view.ts`
+  // that resolves it — this asserts only that one lookup carries it, the readings themselves being
+  // checked where they are computed.
+  it('carries the panel readings in the same lookup, so a column needs no second read', () => {
+    const subject = drawerSubject(plan(), 'feature', FEATURE_1)
+    expect(Object.keys(subject?.values.panel ?? {}).sort()).toEqual([
+      'atTheEnd',
+      'candidates',
+      'dates',
+      'family',
+      'hereColour',
+      'scheduledSprint',
+      'sprintTotal',
+      'unblocks',
+    ])
   })
 
   it('answers both halves about the same record, which is what one lookup buys', () => {
@@ -223,7 +241,7 @@ describe('the place group, which is where this subject sits and the parents arou
       featureId: FEATURE_1,
       railId: EPIC_1,
       siblingIds: [ITEM_1, ITEM_2],
-      targets: [{ id: FEATURE_2, name: 'Billing' }],
+      targets: [{ colour: '#3b82f6', id: FEATURE_2, name: 'Billing' }],
     })
   })
 
@@ -255,13 +273,13 @@ describe('the place group, which is where this subject sits and the parents arou
       ],
     })
     expect(drawerSubject(twoRails, 'feature', FEATURE_1)?.values.place.targets).toEqual([
-      { id: 'epic-two', name: 'Payments' },
+      { colour: '#112233', id: 'epic-two', name: 'Payments' },
     ])
   })
 
   it('offers an item the plan’s other features and never the one it is under', () => {
     expect(drawerSubject(plan(), 'item', ITEM_3)?.values.place.targets).toEqual([
-      { id: FEATURE_1, name: 'Auth rewrite' },
+      { colour: '#7c3aed', id: FEATURE_1, name: 'Auth rewrite' },
     ])
   })
 
@@ -292,9 +310,9 @@ describe('the place group, which is where this subject sits and the parents arou
     ])
   })
 
-  it('carries ids and names and nothing else in a target, so no record rides along in one', () => {
+  it('carries an id, a name and a hue in a target, so no record rides along in one', () => {
     const targets = drawerSubject(plan(), 'item', ITEM_3)?.values.place.targets ?? []
     expect(targets.length).toBeGreaterThan(0)
-    for (const target of targets) expect(Object.keys(target).sort()).toEqual(['id', 'name'])
+    for (const target of targets) expect(Object.keys(target).sort()).toEqual(['colour', 'id', 'name'])
   })
 })

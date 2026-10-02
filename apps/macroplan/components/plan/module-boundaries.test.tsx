@@ -34,7 +34,7 @@ import {
   unplacedPlan,
 } from './testing/plan-fixture'
 import { nothingDrawn, stubActions, stubPlanWrites } from './testing/plan-writes'
-import { CreateControls } from './drawer/create-controls'
+import { ItemAdd } from './drawer/item-add'
 import { DeleteControl } from './drawer/delete-control'
 import { DependencyToggle } from './drawer/dependency-toggle'
 import { DescriptionField } from './drawer/description-field'
@@ -44,7 +44,7 @@ import { PanelGrip } from './drawer/panel-grip'
 import { GroupField } from './drawer/group-field'
 import { PinField } from './drawer/pin-field'
 import { PlaceControl } from './drawer/place-control'
-import { MoveTargetField } from './drawer/move-target'
+import { ListSearch } from './drawer/list-search'
 import { DragRoot } from './canvas/drag-root'
 import { PlanPointer } from './canvas/plan-pointer'
 import { BindFields } from './bridge/bind-fields'
@@ -319,7 +319,7 @@ const FEATURE = subjectOf('feature', FEATURE_1)
 // allowlist derived from this map rather than from a prefix that only fits one of them.
 const CLIENT_BY_FILE = new Map<unknown, string>([
   [ShareManager, 'share/share-manager.tsx'],
-  [CreateControls, 'drawer/create-controls.tsx'],
+  [ItemAdd, 'drawer/item-add.tsx'],
   [DeleteControl, 'drawer/delete-control.tsx'],
   [DependencyToggle, 'drawer/dependency-toggle.tsx'],
   [DescriptionField, 'drawer/description-field.tsx'],
@@ -329,7 +329,7 @@ const CLIENT_BY_FILE = new Map<unknown, string>([
   [PinField, 'drawer/pin-field.tsx'],
   [GroupField, 'drawer/group-field.tsx'],
   [PlaceControl, 'drawer/place-control.tsx'],
-  [MoveTargetField, 'drawer/move-target.tsx'],
+  [ListSearch, 'drawer/list-search.tsx'],
   [DragRoot, 'canvas/drag-root.tsx'],
   [PlanPointer, 'canvas/plan-pointer.tsx'],
   [TableRoot, 'table/table-root.tsx'],

@@ -5,7 +5,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
-import { ESTIMATE_HINT, WHOLE_DAYS } from './field'
+import { WHOLE_DAYS } from './field'
+import { FIELDS_HINT_ID } from './panel-words'
 import { EstimateField } from './estimate-field'
 
 type Estimate = (
@@ -159,9 +160,12 @@ describe('what the field refuses itself, rather than letting the API answer 422'
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('says days are whole and 0 is a milestone before anything is refused', () => {
+  // The sentence itself is under the fields row rather than under this field, so what is asserted here is
+  // that the box names it: `panel-words.ts` holds the sentence and the panel's test checks it is drawn.
+  it('points at the rule rather than repeating it in its own cell', () => {
     setup(5)
-    expect(screen.getByText(/0 is a milestone that takes no time/)).toBeTruthy()
+    expect(field().getAttribute('aria-describedby')).toBe(FIELDS_HINT_ID)
+    expect(screen.queryByText(/0 is a milestone that takes no time/)).toBeNull()
   })
 })
 
@@ -241,17 +245,25 @@ describe('what is on screen once the server has answered', () => {
   })
 })
 
+// The rule is one sentence under the fields **row** rather than one under each field, because a
+// paragraph inside any one cell of a wrapping row of 34px controls stretches that cell to the width of
+// the paragraph. So what this field carries is the reference: `drawer-panel.test.tsx` asserts that the
+// sentence is on screen under the row, and these assert that the box points at it.
 describe('what a reader is told about the rule and about a refusal', () => {
-  it('describes the field by its hint while nothing is refused', () => {
+  const describedIds = (): readonly string[] =>
+    (field().getAttribute('aria-describedby') ?? '').split(' ').filter((one) => one !== '')
+
+  it('names the row’s own hint as its description while nothing is refused', () => {
     setup(5)
-    expect(described(field())).toBe(ESTIMATE_HINT)
+    expect(describedIds()).toEqual([FIELDS_HINT_ID])
     expect(field().getAttribute('aria-invalid')).toBeNull()
   })
 
-  it('describes it by the hint and then the refusal, which is reading order', async () => {
+  it('adds the refusal after it, which is reading order', async () => {
     const { user } = setup(5)
     await retype(user, '2.25')
-    expect(described(field())).toBe(`${ESTIMATE_HINT} | ${WHOLE_DAYS}`)
+    expect(describedIds()[0]).toBe(FIELDS_HINT_ID)
+    expect(described(field())).toContain(WHOLE_DAYS)
     expect(field().getAttribute('aria-invalid')).toBe('true')
   })
 
@@ -260,6 +272,6 @@ describe('what a reader is told about the rule and about a refusal', () => {
     await retype(user, '2.5')
     await retype(user, '3')
     expect(field().getAttribute('aria-invalid')).toBeNull()
-    expect(described(field())).toContain('0 is a milestone')
+    expect(describedIds()).toEqual([FIELDS_HINT_ID])
   })
 })
