@@ -1,9 +1,15 @@
 import type { BlockedBy, EdgeState, TableRow } from './rows'
 
-/** The shared cell padding and rule, so a body cell and a row header line up. */
-export const CELL = 'border-t border-border px-3 py-2 align-top'
+/**
+ * The shared cell padding, so a body cell and a row header line up.
+ *
+ * It carried the row's rule as a `border-t` of its own, which is what a table does when nothing above
+ * it owns a row. The `<tr>` owns one now (`./table-css.ts`'s `row`), so a hover tints a whole row
+ * rather than nine boxes with rules between them, and the rule is drawn once instead of nine times.
+ */
+export const CELL = 'px-3 py-1.5 align-top'
 
-const NAME_CELL = 'border-t border-border px-3 py-2 text-left align-top font-semibold'
+const NAME_CELL = 'px-3 py-1.5 text-left align-top font-semibold'
 
 const EDGES = 'grid list-none gap-0.5 p-0'
 

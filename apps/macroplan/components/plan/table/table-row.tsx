@@ -1,4 +1,5 @@
 import { progressWords, type Counted } from '../bridge/progress-words'
+import { TABLE } from './table-css'
 import { RowActions } from './row-actions'
 import { BlockedCell, CELL, NameCell, sortAttributes } from './row-cells'
 import type { TableRow } from './rows'
@@ -92,6 +93,7 @@ export interface PlanTableRowProps {
 export function PlanTableRow({ row, progress, href, mayEdit, writes }: PlanTableRowProps) {
   return (
     <tr
+      className={row.kind === 'feature' ? TABLE.block : TABLE.row}
       data-block={row.block}
       data-kind={row.kind}
       data-label-id={row.labelId ?? undefined}

@@ -121,21 +121,23 @@ export function PlanTable(props: PlanTableProps) {
         newRailHref={newRailHref}
         rails={optionsOf(railNames(plan))}
       />
-      <table aria-label={`Table of ${plan.name}`} className={TABLE.table} data-slot="plan-table">
-        <TableHead columns={columnsFor(mayEdit)} />
-        <tbody>
-          {tableRows(plan).map((row) => (
-            <PlanTableRow
-              href={hrefOf(row, root, routes)}
-              key={row.id}
-              mayEdit={mayEdit}
-              progress={counted.get(row.id) ?? null}
-              row={row}
-              writes={writes}
-            />
-          ))}
-        </tbody>
-      </table>
+      <div className={TABLE.scroller} data-slot="table-scroller">
+        <table aria-label={`Table of ${plan.name}`} className={TABLE.table} data-slot="plan-table">
+          <TableHead columns={columnsFor(mayEdit)} />
+          <tbody>
+            {tableRows(plan).map((row) => (
+              <PlanTableRow
+                href={hrefOf(row, root, routes)}
+                key={row.id}
+                mayEdit={mayEdit}
+                progress={counted.get(row.id) ?? null}
+                row={row}
+                writes={writes}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </TableRoot>
   )
 }

@@ -74,7 +74,7 @@ export function TableToolbar({ rails, groups, mayEdit, newRailHref }: TableToolb
       </details>
       <span className={TABLE.spacer} />
       {newRailHref === null ? null : (
-        <Link className={TABLE.action} href={newRailHref}>
+        <Link className={TABLE.newRail} href={newRailHref}>
           {TABLE_WORDS.newRail}
         </Link>
       )}

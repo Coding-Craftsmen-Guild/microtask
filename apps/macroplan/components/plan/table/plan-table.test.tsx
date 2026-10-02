@@ -17,6 +17,7 @@ import {
   unplacedPlan,
 } from '../testing/plan-fixture'
 import { PlanTable } from './plan-table'
+import { TABLE_CSS } from './table-css'
 
 const AT = new Date('2026-10-05T09:00:00.000Z')
 
@@ -342,5 +343,23 @@ describe('the table at this product’s own cap', { timeout: CAP_RENDER_MS }, ()
     const rows = all('[data-slot="plan-table-row"]')
     expect(rows).toHaveLength(LIMITS.itemsPerPlan + LIMITS.featuresPerPlan)
     for (const row of rows) expect(row.children).toHaveLength(COLUMNS.length)
+  })
+})
+
+// `table-row.tsx` carries why every row restates which feature and which rail it belongs to rather than
+// spanning them: a spanned cell is announced once and then silently inherited, so a reader landing
+// mid-table on `3d, S1` could not ask what it was about. That is right for somebody listening and noise
+// for somebody scanning, so the repeated cells are muted — which changes nothing about what is in them.
+describe('the context an item row repeats, which is for reading and not for scanning', () => {
+  it('mutes a repeated epic and feature by rule, the cell not knowing which kind of row it is in', () => {
+    expect(TABLE_CSS).toContain('[data-kind="item"] :is([data-col="epic"],[data-col="feature"])')
+    expect(TABLE_CSS).toContain('color:var(--color-muted-foreground)')
+  })
+
+  it('still puts the words in the cell, so nothing is lost to anyone who is listening', () => {
+    render(<PlanTable plan={planScreenModel(atlasPlan())} />)
+    const item = document.querySelector('[data-kind="item"]')
+    expect(item?.querySelector('[data-col="feature"]')?.textContent).toBe('Auth rewrite')
+    expect(item?.querySelector('[data-col="epic"]')?.textContent).toBe('Platform')
   })
 })
