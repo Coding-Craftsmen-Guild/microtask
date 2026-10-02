@@ -267,3 +267,40 @@ describe('what the handles do while something else is being dragged', () => {
     expect(handles()).toHaveLength(2)
   })
 })
+
+// At Year and Quarter a feature is a **point** at the middle of its span, so a handle placed at the
+// span's edges is a handle nowhere near the mark the pointer is on: for a ten-day feature at Quarter
+// that is seventy pixels of empty track to either side of the dot. The days a draw extends from are
+// still the span's — only where the `+` is drawn follows the shape.
+describe('the handles on a feature drawn as a point', () => {
+  const atPoint = (rung: 'epic' | 'feature') => {
+    render(
+      <PlanCanvas at={AT} draw={writes()} place={null} plan={planScreenModel(atlasPlan())} range={RANGE} rung={rung} scale={SCALE} />,
+    )
+    const point = document.querySelector(`circle[data-feature-id="${FEATURE_1}"]`)
+    if (point === null) throw new Error(`no point for ${FEATURE_1} at the ${rung} rung`)
+    fireEvent.pointerOver(point, { buttons: 0 })
+    return point
+  }
+
+  const handleX = (side: 'start' | 'end'): number =>
+    Number(sideOf(side).querySelector('circle, polygon')?.getAttribute('cx'))
+
+  it('sits each one on an edge of the dot, and not on an edge of the span it stands for', () => {
+    const point = atPoint('feature')
+    const centre = Number(point.getAttribute('cx'))
+    const radius = Number(point.getAttribute('r'))
+    const span = { x: Number(point.getAttribute('data-x')), width: Number(point.getAttribute('data-width')) }
+
+    expect(span.width).toBeGreaterThan(radius * 4)
+    expect(handleX('start')).toBe(centre - radius)
+    expect(handleX('end')).toBe(centre + radius)
+    expect(handleX('start')).not.toBe(span.x)
+  })
+
+  it('draws both of them at the year rung too, where a dot is all there is to grab', () => {
+    atPoint('epic')
+
+    expect(handles()).toHaveLength(2)
+  })
+})

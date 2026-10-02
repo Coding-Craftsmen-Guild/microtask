@@ -1,5 +1,6 @@
 import { arcLayout } from '@repo/canvas'
 import type { ArcMetrics, DependencyArc, RailBox } from '@repo/canvas'
+import { NODE_RADIUS, pointX } from './mark-metrics'
 import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
@@ -32,6 +33,12 @@ function huesOf(rails: readonly RailBox[]): ReadonlyMap<string, string | null> {
 function groupsOf(plan: PlanScreenModel): ReadonlyMap<string, string | null> {
   return new Map(plan.features.map((feature) => [feature.id, feature.labelId] as const))
 }
+
+const asPoints = (rails: readonly RailBox[]): readonly RailBox[] =>
+  rails.map((rail) => ({
+    ...rail,
+    bars: rail.bars.map((bar) => ({ ...bar, x: pointX(bar) - NODE_RADIUS, width: NODE_RADIUS * 2 })),
+  }))
 
 function fromSource(
   arcs: readonly DependencyArc[],
@@ -77,14 +84,36 @@ function fromSource(
  * `LAYOUT` lives in `./view.ts`, which calls this. Reading it here instead would make the two modules
  * import each other, so the caller that owns the record passes it — and the record satisfies
  * {@link ArcMetrics} by construction, which is what its `satisfies` clause now says.
+ *
+ * ### Why the stop's own mark decides where an arc lands
+ *
+ * `arcLayout` leaves a bar at `x + width` and arrives at the next one's `x`. That is right for a stop
+ * drawing the span and wrong for one drawing a point in the middle of it: two features along one rail
+ * **touch** — one ends the day the next begins — so both ends of the curve were the same x, and a
+ * cubic whose ends are one point is a 36px loop drawn in the layer *under* the marks. Every
+ * dependency within a rail was therefore invisible at both wider stops, which is the defect `points`
+ * closes.
+ *
+ * It closes it by shrinking each bar to the box of the point drawn over it before handing the rails on,
+ * so the arc leaves the right edge of one dot and arrives at the left edge of the next — two x's that
+ * differ whenever the features do — with no special case inside `@repo/canvas`. The **real** rails are
+ * untouched, so the marks, the drag and the draw handles keep the span's own geometry
+ * (`./feature-point.tsx`), and the hues and groups below are read off those rails rather than the
+ * shrunk ones.
  */
 export const canvasArcs = (
   plan: PlanScreenModel,
   rails: readonly RailBox[],
   metrics: ArcMetrics,
+  points: boolean,
 ): readonly CanvasArc[] =>
   fromSource(
-    arcLayout({ plan, rails, metrics, ignoredEdges: plan.schedule.ignoredEdges }),
+    arcLayout({
+      plan,
+      rails: points ? asPoints(rails) : rails,
+      metrics,
+      ignoredEdges: plan.schedule.ignoredEdges,
+    }),
     huesOf(rails),
     groupsOf(plan),
   )

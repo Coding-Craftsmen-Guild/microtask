@@ -29,7 +29,7 @@ import { searchOf } from '../table/row-keys'
  * The numbers every mark is placed from, re-exported so a component reaches one module for the
  * geometry and the metrics together rather than importing from two that are always used as one.
  */
-export { BAR_GAP, ITEM_GAP, LAYOUT, NODE_RADIUS } from './mark-metrics'
+export { ITEM_GAP, LAYOUT, NODE_RADIUS, pointX } from './mark-metrics'
 
 /**
  * The fallback window a canvas draws when a caller names none: one quarter of working days.
@@ -390,7 +390,7 @@ export function canvasLayout(query: CanvasQuery): CanvasLayout {
   const rails = railLayout(plan, plan.schedule, scale)
   return {
     rails,
-    arcs: canvasArcs(plan, rails, ARC_METRICS[rung]),
+    arcs: canvasArcs(plan, rails, ARC_METRICS[rung], DRAWS[rung].points),
     height: canvasHeight(rails.length),
     width: canvasWidth(scale, range),
     drawnWidth: canvasWidth(scale, chromeRange(range)),

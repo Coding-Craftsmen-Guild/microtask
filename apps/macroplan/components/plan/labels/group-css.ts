@@ -30,10 +30,14 @@ const DIMMABLE = [
   '[data-slot="plan-table-row"]',
 ].join(',')
 
-const ruleFor = (labelId: string): string =>
-  `${ROOT}:has(#${groupRadioId(labelId)}:checked) :is(${DIMMABLE})` +
-  `:not([data-label-id="${labelId}"])` +
-  `{opacity:${DIMMED_OPACITY}}`
+const NAMED = ['[data-slot="feature-bar"]', '[data-slot="item-mark"]'].join(',')
+
+const ruleFor = (labelId: string): string => {
+  const chosen = `${ROOT}:has(#${groupRadioId(labelId)}:checked) `
+  const elsewhere = `:not([data-label-id="${labelId}"])`
+  const marks = `${chosen}:is(${DIMMABLE})${elsewhere}`
+  return `${marks},${chosen}:is(${NAMED})${elsewhere} + text{opacity:${DIMMED_OPACITY}}`
+}
 
 /**
  * One CSS rule per group: choosing a group dims everything that is not in it.
@@ -79,9 +83,19 @@ const ruleFor = (labelId: string): string =>
  * label of the feature it **leaves** (`canvas/arc-view.ts`), so a chosen group keeps its own outgoing
  * edges lit.
  *
- * There were five. `bar-label` was the fifth, and it is gone with the names themselves — the canvas
- * draws no text at all now (`canvas/rail-features.tsx`), so there is no name left to stay bright over
- * its own dimmed bar.
+ * ### Why a name is dimmed by the mark beside it
+ *
+ * There was a fifth slot, `bar-label`, and it went when the canvas stopped drawing text. The canvas
+ * draws text again — a point's name, an item's — and the names came back without it, so choosing a
+ * group left every name at full brightness over the mark it belonged to, which read as the dimming
+ * being half-applied rather than as a plan being quieted.
+ *
+ * It does not come back as a slot. A name is the **next sibling** of the mark it names rather than a
+ * child of anything, because a wrapper per mark is an element per mark on a canvas held to one per
+ * item (`canvas/feature-point.tsx`), so {@link NAMED} names the two marks that carry one and dims the
+ * `+ text` beside them. `./pointer-css.ts` reaches an item's label the same way and for the same
+ * reason. A feature **line** needs neither: its label is inside its own `<g data-slot="feature-bar">`,
+ * so it is already dimmed by the element the first half of the rule matches.
  *
  * An id that is not ULID-shaped is **skipped** rather than escaped: it cannot occur, since every id here
  * came out of a `PlanView` decode, and a rule is the wrong place to be clever about a value that should

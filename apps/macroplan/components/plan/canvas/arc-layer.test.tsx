@@ -2,6 +2,7 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { PlanCanvas } from './plan-canvas'
 import { planScreenModel } from '../plan-screen-model'
+import { NODE_RADIUS } from './mark-metrics'
 import {
   atlasPlan,
   beaconPlan,
@@ -248,5 +249,48 @@ describe('a feature that takes no time draws as a diamond', () => {
     const style = container.querySelector(`[data-feature-id="${FEATURE_2}"]`)?.getAttribute('style')
     expect(style).toContain('--mark-hue')
     expect(style).toContain('#')
+  })
+})
+
+// The defect this fixes, in the terms a reader saw it in: at Year and Quarter zoom every dependency
+// *within* a rail was missing. `arcLayout` leaves a bar at `x + width` and arrives at the next one's
+// `x`, and two features along one rail touch — one ends the day the next begins — so both ends of the
+// curve were the same point. A cubic with one point for both ends is a small symmetric loop, and it
+// is drawn in the layer *under* the marks, so it came out entirely hidden behind them.
+describe('an arc between two features that touch, at the stops that draw a point', () => {
+  const sameRail = (rung: 'epic' | 'feature' | 'item') =>
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung={rung} />).container
+
+  const ends = (arc: Element): { readonly from: number; readonly to: number } => {
+    const read = (arc.getAttribute('d') ?? '').split(' ')
+    return { from: Number(read[1]), to: Number(read.at(-2)) }
+  }
+
+  it('leaves one point and arrives at the next, rather than leaving and arriving at one x', () => {
+    for (const rung of ['epic', 'feature'] as const) {
+      cleanup()
+      const { from, to } = ends(arcNamed(sameRail(rung), `${FEATURE_1}>${FEATURE_2}`))
+      expect(from, rung).toBeGreaterThan(0)
+      expect(to, rung).toBeGreaterThan(from)
+    }
+  })
+
+  // Anchored on the drawn mark and not on the span: the arc leaves the right edge of one dot and
+  // arrives at the left edge of the other, so it touches both and overlaps neither.
+  it('anchors on the edges of the two points it joins', () => {
+    const container = sameRail('feature')
+    const centreOf = (id: string): number =>
+      Number(container.querySelector(`circle[data-feature-id="${id}"]`)?.getAttribute('cx'))
+    const { from, to } = ends(arcNamed(container, `${FEATURE_1}>${FEATURE_2}`))
+    expect(from).toBe(centreOf(FEATURE_1) + NODE_RADIUS)
+    expect(to).toBe(centreOf(FEATURE_2) - NODE_RADIUS)
+  })
+
+  // The Sprint stop draws the span, so there the span is still what an arc is anchored on.
+  it('still anchors on the span at the stop that draws one', () => {
+    const container = sameRail('item')
+    const line = container.querySelector(`[data-feature-id="${FEATURE_1}"]`)
+    const { from } = ends(arcNamed(container, `${FEATURE_1}>${FEATURE_2}`))
+    expect(from).toBe(Number(line?.getAttribute('data-x')) + Number(line?.getAttribute('data-width')))
   })
 })

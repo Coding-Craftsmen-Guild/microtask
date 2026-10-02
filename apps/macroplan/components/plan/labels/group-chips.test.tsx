@@ -174,7 +174,21 @@ describe('the rule that dims what is not in the chosen group', () => {
     const css = groupCss(ROWS)
 
     expect(css).toContain(`${PLAN_ROOT}:has(#${groupRadioId(LABEL_1)}:checked) `)
-    expect(css).toContain(`:not([data-label-id="${LABEL_1}"]){opacity:${DIMMED_OPACITY}}`)
+    expect(css).toContain(`:not([data-label-id="${LABEL_1}"]) + text{opacity:${DIMMED_OPACITY}}`)
+  })
+
+  // The canvas draws text again — a point's name and an item's — and the names came back without this,
+  // so choosing a group dimmed every mark and left every name on top of one at full brightness. A name
+  // is the next sibling of its mark rather than a child of anything, because a wrapper per mark is an
+  // element per mark on a canvas held to one per item, so the rule reaches it with `+ text`.
+  it('dims the name beside a mark it dims, a bright label over a quiet point being the defect', () => {
+    const css = groupCss(ROWS)
+    const quieted = `:is([data-slot="feature-bar"],[data-slot="item-mark"]):not([data-label-id="${LABEL_1}"]) + text`
+
+    expect(css).toContain(quieted)
+    // Never the arcs or the table rows: neither has a `<text>` beside it, and a row's next sibling is
+    // the next row — which the first half of the rule has already judged on its own group.
+    expect(css).not.toContain('[data-slot="arc"]:not([data-label-id="${LABEL_1}"]) + text')
   })
 
   // The defect this replaced. The rule was `[data-label-id]:not([data-label-id="X"])`, and a feature in
@@ -196,9 +210,10 @@ describe('the rule that dims what is not in the chosen group', () => {
     }
   })
 
-  // There were five. `bar-label` was the fifth and is gone with the names themselves: the canvas draws
-  // no text, so there is no name left to stay bright over its own dimmed bar.
-  it('names no bar label, there being none on the canvas to dim', () => {
+  // There were five. `bar-label` was the fifth, and it did not come back with the names: a slot per
+  // label is an element per mark, which is the budget the canvas is drawn under, so the name is reached
+  // as the sibling of the mark instead.
+  it('names no bar label, a name being reached through the mark beside it rather than a slot', () => {
     expect(groupCss(ROWS)).not.toContain('bar-label')
   })
 

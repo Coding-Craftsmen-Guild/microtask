@@ -1,7 +1,7 @@
 'use client'
 
 import type { Rung } from '@repo/canvas'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent, ReactNode } from 'react'
 import { splitDetail, type Detail } from './detail-lines'
@@ -10,6 +10,7 @@ import { openClick } from './open-click'
 import { HoverCard } from './hover-card'
 import { lightThread } from './pointer-lights'
 import { cardAt, plainClick } from './pointer-view'
+import { useDrill } from './use-drill'
 import { useGroupFit } from './use-group-fit'
 import { useScrollAnchor } from './use-scroll-anchor'
 import { useWheelZoom } from './use-wheel-zoom'
@@ -17,8 +18,6 @@ import { useWheelZoom } from './use-wheel-zoom'
 const FRAME = 'contents'
 
 const HOVERABLE = '[data-hover-id]'
-
-const FINEST: Rung = 'item'
 
 const CARD_SIZE = { width: 300, height: 170 }
 
@@ -88,10 +87,10 @@ export interface PlanPointerProps {
  *
  * ### The click, and why it is in the bubble phase
  *
- * At the Year or Quarter rung, clicking a mark drills to **Sprint** — the finest rung, not one step —
- * and then opens the feature, which is the two halves of item 5. The action is awaited first, so the
- * drawer opens over a canvas already drawn at the rung that was asked for. At Sprint the link is left
- * entirely alone, so it still middle-clicks and still opens in a new tab.
+ * Where it goes is `./open-click.ts` and what it does on the way is `./use-drill.ts`: at the two wider
+ * rungs it zooms to Sprint and scrolls to the mark before the drawer opens, and at Sprint it is a
+ * plain open. The link is left alone for a modified click either way, so it still middle-clicks and
+ * still opens in a new tab.
  *
  * `DragRoot` cancels the click that follows a drag, and it does so in the **capture** phase, which runs
  * outside in. A bubble-phase listener here therefore sees that cancellation and a drag cannot drill;
@@ -108,18 +107,13 @@ export interface PlanPointerProps {
  * otherwise put the card down and up again on every boundary crossed.
  */
 export function PlanPointer({ children, rung, pxPerDay, axisX, zoomTo }: PlanPointerProps) {
-  const router = useRouter()
   const search = useSearchParams()
   const frame = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState<Shown | null>(null)
   const anchor = useScrollAnchor({ frame, axisX, pxPerDay })
+  const drill = useDrill({ rung, anchor, zoomTo })
   useWheelZoom({ frame, rung, pxPerDay, axisX, anchor, zoomTo })
   useGroupFit({ frame, rung, anchor, zoomTo })
-
-  const opened = async (href: string): Promise<void> => {
-    if (zoomTo !== null && rung !== FINEST) await zoomTo(FINEST)
-    router.push(href)
-  }
 
   const onClick = (event: MouseEvent<HTMLDivElement>): void => {
     if (!plainClick(event)) return
@@ -127,7 +121,7 @@ export function PlanPointer({ children, rung, pxPerDay, axisX, zoomTo }: PlanPoi
     const href = openClick(target, search.get(OPEN_PARAM), window.location.pathname)
     if (href === null) return
     event.preventDefault()
-    void opened(href)
+    drill(href, target)
   }
 
   const onOver = (event: PointerEvent<HTMLDivElement>): void => {

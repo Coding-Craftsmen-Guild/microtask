@@ -7,6 +7,7 @@ import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1 } from '../testing/plan-fixture
 import { detailsOf, splitDetail } from './detail-lines'
 import { PlanCanvas } from './plan-canvas'
 import { PlanPointer } from './plan-pointer'
+import { DRILL_INSET } from './use-drill'
 import { SETTLE_MS } from './pointer-view'
 
 const pushed: string[] = []
@@ -31,6 +32,8 @@ const detailOf = (id: string): string => DETAIL.get(id) ?? ''
 
 const FIT_DAY = 30
 
+const MARK_DAY = 90
+
 const board = () => (
   <div data-slot="plan-board">
     <div data-slot="group-chips">
@@ -48,17 +51,15 @@ const board = () => (
     <div data-slot="time-header">
       <span data-slot="quarter-head">Q4 2026</span>
     </div>
-    <div data-slot="timeline-scroller">
-      <svg data-slot="plan-canvas">
-        <rect data-detail={detailOf(FEATURE_1)} data-hover-id={FEATURE_1} data-slot="feature-bar" />
-        <rect data-detail={detailOf(ITEM_1)} data-hover-id={FEATURE_1} data-slot="item-mark" />
-        <rect data-detail={detailOf(FEATURE_2)} data-hover-id={FEATURE_2} data-slot="feature-bar" />
-        <path data-arc-from={FEATURE_1} data-arc-to={FEATURE_2} data-slot="arc" />
-        <a data-slot="feature-link" href={`/plans/p/f/${FEATURE_1}`}>
-          <rect data-hover-id={FEATURE_1} data-slot="feature-bar" />
-        </a>
-      </svg>
-    </div>
+    <svg data-slot="plan-canvas">
+      <rect data-detail={detailOf(FEATURE_1)} data-hover-id={FEATURE_1} data-slot="feature-bar" />
+      <rect data-detail={detailOf(ITEM_1)} data-hover-id={FEATURE_1} data-slot="item-mark" />
+      <rect data-detail={detailOf(FEATURE_2)} data-hover-id={FEATURE_2} data-slot="feature-bar" />
+      <path data-arc-from={FEATURE_1} data-arc-to={FEATURE_2} data-slot="arc" />
+      <a data-slot="feature-link" href={`/plans/p/f/${FEATURE_1}`}>
+        <rect data-hover-id={FEATURE_1} data-slot="feature-bar" data-start-day={MARK_DAY} />
+      </a>
+    </svg>
   </div>
 )
 
@@ -206,6 +207,31 @@ describe('clicking a mark at a rung that is not the finest', () => {
     fireEvent.click(at('[data-slot="feature-link"] rect'))
     await act(async () => {})
     expect(asked).toEqual(['item'])
+  })
+
+  // The half that was missing. Sprint is ten times the Year stop's scale, so a mark clicked at day 90
+  // sits at 360px on the axis it was clicked on and at 3,780px on the one that arrives: the drill
+  // landed on a pane still showing day zero, with the feature the reader had just pointed at a
+  // scrollbar away. The day is read off the mark and spent through the same anchor the wheel uses.
+  it('scrolls to the mark that was clicked, once the finer scale has arrived', async () => {
+    const { rerender } = show({ rung: 'epic' })
+    fireEvent.click(at('[data-slot="feature-link"] rect'))
+    await act(async () => {})
+    rerender(
+      <PlanPointer axisX={0} pxPerDay={42} rung="item" zoomTo={zoomTo}>
+        {board()}
+      </PlanPointer>,
+    )
+    expect(at('[data-slot="plan-board"]').scrollLeft).toBe(MARK_DAY * 42 - DRILL_INSET)
+  })
+
+  // At the finest stop there is no redraw to wait for and nothing to re-anchor: the click opens the
+  // drawer over the canvas already on screen, and moving the pane under it would be a scroll the
+  // reader did not ask for.
+  it('moves nothing when it opens at the sprint rung, there being no scale change to follow', () => {
+    show({ rung: 'item' })
+    fireEvent.click(at('[data-slot="feature-link"] rect'))
+    expect(at('[data-slot="plan-board"]').scrollLeft).toBe(0)
   })
 
   // The href on a mark cannot carry the open tabs — the board is drawn by a layout, and a layout cannot
@@ -384,7 +410,7 @@ describe('fitting the view to a group when its chip is clicked', () => {
     return found
   }
 
-  const scroller = (): HTMLElement => at('[data-slot="timeline-scroller"]') as HTMLElement
+  const scroller = (): HTMLElement => at('[data-slot="plan-board"]') as HTMLElement
 
   it('asks for the stop the chip names, which is the one the whole group fits at', () => {
     show({ rung: 'epic' })
@@ -448,9 +474,9 @@ describe('clearing the choice with the All work chip', () => {
 
   it('scrolls back to the start when the stop it asks for is the one already drawn', () => {
     show({ rung: 'feature' })
-    at('[data-slot="timeline-scroller"]').scrollLeft = 900
+    at('[data-slot="plan-board"]').scrollLeft = 900
     fireEvent.click(allChip())
     expect(asked).toEqual([])
-    expect(at('[data-slot="timeline-scroller"]').scrollLeft).toBe(0)
+    expect(at('[data-slot="plan-board"]').scrollLeft).toBe(0)
   })
 })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, type RefObject } from 'react'
 import { scrollFor } from './pointer-view'
 
-const SCROLLER = '[data-slot="timeline-scroller"]'
+const SCROLLER = '[data-slot="plan-board"]'
 
 /**
  * The element that scrolls the timeline sideways, found from the pointer root.
@@ -9,6 +9,19 @@ const SCROLLER = '[data-slot="timeline-scroller"]'
  * Exported because the wheel gesture needs it for a second reason this module has no opinion about —
  * reading the scroll position and the pane's left edge to work out which day is under the pointer —
  * and two `querySelector` calls for one element is one selector too many to keep in step.
+ *
+ * ### Why the slot is the board and not a scroller of its own
+ *
+ * It was `timeline-scroller`, which was the inner pane of a two-element board: a vertical scroller
+ * holding a sticky column of rail names beside a horizontal one holding the canvas. The restyle
+ * collapsed those into **one** `overflow-auto` board with the names `sticky left-0` inside it, and the
+ * inner element went with them — so this selector matched nothing, `scrollerIn` answered `null`, and
+ * every gesture built on it stopped moving the pane while continuing to change the zoom. A wheel zoom
+ * threw the reader to day zero, a group chip selected without going there, and nothing failed loudly
+ * enough to notice: the anchor's whole contract is to do nothing when there is no scroller.
+ *
+ * `happy-dom` lays nothing out, so no test here could have caught it — which is why the harnesses that
+ * stand in for the board carry this slot now, and why it was found in a browser (ADR 0055).
  */
 export const scrollerIn = (frame: RefObject<HTMLDivElement | null>): HTMLElement | null => {
   const found = frame.current?.querySelector(SCROLLER) ?? null

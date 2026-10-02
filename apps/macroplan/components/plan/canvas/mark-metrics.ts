@@ -1,4 +1,4 @@
-import type { ArcMetrics, RailMetrics, Rung } from '@repo/canvas'
+import type { ArcMetrics, FeatureBar, RailMetrics, Rung } from '@repo/canvas'
 
 /**
  * The vertical geometry of one rail band, and the insets inside it.
@@ -51,6 +51,18 @@ export const LAYOUT = {
 export const NODE_RADIUS = 4.5
 
 /**
+ * Where the point that stands for a feature sits on the axis: the middle of the days it takes.
+ *
+ * Here rather than beside the component that draws it, because two modules need the same answer and
+ * one of them has no DOM: `./feature-point.tsx` places the mark, and `./arc-view.ts` places the ends
+ * of every arc that touches it. A second opinion about the middle would be an arc that left from
+ * beside a dot rather than from it.
+ *
+ * `./feature-point.tsx` carries why the middle and not an edge.
+ */
+export const pointX = (bar: FeatureBar): number => bar.x + bar.width / 2
+
+/**
  * Half a diamond's width at a feature line's end, in px, resting and lit.
  *
  * The design's 8px and 10px, as the radius each polygon is drawn from. A diamond rather than a dot
@@ -83,13 +95,13 @@ export const ARC_METRICS: Readonly<Record<Rung, ArcMetrics>> = {
 }
 
 /**
- * How far a bar is pulled in at each end so a run of them does not paint as one block, in px.
+ * How far an item bar is pulled in at each end so a run of them does not paint as one block, in px.
  *
  * Presentation only: `data-x` and `data-width` keep the true geometry, which is what the drag reads.
- * It is 2 for an item bar and 1 for a feature bar, which is the design's own pair — an item bar is
- * one of several inside a feature and needs the air more than a feature does inside a rail.
+ *
+ * There was a `BAR_GAP` of 1 beside it, for a **feature** bar at the two wider stops. Those stops draw
+ * a point now (`./rung-view.ts`), and the inset is a large part of why: a 1px gap at each end is
+ * narrower than the 1.25px stroke drawn around the bar, so the device meant to separate two
+ * back-to-back features was itself invisible at the scale that needed it.
  */
-export const BAR_GAP = 1
-
-/** The same, for an item bar inside its feature. */
 export const ITEM_GAP = 2

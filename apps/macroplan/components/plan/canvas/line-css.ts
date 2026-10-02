@@ -61,3 +61,28 @@ export const LINE = {
 export const ITEM = {
   label: 'pointer-events-none text-[12px] font-medium [dominant-baseline:auto]',
 } as const
+
+/**
+ * One feature as a point, and the name written beside it.
+ *
+ * ### Why the name is haloed rather than plated
+ *
+ * An arc leaves a point heading right, towards whatever waits on it, and the name is written in exactly
+ * that direction — so at both point stops the curve ran through the words.
+ *
+ * A white plate behind the text is what `LINE` does for the same collision, and it is the wrong device
+ * here. A plate has to be *sized*, and nothing on the server can measure text: `./mark-label.ts` gives an
+ * average character width, which is an estimate that overshoots a name of narrow letters by a dozen
+ * pixels — a white notch hanging off the end of the label, against a grid that is not white.
+ *
+ * A stroke painted **under** the fill needs no measurement at all: it is the glyphs' own outline in the
+ * page's colour, so it hugs whatever the browser actually drew and is invisible everywhere else. It is
+ * also one element fewer per named feature, which is the budget this canvas is drawn under.
+ *
+ * `paint-order` is what makes it a halo rather than a smear: without it the stroke is painted over the
+ * fill and a 3px outline on 12px text swallows the letters it is meant to protect.
+ */
+export const POINT = {
+  label:
+    'pointer-events-none stroke-background text-[12px] font-medium [paint-order:stroke] [stroke-width:3px] [dominant-baseline:auto]',
+} as const

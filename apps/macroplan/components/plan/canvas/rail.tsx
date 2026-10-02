@@ -54,7 +54,7 @@ export function Rail({ rail, frame, top, width }: RailProps) {
         y1={top + LAYOUT.railHeight}
         y2={top + LAYOUT.railHeight}
       />
-      <RailFeatures frame={frame} rail={rail} top={top} />
+      <RailFeatures drawnWidth={width} frame={frame} rail={rail} top={top} />
       <RailItems frame={frame} rail={rail} top={top} />
     </g>
   )

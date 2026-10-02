@@ -19,16 +19,16 @@ import {
 import { PlanCanvas } from './plan-canvas'
 import { ZOOM_VIEW } from './zoom-view'
 import {
-  BAR_GAP,
   CANVAS_RANGE,
   CANVAS_SCALE,
   canvasWidth,
   chromeRange,
   insideRail,
+  ITEM_GAP,
   LAYOUT,
 } from './view'
 import { DRAWS } from './rung-view'
-import { ARC_METRICS } from './mark-metrics'
+import { ARC_METRICS, NODE_RADIUS } from './mark-metrics'
 
 const ORANGE = '#ff8833'
 
@@ -41,6 +41,8 @@ const PLATFORM_BLUE = '#3b82f6'
 
 /** What a placed feature nothing has started is drawn as, spelled out so a widening is visible. */
 const SOLID = 'fill-chart-3/20 stroke-chart-3 stroke-[1.25]'
+
+const SOLID_POINT = 'fill-chart-3 stroke-background stroke-[1.5]'
 
 
 /** Each rail paints one transparent band rect to hang its own hairline off. */
@@ -153,20 +155,20 @@ const planAtCap = (): Plan => {
 }
 
 describe('the range the admin canvas draws', () => {
-  // The wider two stops draw a **bar** per feature and no items; Sprint draws a **line** with its
-  // items as bars underneath. They drew a point before, on the argument that a bar's width is
-  // illegible at fourteen pixels a day — which stands, and is no longer all a mark carries:
-  // `mark-label.ts` puts a name on one wherever there is room for four characters.
-  it('is one quarter, and is the feature rung — which draws bars and leaves lines to Sprint', () => {
+  // The wider two stops draw a **point** per feature and no items; Sprint draws a **line** with its
+  // items as bars underneath. They drew a bar for a revision, on the argument that `mark-label.ts`
+  // had made a name fit inside one — and a row of back-to-back bars at four pixels a day is one
+  // block of hue with no name in any piece of it. `rung-view.ts` carries the whole of that.
+  it('is one quarter, and is the feature rung — which draws points and leaves lines to Sprint', () => {
     expect(CANVAS_RANGE.toDay - CANVAS_RANGE.fromDay).toBe(60)
     expect(rungFor(CANVAS_RANGE)).toBe('feature')
-    expect(DRAWS[rungFor(CANVAS_RANGE)]).toEqual({ bars: true, lines: false, items: false })
-    expect(DRAWS.item).toEqual({ bars: false, lines: true, items: true })
+    expect(DRAWS[rungFor(CANVAS_RANGE)]).toEqual({ points: true, lines: false, items: false })
+    expect(DRAWS.item).toEqual({ points: false, lines: true, items: true })
   })
 
   // Two drawings of one span. A stop with both would show every feature twice.
-  it('never draws a bar and a line at the same stop', () => {
-    for (const draws of Object.values(DRAWS)) expect(draws.bars && draws.lines).toBe(false)
+  it('never draws a point and a line at the same stop', () => {
+    for (const draws of Object.values(DRAWS)) expect(draws.points && draws.lines).toBe(false)
   })
 
   it('carries no gutter, because the rail names are HTML beside the canvas and not text inside it', () => {
@@ -282,12 +284,12 @@ describe('PlanCanvas', () => {
     expect(styleOf(barFor(FEATURE_1))).not.toContain('#')
   })
 
-  it('leaves a bar at the wider stops with no inline hue at all, there being none to write', () => {
+  it('leaves a point at the wider stops with no inline hue at all, there being none to write', () => {
     const plan = atlasPlan()
     const bare = { ...plan, epics: [], features: plan.features.map((one) => ({ ...one, labelId: null })) }
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(bare)} rung="feature" />)
     expect(styleOf(barFor(FEATURE_1))).toBe('')
-    expect(barFor(FEATURE_1).getAttribute('class')).toBe(SOLID)
+    expect(barFor(FEATURE_1).getAttribute('class')).toBe(SOLID_POINT)
   })
 
   // The fallback is the rail's and not the only source, so an unclaimed rail does not strip the hue
@@ -334,16 +336,29 @@ describe('PlanCanvas', () => {
     expect(barFor(FEATURE_1).getAttribute('style')).toContain(PHASE_1)
   })
 
-  // A bar is a wash inside an outline now, and both are the rail's hue — so the style carries the
-  // stroke as well as the fill. What has not changed is the split: every *colour* is inline, because
-  // it comes from the plan and Tailwind emits nothing for a class assembled at runtime, and every
+  // An item bar is a wash inside an outline, and both are the hue — so the style carries the stroke
+  // as well as the fill. What has not changed is the split: every *colour* is inline, because it
+  // comes from the plan and Tailwind emits nothing for a class assembled at runtime, and every
   // *treatment* is a class, because those are a closed set.
   it('puts every hue in a style and the treatment in a class, only one of them being a closed set', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="item" />)
+    const bar = only('[data-slot="item-mark"]')
+    expect(styleOf(bar)).toContain('fill')
+    expect(styleOf(bar)).toContain('stroke')
+    expect(styleOf(bar)).toContain('fill-opacity')
+    expect(bar.getAttribute('class')).toBe(SOLID)
+    expect(bar.getAttribute('class')).not.toContain(ORANGE)
+  })
+
+  // A point is eight pixels across, where a wash inside an outline is mud: it fills solid and spends
+  // its stroke on the halo that keeps two near neighbours apart (`canvas/treatments.ts`). So the hue
+  // reaches one channel rather than two — and the halo is never given it, which is the whole point of
+  // a halo. The split itself is unchanged: colour inline, treatment in a class.
+  it('gives a point the hue in its fill alone, the halo staying the page’s own colour', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(hued(ORANGE))} rung="feature" />)
     expect(styleOf(barFor(FEATURE_1))).toContain('fill')
-    expect(styleOf(barFor(FEATURE_1))).toContain('stroke')
-    expect(styleOf(barFor(FEATURE_1))).toContain('fill-opacity')
-    expect(barFor(FEATURE_1).getAttribute('class')).toBe(SOLID)
+    expect(styleOf(barFor(FEATURE_1))).not.toContain('stroke')
+    expect(barFor(FEATURE_1).getAttribute('class')).toBe(SOLID_POINT)
     expect(barFor(FEATURE_1).getAttribute('class')).not.toContain(ORANGE)
   })
 
@@ -374,17 +389,29 @@ describe('PlanCanvas', () => {
     expect(numberOf(barFor(FEATURE_2), 'data-x')).toBe(dayToX(5, CANVAS_SCALE))
   })
 
-  // At the Quarter stop, where a feature is a bar. The Sprint stop draws a rule running edge to edge
-  // between two diamonds, which has no drawn edge to pull in — its **items** are the bars there, and
-  // they are inset by `ITEM_GAP` for the same reason.
-  it('insets the drawn edge by the gap at both ends, so two neighbours never share a boundary', () => {
+  // The feature bar had a 1px inset at each end for this, and it was narrower than the stroke drawn
+  // around it. A point separates two back-to-back features by being a point: the air between them is
+  // the gap in days, which grows with the zoom rather than staying one pixel at every stop.
+  it('separates two back-to-back features by the days between their middles, at every stop', () => {
     const plan = atlasPlan()
-    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="feature" />)
-    for (const rail of railLayout(plan, plan.schedule, CANVAS_SCALE)) {
-      for (const bar of rail.bars) {
-        expect(numberOf(barFor(bar.id), 'x'), bar.id).toBe(bar.x + BAR_GAP)
-        expect(numberOf(barFor(bar.id), 'width'), bar.id).toBe(bar.width - BAR_GAP * 2)
-      }
+    for (const rung of ['epic', 'feature'] as const) {
+      cleanup()
+      render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung={rung} />)
+      const apart = numberOf(barFor(FEATURE_2), 'cx') - numberOf(barFor(FEATURE_1), 'cx')
+      expect(apart, rung).toBeGreaterThan(NODE_RADIUS * 2)
+    }
+  })
+
+  // Its **items** are the bars at the Sprint stop, and they keep the inset for the reason the feature
+  // bar had one: a run of them would otherwise paint as a single block.
+  it('insets an item bar at both ends, so two neighbours never share a boundary', () => {
+    const plan = atlasPlan()
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(plan)} rung="item" />)
+    for (const mark of slot('item-mark')) {
+      const from = numberOf(mark, 'data-start-day')
+      const to = numberOf(mark, 'data-end-day')
+      expect(numberOf(mark, 'x')).toBe(dayToX(from, CANVAS_SCALE) + ITEM_GAP)
+      expect(numberOf(mark, 'width')).toBe((to - from) * CANVAS_SCALE.pxPerDay - ITEM_GAP * 2)
     }
   })
 
@@ -559,18 +586,31 @@ describe('the chrome the canvas draws around its rails', () => {
 })
 
 describe('the rung the canvas is drawing at', () => {
-  it('draws each feature as a bar at the epic rung, and no item marks — §5 row one', () => {
+  it('draws each feature as a point at the epic rung, and no item marks — §5 row one', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
-    expect(DRAWS.epic).toEqual({ bars: true, lines: false, items: false })
+    expect(DRAWS.epic).toEqual({ points: true, lines: false, items: false })
     expect(slot('rail')).toHaveLength(1)
     expect(slot('item-mark')).toHaveLength(0)
-    // The nodes keep `data-slot="feature-bar"`, so `selection.ts` rebuilds a layout from the epic rung's
+    // The points keep `data-slot="feature-bar"`, so `selection.ts` rebuilds a layout from the epic rung's
     // markup without being told which rung drew it. What changes is the element: never a `<rect>`.
     expect(slot('feature-bar')).toHaveLength(2)
-    expect(slot('feature-bar').map((mark) => mark.tagName)).toEqual(['rect', 'rect'])
+    expect(slot('feature-bar').map((mark) => mark.tagName)).toEqual(['circle', 'circle'])
   })
 
-  it('carries the same drag geometry on a node as on a bar, so a drag works at every rung', () => {
+  // A point is drawn at the middle of the span, and the span is still what the mark reports: these are
+  // two different numbers on purpose, and `feature-point.tsx` carries which reader needs which.
+  it('centres a point on its span while still reporting the span itself', () => {
+    render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
+    for (const point of slot('feature-bar')) {
+      const x = Number(point.getAttribute('data-x'))
+      const width = Number(point.getAttribute('data-width'))
+      expect(width).toBeGreaterThan(0)
+      expect(Number(point.getAttribute('cx'))).toBe(x + width / 2)
+      expect(Number(point.getAttribute('r'))).toBe(NODE_RADIUS)
+    }
+  })
+
+  it('carries the same drag geometry on a point as on a line, so a drag works at every rung', () => {
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} rung="epic" />)
     for (const node of slot('feature-bar')) {
       expect(node.getAttribute('data-x')).not.toBeNull()
@@ -588,12 +628,12 @@ describe('the rung the canvas is drawing at', () => {
 
   it('draws the rung it is told and never the one its range implies, so a short plan still rolls up', () => {
     // `rangeFor` follows the plan's own span now, so a twelve-day plan at Year zoom yields a range
-    // `rungFor` calls `item`. Reading the rung back off the range would draw bars where the reader
+    // `rungFor` calls `item`. Reading the rung back off the range would draw lines where the reader
     // asked for a rollup, which is why `PlanCanvas` takes the rung as a prop and derives nothing.
     const short: DayRange = { fromDay: 0, toDay: 20 }
     render(<PlanCanvas at={AT} place={null} plan={planScreenModel(atlasPlan())} range={short} rung="epic" />)
     expect(rungFor(short)).toBe('item')
-    expect(slot('feature-bar').map((mark) => mark.tagName)).toEqual(['rect', 'rect'])
+    expect(slot('feature-bar').map((mark) => mark.tagName)).toEqual(['circle', 'circle'])
     expect(slot('item-mark')).toHaveLength(0)
   })
 })

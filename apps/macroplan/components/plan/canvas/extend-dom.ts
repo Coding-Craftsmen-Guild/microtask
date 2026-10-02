@@ -81,10 +81,14 @@ const middleOf = (node: Element, line: boolean, item: boolean): number => {
   return topOf(node) + (item ? LAYOUT.itemHeight : LAYOUT.barHeight) / 2
 }
 
-const widthOf = (node: Element, item: boolean): { readonly x: number; readonly width: number } =>
-  item
-    ? { width: Number(node.getAttribute('width')), x: Number(node.getAttribute('x')) }
-    : { width: numberAt(node, 'data-width'), x: numberAt(node, 'data-x') }
+const widthOf = (node: Element, item: boolean): { readonly x: number; readonly width: number } => {
+  if (item) return { width: Number(node.getAttribute('width')), x: Number(node.getAttribute('x')) }
+  if (node.tagName === 'circle') {
+    const radius = Number(node.getAttribute('r'))
+    return { width: radius * 2, x: Number(node.getAttribute('cx')) - radius }
+  }
+  return { width: numberAt(node, 'data-width'), x: numberAt(node, 'data-x') }
+}
 
 const positionOf = (node: Element, rail: Element | null, item: boolean, id: string): number => {
   if (item) return numberAt(node, 'data-position')
@@ -100,6 +104,18 @@ const positionOf = (node: Element, rail: Element | null, item: boolean, id: stri
  * attributes the mark carries for its own sake; the name comes out of the hover card's own text, so
  * neither a name nor a hue had to be added to two thousand item marks to make this gesture possible
  * (`./item-mark.tsx` argues the three that were).
+ *
+ * ### Why `x` and `width` are the drawn mark and the days are the span
+ *
+ * The two are the same thing for a feature **line**, whose rule runs the length of its span, and they
+ * are not for either of the other marks. An item bar is inset at both ends, and a feature at the Year
+ * and Quarter stops is a **point** at the middle of days it does not otherwise cover: taking the span
+ * there put the handles at the span's edges, which for a ten-day feature at Quarter is seventy pixels
+ * of empty track to either side of the dot — two `+` floating clear of the only thing the pointer was
+ * on. So each shape is asked for its own drawn extent, and only the days come from the attributes.
+ *
+ * That is the same split `./feature-point.tsx` makes, for the same reason: what a draw extends from is
+ * the span, and what a reader reaches for is the mark.
  *
  * @param target - Whatever a pointer event named as its target.
  * @returns The mark under it, or `null` for a pointer that is not over one.
