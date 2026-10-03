@@ -1,6 +1,6 @@
 # ADR 0056 — The table is the second rendering of a plan, not the accessible fallback
 
-**Status:** Accepted · 2026-09-23
+**Status:** Accepted · 2026-09-23 · how the table is mounted superseded by [ADR 0069](0069-the-plan-screen-is-local-first.md)
 
 ## Context
 

@@ -71,19 +71,20 @@ in the working tree.
 | [0053](0053-a-plan-is-shared-at-plan-scope.md) | A plan is shared at plan scope, by the share-link system that already exists | Accepted |
 | [0054](0054-one-token-index-identity-stays-a-capability.md) | One token index for both products, and identity stays a capability until there are users | Accepted |
 | [0055](0055-canvas-geometry-is-its-own-pure-package.md) | Canvas geometry is its own pure package, because a measurement cannot be tested here | Accepted |
-| [0056](0056-the-table-is-the-second-rendering.md) | The table is the second rendering of a plan, not the accessible fallback | Accepted |
-| [0057](0057-the-drawer-is-a-route.md) | The drawer is a route, so a selection is a URL and a save is per field | Accepted |
-| [0058](0058-one-delegation-root-over-a-server-rendered-canvas.md) | One delegation root over a server-rendered canvas, and `children` is the one exception it needed | Accepted |
+| [0056](0056-the-table-is-the-second-rendering.md) | The table is the second rendering of a plan, not the accessible fallback | Accepted; how it is mounted superseded by 0069 |
+| [0057](0057-the-drawer-is-a-route.md) | The drawer is a route, so a selection is a URL and a save is per field | Accepted; the server-drawn drawer superseded by 0069 |
+| [0058](0058-one-delegation-root-over-a-server-rendered-canvas.md) | One delegation root over a server-rendered canvas, and `children` is the one exception it needed | Accepted; the server-rendered canvas superseded by 0069 |
 | [0059](0059-undo-is-a-compensating-placement.md) | Undo is a compensating placement, one step deep, and a delete has none | Accepted |
 | [0060](0060-a-cycle-is-named-before-the-write.md) | A cycle is named before the write, and the API stays the authority | Accepted |
 | [0061](0061-the-bridge-is-a-second-read-never-the-plans.md) | The bridge is a second read, never part of the plan's | Accepted |
 | [0062](0062-attenuation-is-one-minimum-applied-twice.md) | Attenuation is one minimum, applied twice, and a refused link reads as unlinked | Accepted |
 | [0063](0063-the-bounded-write-cannot-roll-back.md) | The bounded write cannot roll back, so it may leak a task and never delete one | Accepted |
-| [0064](0064-a-group-is-a-plan-level-label-a-feature-points-at.md) | A group is a plan-level label a feature points at, and selecting one is CSS | Accepted |
+| [0064](0064-a-group-is-a-plan-level-label-a-feature-points-at.md) | A group is a plan-level label a feature points at, and selecting one is CSS | Accepted; selecting through `:has()` superseded by 0069 |
 | [0065](0065-a-plan-is-usable-end-to-end-on-both-surfaces.md) | A plan is usable end to end, on both surfaces — and what six closed gaps were each defended by | Accepted |
 | [0066](0066-a-rail-binds-by-naming-its-project-the-api-minting-the-seat.md) | A rail binds by naming its project, the API minting the seat — correcting a premise in 0052 | Accepted |
 | [0067](0067-the-plan-page-is-a-sidebar-a-graph-and-a-docked-drawer.md) | The plan page is a sidebar, a graph and a docked drawer, and the canvas draws all three rungs | Accepted |
 | [0068](0068-a-problem-belongs-to-its-entity-and-the-plan-page-is-a-frame.md) | A problem belongs to its entity, and the plan page is a frame rather than a stack | Accepted |
+| [0069](0069-the-plan-screen-is-local-first.md) | The plan screen is local-first: the plan crosses once, and every interaction is answered in the browser | Accepted |
 
 **0052 was reserved for three phases and is now written.** It belongs to the bridge — an epic binding
 to a Microtask project by a sealed share token — and phase 1 reserved the fields for it while deciding

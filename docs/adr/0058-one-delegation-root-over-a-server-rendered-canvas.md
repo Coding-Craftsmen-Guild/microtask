@@ -1,6 +1,6 @@
 # ADR 0058 — One delegation root over a server-rendered canvas, and `children` is the one exception it needed
 
-**Status:** Accepted · 2026-09-25
+**Status:** Accepted · 2026-09-25 · the server-rendered canvas superseded by [ADR 0069](0069-the-plan-screen-is-local-first.md); the delegation roots stand
 
 ## Context
 

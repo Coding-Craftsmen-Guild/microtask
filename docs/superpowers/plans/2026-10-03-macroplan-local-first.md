@@ -1,7 +1,7 @@
 # Macroplan local-first plan screen — implementation plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans (inline) — this plan is executed
-> in the session that wrote it, task by task, with the gate between phases. Steps use `- [ ]` checkboxes.
+> in the session that wrote it, task by task, with the gate between phases. Steps use `- [x]` checkboxes.
 
 **Goal:** make every plan-screen interaction (zoom, open a drawer, edit, drag, draw, hover) answer in under
 ~50 ms on any connection, instead of waiting for a server round trip that re-renders the whole page.
@@ -77,11 +77,11 @@ Docs: `docs/adr/0069-the-plan-screen-is-local-first.md`; status amendments on AD
 ## Phase B — one schedule flattening for server and browser
 
 ### Task 1: `flatSchedule` in `@repo/schedule`
-- [ ] Test `packages/schedule/src/flat.test.ts`: spans carry ids and sort by `(startDay, id)`; `unscheduled`
+- [x] Test `packages/schedule/src/flat.test.ts`: spans carry ids and sort by `(startDay, id)`; `unscheduled`
   sorts by id; `cycles` / `ignoredEdges` pass through; equals the flattening `plan-view.ts` does today.
-- [ ] Implement `packages/schedule/src/flat.ts`, export from `index.ts`.
-- [ ] `packages/macroplan-domain/src/views/plan-view.ts`: `planSchedule` returns `flatSchedule(manifest)`.
-- [ ] Rebuild both packages; run schedule, macroplan-domain and api suites. Commit.
+- [x] Implement `packages/schedule/src/flat.ts`, export from `index.ts`.
+- [x] `packages/macroplan-domain/src/views/plan-view.ts`: `planSchedule` returns `flatSchedule(manifest)`.
+- [x] Rebuild both packages; run schedule, macroplan-domain and api suites. Commit.
 
 ## Phase C — pure optimistic edits
 
@@ -101,13 +101,13 @@ Each mirrors the domain service named beside it, rule for rule:
 | `changeGroup` / `removeGroup` / `createGroup` | `LabelService` (`released`) |
 | `retimePlan` / `renamePlan` | `PlanService.update` |
 
-- [ ] Task 2: `edit-order.ts` + `clean-name.ts` with tests (clamp, renumber, stable order; whitespace
+- [x] Task 2: `edit-order.ts` + `clean-name.ts` with tests (clamp, renumber, stable order; whitespace
   collapse, 80-codepoint cut, empty refused → unchanged).
-- [ ] Task 3: `feature-edits.ts` + tests (one per row above, including moving across rails renumbers both).
-- [ ] Task 4: `item-edits.ts` + tests.
-- [ ] Task 5: `rail-edits.ts`, `group-edits.ts` + tests.
-- [ ] Task 6: `with-schedule.ts` + agreement test against every fixture plan's stored schedule.
-- [ ] Commit after each.
+- [x] Task 3: `feature-edits.ts` + tests (one per row above, including moving across rails renumbers both).
+- [x] Task 4: `item-edits.ts` + tests.
+- [x] Task 5: `rail-edits.ts`, `group-edits.ts` + tests.
+- [x] Task 6: `with-schedule.ts` + agreement test against every fixture plan's stored schedule.
+- [x] Commit after each.
 
 ## Phase D — the store
 
@@ -137,45 +137,69 @@ Wraps all 28 `PlanEditActions` members. Structural members get an edit; bridge m
 
 ## Phase E — server actions
 
-- [ ] Task 10: `adminWrite` / `seatWrite` answer `planScreenModel(result)` and **do not** `refresh()`;
+- [x] Task 10: `adminWrite` / `seatWrite` answer `planScreenModel(result)` and **do not** `refresh()`;
   `adminBridgeWrite` / `seatBridgeWrite` keep `refresh()` (the bridge read must follow) and also reduce.
   `retimePlan` reduces and does not refresh; `renamePlan` keeps `refresh()` (crumb + title are server-drawn).
   Update `actions/*.test.ts`. This also closes a live leak: every write used to answer the admin's seat tokens.
-- [ ] Task 11: drawer reads as actions: `readItemDrawer(planId, itemId)` (admin: description + bound tasks),
+- [x] Task 11: drawer reads as actions: `readItemDrawer(planId, itemId)` (admin: description + bound tasks),
   `seatReadItemDrawer(token, planId, itemId)` (description). Tests.
 
 ## Phase F — the client screen
 
-- [ ] Task 12: `plan-provider.tsx` + hooks; `adopt` when the `plan` prop changes identity.
-- [ ] Task 13: `drawer-route.ts` (+ tests) and `plan-nav.tsx`; swap every `next/link` / `router.push|replace`
+- [x] Task 12: `plan-provider.tsx` + hooks; `adopt` when the `plan` prop changes identity.
+- [x] Task 13: `drawer-route.ts` (+ tests) and `plan-nav.tsx`; swap every `next/link` / `router.push|replace`
   under `components/plan` for `PlanLink` / `go`; scroll a `#fragment` into view after a push.
-- [ ] Task 14: zoom as client state; `ZoomSwitch` becomes buttons; `useDrill` no longer awaits a round trip;
+- [x] Task 14: zoom as client state; `ZoomSwitch` becomes buttons; `useDrill` no longer awaits a round trip;
   delete `actions/zoom.ts` and its test.
-- [ ] Task 15: `plan-app.tsx`, `plan-client-screen.tsx`, `plan-drawer.tsx`, `item-extras.ts`.
-- [ ] Task 16: `cache()` → plan-keyed `WeakMap` memo in `rows.ts` / `detail-lines.ts`; O(n) detail lines;
+- [x] Task 15: `plan-app.tsx`, `plan-client-screen.tsx`, `plan-drawer.tsx`, `item-extras.ts`.
+- [x] Task 16: `cache()` → plan-keyed `WeakMap` memo in `rows.ts` / `detail-lines.ts`; O(n) detail lines;
   `useMemo` for axis + canvas layout.
-- [ ] Task 17: render only the active view; the other (the table) mounts deferred, for assistive tech.
-- [ ] Task 18: table state-driven (sort / filter / column order in render, no DOM moves).
-- [ ] Task 19: hover attribute on the board, not the screen root.
+- [x] Task 17: render only the active view; the other (the table) mounts deferred, for assistive tech.
+- [x] Task 18: table state-driven (sort / filter / column order in render, no DOM moves).
+- [x] Task 19: hover attribute on the board, not the screen root.
 
 ## Phase G — routes
 
-- [ ] Task 20: `[planId]/layout.tsx` and `s/[token]/layout.tsx` mount `PlanApp`; drawer pages return `null`;
+- [x] Task 20: `[planId]/layout.tsx` and `s/[token]/layout.tsx` mount `PlanApp`; drawer pages return `null`;
   delete `loading.tsx`; seat reads plan ‖ bridge in parallel.
-- [ ] Task 21: rewrite the route tests and `module-boundaries.test.tsx` for the new invariant: one client root
+- [x] Task 21: rewrite the route tests and `module-boundaries.test.tsx` for the new invariant: one client root
   is handed the plan model, and nothing handed to any client component holds a share token.
 
 ## Phase H — record
 
-- [ ] Task 22: ADR 0069; amend ADR 0056 / 0057 / 0058 statuses; ADR index.
+- [x] Task 22: ADR 0069; amend ADR 0056 / 0057 / 0058 statuses; ADR index.
 
 ## Phase I — verify
 
-- [ ] Task 23: `npx turbo run build typecheck lint test --force` in the foreground (Bash `timeout: 600000`);
+- [x] Task 23: `npx turbo run build typecheck lint test --force` in the foreground (Bash `timeout: 600000`);
   clear `apps/*/.next` first; an EPERM on `microtask#build` is cleared and re-run once.
-- [ ] Task 24: browser click-through on a production build, admin and seat: every drawer kind, deep link,
+- [x] Task 24: browser click-through on a production build, admin and seat: every drawer kind, deep link,
   hard reload, back/forward, drag, draw, resize, stepper, rename, dependencies, groups, rail reorder, strip
   drop, delete + failure, zoom (switch, wheel, drill, chip), table sort/filter/columns.
-- [ ] Task 25: re-measure against the baseline above (25 and 2,000 items).
+- [x] Task 25: re-measure against the baseline above (25 and 2,000 items).
 - [ ] Task 26: code review; fix what it finds; re-run the gate.
 - [ ] Task 27: push `feat/macroplan-local-first` (standing authorisation). Never `main`.
+
+---
+
+## As built (2026-10-03)
+
+Every task above is done; where the build differed from the plan, it is recorded here rather than by
+editing the task it differed from.
+
+- **Names.** `plan-provider.tsx` is `app/plan-session.tsx` (a context and two hooks, no component),
+  `item-extras.ts` is `app/use-item-extras.ts`, and the drawers are `app/subject-drawer.tsx`,
+  `app/rail-drawer.tsx` and `app/group-drawers.tsx`, read off the address by `app/plan-drawer.tsx`.
+- **Task 19 grew.** Scoping the hover attribute to the board did not move the cap's hover frame; the
+  measurement that found why is in ADR 0069. The selection sheets and the hover sheet asked `:has()` of
+  the whole screen, so the shell now states the chosen rail and group, the pointer lights a mark's group,
+  and the table states its hidden columns. Hover at the cap: 265 → 24 ms (Year), 349 → 41 ms (Sprint).
+- **Found by the rewritten tests, not planned.** The screen handed the board and the table the plan's
+  *path* where the route builders take its *id*, so every bar, row, rail and tray link encoded the path
+  into itself; the session keeps `home` (the path) and `root` (the id or token) apart now. And the
+  table could unmount, losing its search, if it was chosen before its deferred mount had fired.
+- **Measured and not adopted.** `content-visibility: auto` and fixed table layout for the off-screen
+  table: neither moved its one mount frame at the cap (~400 ms) enough to be worth the risk to the
+  reading order. The mount runs as a transition now, which keeps input answering while React builds it.
+- **Verify (Task 24)** covered the feature, item, rail and group drawers in the browser; the two add
+  drawers are covered by `app/plan-drawer.test.tsx` only.

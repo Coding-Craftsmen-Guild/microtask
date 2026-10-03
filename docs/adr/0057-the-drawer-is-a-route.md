@@ -1,6 +1,6 @@
 # ADR 0057 — The drawer is a route, so a selection is a URL and a save is per field
 
-**Status:** Accepted · 2026-09-25
+**Status:** Accepted · 2026-09-25 · the server-drawn drawer superseded by [ADR 0069](0069-the-plan-screen-is-local-first.md); a selection is still a URL
 
 ## Context
 

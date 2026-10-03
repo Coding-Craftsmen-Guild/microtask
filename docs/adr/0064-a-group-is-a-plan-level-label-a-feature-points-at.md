@@ -1,6 +1,6 @@
 # 0064 — A group is a plan-level label a feature points at, and selecting one is CSS
 
-- **Status:** Accepted
+- **Status:** Accepted; selecting through `:has()` superseded by [ADR 0069](0069-the-plan-screen-is-local-first.md)
 - **Date:** 2026-09-26
 - **Context:** [Macroplan design](../superpowers/specs/2026-09-22-macroplan-design.md) §3, §5, §7.1
 
