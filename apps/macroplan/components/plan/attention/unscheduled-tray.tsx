@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
 import type { AttentionMap } from './attention'
 import { ATTENTION_WHY } from './attention-words'
@@ -70,9 +70,9 @@ export function UnscheduledTray({ rows, found, routes, root }: UnscheduledTrayPr
           const why = found.get(row.id)?.[0]
           return (
             <li className={TRAY.row} data-slot="tray-row" key={row.id}>
-              <Link className={TRAY.name} href={routes.feature(root, row.id)}>
+              <PlanLink className={TRAY.name} href={routes.feature(root, row.id)}>
                 {row.name}
-              </Link>
+              </PlanLink>
               {row.railName === null ? null : <span className={TRAY.rail}>{row.railName}</span>}
               <span className={TRAY.why} title={why === undefined ? NOTHING : ATTENTION_WHY[why.kind]}>
                 {why?.detail ?? NOTHING}

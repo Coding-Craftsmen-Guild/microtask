@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import { TITLE_ID } from './drawer-dock'
 import { TAB, TAB_MARK } from './panel-css'
 import type { TabView } from './tab-view'
@@ -54,17 +54,17 @@ export function PanelTabs({ tabs }: PanelTabsProps) {
               {tab.name}
             </h2>
           ) : (
-            <Link className={TAB.shutName} href={tab.href} title={tab.name}>
+            <PlanLink className={TAB.shutName} href={tab.href} title={tab.name}>
               {tab.name}
-            </Link>
+            </PlanLink>
           )}
-          <Link
+          <PlanLink
             aria-label={tab.active ? TAB_WORDS.close : `${TAB_WORDS.closeOne}: ${tab.name}`}
             className={TAB.close}
             href={tab.closeHref}
           >
             {CLOSE_MARK}
-          </Link>
+          </PlanLink>
         </div>
       ))}
     </>

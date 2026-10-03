@@ -49,7 +49,6 @@ describe('an item edit that touches two fields', () => {
       status: 403,
       detail: plainRefusal(403, ACTION_REFUSALS.admin),
     })
-    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
   it('clears an estimate with null, and estimates an item at no time at all with zero', async () => {

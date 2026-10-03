@@ -1,33 +1,27 @@
 import type { PlanBridge } from '@repo/api-client'
-import type { SizeWrites } from "./canvas/size-write"
 import type { Rung } from '@repo/canvas'
 import type { ReactNode } from 'react'
 import { TimelinePanel } from './board/timeline-panel'
-import type { CreateWrites } from './board/create-write'
-import type { FeaturePlace } from './canvas/drag-root'
-import type { ExtendWrites } from './canvas/extend-write'
+import type { PlanAxis } from './canvas/zoom-view'
 import type { PlanScreenModel } from './plan-screen-model'
-import { PlanTable, type TableWrites } from './table/plan-table'
+import { TableAside } from './table/table-aside'
+import type { TableWrites } from './table/plan-table'
+import type { BoardWrites } from './table/table-writes'
 import type { DrawerRoutes } from '../../lib/drawer-routes'
-import { VIEW_SWITCH } from './view-switch'
+import { VIEW_SWITCH, type PlanView } from './view-switch'
 
 /** Props for {@link PlanViews}. */
-export interface PlanViewsProps {
+export interface PlanViewsProps extends BoardWrites {
   readonly plan: PlanScreenModel
 
   readonly at: Date
 
   readonly zoom: Rung
 
+  /** The scale and the window the timeline is drawn at, worked out once for the whole screen. */
+  readonly axis: PlanAxis
+
   readonly progress: PlanBridge['items']
-
-  readonly place: FeaturePlace | null
-
-  /** The writes a draw from a mark's own end sends. */
-  readonly draw: ExtendWrites
-
-  /** The two writes a resize sends, which travel beside the draw and are gated separately. */
-  readonly size: SizeWrites
 
   /** The unscheduled tray, shown under the board and not under the table. */
   readonly tray: ReactNode
@@ -43,63 +37,49 @@ export interface PlanViewsProps {
 
   readonly routes: DrawerRoutes
 
-  /**
-   * The four writes the Add strip's drops make, each `null` where this viewer may not make it.
-   *
-   * Separate from {@link PlanViewsProps.writes}, which is three booleans about what the **table** draws
-   * in its actions column. These are the functions themselves, and they are flat and narrow for the
-   * reason `board/create-write.ts` records: a drop handler handed the whole `PlanEditActions` could
-   * reach seventeen writes it has no business with.
-   */
-  readonly adds: CreateWrites
-
-  /** The hue to propose for a dropped rail, chosen on the server from how many the plan holds. */
+  /** The hue to propose for a dropped rail, chosen from how many the plan holds. */
   readonly nextRailColour: string
+
+  /** Which rendering is on screen. */
+  readonly view: PlanView
 }
 
 /**
- * The two renderings of the plan, both server-rendered, one hidden by CSS.
+ * The two renderings of the plan: the one chosen, on screen, and the table, always, for assistive tech.
  *
- * Returns a **fragment**. Both panels are addressed by `[data-slot]` from a `:has()` rule on the
- * shell, so they no longer have to be siblings of the radios — but they do have to be siblings of
- * each other inside the one flex column that gives them their height, and a wrapper here would make
- * that column contain a single child that contains both, so neither would stretch.
+ * Returns a **fragment**: both panels have to be siblings inside the one flex column that gives them
+ * their height, and a wrapper here would make that column contain a single child that contains both.
+ *
+ * The **timeline** is drawn only while it is chosen. It is an `<svg role="img">` with a label and nothing
+ * a screen reader can use inside it, so not drawing it costs a reader one alt text and saves every
+ * element of the canvas while the table is up.
+ *
+ * The **table** is the accessible rendering of the plan, so it is never dropped: with the timeline chosen
+ * it sits off screen, where a reader who cannot see the canvas still has every row without finding the
+ * switch first. What changed is its cost (ADR 0069): it mounts after the screen has painted, renders from
+ * a deferred plan so an edit never waits for it, and is memoised so a zoom or a drawer leaves it alone.
  *
  * The tray belongs to the timeline and is inside its panel: a table row for an unplaced feature is
- * already in the table, with its empty dates showing, so repeating it underneath would be the
- * duplication this revision set out to remove.
+ * already in the table, with its empty dates showing.
  */
 export function PlanViews(props: PlanViewsProps) {
-  const { plan, at, zoom, progress, place, draw, size, tray, root, routes, writes, newRailHref } = props
-  const { adds, nextRailColour } = props
+  const { plan, at, zoom, axis, progress, tray, root, routes, writes, newRailHref, view, nextRailColour } = props
   return (
     <>
-      <div className={VIEW_SWITCH.timelinePanel} data-slot="timeline-panel">
-        <TimelinePanel
-          adds={adds}
-          at={at}
-          draw={draw}
-          size={size}
-          nextRailColour={nextRailColour}
-          place={place}
-          plan={plan}
-          progress={progress}
-          root={root}
-          routes={routes}
-          tray={tray}
-          zoom={zoom}
-        />
-      </div>
-      <div className={VIEW_SWITCH.tablePanel} data-slot="table-panel">
-        <PlanTable
-          newRailHref={newRailHref}
-          plan={plan}
-          progress={progress}
-          root={root}
-          routes={routes}
-          writes={writes}
-        />
-      </div>
+      {view === 'timeline' ? (
+        <div className={VIEW_SWITCH.timelinePanel} data-slot="timeline-panel">
+          <TimelinePanel {...props} at={at} axis={axis} nextRailColour={nextRailColour} plan={plan} progress={progress} root={root} routes={routes} tray={tray} zoom={zoom} />
+        </div>
+      ) : null}
+      <TableAside
+        newRailHref={newRailHref}
+        plan={plan}
+        progress={progress}
+        root={root}
+        routes={routes}
+        shown={view === 'table'}
+        writes={writes}
+      />
     </>
   )
 }

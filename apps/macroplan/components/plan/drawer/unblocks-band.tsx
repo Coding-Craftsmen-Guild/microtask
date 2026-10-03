@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import { openedHref, type TabRef } from './tab-stack'
 import { BAND, EDGES } from './list-css'
 import { PANEL_BANDS } from './panel-words'
@@ -39,7 +39,7 @@ export function UnblocksBand({ rows, root, stack }: UnblocksBandProps) {
       {rows.length === 0 ? null : (
         <div className={EDGES.chips}>
           {rows.map((row) => (
-            <Link
+            <PlanLink
               className={EDGES.flat}
               href={openedHref(root, { id: row.id, kind: 'feature' }, stack)}
               key={row.id}
@@ -51,7 +51,7 @@ export function UnblocksBand({ rows, root, stack }: UnblocksBandProps) {
               />
               <span className={EDGES.name}>{row.name}</span>
               <span className={EDGES.arrow}>{ARROW}</span>
-            </Link>
+            </PlanLink>
           ))}
         </div>
       )}

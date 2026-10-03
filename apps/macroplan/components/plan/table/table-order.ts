@@ -1,8 +1,5 @@
-import { compareSort, type SortDirection } from './columns'
-
-const ROW = 'tr[data-block]'
-
-const HEAD_ROW = 'thead tr'
+import { compareSort, type PlanColumn, type SortDirection } from './columns'
+import type { TableRow } from './rows'
 
 /** Which column the table is ordered by, and which way. `null` is the plan's own derived order. */
 export interface Sorted {
@@ -12,7 +9,7 @@ export interface Sorted {
 
 /** What a reader has narrowed the table to: a needle, a rail, and a group. */
 export interface Narrowed {
-  /** Lower-cased already, because every row's `data-search` is. */
+  /** Lower-cased already, because every row's search key is. */
   readonly needle: string
 
   /** A rail id, or `''` for every rail. */
@@ -22,127 +19,90 @@ export interface Narrowed {
   readonly group: string
 }
 
-const attr = (element: Element, name: string): string => element.getAttribute(name) ?? ''
+/** One row as the table draws it: the row, and whether the search and the filters leave it hidden. */
+export interface ArrangedRow {
+  readonly row: TableRow
+  readonly hidden: boolean
+}
 
-const blocksIn = (body: Element): ReadonlyMap<string, readonly Element[]> => {
-  const blocks = new Map<string, Element[]>()
-  for (const row of body.querySelectorAll(ROW)) {
-    const key = attr(row, 'data-block')
-    blocks.set(key, [...(blocks.get(key) ?? []), row])
+const blocksOf = (rows: readonly TableRow[]): ReadonlyMap<string, readonly TableRow[]> => {
+  const blocks = new Map<string, TableRow[]>()
+  for (const row of rows) {
+    const block = blocks.get(row.block)
+    if (block === undefined) blocks.set(row.block, [row])
+    else block.push(row)
   }
   return blocks
 }
 
-const inGroup = (row: Element, group: string): boolean => {
+const inGroup = (row: TableRow, group: string): boolean => {
   if (group === '') return true
-  const held = attr(row, 'data-label-id')
-  return group === 'none' ? held === '' : held === group
+  return group === 'none' ? row.labelId === null : row.labelId === group
 }
 
-const kept = (row: Element, narrowed: Narrowed): boolean =>
-  attr(row, 'data-search').includes(narrowed.needle) &&
-  (narrowed.rail === '' || attr(row, 'data-rail') === narrowed.rail) &&
-  inGroup(row, narrowed.group)
+const kept = (row: TableRow, narrowed: Narrowed): boolean =>
+  row.search.includes(narrowed.needle) && (narrowed.rail === '' || row.railId === narrowed.rail) && inGroup(row, narrowed.group)
+
+const narrowedBlock = (rows: readonly TableRow[], narrowed: Narrowed): readonly ArrangedRow[] => {
+  const head = rows[0]
+  const whole = head !== undefined && kept(head, narrowed)
+  const shown = new Set(rows.filter((row) => kept(row, narrowed)))
+  if (!whole && head !== undefined && shown.size > 0) shown.add(head)
+  return rows.map((row) => ({ row, hidden: !whole && !shown.has(row) }))
+}
+
+const sortKeyOf = (row: TableRow | undefined, column: string): string => {
+  const sort = row?.sort ?? null
+  if (sort === null || !(column in sort)) return ''
+  return String(sort[column as keyof typeof sort])
+}
 
 /**
- * Hides every row the search and the filters exclude, a block at a time.
+ * The table's rows in the order to draw them, each marked shown or hidden — the search, the two filters
+ * and the sort, answered in render.
  *
  * ### Why a block is the unit
  *
  * A feature and its items are one piece of work. The two filters are properties of a **feature** — a rail
  * and a group — so an item has no separate answer and is kept or dropped with the feature it flows under.
+ * Search is the exception: a block whose **feature row** matched is shown whole, and otherwise only the
+ * item rows that matched, under their feature row for context, so a result is never an orphan.
  *
- * Search is the exception, and behaves as the rail tree's does: a block whose **feature row** matched is
- * shown whole, and otherwise only the item rows that matched, under their feature row for context. A list
- * of matching items with no feature above them would be a list of orphans that nothing on screen could
- * place — `sidebar/sidebar-search.tsx` makes the same call about a rail and its features.
+ * A sort is a reader asking a question for a moment, so it moves whole blocks and never separates an item
+ * from its feature: within a block the derived order is untouched, and clearing the sort restores it
+ * exactly, `Array.prototype.sort` being stable.
  *
- * `hidden` is the attribute rather than a class, for that file's reason: it is what the platform has for
- * this, it needs no CSS emitted for it, and it takes a row out of the accessibility tree as well as out
- * of the layout — which a filtered-out row should be.
+ * ### Why it is not done to the DOM any more
+ *
+ * It was: rows were hidden, re-appended and their cells moved by hand after **every** render, because the
+ * server always drew the default order. The table is drawn in the browser now (ADR 0069), so the order is
+ * simply the order it is rendered in — and the old way would have fought React for those very nodes.
+ * A filtered row is still rendered and `hidden`, which is what takes it out of the accessibility tree.
+ *
+ * @param rows - Every row, in the plan's derived order (`./rows.ts`).
+ * @param narrowed - The search and the filters.
+ * @param sorted - The sort, or `null` for the derived order.
+ * @returns Every row, in the order to draw them, each marked.
  */
-export function narrow(body: Element, narrowed: Narrowed): void {
-  for (const [, rows] of blocksIn(body)) {
-    const head = rows[0]
-    const whole = head !== undefined && kept(head, narrowed)
-    const shown = rows.filter((row) => kept(row, narrowed))
-    const visible = whole ? rows : shown.length === 0 ? [] : [head, ...shown].filter((row) => row !== undefined)
-    for (const row of rows) {
-      if (row instanceof HTMLElement) row.hidden = !visible.includes(row)
-    }
-  }
-}
-
-/**
- * Puts the table's blocks in the asked-for order, or back into the plan's own.
- *
- * ### Why blocks move and rows do not
- *
- * `rows.ts` argues at length that the table's order is the canvas's order and must not be re-derived —
- * "a table ordered by a sort of its own would put its rows in an order the bars are not in". A sort is a
- * reader asking a question for a moment, so it moves whole blocks and never separates an item from its
- * feature: within a block the derived order is untouched, and clearing the sort restores it exactly,
- * because the blocks are read back in document order and `Array.prototype.sort` is stable.
- *
- * ### Why it appends rather than inserting
- *
- * Appending an element that is already in the parent moves it, so walking the wanted order and appending
- * each row lands the whole body in that order with no index arithmetic and no detach-and-reinsert.
- */
-export function reorder(body: Element, sorted: Sorted | null): void {
-  const blocks = blocksIn(body)
+export function arrangedRows(rows: readonly TableRow[], narrowed: Narrowed, sorted: Sorted | null): readonly ArrangedRow[] {
+  const blocks = blocksOf(rows)
   const keys = [...blocks.keys()]
   if (sorted !== null) {
-    const keyOf = (block: string): string =>
-      attr(blocks.get(block)?.[0] ?? body, `data-sort-${sorted.column}`)
+    const keyOf = (block: string): string => sortKeyOf(blocks.get(block)?.[0], sorted.column)
     keys.sort((left, right) => compareSort(keyOf(left), keyOf(right), sorted.column, sorted.direction))
   }
-  for (const key of keys) for (const row of blocks.get(key) ?? []) body.appendChild(row)
-}
-
-const orderOf = (row: Element): readonly string[] =>
-  [...row.children].map((cell) => attr(cell, 'data-col'))
-
-/**
- * Puts every row's cells in the reader's column order, header included.
- *
- * ### Why it checks before it moves
- *
- * A table of two thousand rows is eighteen thousand cells, and this runs after **every** render — the
- * order has to be re-applied because opening a drawer re-renders the layout the table is in, and the
- * server always draws the default order. So the header row is compared first, and a table already in the
- * wanted order is left entirely alone, which is the overwhelmingly common case.
- *
- * A column the row does not carry is skipped rather than created. The actions column does not exist for a
- * viewer who may write nothing, and a remembered order still names it.
- */
-export function layColumns(root: Element, order: readonly string[]): void {
-  const head = root.querySelector(HEAD_ROW)
-  if (head === null) return
-  const wanted = order.filter((key) => orderOf(head).includes(key))
-  if (orderOf(head).join(',') === wanted.join(',')) return
-  for (const row of root.querySelectorAll(`${HEAD_ROW}, ${ROW}`)) {
-    const cells = new Map([...row.children].map((cell) => [attr(cell, 'data-col'), cell]))
-    for (const key of wanted) {
-      const cell = cells.get(key)
-      if (cell !== undefined) row.appendChild(cell)
-    }
-  }
+  return keys.flatMap((key) => narrowedBlock(blocks.get(key) ?? [], narrowed))
 }
 
 /**
- * Marks the sorted column on its own header and clears every other one.
+ * The columns on offer, in the reader's order; a remembered key naming a column not on offer is skipped.
  *
- * `aria-sort` is the attribute a screen reader reads, and `table-css.ts` generates the arrow from it — so
- * the sort is stated once and the two renderings of that one fact cannot drift.
+ * @param offered - The columns this viewer's table has.
+ * @param order - The order the reader chose, by key.
+ * @returns The offered columns, in that order.
  */
-export function markSorted(root: Element, sorted: Sorted | null): void {
-  for (const head of root.querySelectorAll('th[data-col]')) {
-    const mine = sorted !== null && attr(head, 'data-col') === sorted.column
-    if (!mine) head.removeAttribute('aria-sort')
-    else head.setAttribute('aria-sort', sorted.direction === 'asc' ? 'ascending' : 'descending')
-  }
-}
+export const orderedColumns = (offered: readonly PlanColumn[], order: readonly string[]): readonly PlanColumn[] =>
+  order.flatMap((key) => offered.filter((column) => column.key === key))
 
 /**
  * The sort one more click on a column produces: ascending, then descending, then none at all.

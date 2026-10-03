@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { DRAW } from './extend-css'
 import { ExtendGhost } from './extend-ghost'
 import { ExtendOverlay } from './extend-overlay'
-import type { ExtendWrites } from './extend-write'
+import type { DrawGesture } from '../store/gestures'
 import { SizeGhost } from './size-ghost'
 import type { SizeWrites } from './size-write'
 import { useExtend } from './use-extend'
@@ -26,23 +26,12 @@ export interface ExtendRootProps {
   /** How many working days a sprint holds, for the chip and for a cross-rail pin. */
   readonly sprintLengthDays: number
 
-  /** Add a feature to a rail, or `null` where this surface may not. */
-  readonly createFeature: ExtendWrites['createFeature']
-
-  /** Add an item to a feature. */
-  readonly createItem: ExtendWrites['createItem']
-
-  /** Order a feature on its rail. */
-  readonly placeFeature: ExtendWrites['placeFeature']
-
-  /** Order an item in its feature. */
-  readonly placeItem: ExtendWrites['placeItem']
-
-  /** Replace a feature's dependencies. */
-  readonly setDependencies: ExtendWrites['setDependencies']
-
-  /** Put a feature in a group. */
-  readonly labelFeature: ExtendWrites['labelFeature']
+  /**
+   * What a release does with what was drawn: the draw gesture, which puts the whole drawing on the plan as
+   * one change and persists it as a chain behind it (`../store/gestures.ts`), or `null` where nothing may be
+   * added.
+   */
+  readonly draw: DrawGesture | null
 
   /** Re-estimate a feature, which is what a Ctrl-held drag of its end writes. */
   readonly estimateFeature: SizeWrites['estimateFeature']
@@ -79,14 +68,7 @@ export function ExtendRoot(props: ExtendRootProps) {
     planId,
     pxPerDay,
     sprintLengthDays,
-    writes: {
-      createFeature: props.createFeature,
-      createItem: props.createItem,
-      labelFeature: props.labelFeature,
-      placeFeature: props.placeFeature,
-      placeItem: props.placeItem,
-      setDependencies: props.setDependencies,
-    },
+    draw: props.draw,
     sizes: { estimateFeature: props.estimateFeature, estimateItem: props.estimateItem },
   })
   return (

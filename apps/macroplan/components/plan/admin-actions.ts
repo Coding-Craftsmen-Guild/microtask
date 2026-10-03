@@ -30,7 +30,16 @@ import {
   removeLabel,
   renameLabel,
 } from '../../actions/labels'
+import {
+  createPlanSeat,
+  readPlanSeats,
+  revokePlanSeat,
+  updatePlanSeat,
+} from '../../actions/plan-share-links'
+import { deletePlan, renamePlan, retimePlan } from '../../actions/plans'
+import type { PlanOwnWrites } from './app/manage-menus'
 import type { PlanEditActions } from './edit-actions'
+import type { PlanSeatActions } from './share/use-plan-seats'
 
 /**
  * Every structural write of a plan, each carrying the **admin** authority `mp_admin` names.
@@ -73,4 +82,21 @@ export const ADMIN_PLAN_ACTIONS: PlanEditActions = {
   linkItem,
   unlinkItem,
   createTask,
+}
+
+/**
+ * The admin's writes to the plan itself — rename, retime, delete — as one record for the plan screen.
+ *
+ * `PlanApp` puts the retime through its store so a new start date redraws the timeline at once; rename and
+ * delete stay as they are, because the name is also drawn on the server (the crumb, the tab title) and a
+ * delete leaves the page.
+ */
+export const ADMIN_OWN_WRITES: PlanOwnWrites = { rename: renamePlan, retime: retimePlan, remove: deletePlan }
+
+/** The admin's seat writes, under the names the share manager calls them by. */
+export const ADMIN_SEAT_ACTIONS: PlanSeatActions = {
+  list: readPlanSeats,
+  create: createPlanSeat,
+  update: updatePlanSeat,
+  revoke: revokePlanSeat,
 }

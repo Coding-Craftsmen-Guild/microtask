@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { atlasPlan, FEATURE_1, ITEM_1, ITEM_2 } from '../testing/plan-fixture'
 import { planScreenModel } from '../plan-screen-model'
+import type { DrawGesture } from '../store/gestures'
 import { PlanCanvas } from './plan-canvas'
 import { BROKEN_DOWN } from './size-view'
 import type { SizeWrites } from './size-write'
@@ -17,14 +18,8 @@ const DAY = SCALE.pxPerDay
 
 const NO_SIZES: SizeWrites = { estimateFeature: null, estimateItem: null }
 
-const DRAWS = {
-  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
-  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
-  labelFeature: null,
-  placeFeature: null,
-  placeItem: null,
-  setDependencies: null,
-}
+// A surface that may draw: what a draw writes is `extend-root.test.tsx`'s subject, so this one draws nothing.
+const DRAWS: DrawGesture = () => Promise.resolve()
 
 type Estimating = NonNullable<SizeWrites['estimateItem']>
 

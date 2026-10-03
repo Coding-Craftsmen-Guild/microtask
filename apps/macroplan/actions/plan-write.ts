@@ -5,83 +5,85 @@ import { planPath } from '../lib/routes'
 import { adminCall, type ActionResult } from './result'
 import { planScreenModel, type PlanScreenModel } from '../components/plan/plan-screen-model'
 
+const reduced = (result: ActionResult<Plan>): ActionResult<PlanScreenModel> =>
+  result.ok ? { ok: true, value: planScreenModel(result.value) } : result
+
 /**
- * Runs one structural write on a plan with the admin authority `mp_admin` names, and re-renders the
- * page it changed.
+ * Runs one structural write on a plan with the admin authority `mp_admin` names, and answers the plan it
+ * produced — reduced to what a page may carry.
  *
- * The body every action in `epics.ts`, `features.ts` and `items.ts` shares. Written once rather than
- * once per action, because the two rules in it are the kind that survive every copy but one, where
- * nothing but a reader would notice.
+ * The body every action in `epics.ts`, `features.ts`, `items.ts` and `labels.ts` shares. Written once
+ * rather than once per action, because the rules in it are the kind that survive every copy but one.
  *
- * `refresh` runs **only when the write succeeded**. A refused write changed nothing, so there is
- * nothing to re-render, and re-rendering would replace the sentence the caller is about to show with
- * the page it already had. It is `refresh` and not `revalidatePath` or `revalidateTag`: neither of
- * those is called anywhere in this repository — here and in `apps/microtask/actions/`, `refresh` is
- * the whole of revalidation — and every write here already answers the plan the page renders, so
- * there is no second path for a caller to name.
+ * ### It does not re-render anything
  *
- * `pathname` is built here from the plan id the caller passed — a route fact — and never read from a
- * header. It is not for this request: `adminCall` spends it on `?next=` when the session has expired,
- * so a header-derived one would be a redirect target chosen by whoever sent the POST, and an action
- * is a public endpoint any POST can reach.
+ * It used to `refresh()`: every write re-rendered the whole plan route on the server — the plan read again,
+ * the bridge read again, the canvas and the table serialised again — and shipped all of it back in the
+ * answer, which was most of the time an edit took. The plan screen holds the plan in the browser now and has
+ * already drawn the change before this runs (ADR 0069); the answer is what it confirms that against, so
+ * there is nothing to re-render. {@link adminBridgeWrite} is the one exception, and says why.
  *
- * It takes the id and the call rather than the built pathname, so no caller can pass a path that is
- * not a plan page. The id is a **target** for the API to judge, never proof the caller may touch it:
- * `adminCall` re-derives the authority from the cookie on every call and this adds nothing to it.
+ * ### The answer carries no share token
  *
- * Neither this nor {@link seatWrite} is exported from a `'use server'` module, and that is
- * deliberate: Next registers **every** export of one as a Server Action reachable by its own id, and
- * both of these take a function argument no browser could ever send. They are ordinary functions the
- * action modules import, so the only public endpoints this app publishes are the actions themselves.
+ * The API answers an admin's write with every live seat on the plan, and this answer goes to the browser.
+ * It used to be handed over as it came, which put every token on the plan into the response of every edit;
+ * it is reduced with {@link planScreenModel} here, the same reduction the page itself makes (ADR 0033).
+ *
+ * `pathname` is built from the plan id the caller passed — a route fact — and never read from a header:
+ * `adminCall` spends it on `?next=` when the session has expired, and an action is a public endpoint any
+ * POST can reach. The id is a **target** for the API to judge, never proof the caller may touch it.
+ *
+ * None of these four is exported from a `'use server'` module, and that is deliberate: Next registers
+ * **every** export of one as a Server Action reachable by its own id, and each takes a function argument no
+ * browser could ever send.
  */
 export async function adminWrite(
   planId: string,
   call: (api: MacroplanSessionClient) => Promise<Plan>,
 ): Promise<ActionResult<PlanScreenModel>> {
-  const result = await adminCall(planPath(planId), call)
-  if (!result.ok) return result
-  refresh()
-  return { ok: true, value: planScreenModel(result.value) }
+  return reduced(await adminCall(planPath(planId), call))
 }
 
 /**
- * Runs one structural write on a plan with the authority of the share token handed in, and
- * re-renders the page it changed.
+ * {@link adminWrite} for the writes that reach the other product — bind, unbind, link, unlink, create a
+ * task — which still re-render the page they changed, once the write has succeeded.
  *
- * The body every action in `seat-writes.ts` shares, and it lives beside {@link adminWrite} rather
- * than in a module of its own because the two are the same two sentences with one word changed —
- * which call runs it. {@link adminWrite} is where the rule under both of them is recorded: a refused
- * write changed nothing, so `refresh` runs only on success. Both surfaces re-render for the same
- * further reason: `/s/<token>` reads its plan on the server from the token in its own URL, exactly
- * as `/plans/<planId>` reads it from `mp_admin`, so a write that landed leaves a rendered plan that
- * is one version behind on either of them.
+ * What these do is not in the plan the browser holds: a rail's binding state and a linked item's task name
+ * and count come from the bridge, which only the server can read (ADR 0061). So the route is re-rendered
+ * with a fresh bridge read, and `PlanApp` adopts the plan that render carries. They are rare, and each one is
+ * a decision about another product, so one round trip for them is the right price.
+ */
+export async function adminBridgeWrite(
+  planId: string,
+  call: (api: MacroplanSessionClient) => Promise<Plan>,
+): Promise<ActionResult<PlanScreenModel>> {
+  const result = await adminWrite(planId, call)
+  if (result.ok) refresh()
+  return result
+}
+
+/**
+ * Runs one structural write on a plan with the authority of the share token handed in, and answers the plan
+ * it produced, reduced — {@link adminWrite} with the one word changed, which call runs it.
  *
- * It runs the write through `linkCall`, not `adminCall`, and the `refresh` has to live here rather
- * than inside `linkCall` for the reason `apps/microtask/actions/`'s link actions each carry their
- * own: `linkCall` is also the body of `linkRead`, which a **page** calls while it renders, and a
- * re-render asked for during a read is not a re-render of anything that changed.
- *
- * **It takes no pathname**, where {@link adminWrite} builds one from the plan id. The only use the
- * admin half makes of that path is `?next=`, so an expired session lands back where it was; a seat
- * has nothing to be sent back to, because its credential was in the URL it is being redirected away
- * from, and a `?next=` on this surface could carry nothing *but* that credential — which is the leak
- * `proxy.ts` refuses to create when it declines to gate `/s/*`. `linkCall` fixes the path at
- * `LINK_UNAVAILABLE_PATH` for that reason, and a 401 here is a dead link rather than an expiry.
- *
- * The token is the whole credential here too, re-presented to the API and checked there on every
- * call — {@link linkCall} holds the full ADR 0040 argument for why that is safe — so this adds no
- * authority to it and takes none away: which of the writes the holder may actually perform
- * is the API's own answer, from the seat's own role.
- *
- * Neither this nor {@link adminWrite} is exported from a `'use server'` module, for the reason
- * {@link adminWrite}'s own doc records.
+ * It runs through `linkCall`, which takes no pathname: a seat has nothing to be sent back to, because its
+ * credential was in the URL it is being redirected away from (`lib/routes.ts`, ADR 0040). The token is the
+ * whole credential, re-presented to the API and checked there on every call; which writes the holder may
+ * actually perform is the API's own answer, from the seat's own role.
  */
 export async function seatWrite(
   token: string,
   call: (api: MacroplanSessionClient) => Promise<Plan>,
 ): Promise<ActionResult<PlanScreenModel>> {
-  const result = await linkCall(token, call)
-  if (!result.ok) return result
-  refresh()
-  return { ok: true, value: planScreenModel(result.value) }
+  return reduced(await linkCall(token, call))
+}
+
+/** {@link seatWrite} for a seat's bridge writes, re-rendering for the reason {@link adminBridgeWrite} gives. */
+export async function seatBridgeWrite(
+  token: string,
+  call: (api: MacroplanSessionClient) => Promise<Plan>,
+): Promise<ActionResult<PlanScreenModel>> {
+  const result = await seatWrite(token, call)
+  if (result.ok) refresh()
+  return result
 }

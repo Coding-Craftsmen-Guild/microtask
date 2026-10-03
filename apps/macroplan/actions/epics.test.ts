@@ -47,13 +47,13 @@ describe('a rail edit', () => {
     ])
   })
 
-  it('answers the whole plan to each of them, so the second answer is the one to render', async () => {
+  it('answers the whole plan to each of them and re-renders nothing, the screen adopting the answer', async () => {
     expect(await renameEpic(PLAN_A, EPIC_1, 'Platform work')).toEqual({
       ok: true,
       value: planScreenModel(atlasPlan()),
     })
     expect(await recolourEpic(PLAN_A, EPIC_1, '#ef4444')).toEqual({ ok: true, value: planScreenModel(atlasPlan()) })
-    expect(refresh).toHaveBeenCalledTimes(2)
+    expect(refresh).not.toHaveBeenCalled()
   })
 
   // The API answers an admin's write with every live seat on the plan, and this answer is what the
@@ -74,7 +74,6 @@ describe('a rail edit', () => {
       status: 422,
       detail: plainRefusal(422, ACTION_REFUSALS.admin),
     })
-    expect(refresh).toHaveBeenCalledTimes(1)
   })
 })
 

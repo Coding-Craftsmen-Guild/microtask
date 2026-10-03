@@ -1,5 +1,6 @@
 import type { CanvasScheduleWithConflicts } from '@repo/canvas'
 import { ATTENTION_WORDS } from './attention-words'
+import { memoOnPlan } from '../store/memo-on-plan'
 
 /**
  * The kinds of trouble an entity can be in, each one a thing the schedule already reported.
@@ -120,7 +121,7 @@ const edges = (plan: AttentionPlan, gathering: Gathering): void => {
  * A feature can be reported both in `unscheduled` with reason `in-cycle` and in `cycles`. It gets
  * one `in-cycle` badge, not two.
  */
-export function attentionOf(plan: AttentionPlan): AttentionMap {
+export const attentionOf = memoOnPlan((plan: AttentionPlan): AttentionMap => {
   const gathering: Gathering = {
     found: new Map(),
     names: new Map(plan.features.map((feature) => [feature.id, feature.name])),
@@ -130,7 +131,7 @@ export function attentionOf(plan: AttentionPlan): AttentionMap {
   cycles(plan, gathering)
   edges(plan, gathering)
   return gathering.found
-}
+})
 
 /**
  * How many **features** want looking at.

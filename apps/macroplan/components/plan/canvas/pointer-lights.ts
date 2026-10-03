@@ -63,3 +63,20 @@ export function lightThread(root: Element | null, id: string): void {
     else if (near.has(held)) one.setAttribute(NEAR, '')
   }
 }
+
+const BOARD = '[data-slot="plan-board"]'
+
+/**
+ * Where a hover's attributes go: the board, and not the whole screen around it.
+ *
+ * Every rule in `./pointer-css.ts` hangs off `[data-hovering]`, several of them through `:has()`, so
+ * setting it makes the browser re-style everything beneath the element it is set on. On the screen's root
+ * that was the head, the drawer and the table as well as the board — measured at the product's cap, a
+ * hover cost 222 ms of style recalculation a frame, most of it on rows nobody was looking at. Everything a
+ * hover lights is on the board, so the board is the root it needs; a screen with no board (a test of the
+ * pointer alone) keeps the frame.
+ *
+ * @param frame - The pointer root.
+ * @returns The board inside it, or the frame itself.
+ */
+export const hoverRootOf = (frame: Element | null): Element | null => frame?.querySelector(BOARD) ?? frame

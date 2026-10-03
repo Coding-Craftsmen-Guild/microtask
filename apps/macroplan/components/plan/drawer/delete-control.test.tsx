@@ -3,7 +3,9 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
+import { PlanNavProvider } from '../nav/plan-nav'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
+import { DeleteControl } from './delete-control'
 import { DELETE_FEATURE, DELETE_ITEM, type SubjectRemove } from './field'
 import type { SubjectKind } from './values'
 import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
@@ -12,23 +14,13 @@ const replaced: string[] = []
 
 const pushed: string[] = []
 
-vi.mock('next/navigation', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  useRouter: () => ({
-    back: () => undefined,
-    forward: () => undefined,
-    prefetch: () => undefined,
-    push: (href: string) => {
-      pushed.push(href)
-    },
-    refresh: () => undefined,
-    replace: (href: string) => {
-      replaced.push(href)
-    },
-  }),
-}))
-
-const { DeleteControl } = await import('./delete-control')
+// The screen moves between its own addresses through `PlanNav` (ADR 0069); the spy records which of the
+// two kinds of move each one was, which is what the history tests below are about.
+const NAV = {
+  go: (href: string, options?: { readonly replace?: boolean }): void => {
+    ;(options?.replace === true ? replaced : pushed).push(href)
+  },
+}
 
 const CLOSE = `/plans/${PLAN_A}`
 
@@ -47,14 +39,16 @@ const open = (over: Open = {}) => {
   pushed.length = 0
   const remove = vi.fn<SubjectRemove>(over.remove ?? (() => Promise.resolve(over.answer ?? served)))
   render(
-    <DeleteControl
-      closeHref={CLOSE}
-      kind={over.kind ?? 'feature'}
-      name={over.name ?? 'Auth rewrite'}
-      planId={PLAN_A}
-      remove={remove}
-      subjectId={over.subjectId ?? FEATURE_1}
-    />,
+    <PlanNavProvider value={NAV}>
+      <DeleteControl
+        closeHref={CLOSE}
+        kind={over.kind ?? 'feature'}
+        name={over.name ?? 'Auth rewrite'}
+        planId={PLAN_A}
+        remove={remove}
+        subjectId={over.subjectId ?? FEATURE_1}
+      />
+    </PlanNavProvider>,
   )
   return { remove, user: userEvent.setup() }
 }
@@ -150,9 +144,8 @@ describe('the delete itself, and the page a drawer over a deleted thing has to l
     expect(remove).toHaveBeenCalledWith(PLAN_A, ITEM_1)
   })
 
-  // A drawer left open over a deleted subject 404s on its next read: the page resolves through the row
-  // and calls `notFound()` for an id the plan no longer holds. So the answer to a delete is the plan's
-  // own no-selection page, and `refresh()` — which the action already asked for — is not that.
+  // A drawer left open over a deleted subject has nothing to draw: the plan the screen holds no longer has
+  // it. So the answer to a delete is the plan's own no-selection address, which is where the drawer closes.
   it('goes to the plan’s own page on success, which is the address the drawer closes to', async () => {
     const { user } = await ask()
     await user.click(screen.getByRole('button', { name: 'Delete feature' }))

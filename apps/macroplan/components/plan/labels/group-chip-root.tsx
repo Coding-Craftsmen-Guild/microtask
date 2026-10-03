@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePlanNav } from '../nav/plan-nav'
 import type { ReactNode } from 'react'
 
 const CHIP = '[data-slot="group-chip"]'
@@ -47,7 +47,7 @@ export interface GroupChipRootProps {
  * click *deselect* what a single click selected.
  */
 export function GroupChipRoot({ planId, children }: GroupChipRootProps) {
-  const router = useRouter()
+  const { go } = usePlanNav()
   return (
     <div
       data-slot="group-chip-root"
@@ -55,7 +55,7 @@ export function GroupChipRoot({ planId, children }: GroupChipRootProps) {
         const chip = event.target instanceof Element ? event.target.closest(CHIP) : null
         const labelId = chip?.getAttribute('data-label-id')
         if (labelId === null || labelId === undefined) return
-        router.push(`/plans/${encodeURIComponent(planId)}/g/${encodeURIComponent(labelId)}`)
+        go(`/plans/${encodeURIComponent(planId)}/g/${encodeURIComponent(labelId)}`)
       }}
     >
       {children}

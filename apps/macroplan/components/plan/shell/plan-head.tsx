@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { HEAD, MENU_CSS } from './shell-css'
 import { ViewTabs } from './view-tabs'
+import type { PlanView } from '../view-switch'
 
 /** Props for {@link PlanHead}. */
 export interface PlanHeadProps {
@@ -18,6 +19,12 @@ export interface PlanHeadProps {
 
   /** The attention summary, when anything needs looking at. */
   readonly attention: ReactNode
+
+  /** The rendering on screen, which the view tabs choose between. */
+  readonly view: PlanView
+
+  /** Choose the other rendering. */
+  readonly onView: (view: PlanView) => void
 }
 
 /**
@@ -44,7 +51,7 @@ export interface PlanHeadProps {
  * what holds the two `<details>` buttons that need it, and it is one static rule rather than
  * anything generated from the plan.
  */
-export function PlanHead({ plan, groups, zoom, actions, attention }: PlanHeadProps) {
+export function PlanHead({ plan, groups, zoom, actions, attention, view, onView }: PlanHeadProps) {
   return (
     <div className={HEAD.row} data-slot="plan-head">
       <style>{MENU_CSS}</style>
@@ -60,7 +67,7 @@ export function PlanHead({ plan, groups, zoom, actions, attention }: PlanHeadPro
         </p>
       </div>
       <div className={HEAD.views}>
-        <ViewTabs />
+        <ViewTabs onView={onView} view={view} />
       </div>
       <span className={HEAD.spacer} />
       <div className={HEAD.controls}>

@@ -3,7 +3,7 @@ import { useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
 import { boardIn, markFrom, onHandle, pointerAt, type Hovered } from './extend-dom'
 import { aimOf, type DrawAim, type DrawnSide } from './extend-view'
-import type { ExtendWrites } from './extend-write'
+import type { DrawGesture } from '../store/gestures'
 import { drawnOf, releaseDraw, type Drawing } from './extend-release'
 import { sizeOfMark, type SizeAim } from './size-view'
 import { maySize, type SizeWrites } from './size-write'
@@ -37,7 +37,7 @@ export interface ExtendQuery {
   readonly sprintLengthDays: number
 
   /** The actions a release spends, each `null` where this surface may not make it. */
-  readonly writes: ExtendWrites
+  readonly draw: DrawGesture | null
 
   /** The two a **resize** spends, which is the Ctrl-held half of the gesture. */
   readonly sizes: SizeWrites
@@ -139,7 +139,7 @@ const startedFrom = (
  * @returns The ref, what is hovered, what is drawn, and the handlers the root binds.
  */
 export function useExtend(query: ExtendQuery): ExtendState {
-  const { planId, pxPerDay, gutter, sprintLengthDays, writes, sizes } = query
+  const { planId, pxPerDay, gutter, sprintLengthDays, draw, sizes } = query
   const frame = useRef<HTMLDivElement>(null)
   const [hovered, setHovered] = useState<Hovered | null>(null)
   const [drawing, setDrawing] = useState<Drawing | null>(null)
@@ -173,7 +173,7 @@ export function useExtend(query: ExtendQuery): ExtendState {
     setDrawing(null)
     if (drawing === null || board === null) return
     const at = pointerAt(board, event)
-    releaseDraw({ board, drawing: { ...drawing, at }, planId, sizes, sprintLengthDays, writes })
+    releaseDraw({ board, draw, drawing: { ...drawing, at }, planId, sizes, sprintLengthDays })
   }
 
   const drawn = drawing === null || drawing.sizing ? null : drawing

@@ -1,5 +1,5 @@
 import type { Rung } from '@repo/canvas'
-import { useRouter } from 'next/navigation'
+import { usePlanNav } from '../nav/plan-nav'
 import { useCallback } from 'react'
 import type { Anchoring } from './use-scroll-anchor'
 
@@ -66,7 +66,7 @@ export interface DrillQuery {
  */
 export function useDrill(query: DrillQuery): (href: string, target: Element | null) => void {
   const { rung, anchor, zoomTo } = query
-  const router = useRouter()
+  const { go } = usePlanNav()
   return useCallback(
     (href: string, target: Element | null): void => {
       const drilled = async (): Promise<void> => {
@@ -75,10 +75,10 @@ export function useDrill(query: DrillQuery): (href: string, target: Element | nu
           if (day !== null) anchor.after(day, DRILL_INSET)
           await zoomTo(FINEST)
         }
-        router.push(href)
+        go(href)
       }
       void drilled()
     },
-    [anchor, router, rung, zoomTo],
+    [anchor, go, rung, zoomTo],
   )
 }

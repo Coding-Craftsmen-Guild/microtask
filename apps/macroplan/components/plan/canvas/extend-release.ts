@@ -1,7 +1,7 @@
 import type { Board, Hovered } from './extend-dom'
 import { beforeOn } from './extend-dom'
 import { aimOf, draftOf, type Drawn, type DrawnAt, type DrawnSide } from './extend-view'
-import { writeDraw, type ExtendWrites } from './extend-write'
+import type { DrawGesture } from '../store/gestures'
 import { sizeDraftOfMark } from './size-view'
 import { writeSize, type SizeWrites } from './size-write'
 
@@ -41,7 +41,7 @@ export interface Release {
 
   readonly sprintLengthDays: number
 
-  readonly writes: ExtendWrites
+  readonly draw: DrawGesture | null
 
   readonly sizes: SizeWrites
 }
@@ -61,7 +61,7 @@ export interface Release {
  * @param release - The plan, the board, the drag and the writes.
  */
 export function releaseDraw(release: Release): void {
-  const { planId, board, drawing, sprintLengthDays, writes, sizes } = release
+  const { planId, board, drawing, sprintLengthDays, draw, sizes } = release
   if (drawing.sizing) {
     const draft = sizeDraftOfMark(drawing.from, drawing.side, drawing.at.day, sprintLengthDays)
     if (draft !== null) void writeSize(planId, draft, sizes)
@@ -71,5 +71,5 @@ export function releaseDraw(release: Release): void {
   const aim = aimOf(drawn, drawing.at, sprintLengthDays)
   const where = { ...drawing.at, before: beforeOn(board.rails, drawing.at.lane, aim.fromDay) }
   const draft = draftOf(drawn, aim, where, sprintLengthDays)
-  if (draft !== null) void writeDraw({ ...draft, planId }, writes)
+  if (draft !== null && draw !== null) void draw(draft)
 }

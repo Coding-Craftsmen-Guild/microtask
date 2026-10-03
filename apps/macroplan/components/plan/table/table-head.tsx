@@ -1,10 +1,19 @@
 import type { PlanColumn } from './columns'
 import { TABLE } from './table-css'
+import type { Sorted } from './table-order'
 
 /** Props for {@link TableHead}. */
 export interface TableHeadProps {
   /** The columns this surface draws, which is `columnsFor(mayEdit)`. */
   readonly columns: readonly PlanColumn[]
+
+  /** The sort, which its own header states as `aria-sort` — the attribute `./table-css.ts` draws the arrow from. */
+  readonly sorted?: Sorted | null
+}
+
+const ariaSortOf = (sorted: Sorted | null, key: string): 'ascending' | 'descending' | undefined => {
+  if (sorted === null || sorted.column !== key) return undefined
+  return sorted.direction === 'asc' ? 'ascending' : 'descending'
 }
 
 /**
@@ -25,12 +34,12 @@ export interface TableHeadProps {
  * so the header and two thousand bodies are addressed by one key rather than by a column index that
  * reordering would invalidate.
  */
-export function TableHead({ columns }: TableHeadProps) {
+export function TableHead({ columns, sorted = null }: TableHeadProps) {
   return (
     <thead>
       <tr>
         {columns.map((column) => (
-          <th className={TABLE.head} data-col={column.key} key={column.key} scope="col">
+          <th aria-sort={ariaSortOf(sorted, column.key)} className={TABLE.head} data-col={column.key} key={column.key} scope="col">
             {column.sortable ? (
               <button className={TABLE.sortButton} data-sort-col={column.key} type="button">
                 {column.head}

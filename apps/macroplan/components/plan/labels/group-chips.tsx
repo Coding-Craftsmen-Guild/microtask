@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import type { CSSProperties } from 'react'
 import { PLAN_DRAWERS } from '../../../lib/drawer-routes'
 import { GroupChipRoot } from './group-chip-root'
@@ -162,9 +162,9 @@ export function GroupChips({ rows, planId, mayAdd, allFit }: GroupChipsProps) {
         </span>
       ))}
       {planId === null || !mayAdd ? null : (
-        <Link className={CHIP.add} data-slot="new-group-chip" href={PLAN_DRAWERS.newGroup(planId)}>
+        <PlanLink className={CHIP.add} data-slot="new-group-chip" href={PLAN_DRAWERS.newGroup(planId)}>
           {GROUP_WORDS.add}
-        </Link>
+        </PlanLink>
       )}
     </div>
   )

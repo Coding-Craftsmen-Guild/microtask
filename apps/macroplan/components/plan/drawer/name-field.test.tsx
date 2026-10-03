@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
+import { LivePlan, livePlan } from '../testing/live-plan'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { NameField } from './name-field'
 import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
@@ -44,6 +45,24 @@ const setup = (rename: Rename = kept, name = 'Auth rewrite') => {
   return { onRename, view, user: userEvent.setup() }
 }
 
+// The field wired the way the screen wires it: the optimistic rename on a real store, and the name drawn
+// from what the store holds. The field reads nothing back from an answer any more (ADR 0069), so what it
+// shows after a write is the store's to decide — the edit at once, then the answer, or the old name back.
+const live = (rename: Rename) => {
+  const onRename = vi.fn(rename)
+  const { store, actions } = livePlan(planScreenModel(atlasPlan()), { renameFeature: onRename })
+  const nameOf = (plan: PlanScreenModel): string => plan.features.find((one) => one.id === FEATURE_1)?.name ?? ''
+  render(
+    <LivePlan
+      draw={(plan) => (
+        <NameField kind="feature" name={nameOf(plan)} planId={PLAN_A} rename={actions.renameFeature} subjectId={FEATURE_1} />
+      )}
+      store={store}
+    />,
+  )
+  return { onRename, user: userEvent.setup() }
+}
+
 describe('the name a drawer edits', () => {
   it('labels itself “Feature name” on a feature, so the label is not just “Name”', () => {
     setup()
@@ -76,17 +95,10 @@ describe('the name a drawer edits', () => {
   // The server collapses whitespace and truncates at `LIMITS.nameLength` of its own accord, so the
   // only honest thing to show afterwards is what came back in the plan it answered with.
   it('shows the name the answered plan holds, not the one that was typed', async () => {
-    const { user } = setup(() => Promise.resolve(named('What the server kept')))
+    const { user } = live(() => Promise.resolve(named('What the server kept')))
     await user.clear(field())
     await user.type(field(), 'Typed{Enter}')
-    expect(field().value).toBe('What the server kept')
-  })
-
-  it('reads that name out of the answered plan by id, not off the first feature it holds', async () => {
-    const { user } = setup((_plan, _id, name) => Promise.resolve(named(`${name} (kept)`)))
-    await user.clear(field())
-    await user.type(field(), 'Second{Enter}')
-    expect(field().value).toBe('Second (kept)')
+    await vi.waitFor(() => expect(field().value).toBe('What the server kept'))
   })
 
   it('reverts on Escape and sends nothing', async () => {
@@ -117,13 +129,13 @@ describe('the name a drawer edits', () => {
   })
 
   it('shows the refusal and restores the stored name when the server refuses', async () => {
-    const { user } = setup(() =>
+    const { user } = live(() =>
       Promise.resolve({ ok: false, status: 403, detail: 'Not permitted: feature:rename' }),
     )
     await user.clear(field())
     await user.type(field(), 'Mine{Enter}')
-    expect(screen.getByRole('alert').textContent).toBe('Not permitted: feature:rename')
-    expect(field().value).toBe('Auth rewrite')
+    expect((await screen.findByRole('alert')).textContent).toBe('Not permitted: feature:rename')
+    await vi.waitFor(() => expect(field().value).toBe('Auth rewrite'))
   })
 
   it('clears the refusal once a later rename is served', async () => {
@@ -131,13 +143,14 @@ describe('the name a drawer edits', () => {
       { ok: false, status: 409, detail: 'No.' },
       named('Second try'),
     ]
-    const { user } = setup(() => Promise.resolve(answers.shift() ?? named('x')))
+    const { user } = live(() => Promise.resolve(answers.shift() ?? named('x')))
     await user.clear(field())
     await user.type(field(), 'One{Enter}')
+    await screen.findByRole('alert')
     await user.clear(field())
     await user.type(field(), 'Two{Enter}')
+    await vi.waitFor(() => expect(field().value).toBe('Second try'))
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(field().value).toBe('Second try')
   })
 
   it('says so and restores the name when the server never answers, leaving no rejection unhandled', async () => {

@@ -1,27 +1,29 @@
 import type { DayRange, PlanScale, Rung } from '@repo/canvas'
 import type { PlanScreenModel } from '../plan-screen-model'
 import { CanvasBoard } from './canvas-board'
-import { DragRoot, type FeaturePlace } from './drag-root'
+import { DragRoot, type FeaturePlace, type ItemPlace } from './drag-root'
 import { ExtendRoot } from './extend-root'
-import { mayExtend, type ExtendWrites } from './extend-write'
+import type { DrawGesture } from '../store/gestures'
 import { maySize, type SizeWrites } from './size-write'
-import { axisX, canvasLayout, CANVAS_RANGE, CANVAS_SCALE, type Counted } from './view'
+import {
+  axisX,
+  canvasLayout,
+  CANVAS_RANGE,
+  CANVAS_SCALE,
+  type CanvasLayout,
+  type CanvasQuery,
+  type Counted,
+} from './view'
 
 const NOTHING_OPENS = (): null => null
 
 const NO_SIZES: SizeWrites = { estimateFeature: null, estimateItem: null }
 
-const gesturesOn = (draw: ExtendWrites, size: SizeWrites, points: boolean): boolean =>
-  !points && (mayExtend(draw) || maySize(size))
+const drawnLayout = (given: CanvasLayout | undefined, query: CanvasQuery): CanvasLayout =>
+  given ?? canvasLayout(query)
 
-const NO_WRITES: ExtendWrites = {
-  createFeature: null,
-  createItem: null,
-  labelFeature: null,
-  placeFeature: null,
-  placeItem: null,
-  setDependencies: null,
-}
+const gesturesOn = (draw: DrawGesture | null, size: SizeWrites, points: boolean): boolean =>
+  !points && (draw !== null || maySize(size))
 
 /** Props for {@link PlanCanvas}. */
 export interface PlanCanvasProps {
@@ -47,15 +49,19 @@ export interface PlanCanvasProps {
   readonly place: FeaturePlace | null
 
   /**
-   * The writes a draw from a mark's own end sends; omitted for a surface that may create nothing.
-   *
-   * Its `placeItem` is also what lets an **item** be dragged to another feature, which is the one member
-   * two gestures share. It is read from here rather than threaded down beside `place` as a sixth prop
-   * because it is the same action under the same permission: a surface that may reorder a feature's items
-   * may do it by drawing one at a place or by dragging one there, and two props would be two chances to
-   * hand over one and forget the other.
+   * What a draw from a mark's own end does — the draw gesture (`../store/gestures.ts`) — or `null` / omitted
+   * for a surface that may create nothing.
    */
-  readonly draw?: ExtendWrites
+  readonly draw?: DrawGesture | null
+
+  /**
+   * The write a dragged **item** sends, or `null` / omitted on a surface that may not move one.
+   *
+   * Its own prop now that the draw is a gesture rather than a record of raw writes: it used to be read off
+   * that record because the same action served both, and the item drag needs the optimistic one, which moves
+   * the mark the moment it is dropped.
+   */
+  readonly placeItem?: ItemPlace | null
 
   /**
    * The two writes a **resize** sends, omitted for a surface that may change no estimate.
@@ -68,6 +74,12 @@ export interface PlanCanvasProps {
 
   /** Where a bar opens. */
   readonly hrefOf?: (featureId: string) => string | null
+
+  /**
+   * The layout, when the board has already worked it out for its rail column (`../board/use-board-layout.ts`);
+   * omitted, the canvas works it out itself from the props above.
+   */
+  readonly layout?: CanvasLayout
 }
 
 /**
@@ -97,15 +109,17 @@ export function PlanCanvas({
   plan,
   at,
   place,
-  draw = NO_WRITES,
+  draw = null,
+  placeItem = null,
   size = NO_SIZES,
   progress = [],
   range = CANVAS_RANGE,
   scale = CANVAS_SCALE,
   rung = 'feature',
   hrefOf = NOTHING_OPENS,
+  layout: given,
 }: PlanCanvasProps) {
-  const layout = canvasLayout({ plan, range, scale, rung, progress, hrefOf })
+  const layout = drawnLayout(given, { plan, range, scale, rung, progress, hrefOf })
   const mayDraw = gesturesOn(draw, size, layout.frame.draws.points)
   const board = <CanvasBoard at={at} layout={layout} plan={plan} range={range} scale={scale} />
   return (
@@ -113,23 +127,18 @@ export function PlanCanvas({
       axisX={axisX(scale, range)}
       gutter={scale.gutter}
       place={place}
-      placeItem={draw.placeItem}
+      placeItem={placeItem}
       planId={plan.id}
       pxPerDay={scale.pxPerDay}
     >
       {mayDraw ? (
         <ExtendRoot
-          createFeature={draw.createFeature}
-          createItem={draw.createItem}
+          draw={draw}
           estimateFeature={size.estimateFeature}
           estimateItem={size.estimateItem}
           gutter={scale.gutter}
-          labelFeature={draw.labelFeature}
-          placeFeature={draw.placeFeature}
-          placeItem={draw.placeItem}
           planId={plan.id}
           pxPerDay={scale.pxPerDay}
-          setDependencies={draw.setDependencies}
           sprintLengthDays={plan.sprintLengthDays}
         >
           {board}

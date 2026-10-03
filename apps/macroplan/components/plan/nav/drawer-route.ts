@@ -17,7 +17,7 @@ const SUBJECTS: Readonly<Record<string, 'feature' | 'item' | 'rail' | 'group'>> 
 
 const ADDS: Readonly<Record<string, 'new-rail' | 'new-group'>> = { rail: 'new-rail', group: 'new-group' }
 
-const countOf = (search: URLSearchParams): number => {
+const countOf = (search: Pick<URLSearchParams, 'get'>): number => {
   const read = Number.parseInt(search.get('n') ?? '', 10)
   return Number.isNaN(read) ? 0 : Math.max(0, read)
 }
@@ -30,7 +30,7 @@ const decoded = (segment: string): string | null => {
   }
 }
 
-const subject = (letter: string, segment: string, search: URLSearchParams): Selection => {
+const subject = (letter: string, segment: string, search: Pick<URLSearchParams, 'get'>): Selection => {
   const kind = SUBJECTS[letter]
   const id = decoded(segment)
   if (kind === undefined || id === null || id === '') return null
@@ -56,7 +56,7 @@ const subject = (letter: string, segment: string, search: URLSearchParams): Sele
  * @param search - Its query.
  * @returns The selection, or `null`.
  */
-export function selectionOf(root: string, pathname: string, search: URLSearchParams): Selection {
+export function selectionOf(root: string, pathname: string, search: Pick<URLSearchParams, 'get'>): Selection {
   if (pathname !== root && !pathname.startsWith(`${root}/`)) return null
   const [first, second, extra] = pathname.slice(root.length + 1).split('/')
   if (first === undefined || second === undefined || extra !== undefined) return null

@@ -20,10 +20,17 @@ export type DrawGesture = (draft: Draft) => Promise<void>
 /** Put a new rail in a gap; resolves with its id once the API has minted one, or `null`. */
 export type RailGesture = (epic: NewEpic, gap: number) => Promise<string | null>
 
-/** The board's two gestures that write more than once. */
+/**
+ * The board's two gestures that write more than once, each `null` where this surface may not make it.
+ *
+ * `offers` says which kinds of work the draw may make. It is read off the same raw writes the gesture's
+ * chain sends, so the Add strip asks the question the drop asks and gets one answer: a pill is drawn for a
+ * kind exactly when the write that makes it is there.
+ */
 export interface PlanGestures {
-  readonly draw: DrawGesture
-  readonly dropRail: RailGesture
+  readonly draw: DrawGesture | null
+  readonly dropRail: RailGesture | null
+  readonly offers: { readonly feature: boolean; readonly item: boolean }
 }
 
 type Run = (op: PlanOp) => Promise<ActionResult<PlanScreenModel>>
@@ -87,7 +94,11 @@ const dropping =
  * @param run - The store's `run`.
  * @returns The two gestures.
  */
-export const planGestures = (planId: string, writes: GestureWrites, run: Run): PlanGestures => ({
-  draw: drawing(planId, writes, run),
-  dropRail: dropping(planId, writes, run),
-})
+export const planGestures = (planId: string, writes: GestureWrites, run: Run): PlanGestures => {
+  const offers = { feature: writes.createFeature !== null, item: writes.createItem !== null }
+  return {
+    draw: offers.feature || offers.item ? drawing(planId, writes, run) : null,
+    dropRail: writes.createEpic === null ? null : dropping(planId, writes, run),
+    offers,
+  }
+}

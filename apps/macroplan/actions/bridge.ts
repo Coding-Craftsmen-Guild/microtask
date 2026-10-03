@@ -1,7 +1,7 @@
 'use server'
 
 import type { BoundProject, NewBinding } from '@repo/api-client'
-import { adminWrite } from './plan-write'
+import { adminBridgeWrite } from './plan-write'
 import type { ActionResult } from './result'
 import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
@@ -23,7 +23,7 @@ export async function bindEpic(
   epicId: string,
   binding: NewBinding,
 ): Promise<ActionResult<PlanScreenModel>> {
-  return adminWrite(planId, (api) => api.epics.bind(planId, epicId, binding))
+  return adminBridgeWrite(planId, (api) => api.epics.bind(planId, epicId, binding))
 }
 
 /**
@@ -52,7 +52,7 @@ export async function bindEpicProject(
   epicId: string,
   binding: BoundProject,
 ): Promise<ActionResult<PlanScreenModel>> {
-  return adminWrite(planId, (api) => api.epics.bindProject(planId, epicId, binding))
+  return adminBridgeWrite(planId, (api) => api.epics.bindProject(planId, epicId, binding))
 }
 
 /**
@@ -63,7 +63,7 @@ export async function bindEpicProject(
  * estimate alone again.
  */
 export async function unbindEpic(planId: string, epicId: string): Promise<ActionResult<PlanScreenModel>> {
-  return adminWrite(planId, (api) => api.epics.unbind(planId, epicId))
+  return adminBridgeWrite(planId, (api) => api.epics.unbind(planId, epicId))
 }
 
 /**
@@ -78,12 +78,12 @@ export async function linkItem(
   itemId: string,
   taskId: string,
 ): Promise<ActionResult<PlanScreenModel>> {
-  return adminWrite(planId, (api) => api.items.link(planId, itemId, { taskId }))
+  return adminBridgeWrite(planId, (api) => api.items.link(planId, itemId, { taskId }))
 }
 
 /** Unlinks one item from its task. Idempotent, and it needs no live binding to clear the field. */
 export async function unlinkItem(planId: string, itemId: string): Promise<ActionResult<PlanScreenModel>> {
-  return adminWrite(planId, (api) => api.items.unlink(planId, itemId))
+  return adminBridgeWrite(planId, (api) => api.items.unlink(planId, itemId))
 }
 
 /**
@@ -98,5 +98,5 @@ export async function unlinkItem(planId: string, itemId: string): Promise<Action
  * landed after all.
  */
 export async function createTask(planId: string, itemId: string): Promise<ActionResult<PlanScreenModel>> {
-  return adminWrite(planId, (api) => api.items.createTask(planId, itemId))
+  return adminBridgeWrite(planId, (api) => api.items.createTask(planId, itemId))
 }

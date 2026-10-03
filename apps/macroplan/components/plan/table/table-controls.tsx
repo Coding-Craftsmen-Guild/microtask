@@ -10,7 +10,7 @@ export interface FilterOption {
 
 /** Props for {@link TableFilter}. */
 export interface FilterProps {
-  /** Which filter this is — `rail` or `group` — which is how the root tells them apart. */
+  /** Which filter this is — `rail` or `group` — which is how the table's state tells them apart. */
   readonly which: string
   readonly label: string
   readonly options: readonly FilterOption[]
@@ -25,7 +25,7 @@ export interface FilterProps {
  * the column and is the way back out of it — a reader who has narrowed to one rail does not have to find a
  * separate reset.
  *
- * It carries `data-filter` rather than a `name`, because nothing here is submitted: `./table-root.tsx`
+ * It carries `data-filter` rather than a `name`, because nothing here is submitted: `./use-table-state.ts`
  * reads which filter changed off that attribute, and the select keeps its own value the way every control
  * in this strip does.
  */

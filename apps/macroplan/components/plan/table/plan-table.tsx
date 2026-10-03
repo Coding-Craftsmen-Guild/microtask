@@ -1,4 +1,5 @@
 import type { PlanBridge } from '@repo/api-client'
+import { useMemo } from 'react'
 import { railNames } from '../canvas/view'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
 import type { PlanScreenModel } from '../plan-screen-model'
@@ -6,8 +7,9 @@ import { columnsFor } from './columns'
 import { tableRows } from './rows'
 import { TABLE, TABLE_CSS } from './table-css'
 import { TableHead } from './table-head'
-import { PlanTableRow } from './table-row'
-import { TableRoot } from './table-root'
+import { arrangedRows, orderedColumns } from './table-order'
+import { QuietTableRow } from './table-row'
+import { useTableState } from './use-table-state'
 import type { FilterOption } from './table-controls'
 import { TableToolbar } from './table-toolbar'
 
@@ -66,6 +68,8 @@ export interface PlanTableProps {
 
 const NOTHING_WRITABLE: TableWrites = { rename: false, add: false, remove: false }
 
+const NO_PROGRESS: NonNullable<PlanTableProps['progress']> = []
+
 const hrefOf = (row: { readonly kind: string; readonly id: string }, root: string, routes: DrawerRoutes | null): string =>
   routes === null ? '' : row.kind === 'feature' ? routes.feature(root, row.id) : routes.item(root, row.id)
 
@@ -85,11 +89,15 @@ const optionsOf = (pairs: Iterable<readonly [string, string]>): readonly FilterO
  *
  * ### What each part is, and what it costs
  *
- * The toolbar is **server markup**, because its filters are built from the plan's own rails and groups
- * and a client component here may not be handed either. Hiding a column is a **checkbox and a CSS rule**
- * (`./table-css.ts`), so it costs no island at all. Searching, sorting and moving a column are the three
- * things neither can express, and `./table-root.tsx` is what does them — one island over the whole panel,
- * reading the markup the way every client component on this page reads it.
+ * The table is drawn in the browser from the plan the screen's store holds (ADR 0069), so the search, the
+ * two filters, the sort and the column order are **state it renders from** (`./use-table-state.ts`,
+ * `./table-order.ts`), heard by delegation: one listener on the wrapper for every control in the strip and
+ * the header. Hiding a column is still a **checkbox and a CSS rule** (`./table-css.ts`) and holds no state.
+ *
+ * Every row is memoised and handed only what it draws, its column order as one joined string among them.
+ * The rows themselves are derived once per plan (`./rows.ts`), so a search or a filter re-renders only the
+ * rows it hides or shows, a sort only moves rows React already has, and a drawer, a zoom or a view switch
+ * reaches no row at all.
  *
  * ### Nine columns
  *
@@ -108,12 +116,16 @@ const optionsOf = (pairs: Iterable<readonly [string, string]>): readonly FilterO
  * `getByRole('table', { name })` and asserts `scope` on every header cell.
  */
 export function PlanTable(props: PlanTableProps) {
-  const { plan, progress = [], root = '', routes = null, newRailHref = null } = props
+  const { plan, progress = NO_PROGRESS, root = '', routes = null, newRailHref = null } = props
   const writes = props.writes ?? NOTHING_WRITABLE
-  const counted = new Map(progress.map((row) => [row.itemId, row.progress]))
+  const state = useTableState()
+  const counted = useMemo(() => new Map(progress.map((row) => [row.itemId, row.progress])), [progress])
   const mayEdit = routes !== null && (writes.rename || writes.add || writes.remove)
+  const columns = useMemo(() => orderedColumns(columnsFor(mayEdit), state.order), [mayEdit, state.order])
+  const keys = columns.map((column) => column.key).join(',')
+  const arranged = useMemo(() => arrangedRows(tableRows(plan), state.narrowed, state.sorted), [plan, state.narrowed, state.sorted])
   return (
-    <TableRoot>
+    <div className="contents" data-slot="table-root" onChange={state.onInput} onClick={state.onClick} onInput={state.onInput}>
       <style>{TABLE_CSS}</style>
       <TableToolbar
         groups={optionsOf(plan.labels.map((label) => [label.id, label.name] as const))}
@@ -123,10 +135,12 @@ export function PlanTable(props: PlanTableProps) {
       />
       <div className={TABLE.scroller} data-slot="table-scroller">
         <table aria-label={`Table of ${plan.name}`} className={TABLE.table} data-slot="plan-table">
-          <TableHead columns={columnsFor(mayEdit)} />
+          <TableHead columns={columns} sorted={state.sorted} />
           <tbody>
-            {tableRows(plan).map((row) => (
-              <PlanTableRow
+            {arranged.map(({ row, hidden }) => (
+              <QuietTableRow
+                columns={keys}
+                hidden={hidden}
                 href={hrefOf(row, root, routes)}
                 key={row.id}
                 mayEdit={mayEdit}
@@ -138,6 +152,6 @@ export function PlanTable(props: PlanTableProps) {
           </tbody>
         </table>
       </div>
-    </TableRoot>
+    </div>
   )
 }

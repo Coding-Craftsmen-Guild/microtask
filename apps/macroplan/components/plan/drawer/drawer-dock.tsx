@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import type { CSSProperties, ReactNode } from 'react'
 import { PANEL, PANEL_HEIGHT, PANEL_SIZE, TAB } from './panel-css'
 import { PanelGrip } from './panel-grip'
@@ -109,9 +109,9 @@ export function PlainTab({ kind, title, closeHref }: PlainTabProps) {
       <h2 className={TAB.name} id={TITLE_ID} title={title}>
         {title}
       </h2>
-      <Link aria-label={PANEL_WORDS.close} className={TAB.close} href={closeHref}>
+      <PlanLink aria-label={PANEL_WORDS.close} className={TAB.close} href={closeHref}>
         {CLOSE_MARK}
-      </Link>
+      </PlanLink>
     </div>
   )
 }

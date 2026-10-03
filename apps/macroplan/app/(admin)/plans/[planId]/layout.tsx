@@ -1,14 +1,12 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
-import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
-import { attentionOf } from '../../../../components/plan/attention/attention'
-import { PlanScreen } from '../../../../components/plan/plan-screen'
-import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
-import { ADMIN_DRAWER_ROUTES, PLAN_DRAWERS } from '../../../../lib/drawer-routes'
+import { bindEpicProject } from '../../../../actions/bridge'
+import { readItemDrawer } from '../../../../actions/drawer-reads'
+import { ADMIN_OWN_WRITES, ADMIN_PLAN_ACTIONS, ADMIN_SEAT_ACTIONS } from '../../../../components/plan/admin-actions'
+import { PlanApp } from '../../../../components/plan/app/plan-app'
 import { zoomFor } from '../../../../components/plan/canvas/zoom-view'
-import { zoomTo } from '../../../../actions/zoom'
+import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
 import { readZoom } from '../../../../lib/zoom'
-import { groupsSlot, manageSlot, traySlot, zoomSlot } from './admin-slots'
 import { readBridge } from './read-bridge'
 import { readPlan } from './read-plan'
 
@@ -28,11 +26,14 @@ export async function generateMetadata({ params }: Pick<PlanLayoutProps, 'params
 }
 
 /**
- * The plan, and whatever drawer route is open beside it.
+ * The plan, read once and handed to the browser, which draws it and every drawer beside it.
  *
- * The plan is read **here** rather than in the page, so that opening a drawer re-renders a panel of
- * forty elements rather than the whole canvas (ADR 0057). The cost is that this cannot see
- * `searchParams`, which is why the zoom is a cookie.
+ * This was the server-rendered plan screen: canvas, table, slots and all, re-rendered and re-shipped on
+ * every edit, zoom and drawer (ADR 0057). It now reads what only the server can — the plan, the bridge, the
+ * zoom cookie — and hands it to {@link PlanApp} once, with the Server Actions this surface may call
+ * (ADR 0069). The plan is `planScreenModel`'s reduction, so no share token reaches the browser, and every
+ * write answers that same reduction. The drawer routes beneath this layout render nothing: the drawer is
+ * read off the address in the browser, which is why `children` is passed through untouched.
  */
 export default async function PlanLayout({ params, children }: PlanLayoutProps) {
   const planId = (await params).planId
@@ -44,26 +45,21 @@ export default async function PlanLayout({ params, children }: PlanLayoutProps) 
       </p>
     )
   }
-  const plan = loaded.value
-  const found = attentionOf(plan)
-  const zoom = zoomFor(chosen, plan)
   return (
-    <PlanScreen
+    <PlanApp
       actions={ADMIN_PLAN_ACTIONS}
-      at={new Date()}
+      at={new Date().toISOString()}
+      bindProject={bindEpicProject}
+      bridge={bridge}
       controls={ADMIN_CONTROLS}
-      drawer={children}
-      groups={groupsSlot(plan)}
-      manage={manageSlot(plan)}
-      newRailHref={PLAN_DRAWERS.newRail(planId, plan.epics.length)}
-      plan={plan}
-      progress={bridge?.items ?? []}
-      root={planId}
-      routes={ADMIN_DRAWER_ROUTES}
-      tray={traySlot(plan, found)}
-      zoom={zoom}
-      zoomControl={zoomSlot(zoom)}
-      zoomTo={zoomTo}
-    />
+      own={ADMIN_OWN_WRITES}
+      plan={loaded.value}
+      readItem={readItemDrawer}
+      seats={ADMIN_SEAT_ACTIONS}
+      surface={{ kind: 'admin', planId }}
+      zoom={zoomFor(chosen, loaded.value)}
+    >
+      {children}
+    </PlanApp>
   )
 }

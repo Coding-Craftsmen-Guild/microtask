@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import { AttentionDot } from '../attention/attention-mark'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
 import { LAYOUT } from '../canvas/view'
@@ -92,13 +92,13 @@ export function RailColumn({ root, routes, rails, mayReorder }: RailColumnProps)
               {rail.name ?? UNCLAIMED}
             </span>
           ) : (
-            <Link
+            <PlanLink
               className={RAIL_ROW.name}
               href={routes.rail(root, rail.id)}
               title={rail.name ?? UNCLAIMED}
             >
               {rail.name ?? UNCLAIMED}
-            </Link>
+            </PlanLink>
           )}
           <AttentionDot on={rail.attention} />
           <span className={RAIL_ROW.count}>{features(rail.featureCount)}</span>

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
+import { LivePlan, livePlan } from '../testing/live-plan'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { WHOLE_DAYS } from './field'
 import { FIELDS_HINT_ID } from './panel-words'
@@ -48,6 +49,33 @@ const setup = (estimateDays: number | null = 5, estimate: Estimate = kept) => {
     />,
   )
   return { onEstimate, view, user: userEvent.setup() }
+}
+
+// The field wired the way the screen wires it: the optimistic estimate on a real store, and the number drawn
+// from what the store holds. The field reads nothing back from an answer any more (ADR 0069), so what it
+// shows after a write is the store's to decide — the edit at once, then the answer, or the old value back.
+const live = (estimate: Estimate, kind: 'feature' | 'item' = 'feature') => {
+  const onEstimate = vi.fn(estimate)
+  const raw = kind === 'feature' ? { estimateFeature: onEstimate } : { estimateItem: onEstimate }
+  const { store, actions } = livePlan(planScreenModel(atlasPlan()), raw)
+  const subjectId = kind === 'feature' ? FEATURE_1 : ITEM_1
+  const daysOf = (plan: PlanScreenModel): number | null =>
+    [...plan.features, ...plan.items].find((one) => one.id === subjectId)?.estimateDays ?? null
+  render(
+    <LivePlan
+      draw={(plan) => (
+        <EstimateField
+          estimate={kind === 'feature' ? actions.estimateFeature : actions.estimateItem}
+          estimateDays={daysOf(plan)}
+          kind={kind}
+          planId={PLAN_A}
+          subjectId={subjectId}
+        />
+      )}
+      store={store}
+    />,
+  )
+  return { onEstimate, user: userEvent.setup() }
 }
 
 const retype = async (user: ReturnType<typeof userEvent.setup>, typed: string) => {
@@ -171,30 +199,31 @@ describe('what the field refuses itself, rather than letting the API answer 422'
 
 describe('what is on screen once the server has answered', () => {
   it('shows the estimate the answered plan holds, not the number that was sent', async () => {
-    const { user } = setup(5, () => Promise.resolve(sized(9)))
+    const { user } = live(() => Promise.resolve(sized(9)))
     await retype(user, '12')
-    expect(field().value).toBe('9')
+    await vi.waitFor(() => expect(field().value).toBe('9'))
   })
 
   it('shows an empty field when the answered plan holds no estimate for it', async () => {
-    const { user } = setup(5, () => Promise.resolve(sized(null)))
+    const { user } = live(() => Promise.resolve(sized(null)))
     await retype(user, '0')
-    expect(field().value).toBe('')
+    await vi.waitFor(() => expect(field().value).toBe(''))
   })
 
   it('shows 0 when the answered plan holds a milestone, rather than falling back to the old value', async () => {
-    const { user } = setup(5, () => Promise.resolve(sized(0)))
+    const { user } = live(() => Promise.resolve(sized(0)))
     await retype(user, '0')
-    expect(field().value).toBe('0')
+    await vi.waitFor(() => expect(field().value).toBe('0'))
   })
 
   it('restores the stored estimate and says why when the server refuses the write', async () => {
-    const { user } = setup(5, () =>
+    const { user } = live(() =>
       Promise.resolve({ ok: false, status: 403, detail: 'Not permitted: feature:estimate' }),
     )
+    const before = field().value
     await retype(user, '12')
-    expect(screen.getByRole('alert').textContent).toBe('Not permitted: feature:estimate')
-    expect(field().value).toBe('5')
+    expect((await screen.findByRole('alert')).textContent).toBe('Not permitted: feature:estimate')
+    await vi.waitFor(() => expect(field().value).toBe(before))
   })
 
   it('restores it and says so when the server never answers, leaving no rejection unhandled', async () => {
@@ -204,30 +233,20 @@ describe('what is on screen once the server has answered', () => {
     expect(field().value).toBe('5')
   })
 
-  it('reads the answer back for an item out of the items array', async () => {
-    const onEstimate = vi.fn<Estimate>(() =>
-      Promise.resolve({
-        ok: true,
-        value: planScreenModel(atlasPlan({
-          items: atlasPlan().items.map((one) =>
-            one.id === ITEM_1 ? { ...one, estimateDays: 4 } : one,
-          ),
-        })),
-      }),
+  it('shows an item’s answered estimate too, which the store keeps in the items and not the features', async () => {
+    const { onEstimate, user } = live(
+      () =>
+        Promise.resolve({
+          ok: true,
+          value: planScreenModel(atlasPlan({
+            items: atlasPlan().items.map((one) => (one.id === ITEM_1 ? { ...one, estimateDays: 4 } : one)),
+          })),
+        }),
+      'item',
     )
-    render(
-      <EstimateField
-        estimate={onEstimate}
-        estimateDays={3}
-        kind="item"
-        planId={PLAN_A}
-        subjectId={ITEM_1}
-      />,
-    )
-    const user = userEvent.setup()
     await retype(user, '6')
-    expect(onEstimate).toHaveBeenCalledWith(PLAN_A, ITEM_1, 6)
-    expect(field().value).toBe('4')
+    await vi.waitFor(() => expect(onEstimate).toHaveBeenCalledWith(PLAN_A, ITEM_1, 6))
+    await vi.waitFor(() => expect(field().value).toBe('4'))
   })
 
   it('takes the new subject’s estimate from a re-render while the field is not focused', () => {

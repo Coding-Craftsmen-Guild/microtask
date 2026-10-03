@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { commitKeys, paintUnfocused, type SubjectWrite } from './field'
 import { NAME_INPUT } from './field-css'
 import { FieldShell } from './field-shell'
-import { subjectValues, type SubjectKind } from './values'
+import type { SubjectKind } from './values'
 
 const FIELD_ID = 'plan-drawer-name'
 
@@ -48,9 +48,11 @@ export interface NameFieldProps {
  * submit button; a field that commits on blur has nothing to disable, and a pending flag would only
  * be a second thing to keep in step with the answer.
  *
- * **What is on screen after a write is what the server stored**, which is not the same string as the
- * one typed: `cleanName` collapses whitespace and truncates at `LIMITS.nameLength`, so the answer is
- * read back out of the plan the action returned (`subjectValues`, `./values.ts`) rather than assumed.
+ * **What is on screen after a write is what the server will store**, which is not the same string as
+ * the one typed: `cleanName` collapses whitespace and truncates at `LIMITS.nameLength`. The `name` prop is
+ * the plan store's (ADR 0069), which applies the same rule the moment the write is made and is confirmed
+ * by the answer, so the field repaints from its prop and never from an answer — an older answer arriving
+ * after a newer edit would otherwise paint the field one edit back.
  * The input is uncontrolled and every write to it goes through {@link paintUnfocused}, so neither a
  * re-render nor the late answer to a commit the user has already moved past can overwrite what is being
  * typed. The effect below repaints on a **prop** change for a reason a drawer makes real: moving from
@@ -81,8 +83,6 @@ export function NameField({ planId, subjectId, kind, name, rename }: NameFieldPr
     const next = collapse(input.value)
     if (next !== '' && next !== stored.current) {
       const result = await orNoAnswer(rename)(planId, subjectId, next)
-      const kept = result.ok ? subjectValues(result.value, kind, subjectId) : undefined
-      if (kept !== undefined) stored.current = kept.name
       setProblem(result.ok ? '' : result.detail)
     } else setProblem('')
     paintUnfocused(field.current, stored.current)

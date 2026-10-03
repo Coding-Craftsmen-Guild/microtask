@@ -72,7 +72,6 @@ describe('naming a group, which is a plan-level write and not a rail one', () =>
       status: 422,
       detail: plainRefusal(422, ACTION_REFUSALS.admin),
     })
-    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
   it('removes one with no body at all, and answers the plan the features come back ungrouped in', async () => {

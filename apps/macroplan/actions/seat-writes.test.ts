@@ -369,8 +369,18 @@ describe('what a seat does with the plan the write answers', () => {
     })
   })
 
-  it('re-renders the seat page once a write lands, exactly as the admin page is re-rendered', async () => {
+  it('re-renders nothing once a write lands, exactly as the admin page is not re-rendered', async () => {
     await seatRenameFeature(SEAT, PLAN_A, FEATURE_1, NAME)
+    expect(refresh).not.toHaveBeenCalled()
+  })
+
+  // A link changes what only the server can read — the task's name and count come from the bridge — so a
+  // bridge write is the one kind that still re-renders the page, and only once it has landed.
+  it('re-renders the seat page once a bridge write lands, and not when it was refused', async () => {
+    await seatLinkItem(SEAT, PLAN_A, ITEM_1, TASK_1)
+    expect(refresh).toHaveBeenCalledTimes(1)
+    refusals.push({ matches: () => true, status: 403 })
+    expect(await seatLinkItem(SEAT, PLAN_A, ITEM_1, TASK_1)).toMatchObject({ ok: false, status: 403 })
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 

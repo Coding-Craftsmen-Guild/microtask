@@ -1,7 +1,8 @@
 import type { Rung } from '@repo/canvas'
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import { act } from 'react'
+import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PlanNavProvider } from '../nav/plan-nav'
 import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1 } from '../testing/plan-fixture'
 import { detailsOf, splitDetail } from './detail-lines'
@@ -16,9 +17,18 @@ const pushed: string[] = []
 let opened = ''
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: (href: string) => pushed.push(href) }),
   useSearchParams: () => new URLSearchParams(opened),
 }))
+
+// The screen moves between its own addresses through `PlanNav` rather than the router (ADR 0069), and a
+// test hands it a spy the way the seam's own doc says to; a wrapper, so a `rerender` keeps it.
+const NAV = {
+  go: (href: string): void => {
+    pushed.push(href)
+  },
+}
+
+const Nav = ({ children }: { readonly children: ReactNode }) => <PlanNavProvider value={NAV}>{children}</PlanNavProvider>
 
 const asked: string[] = []
 
@@ -73,6 +83,7 @@ const show = (over: { rung?: Rung; zoom?: ((rung: string) => Promise<void>) | nu
     >
       {board()}
     </PlanPointer>,
+    { wrapper: Nav },
   )
 
 const at = (selector: string): Element => {

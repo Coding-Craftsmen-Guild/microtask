@@ -8,7 +8,7 @@ import { splitDetail, type Detail } from './detail-lines'
 import { OPEN_PARAM } from '../drawer/tab-stack'
 import { openClick } from './open-click'
 import { HoverCard } from './hover-card'
-import { lightThread } from './pointer-lights'
+import { hoverRootOf, lightThread } from './pointer-lights'
 import { cardAt, plainClick } from './pointer-view'
 import { useDrill } from './use-drill'
 import { useGroupFit } from './use-group-fit'
@@ -127,7 +127,7 @@ export function PlanPointer({ children, rung, pxPerDay, axisX, zoomTo }: PlanPoi
   const onOver = (event: PointerEvent<HTMLDivElement>): void => {
     const target = event.target instanceof Element ? event.target : null
     const held = target?.closest(HOVERABLE) ?? null
-    lightThread(frame.current, held?.getAttribute('data-hover-id') ?? '')
+    lightThread(hoverRootOf(frame.current), held?.getAttribute('data-hover-id') ?? '')
     const text = held?.getAttribute('data-detail') ?? ''
     const place = { ...CARD_SIZE, x: event.clientX, y: event.clientY, viewHeight: window.innerHeight, viewWidth: window.innerWidth }
     setShown(text === '' ? null : { detail: splitDetail(text), ...cardAt(place) })
@@ -136,7 +136,7 @@ export function PlanPointer({ children, rung, pxPerDay, axisX, zoomTo }: PlanPoi
   const onOut = (event: PointerEvent<HTMLDivElement>): void => {
     const to = event.relatedTarget
     if (to instanceof Element && to.closest(HOVERABLE) !== null) return
-    lightThread(frame.current, '')
+    lightThread(hoverRootOf(frame.current), '')
     setShown(null)
   }
 

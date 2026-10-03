@@ -1,7 +1,5 @@
-import { railLayout } from '@repo/canvas'
 import type { BoardWrites } from '../table/table-writes'
 import type { DayRange, PlanScale, Rung } from '@repo/canvas'
-import { attentionOf } from '../attention/attention'
 import { PlanCanvas } from '../canvas/plan-canvas'
 import type { Counted } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
@@ -9,7 +7,7 @@ import type { DrawerRoutes } from '../../../lib/drawer-routes'
 import { BOARD, RAIL_WIDTH } from './board-css'
 import { BOARD_WORDS } from './board-words'
 import { BoardFilter } from './board-filter'
-import { boardRails } from './board-rows'
+import { useBoardLayout } from './use-board-layout'
 import { FILTER_CSS } from './filter-css'
 import { NOTHING_SELECTED_ID, SELECT_RADIO_NAME, railSelectCss } from './rail-select-css'
 import { RailColumn } from './rail-column'
@@ -17,7 +15,7 @@ import { TimeHeader } from './time-header'
 import { canvasWidth } from '../canvas/view'
 
 /** Props for {@link PlanBoard}. */
-export interface PlanBoardProps extends Omit<BoardWrites, 'adds'> {
+export interface PlanBoardProps extends Omit<BoardWrites, 'adds' | 'offers'> {
   readonly plan: PlanScreenModel
 
   readonly at: Date
@@ -63,8 +61,8 @@ export interface PlanBoardProps extends Omit<BoardWrites, 'adds'> {
  * dimming on a keystroke from growing with the plan.
  */
 export function PlanBoard(props: PlanBoardProps) {
-  const { plan, at, range, scale, rung, progress, place, draw, size, root, routes } = props
-  const rails = boardRails(plan, railLayout(plan, plan.schedule, scale), attentionOf(plan))
+  const { plan, at, range, scale, rung, progress, place, placeItem, draw, size, root, routes } = props
+  const { layout, rails } = useBoardLayout({ plan, range, scale, rung, progress, root, routes })
   const width = canvasWidth(scale, range)
   return (
     <div className={BOARD.scroller} data-slot="plan-board">
@@ -82,14 +80,7 @@ export function PlanBoard(props: PlanBoardProps) {
           <div className={BOARD.corner} style={{ width: RAIL_WIDTH }}>
             <BoardFilter hint={BOARD_WORDS.hint} label={BOARD_WORDS.filter} />
           </div>
-          <TimeHeader
-            at={at}
-            plan={plan}
-            range={range}
-            rung={rung}
-            scale={scale}
-            width={width}
-          />
+          <TimeHeader at={at} plan={plan} range={range} rung={rung} scale={scale} width={width} />
         </div>
         <div className={BOARD.bodyRow}>
           <RailColumn mayReorder={props.mayReorder} rails={rails} root={root} routes={routes} />
@@ -97,9 +88,10 @@ export function PlanBoard(props: PlanBoardProps) {
             <PlanCanvas
               at={at}
               draw={draw}
+              layout={layout}
               size={size}
-              hrefOf={(featureId) => routes.feature(root, featureId)}
               place={place}
+              placeItem={placeItem}
               plan={plan}
               progress={progress}
               range={range}

@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ADMIN_DRAWER_ROUTES, featurePath, itemPath } from '../../../lib/drawer-routes'
 import { planScreenModel } from '../plan-screen-model'
 import {
@@ -17,8 +17,6 @@ import { colId } from './columns'
 import { PlanTable, type TableWrites } from './plan-table'
 import { ADD_ANCHOR, DELETE_ANCHOR } from './row-actions'
 import { TABLE_CSS, TABLE_WORDS } from './table-css'
-
-vi.mock('next/link', async () => ({ default: (await import('../testing/next-link')).LinkDouble }))
 
 const EVERYTHING: TableWrites = { rename: true, add: true, remove: true }
 

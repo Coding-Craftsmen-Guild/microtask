@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import { openedHref } from './tab-stack'
 import { EstimateField } from './estimate-field'
 import { ItemAdd } from './item-add'
@@ -54,9 +54,9 @@ export function ItemsColumn({ parts }: ItemsColumnProps) {
         {items.map((item, index) => (
           <div className={ITEMS.row} data-slot="item-row" key={item.id}>
             <span className={ITEMS.index}>{index + 1}</span>
-            <Link className={ITEMS.name} href={openedHref(closeHref, { id: item.id, kind: 'item' }, parts.stack)}>
+            <PlanLink className={ITEMS.name} href={openedHref(closeHref, { id: item.id, kind: 'item' }, parts.stack)}>
               {item.name}
-            </Link>
+            </PlanLink>
             {controls.estimateItem ? (
               <EstimateField
                 estimate={actions.estimateItem}

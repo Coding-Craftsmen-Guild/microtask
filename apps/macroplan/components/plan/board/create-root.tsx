@@ -8,7 +8,7 @@ import { useDrop } from './use-drop'
 
 /** Props for {@link CreateRoot}. */
 export interface CreateRootProps {
-  /** The board, which is server-rendered and only listened over. */
+  /** The board, which this only listens over. */
   readonly children: ReactNode
 
   /** The plan every write is addressed at. */
@@ -32,29 +32,14 @@ export interface CreateRootProps {
   /** The hue a dropped rail would take. */
   readonly nextRailColour: string
 
-  /** Add a rail. */
-  readonly createEpic: CreateWrites['createEpic']
+  /** Put drawn or dropped work on the plan, as one change (`../store/gestures.ts`); `null` where none may be added. */
+  readonly draw: CreateWrites['draw']
 
-  /** Move a rail, which is both what a dropped new rail needs and what a dragged one is. */
+  /** Add a rail where it was dropped, as one change; `null` where a rail may not be added. */
+  readonly dropRail: CreateWrites['dropRail']
+
+  /** Move a rail that was dragged by its grip. */
   readonly reorderEpic: CreateWrites['reorderEpic']
-
-  /** Add a feature. */
-  readonly createFeature: CreateWrites['createFeature']
-
-  /** Add an item. */
-  readonly createItem: CreateWrites['createItem']
-
-  /** Order a feature on its rail. */
-  readonly placeFeature: CreateWrites['placeFeature']
-
-  /** Order an item in its feature. */
-  readonly placeItem: CreateWrites['placeItem']
-
-  /** Set a feature's dependencies, for work dropped after another feature. */
-  readonly setDependencies: CreateWrites['setDependencies']
-
-  /** Put a feature in a group, so work dropped after another joins its group. */
-  readonly labelFeature: CreateWrites['labelFeature']
 }
 
 /**
@@ -86,14 +71,9 @@ export function CreateRoot(props: CreateRootProps) {
     planId,
     pxPerDay,
     writes: {
-      createEpic: props.createEpic,
-      createFeature: props.createFeature,
-      createItem: props.createItem,
-      labelFeature: props.labelFeature,
-      placeFeature: props.placeFeature,
-      placeItem: props.placeItem,
+      draw: props.draw,
+      dropRail: props.dropRail,
       reorderEpic: props.reorderEpic,
-      setDependencies: props.setDependencies,
     },
   })
   return (

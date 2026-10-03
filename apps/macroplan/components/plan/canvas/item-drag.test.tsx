@@ -15,21 +15,12 @@ const MODEL = planScreenModel(atlasPlan())
 // right to put the pointer inside it and so to land an item of FEATURE_1 under it.
 const INTO_FEATURE_2 = 90
 
-const writesOf = (actions: PlanEditActions) => ({
-  createFeature: actions.createFeature,
-  createItem: actions.createItem,
-  labelFeature: actions.labelFeature,
-  placeFeature: actions.placeFeature,
-  placeItem: actions.placeItem,
-  setDependencies: actions.setDependencies,
-})
-
 const shown = (actions: PlanEditActions, over: { readonly mayPlace?: boolean } = {}) =>
   render(
     <PlanCanvas
       at={AT}
-      draw={{ ...writesOf(actions), placeItem: over.mayPlace === false ? null : actions.placeItem }}
       place={actions.placeFeature}
+      placeItem={over.mayPlace === false ? null : actions.placeItem}
       plan={MODEL}
       rung="item"
     />,

@@ -1,7 +1,7 @@
 import type { Rung } from '@repo/canvas'
 import type { ScopeValue } from '@repo/contracts'
-import { render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { useState, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { ADMIN_CONTROLS } from '../../lib/admin-controls'
 import { ADMIN_DRAWER_ROUTES } from '../../lib/drawer-routes'
@@ -10,18 +10,17 @@ import type { PlanEditActions } from './edit-actions'
 import { axisX } from './canvas/view'
 import { LIT_SLOTS, POINTER_CSS } from './canvas/pointer-css'
 import { planAxis } from './canvas/zoom-view'
-import { PlanScreen } from './plan-screen'
-import { planScreenModel } from './plan-screen-model'
+import { PlanScreen, type PlanScreenProps } from './plan-screen'
+import { planScreenModel, type PlanScreenModel } from './plan-screen-model'
 import { PLAN_ROOT } from './shell/shell-css'
 import { NOTHING_SELECTED_ID } from './board/rail-select-css'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
 import { stubActions } from './testing/plan-writes'
-import { VIEW_SWITCH_CSS } from './view-switch'
+import type { PlanView } from './view-switch'
 
-// The pointer root calls `useRouter`, which throws outside an App Router tree. What it is called with
-// is asserted where the gesture lives (`./canvas/plan-pointer.test.tsx`); here it only has to exist.
+// The pointer root reads the open drawers off the query. What a click does with them is asserted where
+// the gesture lives (`./canvas/plan-pointer.test.tsx`); here the query only has to exist.
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: () => undefined }),
   useSearchParams: () => new URLSearchParams(),
 }))
 
@@ -44,30 +43,47 @@ interface Shown {
   readonly manage?: ReactNode
   readonly actions?: PlanEditActions | null
   readonly tray?: ReactNode
-
+  readonly plan?: PlanScreenModel
   readonly zoom?: Rung
+}
+
+// The choice of view is the caller's state — `PlanApp` holds it — so the screen is rendered under a
+// holder that keeps it the same way, and a click on a radio changes what is drawn exactly as it does there.
+function Switching(props: Omit<PlanScreenProps, 'view' | 'onView'>) {
+  const [view, setView] = useState<PlanView>('timeline')
+  return <PlanScreen {...props} onView={setView} view={view} />
 }
 
 const show = (over: Shown = {}) =>
   render(
-    <PlanScreen
+    <Switching
       actions={over.actions ?? null}
       at={AT}
       controls={over.controls ?? ADMIN_CONTROLS}
       drawer={over.drawer ?? null}
+      gestures={null}
       groups={null}
       manage={over.manage ?? null}
-      plan={planScreenModel(atlasPlan())}
+      newRailHref="/plans/p/new/rail?n=1"
+      plan={over.plan ?? planScreenModel(atlasPlan())}
       progress={[]}
       root={PLAN_A}
       routes={ADMIN_DRAWER_ROUTES}
       tray={over.tray ?? null}
       zoom={over.zoom ?? 'feature'}
       zoomControl={null}
-      newRailHref="/plans/p/new/rail?n=1"
       zoomTo={null}
     />,
   )
+
+// With the timeline chosen the table mounts once the screen has painted, so the first paint is the board
+// alone (`./table/table-aside.tsx`); a test about the table waits for it rather than reading the first frame.
+const tableIn = async (container: HTMLElement): Promise<Element> =>
+  vi.waitFor(() => {
+    const found = container.querySelector('[data-slot="plan-table"]')
+    if (found === null) throw new Error('the table has not mounted yet')
+    return found
+  })
 
 const dragging = (container: HTMLElement): string | null =>
   container.querySelector('[data-slot="drag-root"]')?.getAttribute('data-drag') ?? null
@@ -94,16 +110,17 @@ const before = (first: Element, second: Element): boolean =>
   (first.compareDocumentPosition(second) & first.DOCUMENT_POSITION_FOLLOWING) !== 0
 
 describe('the two renderings one plan screen holds', () => {
-  it('mounts the canvas and the table at once, so neither is a view to be switched to', () => {
-    show()
+  it('draws the canvas, and keeps the table mounted beside it for a reader who cannot see one', async () => {
+    const { container } = show()
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
+    await tableIn(container)
     expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
   })
 
-  it('names every feature and item in the table while the timeline is the selected view', () => {
+  it('names every feature and item in the table while the timeline is the selected view', async () => {
     show()
     expect(radio('Timeline').checked).toBe(true)
-    expect(screen.getByTestId(`row-${FEATURE_1}`)).toBeTruthy()
+    expect(await screen.findByTestId(`row-${FEATURE_1}`)).toBeTruthy()
     expect(screen.getByTestId(`row-${ITEM_1}`)).toBeTruthy()
   })
 
@@ -114,7 +131,7 @@ describe('the two renderings one plan screen holds', () => {
 })
 
 describe('the switch between them', () => {
-  it('offers the choice as one native radio group, so the screen needs no JavaScript to switch', () => {
+  it('offers the choice as one native radio group, which a keyboard already knows how to move through', () => {
     show()
     expect(radio('Timeline').getAttribute('name')).toBe('plan-view')
     expect(radio('Table').getAttribute('name')).toBe(radio('Timeline').getAttribute('name'))
@@ -132,41 +149,55 @@ describe('the switch between them', () => {
     expect(document.querySelectorAll('fieldset, [role="radiogroup"]')).toHaveLength(0)
   })
 
-  it('starts on the timeline, which is the rendering §5 makes this product’s own', () => {
+  it('checks the radio of the view it is handed, and only that one', () => {
     show()
     expect(radio('Timeline').checked).toBe(true)
     expect(radio('Table').checked).toBe(false)
   })
 
-  // The condition is on the shell, not on a sibling, which is what lets the tabs live in the toolbar
-  // strip and the panels two regions down. A `peer-` variant is a sibling selector and could not.
-  it('governs both panels from a rule anchored on the shell, not from a sibling selector', () => {
-    show()
-    expect(document.querySelector('style')?.textContent).toBe(VIEW_SWITCH_CSS)
-    expect(VIEW_SWITCH_CSS).toContain('[data-slot="plan-shell"]:has(#plan-view-table:checked)')
-    expect(slot('timeline-panel')).toBeTruthy()
-    expect(slot('table-panel')).toBeTruthy()
-  })
-
-  it('puts the tabs in the toolbar and the panels outside it, which is the point of the rule', () => {
+  it('puts the tabs in the toolbar and the panels outside it', () => {
     show()
     const tabs = slot('view-tabs')
     expect(tabs?.contains(radio('Timeline'))).toBe(true)
     expect(tabs?.contains(slot('timeline-panel'))).toBe(false)
   })
 
-  it('hides the unchosen canvas outright, which costs a reader one img label', () => {
-    expect(VIEW_SWITCH_CSS).toContain('[data-slot="timeline-panel"]{display:none}')
+  // The canvas is an `<svg role="img">` with one label and nothing inside it a reader can use, so not
+  // drawing it while the table is chosen costs a reader one alt text and saves every element it has.
+  it('draws no canvas at all while the table is chosen, and draws it again when the timeline is', () => {
+    show()
+    fireEvent.click(radio('Table'))
+    expect(slot('timeline-panel')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'Timeline of Atlas rollout' })).toBeNull()
+    expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
+    fireEvent.click(radio('Timeline'))
+    expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
   })
 
   // The one thing about the first revision's switch that was right, and kept: the table is the
   // accessible rendering of this plan, so it is taken off screen rather than removed.
-  it('never hides the table, only takes it off screen, so it never leaves the accessibility tree', () => {
-    expect(VIEW_SWITCH_CSS).toContain('position:absolute;width:1px;height:1px')
-    expect(VIEW_SWITCH_CSS).not.toContain('[data-slot="table-panel"]{display:none}')
+  it('never removes the table, only takes it off screen, so it never leaves the accessibility tree', async () => {
+    const { container } = show()
+    await tableIn(container)
+    expect(slot('table-panel')?.getAttribute('class')).toContain('sr-only')
+    fireEvent.click(radio('Table'))
+    expect(slot('table-panel')?.getAttribute('class')).not.toContain('sr-only')
   })
 
-  it('carries the switch on inputs the browser owns, so nothing here needs a state hook', () => {
+  // The table's search, filters, sort and column order are its own state, and the element is never
+  // unmounted once it has mounted — so a reader who narrowed it, looked at the timeline and came back
+  // finds it as they left it.
+  it('keeps what the table was narrowed to across a switch, the element never being unmounted', () => {
+    show()
+    fireEvent.click(radio('Table'))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'invoices' } })
+    fireEvent.click(radio('Timeline'))
+    fireEvent.click(radio('Table'))
+    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('invoices')
+    expect(screen.getByTestId(`row-${FEATURE_1}`).hidden).toBe(true)
+  })
+
+  it('carries the switch on two radios with ids, which is what their labels name', () => {
     show()
     expect(viewRadios().map((one) => one.getAttribute('id'))).toEqual([
       'plan-view-timeline',
@@ -237,8 +268,9 @@ describe('the slot the features with no bar fill', () => {
   // Under the board and inside its panel: a table row for an unplaced feature is already in the
   // table with its dates empty, so repeating it under the table would be the duplication this
   // revision set out to remove.
-  it('puts it under the board and inside the timeline panel, never under the table', () => {
-    show({ tray: TRAY })
+  it('puts it under the board and inside the timeline panel, never under the table', async () => {
+    const { container } = show({ tray: TRAY })
+    await tableIn(container)
     const marker = screen.getByTestId('tray-marker')
     expect(slot('timeline-panel')?.contains(marker)).toBe(true)
     expect(slot('table-panel')?.contains(marker)).toBe(false)
@@ -253,33 +285,16 @@ describe('the count of what wants looking at', () => {
   })
 
   it('counts the entities of a plan that has some, beside the plan’s calendar', () => {
-    render(
-      <PlanScreen
-        actions={null}
-        at={AT}
-        controls={ADMIN_CONTROLS}
-        drawer={null}
-        groups={null}
-        manage={null}
-        plan={planScreenModel(unplacedPlan('no-estimate'))}
-        progress={[]}
-        root={PLAN_A}
-        routes={ADMIN_DRAWER_ROUTES}
-        tray={null}
-        zoom="feature"
-        zoomControl={null}
-        newRailHref="/plans/p/new/rail?n=1"
-        zoomTo={null}
-      />,
-    )
+    show({ plan: planScreenModel(unplacedPlan('no-estimate')) })
     const chip = slot('attention-chip')
     expect(chip?.textContent).toMatch(/need(s)? attention/)
   })
 })
 
 describe('the controls the screen is handed', () => {
-  it('draws the whole plan for the weakest seat there is, no control being load-bearing', () => {
-    show({ controls: planCapabilities('view', SEAT) })
+  it('draws the whole plan for the weakest seat there is, no control being load-bearing', async () => {
+    const { container } = show({ controls: planCapabilities('view', SEAT) })
+    await tableIn(container)
     expect(screen.getByRole('heading', { level: 1, name: 'Atlas rollout' })).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
     expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
@@ -302,11 +317,11 @@ describe('the controls the screen is handed', () => {
     expect(dragging(admin)).toBe('false')
   })
 
-  it('offers a view seat no row actions at all, rather than links to controls that would refuse it', () => {
-    const actions = (container: HTMLElement): number =>
-      container.querySelectorAll('[data-slot="row-actions"]').length
-    expect(actions(show().container)).toBeGreaterThan(0)
-    expect(actions(show({ controls: planCapabilities('view', SEAT) }).container)).toBe(0)
+  it('offers a view seat no row actions at all, rather than links to controls that would refuse it', async () => {
+    const actions = async (container: HTMLElement): Promise<number> =>
+      (await tableIn(container)).querySelectorAll('[data-slot="row-actions"]').length
+    expect(await actions(show().container)).toBeGreaterThan(0)
+    expect(await actions(show({ controls: planCapabilities('view', SEAT) }).container)).toBe(0)
   })
 
   it('listens for a drag once it holds the writes, and not for a seat that may not place', () => {
@@ -342,8 +357,9 @@ describe('the element both generated selection sheets anchor on', () => {
     expect(document.querySelector(PLAN_ROOT)).not.toBeNull()
   })
 
-  it('contains the radios the rules key on and the marks they dim, both being inside one ancestor', () => {
-    show()
+  it('contains the radios the rules key on and the marks they dim, both being inside one ancestor', async () => {
+    const { container } = show()
+    await tableIn(container)
     const root = document.querySelector(PLAN_ROOT)
 
     expect(root).not.toBeNull()

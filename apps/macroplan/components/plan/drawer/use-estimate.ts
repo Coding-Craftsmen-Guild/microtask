@@ -2,7 +2,7 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { estimateEntry, paintUnfocused, type SubjectWrite } from './field'
 import { shownDays, steppedDays, STEP_DAYS } from './step-value'
-import { subjectValues, type SubjectKind } from './values'
+import type { SubjectKind } from './values'
 
 /** What one estimate field needs to write and re-read its own subject. */
 export interface EstimateQuery {
@@ -12,7 +12,7 @@ export interface EstimateQuery {
   /** The feature or item being sized. */
   readonly subjectId: string
 
-  /** Which of the two, so the answered plan is re-read from the right array. */
+  /** Which of the two: a feature or an item. */
   readonly kind: SubjectKind
 
   /** The authored estimate as the server last stored it. */
@@ -45,13 +45,17 @@ export interface EstimateState {
  *
  * Typing commits on blur or Enter, because a half-typed `1` on the way to `12` is not a value anybody
  * meant to send. A button commits at once, because a press is already the whole intention — and it
- * steps from what the **server** last stored rather than from the box, so a press after an abandoned
+ * steps from the estimate the **plan** holds rather than from the box, so a press after an abandoned
  * edit cannot send the abandoned number.
  *
- * Both end in the same re-read: the answered plan is looked up for this subject and the box is
- * repainted from what it holds, so "what is on screen is what the server stored" is one code path
- * rather than an intention (`./values.ts`). The box is repainted only while it is not focused, which
- * is what keeps a revalidation from overwriting something being typed.
+ * ### Why it steps from the prop and never from an answer
+ *
+ * The prop is the plan store's (ADR 0069): a press applies at once, so the very next render carries the
+ * stepped value and the next press steps from that. It used to step from the last value an *answer*
+ * confirmed, which on a slow connection meant three quick presses all stepped from the same number and
+ * the estimate moved one step, not three — three requests, two of them lost. Nothing here reads an answer
+ * back any more: a refusal is taken off the plan by the store, which moves the prop, which repaints the box.
+ * The box is repainted only while it is not focused, which keeps that from overwriting something typed.
  *
  * A hook rather than a component, because what differs between the field and the items list is the
  * paint and nothing else: one stepper is 34px with a label and a hint, the other is 24px in a row of
@@ -61,7 +65,7 @@ export interface EstimateState {
  * @returns The ref, the refusal, and the two commits.
  */
 export function useEstimate(query: EstimateQuery): EstimateState {
-  const { planId, subjectId, kind, estimateDays, estimate } = query
+  const { planId, subjectId, estimateDays, estimate } = query
   const field = useRef<HTMLInputElement>(null)
   const stored = useRef(estimateDays)
   const [problem, setProblem] = useState('')
@@ -72,8 +76,6 @@ export function useEstimate(query: EstimateQuery): EstimateState {
 
   const send = async (days: number | null): Promise<void> => {
     const result = await orNoAnswer(estimate)(planId, subjectId, days)
-    const kept = result.ok ? subjectValues(result.value, kind, subjectId) : undefined
-    if (kept !== undefined) stored.current = kept.estimateDays
     setProblem(result.ok ? '' : result.detail)
     paintUnfocused(field.current, shownDays(stored.current))
   }
@@ -97,6 +99,6 @@ export function useEstimate(query: EstimateQuery): EstimateState {
     field,
     problem,
     shown: () => shownDays(stored.current),
-    step: (direction) => void send(steppedDays(stored.current, direction * STEP_DAYS)),
+    step: (direction) => void send(steppedDays(estimateDays, direction * STEP_DAYS)),
   }
 }

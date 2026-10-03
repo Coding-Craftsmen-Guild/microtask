@@ -1,7 +1,7 @@
 'use server'
 
 import type { NewBinding, NewLabel } from '@repo/api-client'
-import { seatWrite } from './plan-write'
+import { seatBridgeWrite, seatWrite } from './plan-write'
 import type { ActionResult } from './result'
 import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
@@ -39,12 +39,12 @@ export async function seatBindEpic(
   epicId: string,
   binding: NewBinding,
 ): Answer {
-  return seatWrite(token, (api) => api.epics.bind(planId, epicId, binding))
+  return seatBridgeWrite(token, (api) => api.epics.bind(planId, epicId, binding))
 }
 
 /** Unbinds one rail. `epic:bind`, admin-only, so this always 403s — see {@link seatBindEpic}. */
 export async function seatUnbindEpic(token: string, planId: string, epicId: string): Answer {
-  return seatWrite(token, (api) => api.epics.unbind(planId, epicId))
+  return seatBridgeWrite(token, (api) => api.epics.unbind(planId, epicId))
 }
 
 /** Links one item to a task in its rail's bound project. `item:link`, a `write` grant. */
@@ -54,12 +54,12 @@ export async function seatLinkItem(
   itemId: string,
   taskId: string,
 ): Answer {
-  return seatWrite(token, (api) => api.items.link(planId, itemId, { taskId }))
+  return seatBridgeWrite(token, (api) => api.items.link(planId, itemId, { taskId }))
 }
 
 /** Unlinks one item from its task. `item:link`, a `write` grant. */
 export async function seatUnlinkItem(token: string, planId: string, itemId: string): Answer {
-  return seatWrite(token, (api) => api.items.unlink(planId, itemId))
+  return seatBridgeWrite(token, (api) => api.items.unlink(planId, itemId))
 }
 
 /**
@@ -69,7 +69,7 @@ export async function seatUnlinkItem(token: string, planId: string, itemId: stri
  * the one refusal on this surface that is about neither the seat's role nor the plan.
  */
 export async function seatCreateTask(token: string, planId: string, itemId: string): Answer {
-  return seatWrite(token, (api) => api.items.createTask(planId, itemId))
+  return seatBridgeWrite(token, (api) => api.items.createTask(planId, itemId))
 }
 
 /**

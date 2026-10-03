@@ -1,5 +1,4 @@
 import type { Rung } from '@repo/canvas'
-import { chooseZoom } from '../../../actions/zoom'
 import { ZOOM_ORDER, ZOOM_WORDS } from './zoom-view'
 
 const ROW = 'flex items-center'
@@ -17,6 +16,9 @@ const OFFERED =
 /** Props for {@link ZoomSwitch}. */
 export interface ZoomSwitchProps {
   readonly zoom: Rung
+
+  /** Draw the plan at another stop — client state, kept in the browser's cookie (`lib/zoom-cookie.ts`). */
+  readonly onZoom: (rung: Rung) => void
 }
 
 /**
@@ -31,9 +33,15 @@ export interface ZoomSwitchProps {
  *
  * ### Why the chosen one is not a button
  *
- * Pressing it would submit the zoom the page is already drawn at. A `<span>` says the same thing to a
+ * Pressing it would ask for the zoom the page is already drawn at. A `<span>` says the same thing to a
  * pointer, to a keyboard and to a screen reader — `aria-current` carries the state — without offering
- * a round trip that changes nothing.
+ * a control that changes nothing.
+ *
+ * ### Why it is not a form any more
+ *
+ * It was a form posting a Server Action that set a cookie and revalidated the plan layout, so every press
+ * was a round trip and a server render of the whole plan. The zoom is the screen's own state now and the
+ * canvas redraws in the browser in the same frame (ADR 0069).
  *
  * ### Why the legend is off screen
  *
@@ -42,9 +50,9 @@ export interface ZoomSwitchProps {
  * what it is. A reader who cannot still does — `aria-describedby` on each stop points at it — so the
  * word stays in the accessibility tree and leaves the row, which is what `sr-only` is for.
  */
-export function ZoomSwitch({ zoom }: ZoomSwitchProps) {
+export function ZoomSwitch({ zoom, onZoom }: ZoomSwitchProps) {
   return (
-    <form action={chooseZoom} className={ROW} data-slot="zoom-switch">
+    <div className={ROW} data-slot="zoom-switch">
       <span className={LEGEND} id="plan-zoom-legend">
         Zoom
       </span>
@@ -59,15 +67,14 @@ export function ZoomSwitch({ zoom }: ZoomSwitchProps) {
               aria-describedby="plan-zoom-legend"
               className={OFFERED}
               key={rung}
-              name="rung"
-              type="submit"
-              value={rung}
+              onClick={() => onZoom(rung)}
+              type="button"
             >
               {ZOOM_WORDS[rung]}
             </button>
           ),
         )}
       </div>
-    </form>
+    </div>
   )
 }

@@ -10,24 +10,16 @@ import { BOARD_WORDS } from './board-words'
 
 const AT = new Date('2026-09-28T09:00:00.000Z')
 
-const NO_WRITES = {
-  createFeature: null,
-  createItem: null,
-  labelFeature: null,
-  placeFeature: null,
-  placeItem: null,
-  setDependencies: null,
-}
-
 const board = () => {
   const plan = planScreenModel(railedPlan())
   const axis = planAxis(plan, AT, 'item')
   render(
     <PlanBoard
       at={AT}
-      draw={NO_WRITES}
+      draw={null}
       mayReorder={false}
       place={null}
+      placeItem={null}
     size={{ estimateFeature: null, estimateItem: null }}
       plan={plan}
       progress={[]}

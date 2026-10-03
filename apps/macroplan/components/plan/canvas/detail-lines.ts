@@ -1,6 +1,6 @@
 import { dayToDate } from '@repo/schedule'
-import { cache } from 'react'
 import type { PlanScreenModel } from '../plan-screen-model'
+import { memoOnPlan } from '../store/memo-on-plan'
 import { tableRows, type TableRow } from '../table/rows'
 
 /** One labelled fact in a card's strip. */
@@ -113,11 +113,40 @@ export function splitDetail(text: string): Detail {
   }
 }
 
-const datesOf = (id: string, plan: PlanScreenModel): string => {
-  const span = plan.schedule.spans.find((one) => one.id === id)
+interface Lookups {
+  readonly plan: PlanScreenModel
+  readonly spans: ReadonlyMap<string, { readonly startDay: number; readonly endDay: number }>
+  readonly places: ReadonlyMap<string, string>
+  readonly labelHues: ReadonlyMap<string, string>
+  readonly railHues: ReadonlyMap<string, string>
+}
+
+const placesOf = (plan: PlanScreenModel): ReadonlyMap<string, string> => {
+  const counts = new Map<string, number>()
+  const at = new Map<string, number>()
+  for (const item of plan.items) {
+    const before = counts.get(item.featureId) ?? 0
+    at.set(item.id, before)
+    counts.set(item.featureId, before + 1)
+  }
+  return new Map(
+    plan.items.map((item) => [item.id, `${String((at.get(item.id) ?? 0) + 1)} of ${String(counts.get(item.featureId) ?? 0)}`]),
+  )
+}
+
+const lookupsOf = (plan: PlanScreenModel): Lookups => ({
+  plan,
+  spans: new Map(plan.schedule.spans.map((span) => [span.id, span])),
+  places: placesOf(plan),
+  labelHues: new Map(plan.labels.map((label) => [label.id, label.colour])),
+  railHues: new Map(plan.epics.map((epic) => [epic.id, epic.colour])),
+})
+
+const datesOf = (id: string, lookups: Lookups): string => {
+  const span = lookups.spans.get(id)
   if (span === undefined) return ''
   const last = Math.max(span.startDay, span.endDay - 1)
-  return `${dayToDate(span.startDay, plan)} to ${dayToDate(last, plan)}`
+  return `${dayToDate(span.startDay, lookups.plan)} to ${dayToDate(last, lookups.plan)}`
 }
 
 const waitsFor = (row: TableRow): string => {
@@ -126,36 +155,28 @@ const waitsFor = (row: TableRow): string => {
   return count === 1 ? '1 feature' : `${String(count)} features`
 }
 
-const positionIn = (row: TableRow, plan: PlanScreenModel): string => {
-  const siblings = plan.items.filter((item) => item.featureId === row.block)
-  const at = siblings.findIndex((item) => item.id === row.id)
-  return at === -1 ? '' : `${String(at + 1)} of ${String(siblings.length)}`
-}
-
-const hueFor = (row: TableRow, plan: PlanScreenModel): string => {
-  const grouped = plan.labels.find((label) => label.id === row.labelId)
-  return grouped?.colour ?? plan.epics.find((epic) => epic.id === row.railId)?.colour ?? ''
-}
+const hueFor = (row: TableRow, lookups: Lookups): string =>
+  lookups.labelHues.get(row.labelId ?? '') ?? lookups.railHues.get(row.railId) ?? ''
 
 const contextOf = (row: TableRow): string => {
   if (row.item !== null) return `${DETAIL_WORDS.itemOf} ${row.feature}`
   return row.group === null ? row.epic : `${row.group} · ${row.epic}`
 }
 
-const factsOf = (row: TableRow, plan: PlanScreenModel): readonly DetailLine[] => [
+const factsOf = (row: TableRow, lookups: Lookups): readonly DetailLine[] => [
   { label: DETAIL_WORDS.estimate, value: row.estimate },
   { label: DETAIL_WORDS.sprint, value: row.sprint },
   row.item === null
     ? { label: DETAIL_WORDS.waits, value: waitsFor(row) }
-    : { label: DETAIL_WORDS.position, value: positionIn(row, plan) },
+    : { label: DETAIL_WORDS.position, value: lookups.places.get(row.id) ?? '' },
 ]
 
-const detailOf = (row: TableRow, plan: PlanScreenModel): Detail => ({
+const detailOf = (row: TableRow, lookups: Lookups): Detail => ({
   context: contextOf(row),
   title: row.item ?? row.feature,
-  dates: datesOf(row.id, plan),
-  colour: hueFor(row, plan),
-  facts: factsOf(row, plan),
+  dates: datesOf(row.id, lookups),
+  colour: hueFor(row, lookups),
+  facts: factsOf(row, lookups),
 })
 
 /**
@@ -168,8 +189,16 @@ const detailOf = (row: TableRow, plan: PlanScreenModel): Detail => ({
  * argument that the two renderings of a plan must not word it differently. A card that said `5 days`
  * where the table said `5d` would be a third opinion about a plan the forward pass has already answered.
  *
- * `tableRows` is `cache()`d on the plan object, and so is this, and both are handed the same object by
- * `readPlan`. So a page that draws the canvas and the table derives the rows once and joins them once.
+ * `tableRows` is memoised on the plan object, and so is this (`../store/memo-on-plan.ts`), and both are
+ * handed the one object the plan store holds. So a screen that draws the canvas and the table derives the
+ * rows once and joins them once per change of the plan, and a hover, a zoom or a drawer derives nothing.
+ *
+ * ### Why the lookups are maps
+ *
+ * Each card used to find its span by scanning every span, and an item's place by filtering every item —
+ * once per row, so quadratic in the plan. At this product's cap that was the single most expensive thing
+ * the server did to draw a page, some 400 ms of every render. The spans, the places and the hues are read
+ * into maps once, so the whole join is linear.
  *
  * ### What the third fact is, and why it differs by kind
  *
@@ -200,6 +229,7 @@ const detailOf = (row: TableRow, plan: PlanScreenModel): Detail => ({
  * fact does not already write better: it says `not placed · no estimate`, which is both the fact and the
  * reason.
  */
-export const detailsOf = cache((plan: PlanScreenModel): ReadonlyMap<string, string> =>
-  new Map(tableRows(plan).map((row) => [row.id, joinDetail(detailOf(row, plan))])),
-)
+export const detailsOf = memoOnPlan((plan: PlanScreenModel): ReadonlyMap<string, string> => {
+  const lookups = lookupsOf(plan)
+  return new Map(tableRows(plan).map((row) => [row.id, joinDetail(detailOf(row, lookups))]))
+})

@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import { openedHref, type TabRef } from './tab-stack'
 import { BAND, ORDER } from './list-css'
 import type { ChildItem } from './values'
@@ -35,9 +35,9 @@ export function OrderCell({ label, item, fallback, root, stack }: OrderCellProps
       {item === undefined ? (
         <p className={ORDER.edge}>{fallback}</p>
       ) : (
-        <Link className={ORDER.name} href={openedHref(root, { id: item.id, kind: 'item' }, stack)}>
+        <PlanLink className={ORDER.name} href={openedHref(root, { id: item.id, kind: 'item' }, stack)}>
           {item.name}
-        </Link>
+        </PlanLink>
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import { columnsFor } from './columns'
 import { ColumnRow, TableFilter, type FilterOption } from './table-controls'
 import { TABLE, TABLE_WORDS } from './table-css'
@@ -21,19 +21,17 @@ export interface TableToolbarProps {
 /**
  * The strip over the table: a search, two filters, the column menu, and the one thing a table can add.
  *
- * ### Why every control here is server markup
+ * ### Why no control here has a handler of its own
  *
- * The filters are built from the plan's own rails and groups, and a client component under
- * `components/plan` may be handed primitives, an unbound function or `null` and nothing else
- * (`../module-boundaries.test.tsx`). An array of rails is none of those. So the whole strip is rendered
- * by the server and `./table-root.tsx` listens over it by delegation — the same shape
- * `sidebar/sidebar-search.tsx` has, and for the same reason.
+ * Every control is plain, uncontrolled markup, and the table hears all of them at once by delegation
+ * (`./use-table-state.ts`), so the strip carries no state and no closures: a control keeps its own value,
+ * and what it narrows or reorders is the table's state, which the rows are rendered from.
  *
  * ### Why the column menu needs no JavaScript to hide a column
  *
  * Each checkbox is a real `<input>` with an `id` the generated sheet keys a `:has()` rule on, so
- * unchecking one hides that column outright (`./table-css.ts`). Only the two **move** buttons need the
- * client root, because reordering cells in a table is the one thing CSS cannot express: `order` does not
+ * unchecking one hides that column outright (`./table-css.ts`). Only the two **move** buttons change what
+ * is rendered, because reordering cells in a table is the one thing CSS cannot express: `order` does not
  * apply to table cells, and the alternative — dropping `<table>` for a grid — would cost the semantics
  * ADR 0056 says this rendering exists for.
  *
@@ -74,9 +72,9 @@ export function TableToolbar({ rails, groups, mayEdit, newRailHref }: TableToolb
       </details>
       <span className={TABLE.spacer} />
       {newRailHref === null ? null : (
-        <Link className={TABLE.newRail} href={newRailHref}>
+        <PlanLink className={TABLE.newRail} href={newRailHref}>
           {TABLE_WORDS.newRail}
-        </Link>
+        </PlanLink>
       )}
     </div>
   )

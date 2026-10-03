@@ -1,13 +1,10 @@
 import type { ReactNode } from 'react'
-import { attentionOf } from '../../../components/plan/attention/attention'
-import { PlanScreen } from '../../../components/plan/plan-screen'
+import { seatReadItemDrawer } from '../../../actions/drawer-reads'
+import { PlanApp } from '../../../components/plan/app/plan-app'
+import { openingZoom } from '../../../components/plan/canvas/zoom-view'
 import { seatPlanActions } from '../../../components/plan/seat-actions'
 import { seatPlanOwnActions, seatSeatActions } from '../../../components/plan/seat-own-actions'
-import { openingZoom } from '../../../components/plan/canvas/zoom-view'
-import { SEAT_DRAWER_ROUTES } from '../../../lib/drawer-routes'
 import { planCapabilities } from '../../../lib/plan-capabilities'
-import { seatGroupsSlot, seatTraySlot } from './seat-slots'
-import { seatManageSlot } from './seat-plan-slots'
 import { readSeatBridge } from './read-seat-item'
 import { readSeatPlan, readShare } from './read-share'
 
@@ -18,58 +15,45 @@ const refused = (detail: string): ReactNode => (
 )
 
 /**
- * The one plan a token opens, drawn with whatever is open beside it.
+ * The one plan a token opens, handed to the browser with the writes the seat's own role allows.
  *
  * The token is taken from `params` and is the only authority presented: **no cookie is read**, so an
  * admin signed in on the same browser sees exactly what the seat sees, and a page on this surface
  * cannot be elevated by one (ADR 0040). `seat-plan.test.tsx` mocks `next/headers` to throw, which is
- * what keeps that true as this file changes.
+ * what keeps that true as this file changes. Every write the browser is handed is bound to that token,
+ * the mechanism ADR 0040 describes, and the item reads are too.
  *
- * ### The zoom it cannot have
+ * The plan and the bridge are read side by side: both need only the plan id the share answered with, and
+ * reading them one after the other was a round trip to the API for nothing.
  *
- * Zoom is a cookie the admin's layout reads, and this surface may read no cookie, so it draws at
- * {@link DEFAULT_ZOOM}. That was a real limitation while the canvas drew a fixed 120-day axis — a
- * short plan at the default zoom was a handful of bars in the corner of a mostly empty chart. It is
- * a much smaller one now: the axis follows the plan's own span, so the default fills the pane for
- * whatever this plan happens to be. Restoring the control here means putting the rung in the path,
- * which is left for when someone asks.
+ * ### The zoom it cannot keep
  *
- * ### The sidebar it now has
- *
- * It passes one. The previous revision passed `null`, and because the split was a two-column grid, a
- * null child meant the board became the *first* grid item and drew itself into the 17rem names
- * track: a 272px timeline on a 1545px page. Both surfaces render the same tree now, with the seat's
- * own capabilities deciding which actions are on it.
+ * Zoom is a cookie the admin's layout reads, and this surface may read no cookie, so it opens at the
+ * plan's own fit and offers no control (ADR 0069 leaves it so). The screen is the same component the
+ * admin's is, drawn in the browser from the same kind of plan, with the seat's capabilities deciding what
+ * is on it.
  */
 export async function seatPlanScreen(token: string, drawer: ReactNode) {
   const share = await readShare(token)
   if (!share.ok) return refused(share.detail)
   const { role, scope } = share.value
-  const plan = await readSeatPlan(token, scope.planId)
+  const [plan, bridge] = await Promise.all([readSeatPlan(token, scope.planId), readSeatBridge(token, scope.planId)])
   if (!plan.ok) return refused(plan.detail)
-  const controls = planCapabilities(role, scope)
-  const writes = seatPlanActions(token)
-  const own = seatPlanOwnActions(token)
-  const seats = seatSeatActions(token)
-  const bridge = await readSeatBridge(token, scope.planId)
-  const found = attentionOf(plan.value)
   return (
-    <PlanScreen
-      actions={writes}
-      at={new Date()}
-      controls={controls}
-      drawer={drawer}
-      groups={seatGroupsSlot(plan.value)}
-      manage={seatManageSlot(plan.value, { writes, own, seats }, controls)}
+    <PlanApp
+      actions={seatPlanActions(token)}
+      at={new Date().toISOString()}
+      bindProject={null}
+      bridge={bridge}
+      controls={planCapabilities(role, scope)}
+      own={seatPlanOwnActions(token)}
       plan={plan.value}
-      progress={bridge?.items ?? []}
-      root={token}
-      routes={SEAT_DRAWER_ROUTES}
-      tray={seatTraySlot(plan.value, token, found)}
+      readItem={seatReadItemDrawer.bind(null, token)}
+      seats={seatSeatActions(token)}
+      surface={{ kind: 'seat', token }}
       zoom={openingZoom(plan.value)}
-      newRailHref={null}
-      zoomControl={null}
-      zoomTo={null}
-    />
+    >
+      {drawer}
+    </PlanApp>
   )
 }

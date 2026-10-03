@@ -3,7 +3,7 @@
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import { DELETE_ANCHOR } from '../table/row-actions'
 import { ConfirmDialog } from '@repo/ui/shell/confirm-dialog'
-import { useRouter } from 'next/navigation'
+import { usePlanNav } from '../nav/plan-nav'
 import { useState } from 'react'
 import { DELETE_FEATURE, DELETE_ITEM, type SubjectRemove } from './field'
 import type { SubjectKind } from './values'
@@ -112,13 +112,13 @@ export function DeleteControl({
   closeHref,
   remove,
 }: DeleteControlProps) {
-  const router = useRouter()
+  const { go } = usePlanNav()
   const [asking, setAsking] = useState(false)
   const [problem, setProblem] = useState('')
   const confirmed = async () => {
     setAsking(false)
     const result = await orNoAnswer(remove)(planId, subjectId)
-    if (result.ok) router.replace(closeHref)
+    if (result.ok) go(closeHref, { replace: true })
     else setProblem(result.detail)
   }
   return (

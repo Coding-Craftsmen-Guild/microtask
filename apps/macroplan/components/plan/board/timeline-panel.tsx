@@ -2,7 +2,7 @@ import type { Rung } from '@repo/canvas'
 import type { CreateWrites } from './create-write'
 import type { BoardWrites } from '../table/table-writes'
 import type { ReactNode } from 'react'
-import { planAxis } from '../canvas/zoom-view'
+import type { PlanAxis } from '../canvas/zoom-view'
 import type { Counted } from '../canvas/view'
 import type { PlanScreenModel } from '../plan-screen-model'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
@@ -18,6 +18,9 @@ export interface TimelinePanelProps extends BoardWrites {
 
   readonly zoom: Rung
 
+  /** The scale and window the board is drawn at, worked out once for the screen. */
+  readonly axis: PlanAxis
+
   readonly progress: Counted
 
   /** The features with no bar, under the board. */
@@ -32,12 +35,9 @@ export interface TimelinePanelProps extends BoardWrites {
   readonly nextRailColour: string
 }
 
-/** Whether any of the three pills is offered at all, which is what decides the strip exists. */
+/** Whether anything may be dropped on the board at all, which is what decides the strip and its root exist. */
 export const anyAdd = (adds: CreateWrites): boolean =>
-  adds.createEpic !== null ||
-  adds.createFeature !== null ||
-  adds.createItem !== null ||
-  adds.reorderEpic !== null
+  adds.draw !== null || adds.dropRail !== null || adds.reorderEpic !== null
 
 /**
  * The timeline as a whole: what can be added, the board it is added to, and what has no bar.
@@ -56,13 +56,13 @@ export const anyAdd = (adds: CreateWrites): boolean =>
  * silent. A seat that may add nothing gets exactly the board, which is what it had.
  */
 export function TimelinePanel(props: TimelinePanelProps) {
-  const { plan, at, zoom, progress, place, draw, size, tray, root, routes, adds, nextRailColour } = props
-  const axis = planAxis(plan, at, zoom)
+  const { plan, at, zoom, axis, progress, place, placeItem, draw, size, tray, root, routes, adds, offers, nextRailColour } = props
   const board = (
     <PlanBoard
       at={at}
       draw={draw}
       place={place}
+      placeItem={placeItem}
       size={size}
       mayReorder={adds.reorderEpic !== null}
       plan={plan}
@@ -78,23 +78,18 @@ export function TimelinePanel(props: TimelinePanelProps) {
   return (
     <>
       <CreateStrip
-        mayAddEpic={adds.createEpic !== null}
-        mayAddFeature={adds.createFeature !== null}
-        mayAddItem={adds.createItem !== null}
+        mayAddEpic={offers.epic}
+        mayAddFeature={offers.feature}
+        mayAddItem={offers.item}
       />
       <CreateRoot
-        createEpic={adds.createEpic}
-        createFeature={adds.createFeature}
-        createItem={adds.createItem}
+        draw={adds.draw}
+        dropRail={adds.dropRail}
         gutter={axis.scale.gutter}
-        labelFeature={adds.labelFeature}
         nextRailColour={nextRailColour}
-        placeFeature={adds.placeFeature}
-        placeItem={adds.placeItem}
         planId={plan.id}
         pxPerDay={axis.scale.pxPerDay}
         reorderEpic={adds.reorderEpic}
-        setDependencies={adds.setDependencies}
         sprintLengthDays={plan.sprintLengthDays}
         startDate={plan.startDate}
         timezone={plan.timezone}

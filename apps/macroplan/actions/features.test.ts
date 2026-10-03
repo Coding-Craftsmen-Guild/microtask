@@ -122,10 +122,12 @@ describe('the rest of the feature writes', () => {
   })
 })
 
-describe('what a refusal costs', () => {
-  it('re-renders the page once a write lands', async () => {
-    await renameFeature(PLAN_A, FEATURE_1, 'Auth rewrite II')
-    expect(refresh).toHaveBeenCalledTimes(1)
+describe('what a write costs the page', () => {
+  // The screen holds the plan in the browser and has drawn the edit before the action runs, so a landed
+  // write is confirmed against its answer and nothing is re-rendered on the server (ADR 0069).
+  it('re-renders nothing once a write lands, the screen adopting the plan it answers', async () => {
+    expect(await renameFeature(PLAN_A, FEATURE_1, 'Auth rewrite II')).toMatchObject({ ok: true })
+    expect(refresh).not.toHaveBeenCalled()
   })
 
   it('leaves the page alone when the write was refused, so the sentence survives the answer', async () => {

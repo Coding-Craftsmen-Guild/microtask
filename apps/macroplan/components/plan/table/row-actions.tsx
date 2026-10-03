@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import { PlanLink } from '../nav/plan-nav'
 import { TABLE, TABLE_WORDS } from './table-css'
 
 /** The fragment the drawer's add-a-child field answers to, which is that field's own `id`. */
@@ -41,18 +41,18 @@ export interface RowActionsProps {
 export function RowActions({ href, mayAdd, mayRemove }: RowActionsProps) {
   return (
     <span className={TABLE.actions} data-slot="row-actions">
-      <Link className={TABLE.action} href={href}>
+      <PlanLink className={TABLE.action} href={href}>
         {TABLE_WORDS.edit}
-      </Link>
+      </PlanLink>
       {mayAdd ? (
-        <Link className={TABLE.action} href={`${href}#${ADD_ANCHOR}`}>
+        <PlanLink className={TABLE.action} href={`${href}#${ADD_ANCHOR}`}>
           {TABLE_WORDS.add}
-        </Link>
+        </PlanLink>
       ) : null}
       {mayRemove ? (
-        <Link className={TABLE.action} href={`${href}#${DELETE_ANCHOR}`}>
+        <PlanLink className={TABLE.action} href={`${href}#${DELETE_ANCHOR}`}>
           {TABLE_WORDS.remove}
-        </Link>
+        </PlanLink>
       ) : null}
     </span>
   )

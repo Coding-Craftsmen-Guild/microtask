@@ -1,4 +1,6 @@
+import { Fragment, memo, type ReactNode } from 'react'
 import { progressWords, type Counted } from '../bridge/progress-words'
+import { DEFAULT_ORDER } from './columns'
 import { TABLE } from './table-css'
 import { RowActions } from './row-actions'
 import { BlockedCell, CELL, NameCell, sortAttributes } from './row-cells'
@@ -29,7 +31,15 @@ export interface PlanTableRowProps {
   readonly mayEdit: boolean
 
   readonly writes: TableWrites
+
+  /** The columns to draw, in the reader's order, as keys joined by commas so a memo can compare them. */
+  readonly columns?: string
+
+  /** Whether the search or a filter leaves this row out, which takes it out of the accessibility tree too. */
+  readonly hidden?: boolean
 }
+
+const DEFAULT_COLUMNS = DEFAULT_ORDER.join(',')
 
 /**
  * One row of the plan table: a feature, or one item flowing under one.
@@ -90,7 +100,23 @@ export interface PlanTableRowProps {
  * nothing, so there would be nothing for that link to land on. `./row-actions.tsx` carries why all three
  * are links into a drawer rather than controls of their own.
  */
-export function PlanTableRow({ row, progress, href, mayEdit, writes }: PlanTableRowProps) {
+export function PlanTableRow(props: PlanTableRowProps) {
+  const { row, progress, href, mayEdit, writes, columns = DEFAULT_COLUMNS, hidden = false } = props
+  const cells: Readonly<Record<string, ReactNode>> = {
+    epic: <td className={CELL} data-col="epic">{row.epic}</td>,
+    feature: <NameCell column="feature" mine={row.kind === 'feature'} name={row.feature} />,
+    item: <NameCell column="item" mine name={row.item} />,
+    group: <td className={CELL} data-col="group" data-slot="group">{row.group}</td>,
+    estimate: <td className={CELL} data-col="estimate">{row.estimate}</td>,
+    sprint: <td className={CELL} data-col="sprint">{row.sprint}</td>,
+    progress: <td className={CELL} data-col="progress" data-slot="progress">{progress === null ? null : progressWords(progress)}</td>,
+    blocked: <BlockedCell edges={row.blockedBy} />,
+    actions: mayEdit ? (
+      <td className={CELL} data-col="actions">
+        <RowActions href={href} mayAdd={writes.add && row.kind === 'feature'} mayRemove={writes.remove} />
+      </td>
+    ) : null,
+  }
   return (
     <tr
       className={row.kind === 'feature' ? TABLE.block : TABLE.row}
@@ -102,31 +128,16 @@ export function PlanTableRow({ row, progress, href, mayEdit, writes }: PlanTable
       data-slot="plan-table-row"
       data-testid={`row-${row.id}`}
       data-treatment={row.treatment}
+      hidden={hidden}
       {...sortAttributes(row)}
     >
-      <td className={CELL} data-col="epic">
-        {row.epic}
-      </td>
-      <NameCell column="feature" mine={row.kind === 'feature'} name={row.feature} />
-      <NameCell column="item" mine name={row.item} />
-      <td className={CELL} data-col="group" data-slot="group">
-        {row.group}
-      </td>
-      <td className={CELL} data-col="estimate">
-        {row.estimate}
-      </td>
-      <td className={CELL} data-col="sprint">
-        {row.sprint}
-      </td>
-      <td className={CELL} data-col="progress" data-slot="progress">
-        {progress === null ? null : progressWords(progress)}
-      </td>
-      <BlockedCell edges={row.blockedBy} />
-      {mayEdit ? (
-        <td className={CELL} data-col="actions">
-          <RowActions href={href} mayAdd={writes.add && row.kind === 'feature'} mayRemove={writes.remove} />
-        </td>
-      ) : null}
+      {columns.split(',').map((key) => <Fragment key={key}>{cells[key] ?? null}</Fragment>)}
     </tr>
   )
 }
+
+/**
+ * {@link PlanTableRow}, memoised: typing in the search re-renders only the rows whose `hidden` changed, and
+ * an edit only the rows whose words did — every other prop is the same object from one render to the next.
+ */
+export const QuietTableRow = memo(PlanTableRow)
