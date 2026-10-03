@@ -49,7 +49,7 @@ export type { PlanScreenProps } from './plan-screen-props'
  */
 export function PlanScreen(props: PlanScreenProps) {
   const { plan, at, actions, gestures, controls, drawer, groups, progress, view, onView } = props
-  const { manage, newRailHref, root, routes, tray, zoom, zoomControl, zoomTo } = props
+  const { manage, newRailHref, root, routes, tray, zoom, zoomControl, zoomTo, real } = props
   const axis = useMemo(() => planAxis(plan, at, zoom), [plan, at, zoom])
   const board = useMemo(() => boardWritesFor(actions, gestures, controls.content), [actions, gestures, controls.content])
   const writes = useMemo(() => writesFor(controls.content), [controls.content])
@@ -68,7 +68,7 @@ export function PlanScreen(props: PlanScreenProps) {
     <>
       <style>{POINTER_CSS}</style>
       <PlanPointer axisX={axisX(axis.scale, axis.range)} pxPerDay={axis.scale.pxPerDay} rung={zoom} zoomTo={zoomTo}>
-        <PlanShell drawer={drawer} head={head}>
+        <PlanShell drawer={drawer} head={head} real={real}>
           <PlanViews
             {...board}
             at={at}

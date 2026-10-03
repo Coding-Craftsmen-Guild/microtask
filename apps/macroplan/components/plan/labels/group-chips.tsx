@@ -6,6 +6,7 @@ import { ALL_RADIO_ID, GROUP_RADIO_NAME, groupCss, groupRadioId } from './group-
 import { CHIP } from './chip-css'
 import type { GroupFit } from './group-fit'
 import type { LabelRow } from './label-rows'
+import { ChoiceRadio } from '../shell/choice-radio'
 
 /** Props for {@link GroupChips}. */
 export interface GroupChipsProps {
@@ -133,19 +134,13 @@ export function GroupChips({ rows, planId, mayAdd, allFit }: GroupChipsProps) {
   const chips = (
     <div className={CHIP.row} data-slot="group-chips">
       <style>{groupCss(rows)}</style>
-      <input className="peer sr-only" defaultChecked id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} type="radio" value="" />
+      <ChoiceRadio className="peer sr-only" id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} of="group" value={null} />
       <label className={CHIP.all} htmlFor={ALL_RADIO_ID} {...fitAttributes(allFit)}>
         {GROUP_WORDS.all}
       </label>
       {rows.map((row) => (
         <span className="contents" key={row.id}>
-          <input
-            className="peer sr-only"
-            id={groupRadioId(row.id)}
-            name={GROUP_RADIO_NAME}
-            type="radio"
-            value={row.id}
-          />
+          <ChoiceRadio className="peer sr-only" id={groupRadioId(row.id)} name={GROUP_RADIO_NAME} of="group" value={row.id} />
           <label
             aria-label={countTitle(row)}
             className={CHIP.group}

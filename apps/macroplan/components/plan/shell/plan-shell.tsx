@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from 'react'
-import { chosenBy, NOTHING_CHOSEN } from './selection'
+import { useMemo, useState, type ReactNode } from 'react'
+import { ChosenProvider, chosenBy, NOTHING_CHOSEN } from './selection'
 import { PLAN_ROOT_SLOT, SHELL } from './shell-css'
+
+const asItIs = (id: string): string => id
 
 /** Props for {@link PlanShell}. */
 export interface PlanShellProps {
@@ -19,6 +21,12 @@ export interface PlanShellProps {
    * the plan was the wrong shape for a page whose point is that a plan is read while it is changed.
    */
   readonly drawer: ReactNode
+
+  /**
+   * The store's `real`, which the chosen group and rail are read through: one chosen while it was still
+   * being created is named by its create's answer. The id as it is where no store is above.
+   */
+  readonly real?: ((id: string) => string) | undefined
 }
 
 /**
@@ -45,23 +53,31 @@ export interface PlanShellProps {
  * where the chosen group and the chosen rail are stated: `data-sel-group` and `data-sel-rail`, heard off
  * whichever radio changed (`./selection.ts`). The two sheets ask these attributes rather than asking the
  * radios with `:has()`, which made every hover at the product's cap restyle the whole screen (ADR 0069).
+ *
+ * It hands the same choice down to the radios (`useChosen`), so one drawn anew — the board's, back from the
+ * table; a chip's, back under its group's real id — is checked when it names what is chosen.
  */
-export function PlanShell({ head, children, drawer }: PlanShellProps) {
+export function PlanShell({ head, children, drawer, real = asItIs }: PlanShellProps) {
   const [chosen, choose] = useState(NOTHING_CHOSEN)
+  const group = chosen.group === null ? null : real(chosen.group)
+  const rail = chosen.rail === null ? null : real(chosen.rail)
+  const said = useMemo(() => ({ group, rail }), [group, rail])
   return (
     <div
       className={SHELL.root}
-      data-sel-group={chosen.group ?? undefined}
-      data-sel-rail={chosen.rail ?? undefined}
+      data-sel-group={group ?? undefined}
+      data-sel-rail={rail ?? undefined}
       data-slot={PLAN_ROOT_SLOT}
       onChange={(event) => choose((was) => chosenBy(was, event.target))}
     >
-      <div className={SHELL.head}>{head}</div>
-      <div className={SHELL.body}>
-        <div className={SHELL.main} data-slot="plan-main">
-          {children}
+      <ChosenProvider value={said}>
+        <div className={SHELL.head}>{head}</div>
+        <div className={SHELL.body}>
+          <div className={SHELL.main} data-slot="plan-main">
+            {children}
+          </div>
         </div>
-      </div>
+      </ChosenProvider>
       {drawer}
     </div>
   )

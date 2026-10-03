@@ -5,6 +5,7 @@ import { LAYOUT } from '../canvas/view'
 import { railRadioId } from './rail-select-css'
 import { RAIL_ROW, RAIL_WIDTH } from './board-css'
 import type { BoardRail } from './board-rows'
+import { ChoiceRadio } from '../shell/choice-radio'
 
 const UNCLAIMED = 'Unclaimed rail'
 
@@ -80,7 +81,7 @@ export function RailColumn({ root, routes, rails, mayReorder }: RailColumnProps)
           <span aria-hidden="true" className={RAIL_ROW.grip} title={mayReorder ? REORDER : undefined}>
             {GRIP}
           </span>
-          <input className="sr-only" id={railRadioId(rail.id)} name="plan-selection" type="radio" value={rail.id} />
+          <ChoiceRadio className="sr-only" id={railRadioId(rail.id)} name="plan-selection" of="rail" value={rail.id} />
           <label
             className={RAIL_ROW.swatch}
             htmlFor={railRadioId(rail.id)}

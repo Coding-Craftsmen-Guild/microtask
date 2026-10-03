@@ -71,4 +71,10 @@ export interface PlanScreenProps {
 
   /** Choose the other rendering. */
   readonly onView: (view: PlanView) => void
+
+  /**
+   * The store's `real`, which the shell reads the chosen group and rail through: one chosen while it was still
+   * being created is named by its create's answer (`./shell/plan-shell.tsx`). Left out, ids are read as they are.
+   */
+  readonly real?: (id: string) => string
 }

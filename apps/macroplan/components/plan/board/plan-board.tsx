@@ -13,6 +13,7 @@ import { NOTHING_SELECTED_ID, SELECT_RADIO_NAME, railSelectCss } from './rail-se
 import { RailColumn } from './rail-column'
 import { TimeHeader } from './time-header'
 import { canvasWidth } from '../canvas/view'
+import { ChoiceRadio } from '../shell/choice-radio'
 
 /** Props for {@link PlanBoard}. */
 export interface PlanBoardProps extends Omit<BoardWrites, 'adds' | 'offers'> {
@@ -68,14 +69,7 @@ export function PlanBoard(props: PlanBoardProps) {
     <div className={BOARD.scroller} data-slot="plan-board">
       <style>{FILTER_CSS}</style>
       <style>{railSelectCss(rails)}</style>
-      <input
-        className="sr-only"
-        defaultChecked
-        id={NOTHING_SELECTED_ID}
-        name={SELECT_RADIO_NAME}
-        type="radio"
-        value=""
-      />
+      <ChoiceRadio className="sr-only" id={NOTHING_SELECTED_ID} name={SELECT_RADIO_NAME} of="rail" value={null} />
       <div className={BOARD.box}>
         <div className={BOARD.headerRow} data-slot="board-head">
           <div className={BOARD.corner} style={{ width: RAIL_WIDTH }}>

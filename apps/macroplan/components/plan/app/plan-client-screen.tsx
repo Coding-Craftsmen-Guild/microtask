@@ -73,6 +73,7 @@ export function PlanClientScreen({ at, zoom: opening, own, seats, children }: Pl
         onView={setView}
         plan={plan}
         progress={session.bridge?.items ?? NO_PROGRESS}
+        real={session.store.real}
         root={session.root}
         routes={session.routes}
         tray={tray}

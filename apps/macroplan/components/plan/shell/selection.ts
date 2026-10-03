@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react'
 import { SELECT_RADIO_NAME } from '../board/rail-select-css'
 import { GROUP_RADIO_NAME } from '../labels/group-css'
 
@@ -29,3 +30,20 @@ export function chosenBy(was: Chosen, target: EventTarget | null): Chosen {
   if (target.name === SELECT_RADIO_NAME) return value === was.rail ? was : { ...was, rail: value }
   return was
 }
+
+const ChosenContext = createContext<Chosen>(NOTHING_CHOSEN)
+
+/** Hands what the shell says is chosen to the radios that choose it (`./plan-shell.tsx`). */
+export const ChosenProvider = ChosenContext.Provider
+
+/**
+ * What the shell says is chosen, which a radio checks itself by when it is drawn.
+ *
+ * The radios are uncontrolled — a click checks one with no render — but the board is not drawn while the
+ * table is, so its radios come back new from a trip to the table, and a chip comes back new under its real
+ * id once its group's create has been answered. A radio drawn anew is checked when it names what the shell
+ * says is chosen, so the dimming on screen and the radio a screen reader announces never disagree.
+ *
+ * @returns The chosen group and rail, each `null` for none.
+ */
+export const useChosen = (): Chosen => useContext(ChosenContext)

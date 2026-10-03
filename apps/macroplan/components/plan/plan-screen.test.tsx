@@ -424,6 +424,54 @@ describe('the choice of a rail and of a group, said on the shell', () => {
     expect([shell().getAttribute('data-sel-group'), shell().getAttribute('data-sel-rail')]).toEqual([LABEL_1, EPIC_1])
   })
 
+  // The board is not drawn while the table is (`./plan-views.tsx`), so its radios come back new; the shell
+  // still says which rail is chosen, and the radio that says it to a screen reader has to agree.
+  it('checks the chosen rail’s radio again when the board comes back from the table', () => {
+    show()
+    fireEvent.click(radioNamed(railRadioId(EPIC_1)))
+    fireEvent.click(radio('Table'))
+    fireEvent.click(radio('Timeline'))
+    expect(radioNamed(railRadioId(EPIC_1)).checked).toBe(true)
+    expect(radioNamed(NOTHING_SELECTED_ID).checked).toBe(false)
+    expect(shell().getAttribute('data-sel-rail')).toBe(EPIC_1)
+  })
+
+  // A group chosen a moment after it was made is chosen under its placeholder; once its create is answered
+  // the plan names it by its real id, which the store's `real` reads the placeholder as.
+  it('keeps a group chosen before its create was answered chosen under the id it was answered with', () => {
+    const stored = planScreenModel(atlasPlan())
+    const pending = { ...stored, labels: stored.labels.map((one) => (one.id === LABEL_1 ? { ...one, id: 'pending:9' } : one)) }
+    const named = new Map<string, string>()
+    const real = (id: string): string => named.get(id) ?? id
+    const drawn = (plan: PlanScreenModel) => (
+      <Switching
+        actions={null}
+        at={AT}
+        controls={ADMIN_CONTROLS}
+        drawer={null}
+        gestures={null}
+        groups={<GroupChips allFit={allWorkFit(plan)} mayAdd={false} planId={PLAN_A} rows={labelRows(plan)} />}
+        manage={null}
+        newRailHref={null}
+        plan={plan}
+        progress={[]}
+        real={real}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
+        tray={null}
+        zoom="feature"
+        zoomControl={null}
+        zoomTo={null}
+      />
+    )
+    const { rerender } = render(drawn(pending))
+    fireEvent.click(radioNamed(groupRadioId('pending:9')))
+    named.set('pending:9', LABEL_1)
+    rerender(drawn(stored))
+    expect(shell().getAttribute('data-sel-group')).toBe(LABEL_1)
+    expect(radioNamed(groupRadioId(LABEL_1)).checked).toBe(true)
+  })
+
   it('asks no element on the screen whether it :has() anything, in any sheet it ships', async () => {
     const { container } = show({ groups: chips() })
     await tableIn(container)
