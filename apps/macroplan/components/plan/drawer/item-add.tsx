@@ -1,5 +1,6 @@
 'use client'
 
+import { ADD_ANCHOR } from '../table/row-actions'
 import type { NewItem } from '@repo/api-client'
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import { LIMITS } from '@repo/contracts'
@@ -71,6 +72,7 @@ export function ItemAdd({ planId, featureId, createItem }: ItemAddProps) {
         <input
           aria-label={ITEM_ADD_WORDS.label}
           className={ITEMS.addBox}
+          id={ADD_ANCHOR}
           maxLength={LIMITS.nameLength}
           placeholder={ITEM_ADD_WORDS.hint}
           ref={box}

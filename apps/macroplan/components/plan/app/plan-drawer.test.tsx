@@ -12,6 +12,7 @@ import { PlanNavProvider, SHALLOW, type PlanNav } from '../nav/plan-nav'
 import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 import type { BindProjectWrite } from '../bridge/bind-project-form'
 import { ITEM_ADD_WORDS } from '../drawer/item-add'
+import { ADD_ANCHOR, DELETE_ANCHOR } from '../table/row-actions'
 import { LINK_WORDS } from '../drawer/link-field'
 import { seatDoubles } from '../share/testing/seat-doubles'
 import {
@@ -637,5 +638,19 @@ describe('a rail bound to a project before its create was answered', () => {
     })
     await settled()
     expect(bindProject).toHaveBeenCalledWith(PLAN_A, 'REAL_RAIL', { projectId: 'prj_1', role: 'view' })
+  })
+})
+
+// The table's row actions link to a feature's drawer at the control that does the thing
+// (`../table/row-actions.tsx`): Add item at the field that adds one, Delete at the delete.
+describe('the controls the table’s row actions land on', () => {
+  it('gives the field that adds an item the id the Add item link names', () => {
+    open(featurePath(PLAN_A, FEATURE_1))
+    expect(document.getElementById(ADD_ANCHOR)).toBe(screen.getByRole('textbox', { name: ITEM_ADD_WORDS.label }))
+  })
+
+  it('gives the delete the id the Delete link names', () => {
+    open(featurePath(PLAN_A, FEATURE_1))
+    expect(document.getElementById(DELETE_ANCHOR)?.contains(screen.getByTitle('Delete feature'))).toBe(true)
   })
 })
