@@ -26,3 +26,7 @@ export { railsOf, itemsByFeature } from './derived-order.js'
 export { breakdown, effectiveEstimate } from './estimate.js'
 
 export { schedule } from './forward-pass.js'
+
+export type { FlatSchedule, FlatSpan } from './flat.js'
+
+export { flatSchedule } from './flat.js'

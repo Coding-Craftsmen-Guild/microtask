@@ -1,5 +1,5 @@
 import { can, type Principal } from '@repo/kernel'
-import { schedule, type Cycle, type IgnoredEdge, type Span, type Unscheduled } from '@repo/schedule'
+import { flatSchedule, type Cycle, type IgnoredEdge, type Span, type Unscheduled } from '@repo/schedule'
 import type { PlanItem } from '../entities/item.js'
 import type { PlanManifest, PlanShareLink } from '../entities/plan.js'
 import {
@@ -75,23 +75,15 @@ export interface ItemView extends PlanItem {
   readonly description: string
 }
 
-const compare = (left: string, right: string): number => {
-  if (left === right) return 0
-  return left < right ? -1 : 1
-}
-
-const bySpan = (left: PlanSpan, right: PlanSpan): number =>
-  left.startDay - right.startDay || compare(left.id, right.id)
-
-const byId = (left: Unscheduled, right: Unscheduled): number => compare(left.id, right.id)
-
-const spansOf = (days: ReadonlyMap<string, Span>): readonly PlanSpan[] =>
-  [...days]
-    .map(([id, span]) => ({ id, startDay: span.startDay, endDay: span.endDay }))
-    .sort(bySpan)
-
 /**
  * The schedule of one plan, flattened and ordered so two callers reading it agree byte for byte.
+ *
+ * **The flattening is `flatSchedule` in `@repo/schedule`, and this delegates to it.** It used to be
+ * written out here, and it moved when the plan screen started recomputing the schedule in the browser
+ * for an optimistic edit (ADR 0069): a second copy there would have been a second ordering, and the
+ * browser's plan would be replaced by this one a round trip later, flickering by however far the two
+ * had drifted. The reasoning below is the reasoning for that function's order, kept here because this
+ * is the function the API answers with.
  *
  * Sorting is what makes this view deterministic, and that is load-bearing rather than tidy: `days`
  * is a `Map`, so its iteration order is the order the forward pass happened to place things in, and
@@ -117,13 +109,7 @@ const spansOf = (days: ReadonlyMap<string, Span>): readonly PlanSpan[] =>
  * that mistake one import away.
  */
 export function planSchedule(manifest: PlanManifest): PlanScheduleView {
-  const result = schedule(manifest)
-  return {
-    spans: spansOf(result.days),
-    cycles: result.cycles,
-    unscheduled: [...result.unscheduled].sort(byId),
-    ignoredEdges: result.ignoredEdges,
-  }
+  return flatSchedule(manifest)
 }
 
 /**
