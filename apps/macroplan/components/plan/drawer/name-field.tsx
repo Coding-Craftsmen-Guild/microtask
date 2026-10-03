@@ -55,9 +55,9 @@ export interface NameFieldProps {
  * after a newer edit would otherwise paint the field one edit back.
  * The input is uncontrolled and every write to it goes through {@link paintUnfocused}, so neither a
  * re-render nor the late answer to a commit the user has already moved past can overwrite what is being
- * typed. The effect below repaints on a **prop** change for a reason a drawer makes real: moving from
- * `/f/<a>` to `/f/<b>` is a soft navigation that re-renders this same component instance with another
- * subject's name, and `defaultValue` is read once.
+ * typed. The effect below repaints on a **prop** change, which the store makes ordinary: the name it hands
+ * this field changes when an edit is applied, when its answer is confirmed, and when a plan the server
+ * re-rendered is adopted — all on this same instance, whose `defaultValue` is read once.
  *
  * The refusal is an inline `role="alert"` line. This repo has no `react-hook-form`, no Zod resolver,
  * no `Form`/`FormField` in `@repo/ui` and no `toast()` call anywhere — `packages/ui` does vendor a

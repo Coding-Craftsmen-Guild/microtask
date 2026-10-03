@@ -11,13 +11,10 @@ export interface LinkLayoutProps {
   /**
    * Whatever is open beside the plan: one feature, one item, or the sentence saying nothing is.
    *
-   * It is the **drawer slot** rather than the page, which is the change this layout carries. The plan and
-   * its five managers are drawn here, through {@link seatPlanScreen}, and the route below fills the panel
-   * beside them — so opening a feature is one soft navigation that re-renders the drawer and leaves the
-   * canvas and the table exactly as they are, a layout not re-rendering when navigation moves between its
-   * children (ADR 0057). `(admin)/plans/[planId]/layout.tsx` has had that shape from the start; this
-   * surface had no drawer until its writes were mounted, so its `page.tsx` rendered the whole screen and
-   * there was nowhere a drawer segment could sit without rebuilding 2,200 table rows to open one panel.
+   * It is the **drawer slot** rather than the page. The plan is handed to the browser here, through
+   * {@link seatPlanScreen}, and the browser draws the drawer the address names beside it — so opening a
+   * feature is a `history.pushState` and no request at all (ADR 0069). The routes below still exist, so an
+   * address can be linked to and reloaded; they render nothing, and this passes them through untouched.
    */
   readonly children: ReactNode
 }
@@ -37,11 +34,10 @@ export interface LinkLayoutProps {
  * `linkPath` is `lib/routes.ts`'s, the same function the redirects use, so the brand link and the
  * route it points at cannot drift; it encodes the segment, for the reason that file gives.
  *
- * **The plan is drawn here and not in `page.tsx`**, so that a drawer segment has somewhere to sit. What
- * that costs is that this layout makes the surface's two reads — both `cache()`d on their arguments, so a
- * drawer page beneath it finding one feature shares this read rather than making a second. `seat-plan.tsx`
- * is the whole of that render, kept out of this file because a frame and a plan are two subjects and this
- * one is about the frame.
+ * **The plan is read here and not in `page.tsx`**, so that every drawer address under this layout opens
+ * over the one plan it read: a layout does not re-render when navigation moves between its children.
+ * `seat-plan.tsx` is the whole of that render, kept out of this file because a frame and a plan are two
+ * subjects and this one is about the frame.
  */
 export default async function LinkLayout({ params, children }: LinkLayoutProps) {
   const { token } = await params

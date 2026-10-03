@@ -38,6 +38,13 @@ export interface PlanSession {
   readonly surface: PlanSurface
 
   /** The plan's own path, `/plans/<id>` or `/s/<token>`, which every drawer address hangs off. */
+  readonly home: string
+
+  /**
+   * The plan id or the seat token, whichever roots this surface's URLs: what `routes` builds each address
+   * from, as every board, table and tray link is built (`../../../lib/drawer-routes.ts`). Never a path — a
+   * builder handed one encodes it into the address.
+   */
   readonly root: string
 
   readonly routes: DrawerRoutes

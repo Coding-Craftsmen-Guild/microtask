@@ -20,8 +20,8 @@ import { SubjectDrawer } from './subject-drawer'
  * A seat has feature and item drawers only, as it had routes for those only.
  */
 export function PlanDrawer() {
-  const { root, surface } = usePlanSession()
-  const selection = selectionOf(root, usePathname(), useSearchParams())
+  const { home, surface } = usePlanSession()
+  const selection = selectionOf(home, usePathname(), useSearchParams())
   if (selection === null) return null
   if (selection.kind === 'feature' || selection.kind === 'item') {
     const key = `${selection.kind}:${selection.id}`

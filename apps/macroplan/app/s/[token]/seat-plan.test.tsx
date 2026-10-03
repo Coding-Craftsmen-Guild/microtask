@@ -62,8 +62,8 @@ vi.mock('next/navigation', () => ({
   // The pointer root calls `useRouter`, which throws outside an App Router tree. It is handed no zoom on
   // this surface and so writes nothing here; what it does with a router is asserted where it lives
   // (`components/plan/canvas/plan-pointer.test.tsx`).
-  useSearchParams: () => new URLSearchParams(),
-  useRouter: () => ({ push: () => undefined }),
+  usePathname: () => window.location.pathname,
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }))
 
 // The two seat-action modules by export name, so the recorders below stand in for every one of them. A
@@ -331,7 +331,7 @@ describe('a plan seat lands on the one plan its token opens', () => {
   it('draws the table beside it, so the plan is readable without the picture', async () => {
     seated(SEAT_TOKEN)
     await show()
-    expect(screen.getByRole('table')).toBeTruthy()
+    expect(await screen.findByRole('table')).toBeTruthy()
     expect(screen.getByRole('radio', { name: 'Table' })).toBeTruthy()
   })
 
@@ -380,7 +380,7 @@ describe('a plan seat lands on the one plan its token opens', () => {
     expect(bar?.closest('[data-slot="feature-link"]')?.getAttribute('href')).toBe(
       `/s/${SEAT_TOKEN}/f/${FEATURE_1}`,
     )
-    expect(screen.getAllByRole('rowheader', { name: 'Auth rewrite' }).length).toBeGreaterThan(0)
+    expect((await screen.findAllByRole('rowheader', { name: 'Auth rewrite' })).length).toBeGreaterThan(0)
   })
 
   // Zoom is a cookie on the admin surface — `readZoom` reads one and the control's form writes one,
@@ -602,6 +602,19 @@ describe('no seat is handed another seat’s token, however senior it is', () =>
     expect([...new Set(tokens)]).toEqual([MANAGE_SEAT_TOKEN])
   })
 
+  // The content writes are recorders above, so their bound token is read off the call. The plan's own
+  // writes, the seat writes and the item read are the real actions, and the token they were bound with is
+  // what they present to the API — so every request calling them made is the place to read it.
+  it('presents its own token on every request the actions it hands over make, the real ones included', async () => {
+    seated(MANAGE_SEAT_TOKEN)
+    const element = await screenFor(MANAGE_SEAT_TOKEN)
+    const before = api.received.length
+    await boundTokensOf(element)
+    const made = api.received.slice(before)
+    expect(made.length).toBeGreaterThan(0)
+    expect(new Set(made.map((one) => one.bearer))).toEqual(new Set([MANAGE_SEAT_TOKEN]))
+  })
+
   // The half a set comparison would hide. Every *other* token the fake API serves must be absent from what
   // any handed action carries, and a sweep that only checked the visitor own token was present would pass
   // for an action bound with both.
@@ -679,7 +692,10 @@ describe('which controls the seat’s own role draws', () => {
   // `null` because it holds one plan and has no index above it. The crumb is the brand bar's now, and
   // this surface's bar (`components/link/link-frame.tsx`) draws none — so the absence is still stated,
   // one layer out, by there being no slot to fill.
-  it('hands the screen thirteen props, the four panel slots it used to take being gone', async () => {
+  // The same twelve the admin's layout hands over, so one client root draws both surfaces: what differs is
+  // the values — the writes bound to this token, the controls its role answers, and no bind-by-project,
+  // which no seat may make (ADR 0069).
+  it('hands the browser the twelve props the admin page hands it, and no bind-by-project', async () => {
     seated(WRITE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
     expect(isValidElement(element)).toBe(true)
@@ -687,64 +703,40 @@ describe('which controls the seat’s own role draws', () => {
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
+      'bindProject',
+      'bridge',
+      'children',
       'controls',
-      'drawer',
-      'groups',
-      'manage',
-      'newRailHref',
+      'own',
       'plan',
-      'progress',
-      'root',
-      'routes',
-      'tray',
+      'readItem',
+      'seats',
+      'surface',
       'zoom',
-      'zoomControl',
-      'zoomTo',
     ])
+    expect(handed['bindProject']).toBeNull()
   })
 
-  // Four of them are `null`, and each `null` is this page saying something about itself rather than a
-  // slot nobody got round to filling.
-  //
-  // `drawer` because the *screen* is called with none here — `layout.tsx` is what passes its children in.
-  // `home` because there is no plan index a seat may reach, so the head climbs to nothing rather than
-  // offering a crumb into a surface that answers with a password form. `manage` because the buttons it draws
-  // are links
-  // to `/plans/<id>/new/group`, `/settings` and `/share`, none of which exists under `/s/<token>` — this
-  // seat's own editors are in the sidebar, which is the case below. And `zoomControl` because choosing a
-  // zoom means writing the `mp_zoom` cookie and revalidating `/plans`, both of which this surface is
-  // forbidden (ADR 0040); the rung it opens at is the plan's own fit instead. `zoomTo` is the same fact
-  // said to the pointer root rather than to the control: with no action to call, a wheel over this board
-  // is left entirely to the browser rather than swallowed by a gesture that could write nothing. And
-  // `newRailHref` because `/plans/<id>/new/rail` is an admin path: a manage seat *may* create a rail, so
-  // the capability alone would have put a link to a login they have no password for in the table's own
-  // toolbar — which is the mistake `DrawerRoutes` exists to stop a component making (ADR 0032).
-  it('states five slots empty: no drawer, no whole-plan actions, no zoom and nowhere to add a rail', async () => {
+  // What the four empty slots used to say, said by the screen the browser draws from what this seat may do.
+  it('draws no whole-plan menus, no zoom control and nowhere to add a rail for a write seat', async () => {
     seated(WRITE_SEAT_TOKEN)
-    const element: ReactNode = await screenFor(WRITE_SEAT_TOKEN)
-    const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    for (const empty of ['drawer', 'manage', 'newRailHref', 'zoomControl', 'zoomTo']) {
-      expect(handed[empty], empty).toBeNull()
-    }
-    // And three that are filled, every one of them new to this surface: the tree that used to be a null
-    // column, the chips that used to be the heading's, and the tray that replaced the conflict panel.
-    for (const filled of ['groups', 'sidebar', 'tray']) {
-      expect(handed[filled], filled).not.toBeNull()
-    }
+    await show(WRITE_SEAT_TOKEN)
+    await screen.findByRole('table')
+    expect(slot('seat-manage')).toBeNull()
+    expect(slot('zoom-switch')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'New rail' })).toBeNull()
+    expect(slot('group-chips')).not.toBeNull()
   })
 
-  // Every URL this screen builds is rooted at the token and not at the plan id, which is the whole of what
-  // `root` and `routes` are for: one surface hands its own root plus its own builders, and the components
-  // that draw a link — the tree, the tray, the names column — need no opinion about which kind of string
-  // they hold. Handing `PLAN_A` here would give a holder a page of links into a surface their token does
-  // not open.
   it('roots every link the screen builds at this URL’s token, never at the plan id it resolved to', async () => {
     seated(MANAGE_SEAT_TOKEN)
     const element: ReactNode = await screenFor(MANAGE_SEAT_TOKEN)
     const handed = isValidElement<Record<string, unknown>>(element) ? element.props : {}
-    expect(handed['root']).toBe(MANAGE_SEAT_TOKEN)
-    expect(handed['root']).not.toBe(PLAN_A)
-    expect(handed['routes']).toBe(SEAT_DRAWER_ROUTES)
+    expect(handed['surface']).toEqual({ kind: 'seat', token: MANAGE_SEAT_TOKEN })
+    const { container } = render(element)
+    const bar = container.querySelector(`[data-slot="feature-bar"][data-feature-id="${FEATURE_1}"]`)
+    expect(bar?.closest('a')?.getAttribute('href')).toBe(`/s/${MANAGE_SEAT_TOKEN}/f/${FEATURE_1}`)
+    expect(bar?.closest('a')?.getAttribute('href')).not.toContain(PLAN_A)
   })
 
   it('hands the screen the capabilities themselves and never the role or the scope it asked with', async () => {

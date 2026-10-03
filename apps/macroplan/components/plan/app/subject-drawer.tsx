@@ -60,13 +60,13 @@ export function SubjectDrawer({ kind, id, open }: SubjectDrawerProps) {
     <DrawerPanel
       actions={session.writes}
       attention={<AttentionCallout on={attentionOf(held.plan).get(held.subject.row.id)} />}
-      closeHref={session.root}
+      closeHref={session.home}
       controls={content}
       description={extras?.description ?? null}
       link={link}
       planId={plan.id}
       row={held.subject.row}
-      tabs={tabViews(held.plan, tabStack(open ?? undefined, active), active, session.root)}
+      tabs={tabViews(held.plan, tabStack(open ?? undefined, active), active, session.home)}
       values={held.subject.values}
     />
   )

@@ -23,8 +23,8 @@ import Link from 'next/link'
  * A directory with no `layout.tsx` and no `page.tsx` still carries a boundary: the same function
  * builds the segment's `LayoutRouter`, `notFound` element and all, before it checks whether the
  * segment has a component of its own. So this frames the sentence in the admin surface's own bar and
- * page column, one level up, with no plan around it — and `[planId]/not-found.tsx` is the drawer's,
- * which keeps the plan on screen because it renders inside the layout.
+ * page column, one level up, with no plan around it. A drawer whose address names something the plan no
+ * longer holds says so in the browser, beside the plan (`components/plan/app/drawer-gone.tsx`, ADR 0069).
  */
 export default function PlanNotFound() {
   return (

@@ -20,14 +20,14 @@ export interface RailDrawerProps {
  * made; binding is about another product, and its answer arrives with the bridge re-read on the server.
  */
 export function RailDrawer({ epicId }: RailDrawerProps) {
-  const { writes, controls, root, bridge, bindProject } = usePlanSession()
+  const { writes, controls, home, bridge, bindProject } = usePlanSession()
   const { plan } = usePlanSnapshot()
   const rail = railRows(plan).find((row) => row.id === epicId)
   if (rail === undefined) return <DrawerGone />
   const binding = bindingRows(plan, bridge).find((row) => row.epicId === epicId)
   const { content } = controls
   return (
-    <DrawerShell closeHref={root} title={rail.name}>
+    <DrawerShell closeHref={home} title={rail.name}>
       <RailForm
         colour={rail.colour}
         epicId={rail.id}

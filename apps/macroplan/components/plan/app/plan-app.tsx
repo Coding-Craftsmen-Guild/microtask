@@ -38,8 +38,10 @@ export interface PlanAppProps {
   readonly children?: ReactNode
 }
 
-const rootOf = (surface: PlanSurface): string =>
+const homeOf = (surface: PlanSurface): string =>
   surface.kind === 'admin' ? planPath(surface.planId) : linkPath(surface.token)
+
+const rootOf = (surface: PlanSurface): string => (surface.kind === 'admin' ? surface.planId : surface.token)
 
 /**
  * The plan screen's one client root: the plan crosses to the browser here, once, and everything after is
@@ -64,6 +66,7 @@ export function PlanApp(props: PlanAppProps) {
       gestures: planGestures(plan.id, gestureWritesFor(actions, controls.content), store.run),
       controls,
       surface,
+      home: homeOf(surface),
       root: rootOf(surface),
       routes: surface.kind === 'admin' ? ADMIN_DRAWER_ROUTES : SEAT_DRAWER_ROUTES,
       bridge,

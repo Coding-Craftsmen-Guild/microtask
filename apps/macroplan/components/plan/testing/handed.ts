@@ -40,12 +40,12 @@ const sweep = (value: unknown, found: Found, seen: WeakSet<object>): void => {
  * Everything a rendered tree hands down, walked reflectively: every string, every `key`, every
  * function.
  *
- * One walker in one place, because three surfaces run it — `[planId]/layout.tsx`, which is where the
- * plan read lives, and each of the two drawer pages, which read the very same plan the API answers an
- * admin with every live token on. Each of those files carried a byte-identical copy of it before this
- * existed, and a sweep of the leak three copies guard is the last thing that should be able to drift
- * in one of them: a copy that stopped reading `key`, or stopped recording functions, would keep
- * passing.
+ * One walker in one place. Three surfaces ran it once — `[planId]/layout.tsx`, which is where the plan
+ * read lives, and each of the two drawer pages, which read the very same plan the API answers an admin
+ * with every live token on — and each carried a byte-identical copy of it before this existed. The
+ * drawers are drawn in the browser now (ADR 0069), so the layout is the one admin surface that hands the
+ * browser anything; a sweep of the leak is still the last thing that should be able to drift, which is
+ * why the walk stays here rather than going back into the one file that calls it.
  *
  * Two things it can and cannot see, which is the whole reason it returns two lists:
  *
@@ -56,12 +56,11 @@ const sweep = (value: unknown, found: Found, seen: WeakSet<object>): void => {
  *    `action.bind(null, token)` exposes neither the token nor its own name, so no walk can see inside
  *    one — and that is exactly the mechanism ADR 0040 describes for handing a token to a component.
  *    What *is* checkable is which functions a surface hands over, by name, so every function met is
- *    recorded. All three callers now assert an **exact** list rather than an empty one: the two drawer
- *    pages hand over every plan write — a field needs one — and require the names to be exactly
- *    `Object.keys(ADMIN_PLAN_ACTIONS)`, and `layout.tsx` hands over those plus the share
- *    manager's four and requires that set. (It did hand over none, and that sentence stood here until
- *    the canvas's drag and the share manager gave it something to pass; an empty list was never the
- *    guarantee, only the state.) Each of the three also requires that no name begins with `bound `,
+ *    recorded. The caller asserts an **exact** list rather than an empty one: `layout.tsx` hands the
+ *    browser every plan write, the plan's own three, the share manager's four, the item read and the
+ *    bind-by-project, and requires exactly that set. (It did hand over none, and that sentence stood
+ *    here until the canvas's drag and the share manager gave it something to pass; an empty list was
+ *    never the guarantee, only the state.) It also requires that no name begins with `bound `,
  *    which is what `Function.prototype.bind` names its result, and none is `''`, which is what an
  *    inline closure would be. So a module action imported by name passes and the first *bound* action
  *    still fails, which is the case this list was really for; whoever adds one owes a walk that reads

@@ -18,13 +18,13 @@ const ADD_GROUP = 'Add a group'
  * drawn from the store (ADR 0069).
  */
 export function GroupDrawer({ labelId }: { readonly labelId: string }) {
-  const { writes, controls, root } = usePlanSession()
+  const { writes, controls, home } = usePlanSession()
   const { plan } = usePlanSnapshot()
   const group = labelRows(plan).find((row) => row.id === labelId)
   if (group === undefined) return <DrawerGone />
   const { content } = controls
   return (
-    <DrawerShell closeHref={root} title={group.name}>
+    <DrawerShell closeHref={home} title={group.name}>
       <LabelForm
         colour={group.colour}
         labelId={group.id}
@@ -53,11 +53,11 @@ export function GroupDrawer({ labelId }: { readonly labelId: string }) {
  * @param props - How many rails the plan held when the address was written, which picks the hue.
  */
 export function NewRailDrawer({ count }: { readonly count: number }) {
-  const { writes, controls, root } = usePlanSession()
+  const { writes, controls, home } = usePlanSession()
   const { plan } = usePlanSnapshot()
   if (!controls.content.createEpic) return <DrawerGone />
   return (
-    <DrawerShell closeHref={root} title={ADD_RAIL}>
+    <DrawerShell closeHref={home} title={ADD_RAIL}>
       <NewRailForm colour={nextRailColour(count)} create={writes.createEpic} planId={plan.id} />
     </DrawerShell>
   )
@@ -65,11 +65,11 @@ export function NewRailDrawer({ count }: { readonly count: number }) {
 
 /** The add-a-group drawer — `new/group` as it was, drawn from the store. */
 export function NewGroupDrawer() {
-  const { writes, controls, root } = usePlanSession()
+  const { writes, controls, home } = usePlanSession()
   const { plan } = usePlanSnapshot()
   if (!controls.content.createLabel) return <DrawerGone />
   return (
-    <DrawerShell closeHref={root} title={ADD_GROUP}>
+    <DrawerShell closeHref={home} title={ADD_GROUP}>
       <NewLabelForm create={writes.createLabel} planId={plan.id} />
     </DrawerShell>
   )

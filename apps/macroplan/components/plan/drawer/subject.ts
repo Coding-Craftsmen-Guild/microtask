@@ -109,7 +109,7 @@ export interface DrawerSubject {
  *
  * ### Why both, and why this is not two sources of truth for one fact
  *
- * The seam the drawer pages already used is worded **for display**: `TableRow.estimate` is a sentence
+ * The seam the drawer takes its words from is worded **for display**: `TableRow.estimate` is a sentence
  * §3.2 fixes — `planned 40d · broken down to 5d · -35d` for a feature whose items disagree with it,
  * `no estimate` for one nobody has sized — and `rows.ts` is deliberately the only place those words
  * are chosen, so the table and the panel beside it cannot word one plan two ways. A field cannot be

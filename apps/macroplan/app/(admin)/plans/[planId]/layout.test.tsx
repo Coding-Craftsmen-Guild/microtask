@@ -13,7 +13,15 @@ import {
   trace,
   type FakePlanApiState,
 } from '../../../../components/plan/testing/fake-plan-api'
-import { ADMIN_PLAN_ACTIONS } from '../../../../components/plan/admin-actions'
+import { bindEpicProject } from '../../../../actions/bridge'
+import { readItemDrawer } from '../../../../actions/drawer-reads'
+import {
+  ADMIN_OWN_WRITES,
+  ADMIN_PLAN_ACTIONS,
+  ADMIN_SEAT_ACTIONS,
+} from '../../../../components/plan/admin-actions'
+import { planAxis, ZOOM_WORDS } from '../../../../components/plan/canvas/zoom-view'
+import { planScreenModel } from '../../../../components/plan/plan-screen-model'
 import { handedBy, tokensHandedBy } from '../../../../components/plan/testing/handed'
 import {
   ADMIN_TOKEN,
@@ -29,44 +37,24 @@ import {
   tangledPlan,
   WRITE_SEAT_TOKEN,
 } from '../../../../components/plan/testing/plan-fixture'
-import { zoomTo } from '../../../../actions/zoom'
-import { ADMIN_DRAWER_ROUTES, featurePath, railPath } from '../../../../lib/drawer-routes'
+import { ADMIN_CONTROLS } from '../../../../lib/admin-controls'
+import { featurePath, railPath } from '../../../../lib/drawer-routes'
 import { payloadOf } from '../../../../lib/principal'
 import { ACTION_REFUSALS } from '../../../../lib/refusal'
 import { ZOOM_COOKIE } from '../../../../lib/zoom'
 
-// Every function this layout hands over that is **not** a member of `PlanEditActions`, by the names
-// reflection can see — read off the record the layout actually hands over, so a rename cannot leave
-// this list standing and a fourth builder cannot be added without this set following it.
+// Every function this layout hands the browser that is **not** a member of `PlanEditActions`, by the names
+// reflection can see — so a rename cannot leave this list standing and a tenth cannot arrive unseen.
 //
-// It is the drawer-path builders and nothing else, and there are **three** of them now rather than
-// two: a rail has its own drawer since this revision, so `DrawerRoutes` carries `rail` beside
-// `feature` and `item`. They are the only members that are not actions at all, and they are handed
-// over as one record rather than imported by the components that draw links, which is what let the
-// tree and the tray be mounted on the seat surface too: a component that imported the admin pair drew
-// links a seat holder would follow into a login they have no password for (ADR 0032).
+// The plan's own three and the four seat writes are what the head row's two menus are handed; they are
+// not members of `PlanEditActions` and should not be, none of them writing anything *in* the plan. The
+// other two are new with ADR 0069: the read an item's drawer makes when it opens, which used to be the
+// item page's own server read, and the bind-by-project the rail drawer offers, which no seat may make.
 //
-// The seven that are here beside them are the plan's own. The four seat writes and the three plan-own
-// ones were handed from this layout, then from two drawer routes, and are handed from this layout again
-// — because settings and sharing are two menus in the head row and this is the component that builds
-// that row's slots. They are not members of `PlanEditActions` and should not be: none of them writes
-// anything *in* the plan. `admin-slots.test.tsx` is where the shape of each menu is asserted; what this
-// file still owes is the one thing only a whole-layout render can say, which is that nothing anywhere in
-// the tree is bound.
+// What is **not** here any more is as telling. The drawer-path builders were handed over as a record so
+// that a component could not reach for the admin's pair on the seat surface; the surface is a value now
+// (`surface`), and the browser picks the record from it. And the zoom is no Server Action at all.
 const OFF_INTERFACE = [
-  ...Object.values(ADMIN_DRAWER_ROUTES)
-    .filter((builder): builder is (root: string, id: string) => string => builder !== null)
-    .map((builder) => builder.name),
-  // The zoom, which is a Server Action and is deliberately not a member of `PlanEditActions`: it asks the
-  // API nothing, authorises nothing and names no plan, so putting it on the interface of a plan's writes
-  // would be claiming it is one. It reaches the pointer root as its own prop, named and unbound — which is
-  // exactly what the second assertion below is about, and why `actions/zoom.ts` takes a rung as an
-  // argument rather than offering three bound actions.
-  zoomTo.name,
-  // The plan's own three and the four seat writes, which the head row's two menus are handed. Written as
-  // names rather than reached through a record, because there is no interface they are members of: that
-  // is the point `PlanEditActions` makes by not holding them, and a list here is what makes an eighth
-  // arrival visible.
   'renamePlan',
   'retimePlan',
   'deletePlan',
@@ -74,6 +62,8 @@ const OFF_INTERFACE = [
   'createPlanSeat',
   'updatePlanSeat',
   'revokePlanSeat',
+  readItemDrawer.name,
+  bindEpicProject.name,
 ]
 
 const SECRET = 'a-cookie-secret-of-at-least-32-by'
@@ -112,17 +102,12 @@ vi.mock('next/headers', () => ({
     }),
   headers: () => Promise.resolve(new Headers()),
 }))
-// Nearly everything this layout builds closes in a `Link` — the breadcrumb, the three manage buttons
-// beside the plan's name, every rail and feature in the tree, the rail names beside the canvas, and
-// every tray row under it — and Next's own `Link` wants a router this render has none of. The shared
-// double forwards `className` and `href` and is what every other file in this app mocks with, so the
-// copies of one anchor cannot drift.
-vi.mock('next/link', async () => ({
-  default: (await import('../../../../components/plan/testing/next-link')).LinkDouble,
-}))
+// The drawer is read off the address in the browser (`components/plan/app/plan-drawer.tsx`), through the
+// two hooks Next keeps in step with `history.pushState`; here they read `window.location`, so a test that
+// reloads into a drawer sets the address first.
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => new URLSearchParams(),
-  useRouter: () => ({ push: () => undefined }),
+  usePathname: () => window.location.pathname,
+  useSearchParams: () => new URLSearchParams(window.location.search),
   redirect: (location: string) => {
     throw new Redirected(location)
   },
@@ -159,6 +144,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
+  window.history.replaceState(null, '', '/')
 })
 
 const DRAWER: ReactNode = <p data-testid="drawer-slot">the drawer slot</p>
@@ -169,15 +155,16 @@ const propsOf = (planId: string) => ({ ...paramsOf(planId), children: DRAWER })
 
 const show = async (planId = PLAN_A) => render(await PlanLayout(propsOf(planId)))
 
-/** Every prop the layout hands `PlanScreen`, which is every slot it builds plus the plan itself. */
-const slotsOf = async (planId: string): Promise<Record<string, unknown>> => {
+/** Every prop the layout hands `PlanApp`, which is everything that crosses into the browser. */
+const handedTo = async (planId: string): Promise<Record<string, unknown>> => {
   const element = await PlanLayout(propsOf(planId))
   return isValidElement<Record<string, unknown>>(element) ? element.props : {}
 }
 
-/** What one filled slot was built with, for the slots that are a single element. */
-const propsIn = (slot: unknown): Record<string, unknown> =>
-  isValidElement<Record<string, unknown>>(slot) ? slot.props : {}
+const slot = (name: string): Element | null => document.querySelector(`[data-slot="${name}"]`)
+
+/** The table mounts once the screen has painted (`components/plan/table/table-aside.tsx`), so it is awaited. */
+const tableShown = async (): Promise<HTMLElement> => screen.findByRole('table', { name: 'Table of Atlas rollout' })
 
 const trayPanel = (): HTMLElement => {
   const found = document.querySelector<HTMLElement>('[data-slot="unscheduled-tray"]')
@@ -371,135 +358,88 @@ describe('the plan layout', () => {
   })
 })
 
-describe('the drawer is a slot beside the plan, and every other slot is the layout’s own', () => {
+describe('what the layout hands the browser, and what the browser draws from it', () => {
   it('draws whatever is routed into it beside the timeline and the table, not instead of them', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     await show()
     expect(screen.getByTestId('drawer-slot')).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Timeline of Atlas rollout' })).toBeTruthy()
-    expect(screen.getByRole('table', { name: 'Table of Atlas rollout' })).toBeTruthy()
+    expect(await tableShown()).toBeTruthy()
   })
 
-  // Sixteen props, and the shape of the list is the revision. `conflicts` is gone with the panel it
-  // filled. `rails`, `groups`, `settings` and `share` were four panel slots the plan heading rendered
-  // in a row, and the three whole-plan ones are one `manage` slot of menus now while the group chips
-  // moved into the head row as `groups`. What is new beside those is what the frame needs to know that a
-  // document did not: `tray` for the features with no bar, `zoomControl` beside the rung itself, and
-  // `root`/`routes` so every link on the page is addressed for **this** surface — the seat surface
-  // renders the same screen, may not carry links into this one's drawer routes, and may not present
-  // this one's cookie. The drawer stays identity-compared, being `children` and not built here.
-  //
-  // `home` left in the restyle. It was where the breadcrumb climbed to, and the breadcrumb climbed into
-  // the brand bar, which a layout two segments up renders — so the trail is a parallel route now
-  // (`app/(admin)/plan-crumb.tsx`) and the screen is told nothing about an index above it.
-  it('hands the screen every slot it builds, the writes, and the bridge facts', async () => {
+  // Twelve props, and every one is a value the browser could not have worked out for itself: the plan and
+  // the bridge, read here; the zoom, out of a cookie; the instant, so the server and the browser draw one
+  // today line; the surface and what it may do; and the Server Actions it may call. The slots this list
+  // used to be — the chips, the tray, the menus, the zoom control — are built in the browser now, from the
+  // same plan, so an edit changes them in the frame it is made (ADR 0069).
+  it('hands the browser the plan once, with the writes and what only the server can know', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const handed = await slotsOf(PLAN_A)
+    const handed = await handedTo(PLAN_A)
     expect(Object.keys(handed).sort()).toEqual([
       'actions',
       'at',
+      'bindProject',
+      'bridge',
+      'children',
       'controls',
-      'drawer',
-      'groups',
-      'manage',
-      'newRailHref',
+      'own',
       'plan',
-      'progress',
-      'root',
-      'routes',
-      'tray',
+      'readItem',
+      'seats',
+      'surface',
       'zoom',
-      'zoomControl',
-      'zoomTo',
     ])
-    expect(handed['drawer']).toBe(DRAWER)
+    expect(handed['children']).toBe(DRAWER)
     expect(handed['actions']).toBe(ADMIN_PLAN_ACTIONS)
-    // Every slot is built by `admin-slots.tsx` rather than inline, because this file's own layout was
-    // five lines from ADR 0027's cap. Each is an element and not `null` because `ADMIN_CONTROLS` draws
-    // every control; what each was built with is asserted case by case below.
-    for (const slot of ['groups', 'manage', 'tray', 'zoomControl']) {
-      expect(isValidElement(handed[slot])).toBe(true)
-    }
+    expect(handed['own']).toBe(ADMIN_OWN_WRITES)
+    expect(handed['seats']).toBe(ADMIN_SEAT_ACTIONS)
+    expect(handed['readItem']).toBe(readItemDrawer)
+    expect(handed['bindProject']).toBe(bindEpicProject)
+    expect(handed['controls']).toBe(ADMIN_CONTROLS)
+    expect(handed['surface']).toEqual({ kind: 'admin', planId: PLAN_A })
+    expect(handed['plan']).toEqual(planScreenModel(atlasPlan()))
   })
 
-  // The rail tree was a slot of its own, built here from the plan the API confirmed. It is the board's
-  // own column now and the board derives it from `railLayout`, so this layout hands no rails at all —
-  // which is the point rather than a loss: the rows and the bands beside them come out of one call, so
-  // nothing has to keep two lists of rails in the same order.
-  it('hands no rail list of its own, the board deriving its column from the layout it draws', async () => {
+  // A reload, a pasted link or Back: the address names a drawer, and the browser draws it from the plan
+  // this layout already read, so a drawer costs the same two reads the plan does and not a third.
+  it('opens the drawer the address names on a reload, from the two reads the plan was drawn from', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const handed = await slotsOf(PLAN_A)
-    expect(handed).not.toHaveProperty('sidebar')
-    expect(handed['root']).toBe((handed['plan'] as { readonly id: string }).id)
-  })
-
-  // Everything that acts on the whole plan is in the head row, and everything that acts on one thing in
-  // it is on or beside that thing. `New group` left the head for the chip row, which is where the groups
-  // it adds to are; `New rail` left for the board, which is where the rails are. What is in the head is
-  // the two menus and the chips, each drawn on what this viewer may do rather than unconditionally.
-  it('puts the whole-plan actions in the head, each on its own answer about what may be done', async () => {
-    holdingAdmin(api)
-    api.plans = [atlasPlan()]
-    const handed = await slotsOf(PLAN_A)
-    expect(Object.keys(propsIn(handed['manage'])).sort()).toEqual(['settings', 'share'])
-    for (const slot of ['settings', 'share']) {
-      expect(propsIn(handed['manage'])[slot]).not.toBeNull()
-    }
-    expect(propsIn(handed['groups'])).toEqual({
-      allFit: expect.anything(),
-      mayAdd: true,
-      planId: PLAN_A,
-      rows: expect.anything(),
-    })
-  })
-
-  it('hands the group chips a row per group of the plan, the chips having left the plan heading', async () => {
-    holdingAdmin(api)
-    api.plans = [atlasPlan()]
-    const handed = await slotsOf(PLAN_A)
-    expect(propsIn(handed['groups'])['rows']).toHaveLength(atlasPlan().labels.length)
-  })
-
-  // What the conflict panel's "built from the very plan it hands the screen" case was for, and the
-  // property is stronger now that two renderings share it: `attentionOf` is called **once** here and
-  // the same map goes to the tree and to the tray, so a dot on a row and a row in the tray cannot
-  // disagree about what is wrong with a feature. Neither is a read of its own — the bridge request
-  // beside the plan is a read of something else, what the rails are bound to, and is the only other
-  // one there is.
-  it('marks the tray from one pass over the plan it hands over, never from a second read', async () => {
-    holdingAdmin(api)
-    api.plans = [tangledPlan()]
-    const handed = await slotsOf(PLAN_A)
-    const found = propsIn(handed['tray'])['found']
-    expect((found as ReadonlyMap<string, unknown>).size).toBeGreaterThan(0)
-    expect(propsIn(handed['tray'])['root']).toBe((handed['plan'] as { readonly id: string }).id)
+    window.history.replaceState(null, '', featurePath(PLAN_A, FEATURE_1))
+    await show()
+    expect(screen.getByRole('heading', { level: 2, name: 'Auth rewrite' })).toBeTruthy()
     expect(trace(api)).toEqual([
       `${planReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
       `${bridgeReadKey(PLAN_A)} ${ADMIN_TOKEN}`,
     ])
   })
 
-  // One record, handed to the screen and to both slots that draw links. The seat surface hands its own
-  // pair, and a component that reached for the admin builders itself would send a link holder to a
-  // cookie surface they have no password for (ADR 0032) — so the surface deciding is the whole point,
-  // and the identity comparisons are what say the decision was made in one place.
-  it('roots every drawer link in the plan’s own id and in this surface’s own path builders', async () => {
+  // Everything that acts on the whole plan is in the head row, and everything that acts on one thing in
+  // it is on or beside that thing. What is in the head is the two menus and the chips, each drawn on what
+  // this viewer may do rather than unconditionally.
+  it('puts the whole-plan actions in the head, each on its own answer about what may be done', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const handed = await slotsOf(PLAN_A)
-    expect(handed['root']).toBe(PLAN_A)
-    for (const slot of [handed, propsIn(handed['tray'])]) {
-      expect(slot['routes']).toBe(ADMIN_DRAWER_ROUTES)
-    }
+    await show()
+    const head = slot('plan-head')
+    expect(head?.querySelector('[data-slot="plan-settings-menu"]')).not.toBeNull()
+    expect(head?.contains(screen.getByRole('button', { name: 'Share' }))).toBe(true)
+    expect(screen.getByRole('link', { name: '+ Group' }).getAttribute('href')).toBe(`/plans/${PLAN_A}/new/group`)
   })
 
-  // The rail's builder is the third one. It was spent twice while a tree and a names column both drew
-  // a rail; there is one column now, so a rail is named in exactly one place on this page — and a
-  // feature is named in the table and nowhere else, the canvas drawing no text at all. Both still come
-  // from the handed record, which is what keeps a link off the other surface.
+  it('draws a chip per group of the plan, the chips having left the plan heading', async () => {
+    holdingAdmin(api)
+    api.plans = [atlasPlan()]
+    await show()
+    expect(document.querySelectorAll('[data-slot="group-chip"]')).toHaveLength(atlasPlan().labels.length)
+  })
+
+  // A rail is named in exactly one place on this page, the board's column, and a feature in the table and
+  // nowhere else, the canvas drawing no text at all. Every one is addressed with the plan's **id**, which is
+  // what the route builders take: a builder handed the plan's path encodes it into the address, and every
+  // link on the page goes nowhere — which this caught when the screen first moved into the browser.
   it('addresses one rail and one feature the same way wherever the page links to them', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
@@ -509,28 +449,29 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
     for (const link of rails) expect(link.getAttribute('href')).toBe(railPath(PLAN_A, EPIC_1))
     // A feature's link is the bar itself, which carries no accessible name at all: the canvas is one
     // `role="img"` and the bar is `tabIndex={-1}` inside it, deliberately (`canvas/rail-features.tsx`).
-    // So it is reached by the id it carries rather than by a name, and the name a reader has is the
-    // table's cell and the hover card.
     const bar = document.querySelector('[data-slot="feature-bar"][data-feature-id="' + FEATURE_1 + '"]')
     expect(bar?.closest('a')?.getAttribute('href')).toBe(featurePath(PLAN_A, FEATURE_1))
+    await tableShown()
+    const edit = document.querySelector(`[data-testid="row-${FEATURE_1}"] [data-slot="row-actions"] a`)
+    expect(edit?.getAttribute('href')).toBe(featurePath(PLAN_A, FEATURE_1))
   })
 
   // Atlas plans eight days on a fourteen-day sprint, which is 28 days of axis — 1176px at the finest
-  // stop's 42px a day, inside the pane the range is chosen against. So the finest of the three wins,
-  // and a bar is wide enough to carry its own name. A single constant default is what drew a sixteen-day
-  // plan into the first ninety pixels of eleven hundred, which is why `readZoom` answers `null` rather
-  // than a rung and why choosing one is this layout's job.
+  // stop's 42px a day, inside the pane the range is chosen against. So the finest of the three wins.
+  // A single constant default is what drew a sixteen-day plan into the first ninety pixels of eleven
+  // hundred, which is why `readZoom` answers `null` rather than a rung and why choosing one is this
+  // layout's job.
   it('opens the plan at the finest zoom it fits into when the reader has never chosen one', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    expect((await slotsOf(PLAN_A))['zoom']).toBe('item')
+    expect((await handedTo(PLAN_A))['zoom']).toBe('item')
   })
 
   it('draws at the rung the reader last chose in preference to the one the plan would fit', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     chosenZoom = 'epic'
-    expect((await slotsOf(PLAN_A))['zoom']).toBe('epic')
+    expect((await handedTo(PLAN_A))['zoom']).toBe('epic')
   })
 
   // The cookie is client-writable, so junk in it is a state the page has to render. It falls back to
@@ -539,14 +480,17 @@ describe('the drawer is a slot beside the plan, and every other slot is the layo
     holdingAdmin(api)
     api.plans = [atlasPlan()]
     chosenZoom = 'quarterly'
-    expect((await slotsOf(PLAN_A))['zoom']).toBe('item')
+    expect((await handedTo(PLAN_A))['zoom']).toBe('item')
   })
 
-  it('hands the control the very rung it draws the axis at, so the two cannot disagree', async () => {
+  it('marks the rung it draws the axis at as the current one, so the control and the axis cannot disagree', async () => {
     holdingAdmin(api)
     api.plans = [atlasPlan()]
-    const handed = await slotsOf(PLAN_A)
-    expect(propsIn(handed['zoomControl'])['zoom']).toBe(handed['zoom'])
+    chosenZoom = 'feature'
+    await show()
+    expect(screen.getByText(ZOOM_WORDS.feature).getAttribute('aria-current')).toBe('true')
+    const axis = planAxis(planScreenModel(atlasPlan()), new Date(), 'feature')
+    expect(slot('plan-pointer')?.getAttribute('data-px-per-day')).toBe(String(axis.scale.pxPerDay))
   })
 
   it('draws no slot at all when it could not read the plan, so one refusal is said once', async () => {
@@ -609,7 +553,8 @@ describe('the plan layout hands no share token to a component, however senior th
   })
 
   // This case was "hands over no function at all", and `handed.ts` set out what the first surface to hand
-  // one over owes: every function must be a module action imported by name, since reflection can see all
+  // one over owes — and the screen moving into the browser leaves it exactly as strict, everything the
+  // browser calls being handed over here, across the one boundary there is: every function must be a module action imported by name, since reflection can see all
   // there is to see of one, where a **bound** action could carry a token invisibly —
   // `action.bind(null, token)` exposes neither the token nor a name of its own, and
   // `Function.prototype.bind` names its result `bound <name>`. The canvas's drag is what made this layout

@@ -10,6 +10,8 @@ import {
   type FakePlanApiState,
 } from '../../../components/plan/testing/fake-plan-api'
 import { atlasPlan, PLAN_A, SEAT_TOKEN } from '../../../components/plan/testing/plan-fixture'
+import SeatFeatureDrawerPage from './f/[featureId]/page'
+import SeatItemDrawerPage from './i/[itemId]/page'
 
 // next/headers is mocked to throw, which is the assertion: a `/s/*` route authenticates from its own URL,
 // so a cookie or a header read anywhere under it fails this file rather than passing quietly (ADR 0040).
@@ -85,5 +87,18 @@ describe('the tab title comes from the bootstrap and never from a plan read', ()
     expect(await generateMetadata(props(SEAT_TOKEN))).toEqual({
       title: 'Shared plan · CC Guild Macroplan',
     })
+  })
+})
+
+// A seat's two drawer routes, which the browser draws as the admin's are (ADR 0069): the address exists,
+// and the route reads nothing — so a drawer opened on a seat presents the token to the API no more often
+// than the plan itself did.
+describe('a seat’s drawer routes, which the browser draws', () => {
+  it.each([
+    ['a feature', SeatFeatureDrawerPage],
+    ['an item', SeatItemDrawerPage],
+  ])('renders nothing for %s and takes no params, so it can read nothing', (_what, Page) => {
+    expect(Page).toHaveLength(0)
+    expect(Page()).toBeNull()
   })
 })

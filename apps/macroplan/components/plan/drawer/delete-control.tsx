@@ -83,13 +83,11 @@ export interface DeleteControlProps {
  *
  * ### A delete answers the whole plan, and the drawer it was sent from is gone
  *
- * On success this navigates to {@link DeleteControlProps.closeHref} and reads nothing back. Every other
- * control in this drawer re-reads its subject out of the plan the write answered; this one has no
- * subject left to read, and the page it is standing on would `notFound()` on its next render — the
- * drawer pages resolve through the row and call `notFound()` for an id the plan no longer holds
- * (`app/(admin)/plans/[planId]/f/[featureId]/page.tsx`). So `refresh()`, which `adminWrite` already asks
- * for on every successful write, is **not** enough on its own: it would re-render the route this control
- * is standing on into a 404 for a thing the user deliberately deleted.
+ * On success this navigates to {@link DeleteControlProps.closeHref} and reads nothing back. The delete is
+ * on screen the moment it is confirmed — the store takes the subject off the plan (ADR 0069) — and the
+ * drawer keeps the last subject it found while the write is in flight (`../app/use-subject.ts`). Once it
+ * has been answered there is no subject left to draw, and a drawer left open would say the address names
+ * nothing: so the answer to a delete is the plan's own address with nothing selected.
  *
  * It is `replace` and not `push`: the address being replaced is the drawer's, which no longer resolves,
  * and pushing would leave it one Back away — Back being the first thing a user reaches for after a

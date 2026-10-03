@@ -1,7 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import { isValidElement, type ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
+import FeatureDrawerPage from './f/[featureId]/page'
+import GroupDrawerPage from './g/[labelId]/page'
+import ItemDrawerPage from './i/[itemId]/page'
+import NewGroupPage from './new/group/page'
+import NewRailPage from './new/rail/page'
 import PlanPage from './page'
+import RailDrawerPage from './r/[epicId]/page'
 
 // What is left of the sweeps this file used to hold.
 //
@@ -60,5 +66,24 @@ describe('the plan page with nothing selected', () => {
 
   it('hands over no function at all, so no token is hiding in a bound action’s arguments', () => {
     expect(functionsIn(shown())).toEqual([])
+  })
+})
+
+// Each drawer route was a server page: it read the plan, found its subject, and rendered the panel — a
+// request and a render for every drawer opened, revealed no sooner than React's Suspense throttle allowed.
+// The drawer is read off the address and drawn in the browser now, from the plan the layout handed over
+// once (`components/plan/app/plan-drawer.tsx`, ADR 0069); its tests are `plan-drawer.test.tsx`. What
+// is left here is the route's half: each address still exists, and asks for nothing and draws nothing.
+describe('every drawer route under the plan, which the browser draws', () => {
+  it.each([
+    ['a feature', FeatureDrawerPage],
+    ['an item', ItemDrawerPage],
+    ['a rail', RailDrawerPage],
+    ['a group', GroupDrawerPage],
+    ['a new rail', NewRailPage],
+    ['a new group', NewGroupPage],
+  ])('renders nothing for %s and takes no params, so it can read nothing', (_what, Page) => {
+    expect(Page).toHaveLength(0)
+    expect(Page()).toBeNull()
   })
 })
