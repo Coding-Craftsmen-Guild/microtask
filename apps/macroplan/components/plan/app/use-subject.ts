@@ -11,11 +11,12 @@ export interface HeldSubject {
 /**
  * The drawer's subject, read off the plan as it stands — or, while a change is being saved, the last one.
  *
- * A delete is applied to the plan the moment it is confirmed, and the drawer closes once the API has
- * answered it (`../drawer/delete-control.tsx`). In between, the subject is already gone from the plan, and
- * without this the drawer would say "no longer on this plan" for one round trip before it closed. So while
- * the store is saving, the last plan the subject was found in stands in; once nothing is pending, a subject
- * that is gone is gone, and a refused delete has put it back anyway.
+ * A delete is applied to the plan the moment it is confirmed, and the drawer closes in the same gesture
+ * (`../drawer/delete-control.tsx`) — but the close is a navigation, which lands a render later than the
+ * store's change, and a subject can also leave the plan under an open drawer by another write (its feature
+ * deleted from the table while one of its items is open). Without this the drawer would say "no longer on
+ * this plan" in between. So while the store is saving, the last plan the subject was found in stands in;
+ * once nothing is pending, a subject that is gone is gone, and a refused delete has put it back anyway.
  *
  * @param plan - The plan as it stands.
  * @param saving - Whether a change is still being saved.

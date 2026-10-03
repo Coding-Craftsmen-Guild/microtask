@@ -1,4 +1,3 @@
-import { NO_ANSWER } from '@repo/app-session/no-answer'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -144,10 +143,11 @@ describe('the delete itself, and the page a drawer over a deleted thing has to l
     expect(remove).toHaveBeenCalledWith(PLAN_A, ITEM_1)
   })
 
-  // A drawer left open over a deleted subject has nothing to draw: the plan the screen holds no longer has
-  // it. So the answer to a delete is the plan's own no-selection address, which is where the drawer closes.
-  it('goes to the plan’s own page on success, which is the address the drawer closes to', async () => {
-    const { user } = await ask()
+  // The subject leaves the plan the moment the delete is confirmed (ADR 0069), so its drawer has nothing to
+  // draw from then on. It closes then too — not when the answer lands, by which time the reader may have
+  // opened something else that the answer would close instead.
+  it('goes to the plan’s own page the moment it is confirmed, before the API has answered', async () => {
+    const { user } = await ask({ remove: () => new Promise(() => undefined) })
     await user.click(screen.getByRole('button', { name: 'Delete feature' }))
     expect(replaced).toEqual([CLOSE])
   })
@@ -174,23 +174,24 @@ describe('the delete itself, and the page a drawer over a deleted thing has to l
   })
 })
 
+// The drawer has closed by the time a refusal lands, so the control has nowhere to say it; the store puts
+// the subject back on the plan and the screen's notice says why (`../app/plan-drawer.test.tsx`).
 describe('a delete the API refused, and one the server never answered', () => {
-  it('says the sentence it came back with and stays where it is', async () => {
+  it('has closed already, and draws no refusal of its own', async () => {
     const { user } = await ask({ answer: { ok: false, status: 403, detail: 'Not permitted: feature:delete' } })
     await user.click(screen.getByRole('button', { name: 'Delete feature' }))
-    expect(screen.getByRole('alert').textContent).toBe('Not permitted: feature:delete')
-    expect(replaced).toEqual([])
+    expect(replaced).toEqual([CLOSE])
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('says so rather than leaving the rejection unhandled, and stays where it is', async () => {
+  it('leaves no rejection unhandled when the server never answers', async () => {
+    const rejected = vi.fn()
+    process.on('unhandledRejection', rejected)
     const { user } = await ask({ remove: () => Promise.reject(new TypeError('Failed to fetch')) })
     await user.click(screen.getByRole('button', { name: 'Delete feature' }))
-    expect((await screen.findByRole('alert')).textContent).toBe(NO_ANSWER.detail)
-    expect(replaced).toEqual([])
-  })
-
-  it('leaves no refusal on screen before anything has been sent', () => {
-    open()
-    expect(screen.queryByRole('alert')).toBeNull()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    process.off('unhandledRejection', rejected)
+    expect(rejected).not.toHaveBeenCalled()
+    expect(replaced).toEqual([CLOSE])
   })
 })

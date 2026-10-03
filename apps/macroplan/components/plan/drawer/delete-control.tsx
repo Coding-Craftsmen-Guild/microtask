@@ -10,8 +10,6 @@ import type { SubjectKind } from './values'
 
 const GROUP = 'flex shrink-0 items-center gap-1'
 
-const SAID = 'max-w-[220px] shrink-0 truncate text-[12px] text-danger'
-
 const QUIET =
   'rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground hover:bg-danger/10 hover:text-danger'
 
@@ -39,10 +37,10 @@ export interface DeleteControlProps {
   /** The subject's stored name, quoted in the question so a reader is told which one is going. */
   readonly name: string
 
-  /** Where to go once it is gone: the plan's own path, which is this address with nothing selected. */
+  /** Where to go once it is confirmed: the plan's own path, which is this address with nothing selected. */
   readonly closeHref: string
 
-  /** Sends the delete and answers the plan it produced, or why it was refused. */
+  /** Sends the delete through the store, which takes the subject off the plan the moment it is called. */
   readonly remove: SubjectRemove
 }
 
@@ -59,8 +57,8 @@ export interface DeleteControlProps {
  * (`./subject-writes.ts`): the two ids are strings the compiler cannot tell apart.
  *
  * The control is a rendering answer and never a gate. The API is asked again at the instant of the
- * click, and a seat re-roled since the render meets its 403 as the sentence under this button
- * (ADR 0038, ADR 0009).
+ * click, and a seat re-roled since the render meets its 403 as the screen's notice, with the subject put
+ * back on the plan (ADR 0038, ADR 0009).
  *
  * ### Enter cannot delete, and that is the dialog's doing rather than this file's
  *
@@ -81,13 +79,13 @@ export interface DeleteControlProps {
  * it reverses a placement by sending the placement back — and there is no write that puts a deleted
  * feature or item back, so a message hinting otherwise would be a promise this product cannot keep.
  *
- * ### A delete answers the whole plan, and the drawer it was sent from is gone
+ * ### The drawer closes the moment the delete is confirmed
  *
- * On success this navigates to {@link DeleteControlProps.closeHref} and reads nothing back. The delete is
- * on screen the moment it is confirmed — the store takes the subject off the plan (ADR 0069) — and the
- * drawer keeps the last subject it found while the write is in flight (`../app/use-subject.ts`). Once it
- * has been answered there is no subject left to draw, and a drawer left open would say the address names
- * nothing: so the answer to a delete is the plan's own address with nothing selected.
+ * The delete is on screen the moment it is confirmed — the store takes the subject off the plan
+ * (ADR 0069) — so from then on the drawer has nothing to draw, and it closes then: to
+ * {@link DeleteControlProps.closeHref}, the plan's own address with nothing selected. It does not wait for
+ * the answer. That lands behind every write queued before it, by which time the reader may have opened
+ * something else, and closing then would close that instead.
  *
  * It is `replace` and not `push`: the address being replaced is the drawer's, which no longer resolves,
  * and pushing would leave it one Back away — Back being the first thing a user reaches for after a
@@ -99,8 +97,9 @@ export interface DeleteControlProps {
  * password behind it (ADR 0032). `./drawer-panel.tsx` already takes that path from the page that knows
  * which surface it is, for its own Close link, and this is the same address.
  *
- * A refusal is said beside the button and nothing is navigated, so a delete the API would not make
- * leaves the reader looking at the thing they still have.
+ * A refusal lands after the drawer has closed, so it is not said here: the store puts the subject back on
+ * the plan, and the screen's notice says why (`../app/plan-notice.tsx`), as it does for every write the API
+ * would not make. A write the server never answered is the same refusal, through `orNoAnswer`.
  */
 export function DeleteControl({
   planId,
@@ -112,29 +111,22 @@ export function DeleteControl({
 }: DeleteControlProps) {
   const { go } = usePlanNav()
   const [asking, setAsking] = useState(false)
-  const [problem, setProblem] = useState('')
-  const confirmed = async () => {
+  const confirmed = () => {
     setAsking(false)
-    const result = await orNoAnswer(remove)(planId, subjectId)
-    if (result.ok) go(closeHref, { replace: true })
-    else setProblem(result.detail)
+    go(closeHref, { replace: true })
+    void orNoAnswer(remove)(planId, subjectId)
   }
   return (
     <div className={GROUP} id={DELETE_ANCHOR}>
       <button className={QUIET} onClick={() => setAsking(true)} title={CONFIRMS[kind]} type="button">
         Delete
       </button>
-      {problem === '' ? null : (
-        <p className={SAID} role="alert" title={problem}>
-          {problem}
-        </p>
-      )}
       <ConfirmDialog
         confirmLabel={CONFIRMS[kind]}
         danger
         message={MESSAGES[kind]}
         onCancel={() => setAsking(false)}
-        onConfirm={() => void confirmed()}
+        onConfirm={confirmed}
         open={asking}
         title={`Delete “${name}”?`}
       />

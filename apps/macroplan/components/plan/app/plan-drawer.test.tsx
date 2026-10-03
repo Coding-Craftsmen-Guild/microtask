@@ -565,3 +565,46 @@ describe('a drawer opened on something created a moment ago', () => {
     expect(gone()).toBe(false)
   })
 })
+
+// The subject leaves the plan the moment a delete is confirmed, and its drawer closes then; the answer
+// lands later, behind every write queued before it, and must move nothing the reader opened meanwhile.
+describe('a delete, whose drawer closes the moment it is confirmed', () => {
+  // The first link to a feature is its bar on the canvas, an SVG anchor, which is what a reader clicks.
+  const linkTo = async (href: string): Promise<Element> =>
+    vi.waitFor(() => {
+      const found = document.querySelector(`a[href^="${href}"]`)
+      if (found === null) throw new Error(`nothing on the screen links to ${href}`)
+      return found
+    })
+
+  const deleted = async (user: ReturnType<typeof open>['user']) => {
+    await user.click(screen.getByTitle('Delete feature'))
+    await user.click(screen.getByRole('button', { name: 'Delete feature' }))
+  }
+
+  it('closes at once, and an answer landing after another drawer was opened moves nothing', async () => {
+    const { actions, user } = open(featurePath(PLAN_A, FEATURE_1))
+    const answer: { to: (answered: ActionResult<PlanScreenModel>) => void } = { to: () => undefined }
+    vi.mocked(actions.removeFeature).mockImplementation(() => new Promise((resolve) => (answer.to = resolve)))
+    await deleted(user)
+    expect(window.location.pathname).toBe(planPath(PLAN_A))
+    await user.click(await linkTo(featurePath(PLAN_A, FEATURE_2)))
+    await act(async () => {
+      answer.to({ ok: true, value: planScreenModel(atlasPlan()) })
+      await Promise.resolve()
+    })
+    await settled()
+    expect(window.location.pathname).toBe(featurePath(PLAN_A, FEATURE_2))
+    expect(gone()).toBe(false)
+  })
+
+  it('puts a refused delete’s subject back on the plan, and the screen’s notice says why', async () => {
+    const { actions, user } = open(featurePath(PLAN_A, FEATURE_1))
+    vi.mocked(actions.removeFeature).mockResolvedValue({ ok: false, status: 403, detail: 'Not permitted: feature:delete' })
+    await deleted(user)
+    await settled()
+    expect(window.location.pathname).toBe(planPath(PLAN_A))
+    expect(document.querySelector('[data-slot="plan-notice"]')?.textContent).toContain('Not permitted: feature:delete')
+    expect(await linkTo(featurePath(PLAN_A, FEATURE_1))).toBeTruthy()
+  })
+})
