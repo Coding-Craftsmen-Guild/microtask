@@ -1,16 +1,10 @@
 import { rungParam } from '@repo/canvas'
 import type { Rung } from '@repo/canvas'
 import { cookies } from 'next/headers'
+import { ZOOM_COOKIE } from './zoom-cookie'
 
-/**
- * The cookie the chosen rung is kept in.
- *
- * `mp_` like every other cookie this app owns, and deliberately **not** sealed: `@repo/app-session`'s
- * sealing exists for the admin session, and this holds one of three public words that names a zoom
- * level. Sealing it would imply it were a credential and would put a second key in the deployment for
- * a value anyone can read off the screen.
- */
-export const ZOOM_COOKIE = 'mp_zoom'
+/** The cookie this reads, which the browser writes (`./zoom-cookie.ts`). */
+export { ZOOM_COOKIE } from './zoom-cookie'
 
 /**
  * The rung the reader last chose, or `null` if they have never chosen one.
