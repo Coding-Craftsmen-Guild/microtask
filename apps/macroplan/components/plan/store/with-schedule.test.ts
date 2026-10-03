@@ -27,8 +27,6 @@ describe('withSchedule recomputes the schedule the API would answer', () => {
 
   it('changes nothing but the schedule', () => {
     const plan = planScreenModel(atlasPlan())
-    const { schedule: _left, ...rest } = withSchedule(plan)
-    const { schedule: _right, ...before } = plan
-    expect(rest).toEqual(before)
+    expect({ ...withSchedule(plan), schedule: null }).toEqual({ ...plan, schedule: null })
   })
 })
