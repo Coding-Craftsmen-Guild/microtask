@@ -1,5 +1,4 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
-import type { Plan } from '@repo/api-client'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -7,6 +6,7 @@ import type { ActionResult } from '../../../actions/result'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { DELETE_FEATURE, DELETE_ITEM, type SubjectRemove } from './field'
 import type { SubjectKind } from './values'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
 const replaced: string[] = []
 
@@ -32,13 +32,13 @@ const { DeleteControl } = await import('./delete-control')
 
 const CLOSE = `/plans/${PLAN_A}`
 
-const served: ActionResult<Plan> = { ok: true, value: atlasPlan() }
+const served: ActionResult<PlanScreenModel> = { ok: true, value: planScreenModel(atlasPlan()) }
 
 interface Open {
   readonly kind?: SubjectKind
   readonly name?: string
   readonly subjectId?: string
-  readonly answer?: ActionResult<Plan>
+  readonly answer?: ActionResult<PlanScreenModel>
   readonly remove?: SubjectRemove
 }
 

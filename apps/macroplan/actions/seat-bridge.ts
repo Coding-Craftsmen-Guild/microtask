@@ -3,9 +3,9 @@
 import type { NewBinding, NewLabel } from '@repo/api-client'
 import { seatWrite } from './plan-write'
 import type { ActionResult } from './result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
-type Answer = Promise<ActionResult<Plan>>
+type Answer = Promise<ActionResult<PlanScreenModel>>
 
 /**
  * The bridge's five writes, sent under a seat's own token rather than the admin's.

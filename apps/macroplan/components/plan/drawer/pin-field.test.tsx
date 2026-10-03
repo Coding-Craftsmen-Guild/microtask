@@ -1,5 +1,4 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
-import type { Plan } from '@repo/api-client'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -7,12 +6,13 @@ import type { ActionResult } from '../../../actions/result'
 import { atlasPlan, FEATURE_1, PLAN_A } from '../testing/plan-fixture'
 import { PinField } from './pin-field'
 import { SPRINT_WORDS } from './sprint-view'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
-type Pin = (planId: string, featureId: string, sprint: number | null) => Promise<ActionResult<Plan>>
+type Pin = (planId: string, featureId: string, sprint: number | null) => Promise<ActionResult<PlanScreenModel>>
 
 const ATLAS = { startDate: '2026-09-28', sprintLengthDays: 14, timezone: 'Europe/Belgrade' }
 
-const kept: Pin = () => Promise.resolve({ ok: true, value: atlasPlan() })
+const kept: Pin = () => Promise.resolve({ ok: true, value: planScreenModel(atlasPlan()) })
 
 interface Setup {
   readonly pinSprint?: number | null

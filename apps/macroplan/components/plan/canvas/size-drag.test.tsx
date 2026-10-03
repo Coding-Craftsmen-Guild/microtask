@@ -18,8 +18,8 @@ const DAY = SCALE.pxPerDay
 const NO_SIZES: SizeWrites = { estimateFeature: null, estimateItem: null }
 
 const DRAWS = {
-  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
   labelFeature: null,
   placeFeature: null,
   placeItem: null,
@@ -29,8 +29,8 @@ const DRAWS = {
 type Estimating = NonNullable<SizeWrites['estimateItem']>
 
 const sizes = () => ({
-  estimateFeature: vi.fn<Estimating>(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  estimateItem: vi.fn<Estimating>(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  estimateFeature: vi.fn<Estimating>(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  estimateItem: vi.fn<Estimating>(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
 })
 
 const shown = (size: SizeWrites) =>

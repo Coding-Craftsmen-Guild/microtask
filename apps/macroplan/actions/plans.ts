@@ -1,11 +1,12 @@
 'use server'
 
-import type { NewPlan, Plan, PlanChange } from '@repo/api-client'
+import type { NewPlan, PlanChange } from '@repo/api-client'
 import { refresh } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { planPath, PLANS_INDEX_PATH } from '../lib/routes'
 import { adminWrite } from './plan-write'
 import { adminCall, type ActionFailure, type ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
 /**
  * Creates a plan and opens it, which is the only way a plan comes into existence on this surface.
@@ -83,7 +84,7 @@ export async function renamePlan(planId: string, name: string): Promise<ActionRe
  * — but a body carrying a name **and** a date meets two gates, and the first refusal writes neither, so
  * this action deliberately cannot send a name. That is what keeps it one authority per call.
  */
-export async function retimePlan(planId: string, timing: PlanChange): Promise<ActionResult<Plan>> {
+export async function retimePlan(planId: string, timing: PlanChange): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.plans.update(planId, timing))
 }
 

@@ -1,5 +1,6 @@
 import { planItemPath, planPath, type MacroplanSessionClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { planScreenModel } from '../components/plan/plan-screen-model'
 import { FEATURE_1, ITEM_1, PLAN_A, atlasPlan } from '../components/plan/testing/plan-fixture'
 import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 import { carries, recordingAdmin, wireOf, type RecordingAdmin } from './testing/recording-admin'
@@ -61,7 +62,7 @@ describe('an item edit that touches two fields', () => {
 describe('the description', () => {
   it('goes to its own route as its own field, because the API gates it as item:describe', async () => {
     const written = await describeItem(PLAN_A, ITEM_1, 'Rotate the signing keys first.')
-    expect(written).toEqual({ ok: true, value: atlasPlan() })
+    expect(written).toEqual({ ok: true, value: planScreenModel(atlasPlan()) })
     expect(wireOf(admin.sent)).toEqual([
       {
         method: 'PUT',

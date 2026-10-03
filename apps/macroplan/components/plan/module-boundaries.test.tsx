@@ -85,6 +85,7 @@ import { CANVAS_SCALE } from './canvas/view'
 import { ShareManager } from './share/share-manager'
 import { seatDoubles } from './share/testing/seat-doubles'
 import { drawerSubject } from './drawer/subject'
+import type { PlanScreenModel } from './plan-screen-model'
 
 vi.mock('next/link', async () => ({
   default: (await import('./testing/next-link')).LinkDouble,
@@ -169,8 +170,8 @@ async function zoomDouble(): Promise<void> {
 // PlanEditActions: the rail drawer imports that action directly, and widening the interface to give this
 // sweep a stub would put a member on it that nothing in the product reads off it. Named, and not bound,
 // which is the shape the walk below admits.
-async function bindProjectDouble(): Promise<ActionResult<Plan>> {
-  return { ok: true, value: atlasPlan() }
+async function bindProjectDouble(): Promise<ActionResult<PlanScreenModel>> {
+  return { ok: true, value: planScreenModel(atlasPlan()) }
 }
 
 // Every `plan` prop under this subtree is `PlanScreenModel`, whose type cannot hold a share token,

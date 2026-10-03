@@ -1,5 +1,4 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
-import type { Plan } from '@repo/api-client'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -10,12 +9,13 @@ import type { CycleFeature } from './cycle-check'
 import { DependencyEditor } from './dependency-editor'
 import { PANEL_BANDS } from './panel-words'
 import type { EdgeCandidate } from './values'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
 type Write = (
   planId: string,
   featureId: string,
   dependsOn: readonly string[],
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 const FEATURE_3 = '01MPFFFFFFFFFFFFFFFFFFFFF3'
 
@@ -55,11 +55,11 @@ const asCandidates = (
     }))
 
 // What the API really answers: the plan, with the edge list the write asked for actually stored.
-const stored = (featureId: string, dependsOn: readonly string[]): ActionResult<Plan> => ({
+const stored = (featureId: string, dependsOn: readonly string[]): ActionResult<PlanScreenModel> => ({
   ok: true,
-  value: atlasPlan({
+  value: planScreenModel(atlasPlan({
     features: atlasPlan().features.map((one) => (one.id === featureId ? { ...one, dependsOn } : one)),
-  }),
+  })),
 })
 
 const kept: Write = (_planId, featureId, dependsOn) => Promise.resolve(stored(featureId, dependsOn))

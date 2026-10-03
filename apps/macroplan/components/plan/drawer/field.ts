@@ -1,8 +1,8 @@
-import type { Plan } from '@repo/api-client'
 import type { ActionResult } from '../../../actions/result'
 import { MAX_ESTIMATE_DAYS, MAX_ITEM_DESCRIPTION_BYTES } from '@repo/contracts'
 import type { KeyboardEvent } from 'react'
 import { MICRO } from './field-css'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 const ENCODER = new TextEncoder()
 
@@ -37,7 +37,7 @@ export type SubjectWrite<Value> = (
   planId: string,
   subjectId: string,
   value: Value,
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /**
  * One subject **deleted**: the plan and the subject, and nothing else there is to send.
@@ -51,7 +51,7 @@ export type SubjectWrite<Value> = (
  * re-read and no box to repaint. What the success branch owes the user is the plan's own page
  * (`./delete-control.tsx`).
  */
-export type SubjectRemove = (planId: string, subjectId: string) => Promise<ActionResult<Plan>>
+export type SubjectRemove = (planId: string, subjectId: string) => Promise<ActionResult<PlanScreenModel>>
 
 /**
  * One thing **created** under the parent its draft names, which is the whole of what a create sends.
@@ -63,7 +63,7 @@ export type SubjectRemove = (planId: string, subjectId: string) => Promise<Actio
  * assignable to this at their own `Draft`, which is what lets one control hold both without either
  * call being able to take the other's parent.
  */
-export type PlanCreate<Draft> = (planId: string, draft: Draft) => Promise<ActionResult<Plan>>
+export type PlanCreate<Draft> = (planId: string, draft: Draft) => Promise<ActionResult<PlanScreenModel>>
 
 /**
  * What a field decided about what was typed in it: a value to send, or why it is sending nothing.

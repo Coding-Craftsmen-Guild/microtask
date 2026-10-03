@@ -4,7 +4,7 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import { Button } from '@repo/ui/components/button'
 import { useState } from 'react'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 const ROW = 'flex flex-wrap items-end gap-2'
 
@@ -18,7 +18,7 @@ export type BindProjectWrite = (
   planId: string,
   epicId: string,
   binding: { readonly projectId: string; readonly role: 'view' | 'manage' },
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /** The sentences this form produces itself, before any request is made. */
 export const BIND_PROJECT_HINTS = {

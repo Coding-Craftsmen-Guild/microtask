@@ -1,11 +1,12 @@
-import type { NewEpic, Plan } from '@repo/api-client'
+import type { NewEpic } from '@repo/api-client'
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import type { ActionResult } from '../../../actions/result'
 import { writeDraw, type ExtendWrites } from '../canvas/extend-write'
 import type { AimTarget } from './create-aim'
 import { CREATE_NAMES } from './create-kinds'
+import type { PlanScreenModel } from '../plan-screen-model'
 
-type Answer = Promise<ActionResult<Plan>>
+type Answer = Promise<ActionResult<PlanScreenModel>>
 
 /**
  * Every write a drop on the board can make.
@@ -34,7 +35,7 @@ export interface DropContext {
   readonly colour: string
 }
 
-const railAdded = (answer: ActionResult<Plan>): string | null =>
+const railAdded = (answer: ActionResult<PlanScreenModel>): string | null =>
   answer.ok ? (answer.value.epics.at(-1)?.id ?? null) : null
 
 const addEpic = async (gap: number, context: DropContext): Promise<string | null> => {

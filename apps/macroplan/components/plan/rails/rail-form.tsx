@@ -4,20 +4,20 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import { useState } from 'react'
 import { RailFields } from './rail-fields'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** One rail renamed or recoloured: the plan, the rail, and the one value replacing what was there. */
-export type RailWrite = (planId: string, epicId: string, value: string) => Promise<ActionResult<Plan>>
+export type RailWrite = (planId: string, epicId: string, value: string) => Promise<ActionResult<PlanScreenModel>>
 
 /** One rail moved among its siblings: the plan, the rail, and the 0-based lane it moves to. */
 export type RailOrderWrite = (
   planId: string,
   epicId: string,
   railOrder: number,
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /** One rail removed, with everything on it: the plan and the rail, and nothing to send. */
-export type RailDelete = (planId: string, epicId: string) => Promise<ActionResult<Plan>>
+export type RailDelete = (planId: string, epicId: string) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link RailForm}: primitives and unbound actions, which is all a boundary admits. */
 export interface RailFormProps {
@@ -95,7 +95,7 @@ export function RailForm(props: RailFormProps) {
   const [typed, setTyped] = useState(name)
   const [problem, setProblem] = useState('')
 
-  const said = (result: ActionResult<Plan>): void => {
+  const said = (result: ActionResult<PlanScreenModel>): void => {
     setProblem(result.ok ? RAIL_WORDS.cleared : result.detail)
   }
 

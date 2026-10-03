@@ -1,20 +1,11 @@
 'use server'
 
-import type {
-  FeatureChange,
-  FeaturePlacement,
-  FeaturesApi,
-  ItemChange,
-  ItemPlacement,
-  NewEpic,
-  NewFeature,
-  NewItem,
-  Plan,
-} from '@repo/api-client'
+import type { FeatureChange, FeaturePlacement, FeaturesApi, ItemChange, ItemPlacement, NewEpic, NewFeature, NewItem } from '@repo/api-client'
 import { seatWrite } from './plan-write'
 import type { ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
-type Answer = Promise<ActionResult<Plan>>
+type Answer = Promise<ActionResult<PlanScreenModel>>
 
 type Estimate = Exclude<FeatureChange['estimateDays'], undefined>
 

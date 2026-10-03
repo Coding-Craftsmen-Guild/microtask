@@ -3,6 +3,7 @@ import { refresh } from 'next/cache'
 import { linkCall } from './link-call'
 import { planPath } from '../lib/routes'
 import { adminCall, type ActionResult } from './result'
+import { planScreenModel, type PlanScreenModel } from '../components/plan/plan-screen-model'
 
 /**
  * Runs one structural write on a plan with the admin authority `mp_admin` names, and re-renders the
@@ -36,10 +37,11 @@ import { adminCall, type ActionResult } from './result'
 export async function adminWrite(
   planId: string,
   call: (api: MacroplanSessionClient) => Promise<Plan>,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   const result = await adminCall(planPath(planId), call)
-  if (result.ok) refresh()
-  return result
+  if (!result.ok) return result
+  refresh()
+  return { ok: true, value: planScreenModel(result.value) }
 }
 
 /**
@@ -77,8 +79,9 @@ export async function adminWrite(
 export async function seatWrite(
   token: string,
   call: (api: MacroplanSessionClient) => Promise<Plan>,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   const result = await linkCall(token, call)
-  if (result.ok) refresh()
-  return result
+  if (!result.ok) return result
+  refresh()
+  return { ok: true, value: planScreenModel(result.value) }
 }

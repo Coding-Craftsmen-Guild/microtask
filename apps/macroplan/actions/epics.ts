@@ -1,8 +1,9 @@
 'use server'
 
-import type { NewEpic, Plan } from '@repo/api-client'
+import type { NewEpic } from '@repo/api-client'
 import { adminWrite } from './plan-write'
 import type { ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
 /**
  * Adds a rail at the bottom of the plan, and answers the plan with it on.
@@ -12,7 +13,7 @@ import type { ActionResult } from './result'
  * spelling as a positional `string | undefined`: the caller would build the body anyway, with one
  * conditional spread per call site.
  */
-export async function createEpic(planId: string, epic: NewEpic): Promise<ActionResult<Plan>> {
+export async function createEpic(planId: string, epic: NewEpic): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.create(planId, epic))
 }
 
@@ -37,7 +38,7 @@ export async function renameEpic(
   planId: string,
   epicId: string,
   name: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.update(planId, epicId, { name }))
 }
 
@@ -51,7 +52,7 @@ export async function recolourEpic(
   planId: string,
   epicId: string,
   colour: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.update(planId, epicId, { colour }))
 }
 
@@ -66,7 +67,7 @@ export async function reorderEpic(
   planId: string,
   epicId: string,
   railOrder: number,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.place(planId, epicId, { railOrder }))
 }
 
@@ -76,6 +77,6 @@ export async function reorderEpic(
  * It answers the plan that remains and not nothing, like every write here: a feature on another rail
  * that waited on one of these no longer waits on anything, and the forward pass moves its bar.
  */
-export async function removeEpic(planId: string, epicId: string): Promise<ActionResult<Plan>> {
+export async function removeEpic(planId: string, epicId: string): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.remove(planId, epicId))
 }

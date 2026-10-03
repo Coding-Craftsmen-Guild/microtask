@@ -1,5 +1,4 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
-import type { Plan } from '@repo/api-client'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -8,20 +7,21 @@ import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { WHOLE_DAYS } from './field'
 import { FIELDS_HINT_ID } from './panel-words'
 import { EstimateField } from './estimate-field'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
 type Estimate = (
   planId: string,
   subjectId: string,
   days: number | null,
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
-const sized = (days: number | null): ActionResult<Plan> => ({
+const sized = (days: number | null): ActionResult<PlanScreenModel> => ({
   ok: true,
-  value: atlasPlan({
+  value: planScreenModel(atlasPlan({
     features: atlasPlan().features.map((one) =>
       one.id === FEATURE_1 ? { ...one, estimateDays: days } : one,
     ),
-  }),
+  })),
 })
 
 const kept: Estimate = (_planId, _subjectId, days) => Promise.resolve(sized(days))
@@ -208,11 +208,11 @@ describe('what is on screen once the server has answered', () => {
     const onEstimate = vi.fn<Estimate>(() =>
       Promise.resolve({
         ok: true,
-        value: atlasPlan({
+        value: planScreenModel(atlasPlan({
           items: atlasPlan().items.map((one) =>
             one.id === ITEM_1 ? { ...one, estimateDays: 4 } : one,
           ),
-        }),
+        })),
       }),
     )
     render(

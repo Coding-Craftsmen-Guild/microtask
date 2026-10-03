@@ -1,8 +1,9 @@
 'use server'
 
-import type { ItemChange, ItemPlacement, NewItem, Plan } from '@repo/api-client'
+import type { ItemChange, ItemPlacement, NewItem } from '@repo/api-client'
 import { adminWrite } from './plan-write'
 import type { ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
 type Estimate = Exclude<ItemChange['estimateDays'], undefined>
 
@@ -13,7 +14,7 @@ type Estimate = Exclude<ItemChange['estimateDays'], undefined>
  * `createFeature` does. The feature's span grows by this item's estimate, so the plan that comes back
  * has already moved everything after it.
  */
-export async function createItem(planId: string, item: NewItem): Promise<ActionResult<Plan>> {
+export async function createItem(planId: string, item: NewItem): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.create(planId, item))
 }
 
@@ -30,7 +31,7 @@ export async function renameItem(
   planId: string,
   itemId: string,
   name: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.update(planId, itemId, { name }))
 }
 
@@ -44,7 +45,7 @@ export async function estimateItem(
   planId: string,
   itemId: string,
   estimateDays: Estimate,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.update(planId, itemId, { estimateDays }))
 }
 
@@ -65,7 +66,7 @@ export async function describeItem(
   planId: string,
   itemId: string,
   description: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.describe(planId, itemId, description))
 }
 
@@ -81,7 +82,7 @@ export async function placeItem(
   planId: string,
   itemId: string,
   to: ItemPlacement,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.place(planId, itemId, to))
 }
 
@@ -92,6 +93,6 @@ export async function placeItem(
  * it. Its feature's span shrinks by exactly this item's estimate, so the plan that comes back has
  * already moved every bar after it.
  */
-export async function removeItem(planId: string, itemId: string): Promise<ActionResult<Plan>> {
+export async function removeItem(planId: string, itemId: string): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.remove(planId, itemId))
 }

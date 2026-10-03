@@ -4,14 +4,14 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import { Button } from '@repo/ui/components/button'
 import { useState } from 'react'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
 import { TaskPicker } from './task-picker'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** One item's link, written: the plan, the item, and the task it points at. */
-export type LinkWrite = (planId: string, itemId: string, taskId: string) => Promise<ActionResult<Plan>>
+export type LinkWrite = (planId: string, itemId: string, taskId: string) => Promise<ActionResult<PlanScreenModel>>
 
 /** One item's link, cleared, or its task created — both take the plan and the item and nothing else. */
-export type ItemOnlyWrite = (planId: string, itemId: string) => Promise<ActionResult<Plan>>
+export type ItemOnlyWrite = (planId: string, itemId: string) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link LinkField}. Primitives and unbound actions, which is all a boundary admits. */
 export interface LinkFieldProps {
@@ -95,7 +95,7 @@ export function LinkField(props: LinkFieldProps) {
   const [chosen, setChosen] = useState('')
   const [problem, setProblem] = useState('')
 
-  const run = async (call: Promise<ActionResult<Plan>>): Promise<void> => {
+  const run = async (call: Promise<ActionResult<PlanScreenModel>>): Promise<void> => {
     const result = await orNoAnswer(() => call)()
     setProblem(result.ok ? '' : result.detail)
   }

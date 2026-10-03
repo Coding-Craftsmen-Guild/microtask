@@ -1,4 +1,3 @@
-import type { Plan } from '@repo/api-client'
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import { LIMITS } from '@repo/contracts'
 import { Button } from '@repo/ui/components/button'
@@ -6,6 +5,7 @@ import { useRef, useState, type FormEvent } from 'react'
 import type { ActionResult } from '../../../actions/result'
 import { FIELD, NEEDS_A_NAME } from './field'
 import { FieldShell } from './field-shell'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 const FORM = 'grid justify-items-start gap-1'
 
@@ -24,7 +24,7 @@ export interface NewNameProps {
   readonly action: string
 
   /** Sends the name as the draft its caller built around it, and answers the plan or the refusal. */
-  readonly add: (name: string) => Promise<ActionResult<Plan>>
+  readonly add: (name: string) => Promise<ActionResult<PlanScreenModel>>
 }
 
 /**

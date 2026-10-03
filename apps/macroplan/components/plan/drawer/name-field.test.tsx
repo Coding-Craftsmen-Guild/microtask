@@ -4,20 +4,20 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
 import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { NameField } from './name-field'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
-type Rename = (planId: string, subjectId: string, name: string) => Promise<ActionResult<Plan>>
+type Rename = (planId: string, subjectId: string, name: string) => Promise<ActionResult<PlanScreenModel>>
 
 const named = (name: string): StoredAnswer => ({
   ok: true,
-  value: atlasPlan({
+  value: planScreenModel(atlasPlan({
     features: atlasPlan().features.map((one) => (one.id === FEATURE_1 ? { ...one, name } : one)),
-  }),
+  })),
 })
 
-type StoredAnswer = ActionResult<Plan>
+type StoredAnswer = ActionResult<PlanScreenModel>
 
 const kept: Rename = (_planId, _subjectId, name) => Promise.resolve(named(name))
 

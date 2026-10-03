@@ -5,13 +5,13 @@ import { LIMITS } from '@repo/contracts'
 import { Button } from '@repo/ui/components/button'
 import { useState } from 'react'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** Adds one rail: the plan and the name it is called. The colour is the server's to pick. */
 export type CreateRailWrite = (
   planId: string,
   epic: { readonly name: string; readonly colour?: string },
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link NewRailForm}. */
 export interface NewRailFormProps {

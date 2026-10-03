@@ -1,12 +1,13 @@
 'use server'
 
-import type { Plan, PlanChange } from '@repo/api-client'
+import type { PlanChange } from '@repo/api-client'
 import { refresh } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { linkCall } from './link-call'
 import { seatWrite } from './plan-write'
 import { LINK_UNAVAILABLE_PATH } from '../lib/routes'
 import type { ActionFailure, ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
 /**
  * The three writes about a plan **itself**, each carrying the authority of one share token.
@@ -47,7 +48,7 @@ export async function seatRetimePlan(
   token: string,
   planId: string,
   timing: PlanChange,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return seatWrite(token, (api) => api.plans.update(planId, timing))
 }
 

@@ -1,14 +1,9 @@
 'use server'
 
-import type {
-  FeatureChange,
-  FeaturePlacement,
-  FeaturesApi,
-  NewFeature,
-  Plan,
-} from '@repo/api-client'
+import type { FeatureChange, FeaturePlacement, FeaturesApi, NewFeature } from '@repo/api-client'
 import { adminWrite } from './plan-write'
 import type { ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
 type Estimate = Exclude<FeatureChange['estimateDays'], undefined>
 
@@ -31,7 +26,7 @@ type Dependencies = Parameters<FeaturesApi['setDependencies']>[2]
 export async function createFeature(
   planId: string,
   feature: NewFeature,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.create(planId, feature))
 }
 
@@ -51,7 +46,7 @@ export async function renameFeature(
   planId: string,
   featureId: string,
   name: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.update(planId, featureId, { name }))
 }
 
@@ -67,7 +62,7 @@ export async function estimateFeature(
   planId: string,
   featureId: string,
   estimateDays: Estimate,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.update(planId, featureId, { estimateDays }))
 }
 
@@ -82,7 +77,7 @@ export async function pinFeature(
   planId: string,
   featureId: string,
   pinSprint: Pin,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.update(planId, featureId, { pinSprint }))
 }
 
@@ -99,7 +94,7 @@ export async function placeFeature(
   planId: string,
   featureId: string,
   to: FeaturePlacement,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.place(planId, featureId, to))
 }
 
@@ -126,7 +121,7 @@ export async function setDependencies(
   planId: string,
   featureId: string,
   dependsOn: Dependencies,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.setDependencies(planId, featureId, dependsOn))
 }
 
@@ -139,6 +134,6 @@ export async function setDependencies(
 export async function removeFeature(
   planId: string,
   featureId: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.remove(planId, featureId))
 }

@@ -5,17 +5,17 @@ import { Button } from '@repo/ui/components/button'
 import { useState } from 'react'
 import { BindFields } from './bind-fields'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** Sends one binding: the plan, the rail, and the token and role an admin typed. */
 export type BindWrite = (
   planId: string,
   epicId: string,
   binding: { readonly token: string; readonly role: 'view' | 'manage' },
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /** Clears one rail's binding: the plan and the rail, and nothing else to send. */
-export type UnbindWrite = (planId: string, epicId: string) => Promise<ActionResult<Plan>>
+export type UnbindWrite = (planId: string, epicId: string) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link BindForm}: primitives and two unbound actions, which is all a boundary admits. */
 export interface BindFormProps {

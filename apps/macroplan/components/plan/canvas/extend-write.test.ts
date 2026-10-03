@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { atlasPlan, EPIC_1, FEATURE_1, FEATURE_2, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { DRAWN_NAMES, type Draft } from './extend-view'
 import { mayExtend, writeDraw, type ExtendWrites } from './extend-write'
+import { planScreenModel } from '../plan-screen-model'
 
 const ADDED_FEATURE = '01MPZZZZZZZZZZZZZZZZZZZZZ8'
 
@@ -28,12 +29,12 @@ const withItem = (): Plan => {
 }
 
 const doubles = () => ({
-  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: withFeature() })),
-  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: withItem() })),
-  labelFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  placeFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  placeItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  setDependencies: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(withFeature()) })),
+  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(withItem()) })),
+  labelFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  placeFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  placeItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  setDependencies: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
 })
 
 const NOTHING: ExtendWrites = {
@@ -181,7 +182,7 @@ describe('a feature drawn from the end of another', () => {
   it('keeps the edges the answered plan already holds for the feature it writes', async () => {
     const writes = {
       ...doubles(),
-      createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: withFeature([ITEM_1]) })),
+      createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(withFeature([ITEM_1])) })),
     }
     await writeDraw(feature({ edge: 'new-waits', featureId: FEATURE_2 }), writes)
 

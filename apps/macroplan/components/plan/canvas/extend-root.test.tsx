@@ -23,12 +23,12 @@ const LANE_ONE = 26
 const LANE_TWO = 78
 
 const writes = () => ({
-  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  labelFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  placeFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  placeItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  setDependencies: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  labelFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  placeFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  placeItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  setDependencies: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
 })
 
 const railed = () => {

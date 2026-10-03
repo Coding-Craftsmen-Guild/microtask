@@ -5,13 +5,13 @@ import { Button } from '@repo/ui/components/button'
 import { useState } from 'react'
 import { LabelFields } from './label-fields'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** One group renamed or recoloured: the plan, the group, and the one value being replaced. */
-export type LabelWrite = (planId: string, labelId: string, value: string) => Promise<ActionResult<Plan>>
+export type LabelWrite = (planId: string, labelId: string, value: string) => Promise<ActionResult<PlanScreenModel>>
 
 /** One group removed: the plan and the group, and nothing to send. */
-export type LabelDelete = (planId: string, labelId: string) => Promise<ActionResult<Plan>>
+export type LabelDelete = (planId: string, labelId: string) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link LabelForm}: primitives and unbound actions, which is all a boundary admits. */
 export interface LabelFormProps {

@@ -1,5 +1,6 @@
 import { MACROPLAN_PLANS_PATH, planPath, type MacroplanSessionClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { planScreenModel } from '../components/plan/plan-screen-model'
 import { ADMIN_TOKEN, PLAN_A, atlasPlan } from '../components/plan/testing/plan-fixture'
 import { PLANS_INDEX_PATH } from '../lib/routes'
 import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
@@ -106,7 +107,7 @@ describe('retiming a plan', () => {
 
   it('answers the whole plan, because the timeline it comes back with is a different one', async () => {
     const result = await retimePlan(PLAN_A, { timezone: 'Europe/Belgrade' })
-    expect(result).toEqual({ ok: true, value: atlasPlan() })
+    expect(result).toEqual({ ok: true, value: planScreenModel(atlasPlan()) })
   })
 
   it('carries the admin bearer and no token of any other kind', async () => {

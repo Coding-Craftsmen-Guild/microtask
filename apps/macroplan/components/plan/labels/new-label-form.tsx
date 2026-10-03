@@ -4,13 +4,13 @@ import { orNoAnswer } from '@repo/app-session/no-answer'
 import { Button } from '@repo/ui/components/button'
 import { useState } from 'react'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** Adds one group: the plan and the name it is called. The colour is the server's to pick. */
 export type CreateLabelWrite = (
   planId: string,
   label: { readonly name: string },
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link NewLabelForm}. */
 export interface NewLabelFormProps {

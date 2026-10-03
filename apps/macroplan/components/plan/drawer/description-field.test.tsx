@@ -1,5 +1,4 @@
 import { NO_ANSWER } from '@repo/app-session/no-answer'
-import type { Plan } from '@repo/api-client'
 import { MAX_ITEM_DESCRIPTION_BYTES } from '@repo/contracts'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -7,14 +6,15 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ActionResult } from '../../../actions/result'
 import { atlasPlan, ITEM_1, PLAN_A } from '../testing/plan-fixture'
 import { DescriptionField } from './description-field'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
 type Describe = (
   planId: string,
   itemId: string,
   description: string,
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
-const served: ActionResult<Plan> = { ok: true, value: atlasPlan() }
+const served: ActionResult<PlanScreenModel> = { ok: true, value: planScreenModel(atlasPlan()) }
 
 const box = () => screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Description' })
 
@@ -166,7 +166,7 @@ describe('when the write is refused', () => {
   })
 
   it('sends the same text again after a refusal, the write having landed nowhere', async () => {
-    const answers: ActionResult<Plan>[] = [{ ok: false, status: 0, detail: 'No answer.' }, served]
+    const answers: ActionResult<PlanScreenModel>[] = [{ ok: false, status: 0, detail: 'No answer.' }, served]
     const { onDescribe, user } = setup('a', () => Promise.resolve(answers.shift() ?? served))
     await user.type(box(), 'b')
     await user.tab()

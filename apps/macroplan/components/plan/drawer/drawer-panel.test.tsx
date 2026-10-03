@@ -1,4 +1,3 @@
-import type { Plan } from '@repo/api-client'
 import type { ScopeValue } from '@repo/contracts'
 import { breakdown, effectiveEstimate } from '@repo/schedule'
 import { cleanup, render, screen } from '@testing-library/react'
@@ -25,6 +24,7 @@ import { FIELDS_HINT_ID, PANEL_BANDS, PANEL_HINTS } from './panel-words'
 import { SPRINT_WORDS } from './sprint-view'
 import type { TabView } from './tab-view'
 import type { DrawerValues, PanelValues } from './values'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
 vi.mock('next/link', async () => ({
   default: (await import('../testing/next-link')).LinkDouble,
@@ -143,7 +143,7 @@ const tabsOf = (row: TableRow): readonly TabView[] => [
 // The scope a seat's controls are asked about, which carries the id the kernel compares.
 const SEAT: ScopeValue = { kind: 'plan', planId: PLAN_A }
 
-const served: ActionResult<Plan> = { ok: true, value: atlasPlan() }
+const served: ActionResult<PlanScreenModel> = { ok: true, value: planScreenModel(atlasPlan()) }
 
 const drawing = (over: Partial<PlanContentControls> = {}): PlanContentControls => ({
   ...ADMIN_CONTROLS.content,
@@ -376,7 +376,7 @@ describe('the fields it draws, from the values rather than from the words', () =
   // screen — not that anything was hidden.
   it('surfaces the sentence a refused write came back with, the control having decided nothing', async () => {
     const renameFeature = vi.fn(() =>
-      Promise.resolve<ActionResult<Plan>>({
+      Promise.resolve<ActionResult<PlanScreenModel>>({
         ok: false,
         status: 403,
         detail: 'Not permitted: feature:rename',

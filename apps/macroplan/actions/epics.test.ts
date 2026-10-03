@@ -1,6 +1,15 @@
 import { planPath, type MacroplanSessionClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ADMIN_TOKEN, EPIC_1, PLAN_A, atlasPlan } from '../components/plan/testing/plan-fixture'
+import { planScreenModel } from '../components/plan/plan-screen-model'
+import {
+  ADMIN_TOKEN,
+  EPIC_1,
+  MANAGE_SEAT_TOKEN,
+  PLAN_A,
+  SEAT_TOKEN,
+  WRITE_SEAT_TOKEN,
+  atlasPlan,
+} from '../components/plan/testing/plan-fixture'
 import { ACTION_REFUSALS, plainRefusal } from '../lib/refusal'
 import { carries, recordingAdmin, wireOf, type RecordingAdmin } from './testing/recording-admin'
 import { Redirected, redirectOf } from './testing/redirected'
@@ -41,10 +50,19 @@ describe('a rail edit', () => {
   it('answers the whole plan to each of them, so the second answer is the one to render', async () => {
     expect(await renameEpic(PLAN_A, EPIC_1, 'Platform work')).toEqual({
       ok: true,
-      value: atlasPlan(),
+      value: planScreenModel(atlasPlan()),
     })
-    expect(await recolourEpic(PLAN_A, EPIC_1, '#ef4444')).toEqual({ ok: true, value: atlasPlan() })
+    expect(await recolourEpic(PLAN_A, EPIC_1, '#ef4444')).toEqual({ ok: true, value: planScreenModel(atlasPlan()) })
     expect(refresh).toHaveBeenCalledTimes(2)
+  })
+
+  // The API answers an admin's write with every live seat on the plan, and this answer is what the
+  // browser receives. It used to be handed over as it came; it is reduced on the server now, so not one
+  // of the fixture's three tokens may survive into it (ADR 0033, ADR 0069).
+  it('answers a plan that carries none of the seat tokens the API sent with it', async () => {
+    const answered = JSON.stringify(await renameEpic(PLAN_A, EPIC_1, 'Platform work'))
+    expect(JSON.stringify(atlasPlan())).toContain(SEAT_TOKEN)
+    for (const token of [SEAT_TOKEN, WRITE_SEAT_TOKEN, MANAGE_SEAT_TOKEN]) expect(answered).not.toContain(token)
   })
 
   it('leaves a rename written when the recolour behind it is refused, which is what splitting costs', async () => {

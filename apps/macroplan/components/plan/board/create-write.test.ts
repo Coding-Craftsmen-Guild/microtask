@@ -4,6 +4,7 @@ import { atlasPlan, EPIC_1, FEATURE_1, PLAN_A } from '../testing/plan-fixture'
 import type { Draft } from '../canvas/extend-view'
 import { CREATE_NAMES, DROPPED_ESTIMATE } from './create-kinds'
 import { writeDrop, type CreateWrites } from './create-write'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
 const ADDED_RAIL = '01MPZZZZZZZZZZZZZZZZZZZZZ1'
 
@@ -15,16 +16,16 @@ const withRail = (): Plan => {
 }
 
 const doubles = () => ({
-  createEpic: vi.fn<(planId: string, epic: NewEpic) => Promise<{ ok: true; value: Plan }>>(() =>
-    Promise.resolve({ ok: true, value: withRail() }),
+  createEpic: vi.fn<(planId: string, epic: NewEpic) => Promise<{ ok: true; value: PlanScreenModel }>>(() =>
+    Promise.resolve({ ok: true, value: planScreenModel(withRail()) }),
   ),
-  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  labelFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  placeFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  placeItem: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  reorderEpic: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
-  setDependencies: vi.fn(() => Promise.resolve({ ok: true as const, value: atlasPlan() })),
+  createFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  createItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  labelFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  placeFeature: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  placeItem: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  reorderEpic: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
+  setDependencies: vi.fn(() => Promise.resolve({ ok: true as const, value: planScreenModel(atlasPlan()) })),
 })
 
 const contextOf = (writes: CreateWrites) => ({ planId: PLAN_A, writes, colour: '#0e9f6e' })

@@ -1,5 +1,6 @@
 import { planPath, type MacroplanSessionClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { planScreenModel } from '../components/plan/plan-screen-model'
 import {
   EPIC_1,
   FEATURE_1,
@@ -91,7 +92,7 @@ describe('the fields that have a null', () => {
 describe('the rest of the feature writes', () => {
   it('adds a feature to the rail its draft names, and answers the plan the API sent back', async () => {
     const created = await createFeature(PLAN_A, { epicId: EPIC_1, name: 'Audit log' })
-    expect(created).toEqual({ ok: true, value: atlasPlan() })
+    expect(created).toEqual({ ok: true, value: planScreenModel(atlasPlan()) })
     expect(wireOf(admin.sent)).toEqual([
       {
         method: 'POST',

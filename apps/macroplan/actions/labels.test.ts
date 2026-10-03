@@ -1,5 +1,6 @@
 import { planPath, type MacroplanSessionClient } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { planScreenModel } from '../components/plan/plan-screen-model'
 import {
   ADMIN_TOKEN,
   FEATURE_1,
@@ -75,7 +76,7 @@ describe('naming a group, which is a plan-level write and not a rail one', () =>
   })
 
   it('removes one with no body at all, and answers the plan the features come back ungrouped in', async () => {
-    expect(await removeLabel(PLAN_A, LABEL_1)).toEqual({ ok: true, value: atlasPlan() })
+    expect(await removeLabel(PLAN_A, LABEL_1)).toEqual({ ok: true, value: planScreenModel(atlasPlan()) })
     expect(wireOf(admin.sent)).toEqual([{ method: 'DELETE', path: LABEL, body: undefined }])
   })
 })

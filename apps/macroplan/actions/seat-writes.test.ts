@@ -5,6 +5,7 @@ import {
   type ClientOptions,
 } from '@repo/api-client'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { planScreenModel } from '../components/plan/plan-screen-model'
 import { problemAnswer } from '../components/plan/testing/fake-plan-api'
 import {
   ADMIN_TOKEN,
@@ -364,7 +365,7 @@ describe('what a seat does with the plan the write answers', () => {
   it('answers the recomputed plan, which is what the surface renders', async () => {
     expect(await seatRenameFeature(SEAT, PLAN_A, FEATURE_1, NAME)).toEqual({
       ok: true,
-      value: atlasPlan(),
+      value: planScreenModel(atlasPlan()),
     })
   })
 

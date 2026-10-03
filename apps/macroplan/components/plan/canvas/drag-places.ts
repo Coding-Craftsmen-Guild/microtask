@@ -1,5 +1,6 @@
-import type { FeaturePlacement, ItemPlacement, Plan } from '@repo/api-client'
+import type { FeaturePlacement, ItemPlacement } from '@repo/api-client'
 import type { ActionResult } from '../../../actions/result'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /**
  * One feature moved: the plan, the feature, and the rail and place it lands at.
@@ -14,7 +15,7 @@ export type FeaturePlace = (
   planId: string,
   featureId: string,
   to: FeaturePlacement,
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /**
  * One item moved: the plan, the item, and the feature and place it lands at.
@@ -28,4 +29,4 @@ export type ItemPlace = (
   planId: string,
   itemId: string,
   to: ItemPlacement,
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>

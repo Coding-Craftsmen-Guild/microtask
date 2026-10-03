@@ -1,19 +1,8 @@
-import type {
-  FeatureChange,
-  FeaturePlacement,
-  FeaturesApi,
-  ItemChange,
-  ItemPlacement,
-  NewBinding,
-  NewEpic,
-  NewFeature,
-  NewItem,
-  NewLabel,
-  Plan,
-} from '@repo/api-client'
+import type { FeatureChange, FeaturePlacement, FeaturesApi, ItemChange, ItemPlacement, NewBinding, NewEpic, NewFeature, NewItem, NewLabel } from '@repo/api-client'
 import type { ActionResult } from '../../actions/result'
+import type { PlanScreenModel } from './plan-screen-model'
 
-type Answer = Promise<ActionResult<Plan>>
+type Answer = Promise<ActionResult<PlanScreenModel>>
 
 type Estimate = Exclude<FeatureChange['estimateDays'], undefined>
 
@@ -40,7 +29,7 @@ type ItemEstimate = Exclude<ItemChange['estimateDays'], undefined>
  * and its `Refusable` constraint admits only members that are functions answering a promise an
  * `ActionFailure` fits into. So a member that was itself an object of actions is a compile error at
  * the call rather than a wrapper discovered at runtime, and a member answering `Promise<void>` would
- * not typecheck into the guard either — which is why every member here answers `ActionResult<Plan>`.
+ * not typecheck into the guard either — which is why every member here answers `ActionResult<PlanScreenModel>`.
  * That constrains each object handed to the guard and not how many there are: `apps/microtask` hands
  * it three, one per surface. This one is undivided for the reason `admin-actions.ts` records — a
  * surface gains an action without every page that renders it gaining an argument. No caller in this

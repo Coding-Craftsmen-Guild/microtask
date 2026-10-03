@@ -5,13 +5,13 @@ import { Button } from '@repo/ui/components/button'
 import { useState } from 'react'
 import { TIMING_WORDS, TimingFields } from './timing-fields'
 import type { ActionResult } from '../../../actions/result'
-import type { Plan } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** One plan retimed: the plan, and whichever of the three calendar fields changed. */
 export type RetimeWrite = (
   planId: string,
   timing: { readonly startDate?: string; readonly sprintLengthDays?: number; readonly timezone?: string },
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link TimingForm}: primitives and one unbound action, which is all a boundary admits. */
 export interface TimingFormProps {

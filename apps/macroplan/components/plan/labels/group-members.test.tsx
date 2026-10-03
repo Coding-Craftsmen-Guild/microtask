@@ -13,7 +13,7 @@ const sent: { planId: string; featureId: string; labelId: string | null }[] = []
 
 const setLabel = async (planId: string, featureId: string, labelId: string | null) => {
   sent.push({ planId, featureId, labelId })
-  return { ok: true as const, value: atlasPlan() }
+  return { ok: true as const, value: planScreenModel(atlasPlan()) }
 }
 
 const draw = (labelId = LABEL_1) => {

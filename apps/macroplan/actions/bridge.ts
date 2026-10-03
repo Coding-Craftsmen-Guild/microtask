@@ -1,8 +1,9 @@
 'use server'
 
-import type { BoundProject, NewBinding, Plan } from '@repo/api-client'
+import type { BoundProject, NewBinding } from '@repo/api-client'
 import { adminWrite } from './plan-write'
 import type { ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
 /**
  * Binds one rail to a Microtask project by the share token an admin pasted from there.
@@ -21,7 +22,7 @@ export async function bindEpic(
   planId: string,
   epicId: string,
   binding: NewBinding,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.bind(planId, epicId, binding))
 }
 
@@ -50,7 +51,7 @@ export async function bindEpicProject(
   planId: string,
   epicId: string,
   binding: BoundProject,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.bindProject(planId, epicId, binding))
 }
 
@@ -61,7 +62,7 @@ export async function bindEpicProject(
  * every item under the rail stops having a counted number, so every bar on it is drawn from its
  * estimate alone again.
  */
-export async function unbindEpic(planId: string, epicId: string): Promise<ActionResult<Plan>> {
+export async function unbindEpic(planId: string, epicId: string): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.epics.unbind(planId, epicId))
 }
 
@@ -76,12 +77,12 @@ export async function linkItem(
   planId: string,
   itemId: string,
   taskId: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.link(planId, itemId, { taskId }))
 }
 
 /** Unlinks one item from its task. Idempotent, and it needs no live binding to clear the field. */
-export async function unlinkItem(planId: string, itemId: string): Promise<ActionResult<Plan>> {
+export async function unlinkItem(planId: string, itemId: string): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.unlink(planId, itemId))
 }
 
@@ -96,6 +97,6 @@ export async function unlinkItem(planId: string, itemId: string): Promise<Action
  * linked precisely so that a retry cannot make a second task, and a 409 here means the first attempt
  * landed after all.
  */
-export async function createTask(planId: string, itemId: string): Promise<ActionResult<Plan>> {
+export async function createTask(planId: string, itemId: string): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.items.createTask(planId, itemId))
 }

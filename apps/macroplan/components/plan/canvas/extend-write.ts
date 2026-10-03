@@ -1,10 +1,11 @@
-import type { FeaturePlacement, ItemPlacement, NewFeature, NewItem, Plan } from '@repo/api-client'
+import type { FeaturePlacement, ItemPlacement, NewFeature, NewItem } from '@repo/api-client'
 import { orNoAnswer } from '@repo/app-session/no-answer'
 import type { ActionResult } from '../../../actions/result'
 import { DRAWN_NAMES, type Draft } from './extend-view'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** What every write on this board answers: the whole recomputed plan, or a refusal. */
-export type Answer = Promise<ActionResult<Plan>>
+export type Answer = Promise<ActionResult<PlanScreenModel>>
 
 /** Every write a draw on the board can make, each `null` where this surface may not make it. */
 export interface ExtendWrites {
@@ -33,19 +34,19 @@ export interface ExtendWrites {
 export const mayExtend = (writes: ExtendWrites): boolean =>
   writes.createFeature !== null || writes.createItem !== null
 
-const addedFeature = (answer: ActionResult<Plan>): string | null =>
+const addedFeature = (answer: ActionResult<PlanScreenModel>): string | null =>
   answer.ok ? (answer.value.features.at(-1)?.id ?? null) : null
 
-const addedItem = (answer: ActionResult<Plan>): string | null =>
+const addedItem = (answer: ActionResult<PlanScreenModel>): string | null =>
   answer.ok ? (answer.value.items.at(-1)?.id ?? null) : null
 
-const edgesOf = (answer: ActionResult<Plan>, featureId: string): readonly string[] =>
+const edgesOf = (answer: ActionResult<PlanScreenModel>, featureId: string): readonly string[] =>
   answer.ok ? (answer.value.features.find((one) => one.id === featureId)?.dependsOn ?? []) : []
 
 const writeEdge = async (
   draft: DrawnWrite,
   made: string,
-  answer: ActionResult<Plan>,
+  answer: ActionResult<PlanScreenModel>,
   writes: ExtendWrites,
 ): Promise<void> => {
   const { setDependencies } = writes

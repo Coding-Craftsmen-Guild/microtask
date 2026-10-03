@@ -1,5 +1,4 @@
 import { vi } from 'vitest'
-import type { Plan } from '@repo/api-client'
 import type { ActionResult } from '../../../actions/result'
 import { ADMIN_CONTROLS } from '../../../lib/admin-controls'
 import type { PlanContentControls } from '../../../lib/plan-capabilities'
@@ -8,10 +7,11 @@ import type { DeleteWrite } from '../settings/delete-plan'
 import type { RenameWrite } from '../settings/plan-name-form'
 import type { RetimeWrite } from '../settings/timing-form'
 import { atlasPlan } from './plan-fixture'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 
 const NAMES = Object.keys(ADMIN_CONTROLS.content)
 
-const served = (): ActionResult<Plan> => ({ ok: true, value: atlasPlan() })
+const served = (): ActionResult<PlanScreenModel> => ({ ok: true, value: planScreenModel(atlasPlan()) })
 /**
  * The three doubles {@link stubPlanWrites} answers, typed off the components' own write types.
  *
@@ -66,13 +66,13 @@ export const nothingDrawn = (): PlanContentControls =>
  * answers a refusal or nothing at all, because a plan that is gone has no representation and success
  * redirects. Only `retimePlan` answers a plan. That is exactly why they are a group of their own
  * (`PlanOwnControls`) rather than members of `PlanEditActions`, whose every member answers an
- * `ActionResult<Plan>` so that `eachOrNoAnswer` can map over it.
+ * `ActionResult<PlanScreenModel>` so that `eachOrNoAnswer` can map over it.
  *
  * @param over - The members this test cares about, each replacing the spy of that name.
  * @returns The three writes, each answering success against the Atlas fixture.
  */
 export const stubPlanWrites = (over: Partial<PlanWriteDoubles> = {}): PlanWriteDoubles => ({
-  rename: vi.fn(() => Promise.resolve<ActionResult<string>>({ ok: true, value: atlasPlan().name })),
+  rename: vi.fn(() => Promise.resolve<ActionResult<string>>({ ok: true, value: planScreenModel(atlasPlan()).name })),
   retime: vi.fn(() => Promise.resolve(served())),
   remove: vi.fn(() => Promise.resolve(undefined)),
   ...over,

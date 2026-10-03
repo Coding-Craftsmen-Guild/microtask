@@ -1,8 +1,9 @@
 'use server'
 
-import type { NewLabel, Plan } from '@repo/api-client'
+import type { NewLabel } from '@repo/api-client'
 import { adminWrite } from './plan-write'
 import type { ActionResult } from './result'
+import type { PlanScreenModel } from '../components/plan/plan-screen-model'
 
 /**
  * Adds a label to the plan: a group features on any rail can be put into.
@@ -11,7 +12,7 @@ import type { ActionResult } from './result'
  * `createEpic` does: `colour` is optional on the wire, and `exactOptionalPropertyTypes` leaves "the
  * colour nobody picked" with no spelling as a positional `string | undefined`.
  */
-export async function createLabel(planId: string, label: NewLabel): Promise<ActionResult<Plan>> {
+export async function createLabel(planId: string, label: NewLabel): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.labels.create(planId, label))
 }
 
@@ -28,7 +29,7 @@ export async function renameLabel(
   planId: string,
   labelId: string,
   name: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.labels.update(planId, labelId, { name }))
 }
 
@@ -37,7 +38,7 @@ export async function recolourLabel(
   planId: string,
   labelId: string,
   colour: string,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.labels.update(planId, labelId, { colour }))
 }
 
@@ -49,7 +50,7 @@ export async function recolourLabel(
  * the same reason every write here does — the features that were in the group come back ungrouped, and
  * a surface holding the old plan would go on drawing them as grouped.
  */
-export async function removeLabel(planId: string, labelId: string): Promise<ActionResult<Plan>> {
+export async function removeLabel(planId: string, labelId: string): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.labels.remove(planId, labelId))
 }
 
@@ -64,6 +65,6 @@ export async function labelFeature(
   planId: string,
   featureId: string,
   labelId: string | null,
-): Promise<ActionResult<Plan>> {
+): Promise<ActionResult<PlanScreenModel>> {
   return adminWrite(planId, (api) => api.features.setLabel(planId, featureId, labelId))
 }

@@ -3,13 +3,14 @@
 import { NewName } from '../drawer/new-name'
 import { railFeatureFieldId } from './rail-anchors'
 import type { ActionResult } from '../../../actions/result'
-import type { NewFeature, Plan } from '@repo/api-client'
+import type { NewFeature } from '@repo/api-client'
+import type { PlanScreenModel } from '../plan-screen-model'
 
 /** Adds one feature: the plan, and the draft naming the rail it goes on. */
 export type CreateFeatureWrite = (
   planId: string,
   feature: NewFeature,
-) => Promise<ActionResult<Plan>>
+) => Promise<ActionResult<PlanScreenModel>>
 
 /** Props for {@link RailFeature}. */
 export interface RailFeatureProps {
