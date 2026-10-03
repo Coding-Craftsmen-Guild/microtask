@@ -10,6 +10,7 @@ import { planCapabilities } from '../../../lib/plan-capabilities'
 import { linkPath, planPath } from '../../../lib/routes'
 import { PlanNavProvider, SHALLOW, type PlanNav } from '../nav/plan-nav'
 import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
+import type { BindProjectWrite } from '../bridge/bind-project-form'
 import { ITEM_ADD_WORDS } from '../drawer/item-add'
 import { LINK_WORDS } from '../drawer/link-field'
 import { seatDoubles } from '../share/testing/seat-doubles'
@@ -30,6 +31,8 @@ import {
   type StoredPlan,
 } from '../testing/plan-fixture'
 import { addItem } from '../store/item-edits'
+import { addRail } from '../store/rail-edits'
+import { NEW_RAIL_WORDS } from '../rails/new-rail-form'
 import { stubActions, stubPlanWrites } from '../testing/plan-writes'
 import { GONE } from './drawer-gone'
 import { PlanApp, type PlanAppProps } from './plan-app'
@@ -56,6 +59,7 @@ interface Opened {
   readonly surface?: PlanAppProps['surface']
   readonly controls?: PlanAppProps['controls']
   readonly readItem?: ItemRead
+  readonly bindProject?: BindProjectWrite
 }
 
 function Routed(props: PlanAppProps) {
@@ -81,11 +85,14 @@ const open = (path: string, over: Opened = {}) => {
   window.history.replaceState(null, '', path)
   const readItem = vi.fn<ItemRead>(over.readItem ?? (() => Promise.resolve(nothingRead)))
   const actions = stubActions()
+  const bindProject = vi.fn<BindProjectWrite>(
+    over.bindProject ?? (async () => Promise.resolve({ ok: true, value: planScreenModel(atlasPlan()) })),
+  )
   render(
     <Routed
       actions={actions}
       at={AT}
-      bindProject={async () => Promise.resolve({ ok: true, value: planScreenModel(atlasPlan()) })}
+      bindProject={bindProject}
       bridge={null}
       controls={over.controls ?? ADMIN_CONTROLS}
       own={stubPlanWrites()}
@@ -96,7 +103,7 @@ const open = (path: string, over: Opened = {}) => {
       zoom="item"
     />,
   )
-  return { actions, readItem, user: userEvent.setup() }
+  return { actions, bindProject, readItem, user: userEvent.setup() }
 }
 
 const seat = (token: string, role: 'view' | 'write' | 'manage'): Opened => ({
@@ -606,5 +613,29 @@ describe('a delete, whose drawer closes the moment it is confirmed', () => {
     expect(window.location.pathname).toBe(planPath(PLAN_A))
     expect(document.querySelector('[data-slot="plan-notice"]')?.textContent).toContain('Not permitted: feature:delete')
     expect(await linkTo(featurePath(PLAN_A, FEATURE_1))).toBeTruthy()
+  })
+})
+
+// The rail drawer opens on a rail the moment it is made, and binding it is a write of its own outside the
+// plan's: it waits behind the rail's create, and goes out under the id that create was answered with.
+describe('a rail bound to a project before its create was answered', () => {
+  it('sends the binding under the rail’s real id, once the create has been answered', async () => {
+    const { actions, bindProject, user } = open(PLAN_DRAWERS.newRail(PLAN_A, 1))
+    const answer: { to: (answered: ActionResult<PlanScreenModel>) => void } = { to: () => undefined }
+    vi.mocked(actions.createEpic).mockImplementation(() => new Promise((resolve) => (answer.to = resolve)))
+    await user.type(screen.getByRole('textbox', { name: NEW_RAIL_WORDS.label }), 'Ops')
+    await user.click(screen.getByRole('button', { name: NEW_RAIL_WORDS.action }))
+    const rail = document.querySelector(`a[href^="${planPath(PLAN_A)}/r/pending"]`)
+    if (rail === null) throw new Error('the new rail has no link to its drawer')
+    await user.click(rail)
+    await user.type(screen.getByRole('textbox', { name: 'Microtask project to bind this rail to' }), 'prj_1')
+    await user.click(screen.getByRole('button', { name: 'Bind project' }))
+    expect(bindProject).not.toHaveBeenCalled()
+    await act(async () => {
+      answer.to({ ok: true, value: { ...addRail(planScreenModel(atlasPlan()), { name: 'Ops' }, 'REAL_RAIL'), updatedAt: '2026-10-04T00:00:00.000Z' } })
+      await Promise.resolve()
+    })
+    await settled()
+    expect(bindProject).toHaveBeenCalledWith(PLAN_A, 'REAL_RAIL', { projectId: 'prj_1', role: 'view' })
   })
 })

@@ -13,7 +13,7 @@ import type { PlanSeatActions } from '../share/use-plan-seats'
 import { planGestures } from '../store/gestures'
 import { optimisticActions } from '../store/optimistic-actions'
 import { retimePlan } from '../store/plan-edits'
-import { createPlanStore } from '../store/plan-store'
+import { createPlanStore, type PlanStore } from '../store/plan-store'
 import { gestureWritesFor } from '../table/table-writes'
 import type { PlanOwnWrites } from './manage-menus'
 import { PlanClientScreen } from './plan-client-screen'
@@ -43,6 +43,11 @@ const homeOf = (surface: PlanSurface): string =>
 
 const rootOf = (surface: PlanSurface): string => (surface.kind === 'admin' ? surface.planId : surface.token)
 
+const queuedBind =
+  (store: PlanStore, bind: BindProjectWrite): BindProjectWrite =>
+  (planId, epicId, binding) =>
+    store.run({ apply: (plan) => plan, send: () => bind(planId, store.real(epicId), binding) })
+
 /**
  * The plan screen's one client root: the plan crosses to the browser here, once, and everything after is
  * drawn from it (ADR 0069).
@@ -52,6 +57,10 @@ const rootOf = (surface: PlanSurface): string => (surface.kind === 'admin' ? sur
  * stay on screen. The writes the surface handed over are wrapped so each goes through the store, and the
  * two chained gestures are built from the raw ones they chain. Retiming goes through the store as well,
  * because a new start date moves every bar and the reader should see that the moment they commit it.
+ *
+ * So does binding a rail to a project, though it changes nothing the plan draws: a rail's drawer opens the
+ * moment the rail is made, and a binding sent from it then would name the rail's placeholder. Queued, it
+ * waits behind the rail's create and goes out under the id that create was answered with.
  */
 export function PlanApp(props: PlanAppProps) {
   const { plan, surface, controls, actions, bridge, readItem, bindProject, own } = props
@@ -71,7 +80,7 @@ export function PlanApp(props: PlanAppProps) {
       routes: surface.kind === 'admin' ? ADMIN_DRAWER_ROUTES : SEAT_DRAWER_ROUTES,
       bridge,
       readItem,
-      bindProject,
+      bindProject: bindProject === null ? null : queuedBind(store, bindProject),
     }),
     [store, actions, plan.id, controls, surface, bridge, readItem, bindProject],
   )
