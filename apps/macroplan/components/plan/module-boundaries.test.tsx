@@ -349,38 +349,80 @@ const ROOT = 'components/plan/app/plan-app.tsx'
 
 const RESOLVED = ['', '.tsx', '.ts', '/index.tsx', '/index.ts']
 
-// A module path as an import names it, resolved the way the bundler would against the files on disk.
-const resolvedFrom = (from: string, spec: string): string | null => {
-  if (!spec.startsWith('.')) return null
-  const base = resolve(dirname(from), spec)
-  for (const tail of RESOLVED) {
-    const candidate = base + tail
-    try {
-      read(candidate)
-      return candidate
-    } catch {
-      continue
-    }
+// The source of a module by its path, or nothing when there is no such file: the disk, or a handful of
+// modules in memory for the walk's own tests.
+type Modules = (file: string) => string | undefined
+
+const onDisk: Modules = (file) => {
+  try {
+    return read(file)
+  } catch {
+    return undefined
   }
-  return null
 }
 
-// The value imports of one module: a type-only import is erased, so it crosses nothing.
-const valueImports = (source: string): readonly string[] =>
-  [...source.matchAll(/^import\s+(?!type\s)[^;]*?from\s+'([^']+)'/gms)].map((found) => found[1] ?? '')
+// A module path as an import names it — relative, or through the `@/` alias `tsconfig.json` declares —
+// resolved the way the bundler would. A package's is null: no package imports from the app, so none can
+// reach the plan subtree. One that names the app and resolves to nothing **throws**, so a spelling this
+// does not know fails the check instead of walking past a module in silence.
+const resolvedFrom = (modules: Modules, from: string, spec: string): string | null => {
+  const base = spec.startsWith('.')
+    ? resolve(dirname(from), spec)
+    : spec.startsWith('@/')
+      ? join(APP, spec.slice(2))
+      : null
+  if (base === null) return null
+  const found = RESOLVED.map((tail) => base + tail).find((candidate) => modules(candidate) !== undefined)
+  if (found === undefined) throw new Error(`${relative(APP, from)} imports ${spec}, which this check cannot resolve`)
+  return found
+}
 
-// Every client module under the plan subtree that a **server** file outside it imports by value: which
-// is every place the server could render one, and so every place a prop would be serialised to the browser.
+// The modules one module loads by value: its imports, its re-exports and its dynamic imports, in either
+// quote. A type-only one is erased, so it crosses nothing. The clause between the keyword and `from` may
+// hold only names, braces, commas and `*`, so an `export const` cannot run on into a later line's string.
+const STATIC_IMPORT = /^(?:import|export)\s+(?!type\s)[\w$*\s{},]*?\bfrom\s+['"]([^'"]+)['"]/gm
+const DYNAMIC_IMPORT = /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g
+
+const valueImports = (source: string): readonly string[] =>
+  [...source.matchAll(STATIC_IMPORT), ...source.matchAll(DYNAMIC_IMPORT)].map((found) => found[1] ?? '')
+
 const inPlan = (file: string): boolean => file.startsWith(PLAN + sep)
 
-const clientRootsImportedByServer = (): readonly string[] => {
-  const outside = walk(APP).filter((file) => !inPlan(file) && !declaresUseClient(read(file)))
-  const roots = outside.flatMap((file) =>
-    valueImports(read(file))
-      .map((spec) => resolvedFrom(file, spec))
-      .filter((found): found is string => found !== null && inPlan(found) && declaresUseClient(read(found))),
-  )
-  return [...new Set(roots.map((file) => relative(APP, file).split('\\').join('/')))].sort()
+// What a server file reaches: every module it **runs** — its own imports, and on through each of theirs
+// that is not a client module, since those run on the server too — and every **client** module at the edge
+// of that. The walk stops at each client module, because what one imports is drawn in the browser, inside it.
+interface Reach {
+  readonly ran: readonly string[]
+  readonly clients: readonly string[]
+}
+
+const serverReach = (modules: Modules, entries: readonly string[]): Reach => {
+  const ran = [...entries]
+  const seen = new Set(ran)
+  const clients: string[] = []
+  for (const file of ran) {
+    for (const spec of valueImports(modules(file) ?? '')) {
+      const found = resolvedFrom(modules, file, spec)
+      if (found === null || seen.has(found)) continue
+      seen.add(found)
+      if (declaresUseClient(modules(found) ?? '')) clients.push(found)
+      else ran.push(found)
+    }
+  }
+  return { ran, clients }
+}
+
+// Every module under the plan subtree the server could draw, which is every place a prop could be
+// serialised to the browser: a client module it reaches, and a component file it runs, which could render
+// a client module from a package where this walk does not follow. A plan module the server runs to read a
+// plan or to bind an action is a `.ts` file and draws nothing.
+const drawnFrom = ({ ran, clients }: Reach): readonly string[] =>
+  [...clients, ...ran.filter((file) => file.endsWith('.tsx'))].filter(inPlan)
+
+const planDrawnByServer = (): readonly string[] => {
+  const servers = walk(APP).filter((file) => !inPlan(file) && !declaresUseClient(read(file)))
+  const drawn = drawnFrom(serverReach(onDisk, servers))
+  return [...new Set(drawn.map((file) => relative(APP, file).split('\\').join('/')))].sort()
 }
 
 const TREES = [
@@ -834,15 +876,56 @@ describe('the plan subtree', () => {
   // `PlanApp`, which the two plan surfaces render — and nothing else in the subtree is rendered by a server
   // file. So the props that are serialised are that root's and only that root's, and the token sweeps of
   // the two pages that render it are the whole of what has to be true about them (ADR 0033, ADR 0069).
-  // A server file importing a second client component from here would be a second boundary nothing
-  // checks; this is what makes that fail rather than pass in silence.
-  it('lets the server render exactly one client root from the plan subtree, which is PlanApp', () => {
-    expect(clientRootsImportedByServer()).toEqual([ROOT])
+  // A server file importing a second client component from here — or a component from here that draws one,
+  // however many modules down — would be a second boundary nothing checks; this is what makes that fail
+  // rather than pass in silence.
+  it('lets the server draw exactly one thing from the plan subtree, which is PlanApp', () => {
+    expect(planDrawnByServer()).toEqual([ROOT])
   })
 
   it('reads a value import and skips a type-only one, so the check above is not empty by accident', () => {
     const source = "import type { A } from './a'\nimport { B } from './b'\nimport {\n  C,\n} from './c'\n"
     expect(valueImports(source)).toEqual(['./b', './c'])
+  })
+
+  it('reads a re-export, either quote and a dynamic import, and no export that names no module', () => {
+    const source = [
+      "export { D } from './d'",
+      'export * from "./e"',
+      "export type { F } from './f'",
+      'export const G = 1',
+      `const note = "read from './g'"`,
+      "const I = await import('./i')",
+    ].join('\n')
+    expect(valueImports(source)).toEqual(['./d', './e', './i'])
+  })
+
+  // The reviewer's case: a server page rendering a plan component that is not a client module itself but
+  // draws client fields beneath it, reached through the alias and through a re-export.
+  it('follows the server through a component it runs, the alias and a re-export, to what it draws', () => {
+    const at = (name: string) => join(APP, ...name.split('/'))
+    const files = new Map([
+      [at('app/page.tsx'), "import { Panel } from '../components/plan/panel'\nimport { Root } from '@/components/plan/root'\n"],
+      [at('components/plan/panel.tsx'), "import { Field } from './field'\nexport { Other } from \"./other\"\n"],
+      [at('components/plan/field.tsx'), "'use client'\nimport { Deeper } from './deeper'\n"],
+      [at('components/plan/deeper.tsx'), "'use client'\n"],
+      [at('components/plan/other.tsx'), "'use client'\n"],
+      [at('components/plan/root.tsx'), "'use client'\n"],
+      [at('components/plan/model.ts'), 'export const M = 1\n'],
+    ])
+    const drawn = drawnFrom(serverReach((file) => files.get(file), [at('app/page.tsx')]))
+    expect(drawn.map((file) => relative(APP, file).split(sep).join('/')).sort()).toEqual([
+      'components/plan/field.tsx',
+      'components/plan/other.tsx',
+      'components/plan/panel.tsx',
+      'components/plan/root.tsx',
+    ])
+  })
+
+  it('fails on an import it cannot resolve, so a spelling it does not know cannot pass in silence', () => {
+    const page = join(APP, 'app', 'page.tsx')
+    const files = new Map([[page, "import { X } from './x.js'\n"]])
+    expect(() => serverReach((file) => files.get(file), [page])).toThrow(/\.\/x\.js/)
   })
 
   it('renders only class names the Tailwind scanner can find verbatim under a scan root', () => {
