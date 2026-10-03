@@ -15,7 +15,7 @@ import type { PlanView } from '../view-switch'
 import { manageMenus, type PlanOwnWrites } from './manage-menus'
 import { PlanDrawer } from './plan-drawer'
 import { PlanNotice } from './plan-notice'
-import { usePlanSession, usePlanSnapshot } from './plan-session'
+import { usePlan, usePlanSession } from './plan-session'
 import { useZoom } from './use-zoom'
 
 const NO_PROGRESS: PlanBridge['items'] = []
@@ -45,7 +45,7 @@ export interface PlanClientScreenProps {
  */
 export function PlanClientScreen({ at, zoom: opening, own, seats, children }: PlanClientScreenProps) {
   const session = usePlanSession()
-  const { plan } = usePlanSnapshot()
+  const plan = usePlan()
   const admin = session.surface.kind === 'admin'
   const { zoom, zoomTo } = useZoom(opening, admin)
   const [view, setView] = useState<PlanView>('timeline')

@@ -5,7 +5,7 @@ import { RailFeature } from '../rails/rail-feature'
 import { RailForm } from '../rails/rail-form'
 import { railRows } from '../rails/rail-rows'
 import { DrawerGone } from './drawer-gone'
-import { usePlanSession, usePlanSnapshot } from './plan-session'
+import { usePlan, usePlanSession } from './plan-session'
 
 /** Props for {@link RailDrawer}. */
 export interface RailDrawerProps {
@@ -21,7 +21,7 @@ export interface RailDrawerProps {
  */
 export function RailDrawer({ epicId }: RailDrawerProps) {
   const { writes, controls, home, bridge, bindProject } = usePlanSession()
-  const { plan } = usePlanSnapshot()
+  const plan = usePlan()
   const rail = railRows(plan).find((row) => row.id === epicId)
   if (rail === undefined) return <DrawerGone />
   const binding = bindingRows(plan, bridge).find((row) => row.epicId === epicId)

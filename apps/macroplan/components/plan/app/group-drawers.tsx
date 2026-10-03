@@ -7,7 +7,7 @@ import { NewLabelForm } from '../labels/new-label-form'
 import { NewRailForm } from '../rails/new-rail-form'
 import { nextRailColour } from '../rails/rail-palette'
 import { DrawerGone } from './drawer-gone'
-import { usePlanSession, usePlanSnapshot } from './plan-session'
+import { usePlan, usePlanSession } from './plan-session'
 
 const ADD_RAIL = 'Add a rail'
 
@@ -19,7 +19,7 @@ const ADD_GROUP = 'Add a group'
  */
 export function GroupDrawer({ labelId }: { readonly labelId: string }) {
   const { writes, controls, home } = usePlanSession()
-  const { plan } = usePlanSnapshot()
+  const plan = usePlan()
   const group = labelRows(plan).find((row) => row.id === labelId)
   if (group === undefined) return <DrawerGone />
   const { content } = controls
@@ -54,7 +54,7 @@ export function GroupDrawer({ labelId }: { readonly labelId: string }) {
  */
 export function NewRailDrawer({ count }: { readonly count: number }) {
   const { writes, controls, home } = usePlanSession()
-  const { plan } = usePlanSnapshot()
+  const plan = usePlan()
   if (!controls.content.createEpic) return <DrawerGone />
   return (
     <DrawerShell closeHref={home} title={ADD_RAIL}>
@@ -66,7 +66,7 @@ export function NewRailDrawer({ count }: { readonly count: number }) {
 /** The add-a-group drawer — `new/group` as it was, drawn from the store. */
 export function NewGroupDrawer() {
   const { writes, controls, home } = usePlanSession()
-  const { plan } = usePlanSnapshot()
+  const plan = usePlan()
   if (!controls.content.createLabel) return <DrawerGone />
   return (
     <DrawerShell closeHref={home} title={ADD_GROUP}>

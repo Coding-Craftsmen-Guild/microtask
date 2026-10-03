@@ -1,11 +1,12 @@
 import type { PlanBridge } from '@repo/api-client'
-import { createContext, useContext, useSyncExternalStore } from 'react'
+import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
 import type { ItemDrawerRead } from '../../../actions/drawer-reads'
 import type { ActionResult } from '../../../actions/result'
 import type { DrawerRoutes } from '../../../lib/drawer-routes'
 import type { PlanControls } from '../../../lib/plan-capabilities'
 import type { BindProjectWrite } from '../bridge/bind-project-form'
 import type { PlanEditActions } from '../edit-actions'
+import type { PlanScreenModel } from '../plan-screen-model'
 import type { PlanGestures } from '../store/gestures'
 import type { PlanSnapshot, PlanStore } from '../store/plan-store'
 
@@ -79,14 +80,31 @@ export function usePlanSession(): PlanSession {
 }
 
 /**
- * The plan as it is now, pending changes and all, and whether any is still being saved.
+ * The plan as it is now, pending changes and all, whether any is still being saved, and the refusal on screen.
  *
- * `useSyncExternalStore` over the store, so every component reading it re-renders exactly when the plan
- * changes, and a server render and the first client render read the same snapshot.
+ * `useSyncExternalStore` over the store, so a server render and the first client render read the same
+ * snapshot. A component reading it re-renders whenever any of the three changes; one that draws the plan
+ * alone reads {@link usePlan} instead.
  *
  * @returns The store's snapshot.
  */
 export function usePlanSnapshot(): PlanSnapshot {
   const { store } = usePlanSession()
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+}
+
+/**
+ * The plan as it is now, pending changes and all — and nothing else from the store.
+ *
+ * The store hands back the same plan object until the plan changes, so a component reading this re-renders
+ * exactly then: not when a write starts or lands without changing it, and not when the notice says or
+ * forgets a refusal. The whole screen reads the plan this way, which is what keeps dismissing a notice
+ * from redrawing two thousand marks.
+ *
+ * @returns The store's plan.
+ */
+export function usePlan(): PlanScreenModel {
+  const { store } = usePlanSession()
+  const read = useCallback(() => store.getSnapshot().plan, [store])
+  return useSyncExternalStore(store.subscribe, read, read)
 }
