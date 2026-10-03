@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { IsoDate, PlanManifest, Timezone } from '@repo/contracts'
 import { planScreenModel } from '../plan-screen-model'
 import { EPIC_1, EPIC_2, EPIC_3, FEATURE_1, FEATURE_3, FEATURE_6, LABEL_1, atlasPlan, railedPlan } from '../testing/plan-fixture'
 import { addGroup, changeGroup, removeGroup } from './group-edits'
@@ -82,5 +83,42 @@ describe('retimePlan mirrors PlanService.update', () => {
 
   it('renames the plan the way the API stores a name', () => {
     expect(retimePlan(atlas(), { name: '  Atlas  2 ' }).name).toBe('Atlas 2')
+  })
+
+  // The whole board is redrawn from these three until the answer lands, and a sprint length of 0 — a
+  // cleared field — divided every day by zero. A value the API would refuse is not drawn; the refusal says why.
+  it('keeps the sprint length when the new one is no whole number of days the API would take', () => {
+    for (const refused of [0, -1, 1.5, 61, Number.NaN]) {
+      expect(retimePlan(atlas(), { sprintLengthDays: refused }).sprintLengthDays, String(refused)).toBe(atlas().sprintLengthDays)
+    }
+  })
+
+  it('keeps the start date when the new one is no YYYY-MM-DD date', () => {
+    expect(retimePlan(atlas(), { startDate: '' }).startDate).toBe(atlas().startDate)
+    expect(retimePlan(atlas(), { startDate: '2026/11/02' }).startDate).toBe(atlas().startDate)
+  })
+
+  it('keeps the timezone when the new one is no zone this runtime can resolve', () => {
+    expect(retimePlan(atlas(), { timezone: 'Mars/Olympus_Mons' }).timezone).toBe('Europe/Belgrade')
+  })
+
+  it('takes the longest sprint and any zone the API would take', () => {
+    const moved = retimePlan(atlas(), { sprintLengthDays: 60, timezone: 'America/New_York' })
+    expect([moved.sprintLengthDays, moved.timezone]).toEqual([60, 'America/New_York'])
+  })
+
+  // The rules are mirrored so the screen ships no schema library; this holds the mirror to the schemas.
+  it('takes exactly what the API’s own schemas take', () => {
+    const plan = atlas()
+    for (const days of [0, 1, 2.5, 7, 60, 61, -3, Number.NaN]) {
+      const took = retimePlan(plan, { sprintLengthDays: days }).sprintLengthDays === days
+      expect(took, String(days)).toBe(PlanManifest.shape.sprintLengthDays.safeParse(days).success)
+    }
+    for (const date of ['2026-11-02', '', '2026/11/02', '26-11-02', '2026-1-2']) {
+      expect(retimePlan(plan, { startDate: date }).startDate === date, date).toBe(IsoDate.safeParse(date).success)
+    }
+    for (const zone of ['UTC', 'America/New_York', 'Mars/Olympus_Mons', '', 'x'.repeat(65)]) {
+      expect(retimePlan(plan, { timezone: zone }).timezone === zone, zone).toBe(Timezone.safeParse(zone).success)
+    }
   })
 })
