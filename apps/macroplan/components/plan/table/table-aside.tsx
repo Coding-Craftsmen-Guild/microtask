@@ -1,4 +1,4 @@
-import { memo, useDeferredValue, useEffect, useState } from 'react'
+import { memo, startTransition, useDeferredValue, useEffect, useState } from 'react'
 import { VIEW_SWITCH } from '../view-switch'
 import { PlanTable, type PlanTableProps } from './plan-table'
 
@@ -19,7 +19,10 @@ export interface TableAsideProps extends PlanTableProps {
  * At this product's cap that is 2,200 rows, which used to be rendered and re-rendered with the canvas on
  * every request, edit and zoom. Three things keep it from costing an interaction anything (ADR 0069):
  *
- * - **It mounts after the screen has painted**, off screen, so the first paint is the board alone.
+ * - **It mounts after the screen has painted**, off screen, so the first paint is the board alone — and as
+ *   a transition, which React renders in slices and yields between: at the cap the mount is 2,200 rows, and
+ *   as one render it held the main thread for a second and a half right after load, the board unable to
+ *   answer a click. Chosen before then, it mounts at once, the reader having asked for it.
  * - **It renders from a deferred plan while it is off screen**, so React draws an edit on the board first
  *   and the table after, in a render an input can interrupt. Chosen, it renders from the live plan.
  * - **It is memoised**, so a zoom, a drawer or a hover — none of which changes a row — leaves it alone.
@@ -33,7 +36,7 @@ export function TableAside({ shown, ...table }: TableAsideProps) {
   if (shown && !ready) setReady(true)
   useEffect(() => {
     if (ready) return undefined
-    const later = setTimeout(() => setReady(true), 0)
+    const later = setTimeout(() => startTransition(() => setReady(true)), 0)
     return () => clearTimeout(later)
   }, [ready])
   if (!ready) return null

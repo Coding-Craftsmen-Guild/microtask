@@ -1,5 +1,5 @@
 /**
- * The `data-slot` of the one element every `:has()` rule on this page anchors on.
+ * The `data-slot` of the one element both selection sheets anchor on.
  *
  * ### Why it is a constant and not three string literals
  *
@@ -19,6 +19,12 @@ export const PLAN_ROOT_SLOT = 'plan-shell'
 
 /** {@link PLAN_ROOT_SLOT} as the attribute selector both generated sheets open their rules with. */
 export const PLAN_ROOT = `[data-slot="${PLAN_ROOT_SLOT}"]`
+
+/** The shell's attribute naming the chosen group, which `labels/group-css.ts` keys its rules on. */
+export const SELECTED_GROUP = 'data-sel-group'
+
+/** The shell's attribute naming the chosen rail, which `board/rail-select-css.ts` keys its rules on. */
+export const SELECTED_RAIL = 'data-sel-rail'
 
 /**
  * The plan page's frame, as whole class strings.

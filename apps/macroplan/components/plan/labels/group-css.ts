@@ -1,4 +1,4 @@
-import { PLAN_ROOT } from '../shell/shell-css'
+import { PLAN_ROOT, SELECTED_GROUP } from '../shell/shell-css'
 import { isStyleSafeId, type LabelRow } from './label-rows'
 
 /** The `id` of the radio that selects one group, and the `for` of the chip that labels it. */
@@ -33,7 +33,7 @@ const DIMMABLE = [
 const NAMED = ['[data-slot="feature-bar"]', '[data-slot="item-mark"]'].join(',')
 
 const ruleFor = (labelId: string): string => {
-  const chosen = `${ROOT}:has(#${groupRadioId(labelId)}:checked) `
+  const chosen = `${ROOT}[${SELECTED_GROUP}="${labelId}"] `
   const elsewhere = `:not([data-label-id="${labelId}"])`
   const marks = `${chosen}:is(${DIMMABLE})${elsewhere}`
   return `${marks},${chosen}:is(${NAMED})${elsewhere} + text{opacity:${DIMMED_OPACITY}}`
@@ -51,20 +51,25 @@ const ruleFor = (labelId: string): string => {
  * the element carrying it. A generated rule is the one mechanism that expresses "when this is chosen,
  * those are dimmed" with nothing to hydrate.
  *
- * ### Why `:has()` and not a sibling selector
+ * ### Why it keys on the shell, and why no longer through `:has()`
  *
- * The view switch beside this uses `peer-checked`, which is `~` under the hood, and so requires its radios
- * to be siblings of the panels they control — which is why `plan-screen.tsx` may not wrap any part of that
- * markup. The chips here sit in the heading row and the bars are inside the switch, two subtrees apart, so
- * no sibling selector could reach from one to the other. `:has()` on their common ancestor asks the
- * question from above instead, which is what lets the chips live where an admin expects them.
+ * The chips sit in the heading row and the bars are inside the board, two subtrees apart, so no sibling
+ * selector could reach from one to the other; the question has to be asked from their common ancestor,
+ * the shell. It was asked with `:has(#radio:checked)`, which needed nothing but the radio — and which the
+ * browser re-asked of the whole screen whenever anything inside it restyled. At the product's cap a hover
+ * restyles every mark, and with this rule and the rail's beside it that was a quarter of a second a frame
+ * where an idle frame takes sixteen milliseconds (ADR 0069).
+ *
+ * So the shell says which group is chosen, as `data-sel-group` (`../shell/plan-shell.tsx`), set from
+ * whichever radio changed, and the rule asks one attribute of one ancestor. The radios are still the
+ * control, and still all a reader touches.
  *
  * ### What a reader of the markup sees
  *
- * Nothing about a group is on a bar except `data-label-id`. There is no "selected" attribute anywhere,
- * because nothing on the server knows what is selected: the browser holds that in the radio, so a chosen
- * group survives no reload and reaches no URL. That is deliberate for what this is — a way of looking at
- * the plan for a moment, not a filter somebody shares — and it is why choosing a group re-renders nothing.
+ * Nothing about a group is on a bar except `data-label-id`, and the chosen one is on the shell alone. It
+ * is the browser's state and nobody else's: a chosen group survives no reload and reaches no URL. That is
+ * deliberate for what this is — a way of looking at the plan for a moment, not a filter somebody shares —
+ * and it is why choosing a group re-renders nothing but the shell's own attribute.
  *
  * ### What the rule selects, and the defect that changed it
  *

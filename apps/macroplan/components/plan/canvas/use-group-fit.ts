@@ -32,9 +32,9 @@ const askedBy = (target: Element | null): { readonly rung: string; readonly day:
  *
  * ### What it does not touch
  *
- * The selection. A chip is a `<label>` for a radio and the dimming is a generated `:has()` rule, so
- * choosing a group costs no JavaScript, no state and no round trip (ADR 0064) — and none of that
- * changes. Nothing here calls `preventDefault`, which is load-bearing rather than incidental: the
+ * The selection. A chip is a `<label>` for a radio, and the dimming is a generated rule keyed on the
+ * group the shell says is chosen (`../shell/plan-shell.tsx`), so choosing a group costs no round trip
+ * (ADR 0064, ADR 0069) — and none of that is this hook's. Nothing here calls `preventDefault`, which is load-bearing rather than incidental: the
  * label's default action is to check its own radio, and suppressing it would make the click that
  * moved the view fail to select the group it moved to.
  *

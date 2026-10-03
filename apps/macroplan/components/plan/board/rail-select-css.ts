@@ -1,5 +1,5 @@
 import { isStyleSafeId } from '../labels/label-rows'
-import { PLAN_ROOT } from '../shell/shell-css'
+import { PLAN_ROOT, SELECTED_RAIL } from '../shell/shell-css'
 import type { BoardRail } from './board-rows'
 
 /** The `id` of the radio that selects one rail, and the `for` of the swatch that names it. */
@@ -24,11 +24,11 @@ export const SELECT_DIMMED = '0.32'
 const ROOT = PLAN_ROOT
 
 const railRule = (epicId: string): string =>
-  `${ROOT}:has(#${railRadioId(epicId)}:checked) [data-slot="rail"]:not([data-epic-id="${epicId}"])` +
+  `${ROOT}[${SELECTED_RAIL}="${epicId}"] [data-slot="rail"]:not([data-epic-id="${epicId}"])` +
   `{opacity:${SELECT_DIMMED}}`
 
 const rowRule = (epicId: string): string =>
-  `${ROOT}:has(#${railRadioId(epicId)}:checked) [data-slot="rail-row"]:not([data-epic-id="${epicId}"])` +
+  `${ROOT}[${SELECTED_RAIL}="${epicId}"] [data-slot="rail-row"]:not([data-epic-id="${epicId}"])` +
   `{opacity:${SELECT_DIMMED}}`
 
 /**
@@ -39,10 +39,11 @@ const rowRule = (epicId: string): string =>
  * `labels/group-css.ts` holds the whole argument and none of it is restated here: a class cannot be
  * chosen by a runtime value because Tailwind's scanner reads class names as text; an inline style
  * cannot do it either, because what has to change is the appearance of *other* elements than the one
- * clicked; and `:has()` on the common ancestor is what lets a control in one subtree reach marks in
- * another. Selecting a rail and selecting a group are the same gesture over a different attribute, so
- * they are the same mechanism rather than a second one — which is also why they share
- * {@link PLAN_ROOT} and why choosing a rail re-renders nothing.
+ * clicked; and the question is asked of the common ancestor, the shell, which says which rail is chosen as
+ * `data-sel-rail` (no longer `:has()` of the radio, which cost a restyle of the whole screen per hover at
+ * the cap — ADR 0069). Selecting a rail and selecting a group are the same gesture over a different
+ * attribute, so they are the same mechanism rather than a second one — which is also why they share
+ * {@link PLAN_ROOT}, and why choosing a rail re-renders nothing but that attribute.
  *
  * ### The name dims with its lane, which it did not before
  *

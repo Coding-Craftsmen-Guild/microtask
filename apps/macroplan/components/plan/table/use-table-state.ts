@@ -11,6 +11,10 @@ const SORT = '[data-sort-col]'
 
 const MOVE = '[data-move]'
 
+const COLUMN_ROW = '[data-slot="column-row"]'
+
+const NONE_HIDDEN: readonly string[] = []
+
 const NOTHING: Narrowed = { needle: '', rail: '', group: '' }
 
 const narrowedBy = (was: Narrowed, target: EventTarget | null): Narrowed => {
@@ -29,6 +33,15 @@ const movedBy = (target: Element | null): { readonly key: string; readonly by: -
   return { key, by: moving.getAttribute('data-move') === '1' ? 1 : -1 }
 }
 
+const hiddenBy = (was: readonly string[], target: EventTarget | null): readonly string[] => {
+  if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox' || target.closest(COLUMN_ROW) === null) {
+    return was
+  }
+  const key = target.value
+  if (target.checked) return was.includes(key) ? was.filter((one) => one !== key) : was
+  return was.includes(key) ? was : [...was, key]
+}
+
 const kept = (order: readonly string[]): readonly string[] => {
   remember(order)
   return order
@@ -39,6 +52,9 @@ export interface TableState {
   readonly narrowed: Narrowed
   readonly sorted: Sorted | null
   readonly order: readonly string[]
+
+  /** The columns the reader has unchecked, by key — what the table states as `data-hide` for its sheet. */
+  readonly hidden: readonly string[]
 
   /** The search box and the two filters, heard where they bubble to. */
   readonly onInput: (event: { readonly target: EventTarget | null }) => void
@@ -55,8 +71,9 @@ export interface TableState {
  * is drawn in the browser now, so these are simply what it renders from (`./table-order.ts`), and the
  * controls are still heard by delegation: one listener for the whole toolbar and header.
  *
- * Hiding a **column** is not here, as it never was: a checkbox and a `:has()` rule per column
- * (`./table-css.ts`) do it with no state at all. The column **order** is the one thing remembered, because
+ * Hiding a **column** is a list of keys, heard off its checkbox and stated as `data-hide` on the table's
+ * root, which one rule per column reads (`./table-css.ts`), so no row re-renders for it. The column
+ * **order** is the one thing remembered, because
  * a layout is a preference and a search is a question — `./column-memory.ts` carries that argument.
  *
  * @returns The state, and the listeners that set it.
@@ -65,11 +82,13 @@ export function useTableState(): TableState {
   const [narrowed, setNarrowed] = useState<Narrowed>(NOTHING)
   const [sorted, setSorted] = useState<Sorted | null>(null)
   const [order, setOrder] = useState<readonly string[]>(DEFAULT_ORDER)
+  const [hidden, setHidden] = useState<readonly string[]>(NONE_HIDDEN)
   useEffect(() => {
     setOrder(remembered())
   }, [])
   const onInput = (event: { readonly target: EventTarget | null }): void => {
     setNarrowed((was) => narrowedBy(was, event.target))
+    setHidden((was) => hiddenBy(was, event.target))
   }
   const onClick = (event: MouseEvent<HTMLElement>): void => {
     const target = event.target instanceof Element ? event.target : null
@@ -78,5 +97,5 @@ export function useTableState(): TableState {
     const asked = movedBy(target)
     if (asked !== null) setOrder((was) => kept(moveColumn(was, asked.key, asked.by)))
   }
-  return { narrowed, sorted, order, onInput, onClick }
+  return { narrowed, sorted, order, hidden, onInput, onClick }
 }

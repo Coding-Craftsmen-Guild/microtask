@@ -27,11 +27,11 @@ export interface TableToolbarProps {
  * (`./use-table-state.ts`), so the strip carries no state and no closures: a control keeps its own value,
  * and what it narrows or reorders is the table's state, which the rows are rendered from.
  *
- * ### Why the column menu needs no JavaScript to hide a column
+ * ### Why hiding a column re-renders no row
  *
- * Each checkbox is a real `<input>` with an `id` the generated sheet keys a `:has()` rule on, so
- * unchecking one hides that column outright (`./table-css.ts`). Only the two **move** buttons change what
- * is rendered, because reordering cells in a table is the one thing CSS cannot express: `order` does not
+ * Each checkbox is a real `<input>` whose value is its column's key; the table states the unchecked keys for
+ * its sheet (`./table-css.ts`), so unchecking one hides that column outright. Only the two **move** buttons
+ * change what is rendered, because reordering cells in a table is the one thing CSS cannot express: `order` does not
  * apply to table cells, and the alternative — dropping `<table>` for a grid — would cost the semantics
  * ADR 0056 says this rendering exists for.
  *

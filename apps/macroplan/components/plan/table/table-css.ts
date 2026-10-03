@@ -1,6 +1,4 @@
-import { colId, COLUMNS } from './columns'
-
-const PANEL = '[data-slot="table-panel"]'
+import { COLUMNS } from './columns'
 
 const ARROW = '[data-slot="sort-arrow"]'
 
@@ -8,8 +6,7 @@ const UP = String.fromCharCode(0x2191)
 
 const DOWN = String.fromCharCode(0x2193)
 
-const hidden = (key: string): string =>
-  `${PANEL}:has(#${colId(key)}:not(:checked)) [data-col="${key}"]{display:none}`
+const hidden = (key: string): string => `[data-hide~="${key}"] [data-col="${key}"]{display:none}`
 
 const ITEM_ROW = '[data-kind="item"]'
 
@@ -18,13 +15,14 @@ const REPEATED = ':is([data-col="epic"],[data-col="feature"])'
 /**
  * Column visibility and the sorted column's arrow, as one static sheet.
  *
- * ### Why hiding a column needs no JavaScript at all
+ * ### Why hiding a column re-renders no row
  *
- * A checkbox per column and one `:has()` rule per column, anchored on the panel both live in. Unchecking
- * one hides every cell carrying that `data-col` — the header and two thousand bodies at once — with no
- * state, no round trip and nothing for a re-render to undo. It is the mechanism ADR 0064 chose for group
- * selection and `view-switch.ts` for the view tabs, applied to the one other thing on this page that is
- * pure presentation.
+ * A checkbox per column and one rule per column. Unchecking one hides every cell carrying that `data-col` —
+ * the header and two thousand bodies at once — with no round trip and no row re-rendered: the table hears
+ * the checkbox and states the hidden columns as one `data-hide` list on its root
+ * (`./use-table-state.ts`), and the rule asks that list. It asked the checkbox itself, with `:has()`
+ * anchored on the panel, until that was measured: mounting the table at the cap restyled every row
+ * against nine of them (ADR 0069).
  *
  * Nine rules, fixed, because they name columns and columns are a constant. Nothing here is generated from
  * the plan, which is the difference between this sheet and `labels/group-css.ts`.

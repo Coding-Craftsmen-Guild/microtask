@@ -10,6 +10,8 @@ const ARC_FROM = 'data-arc-from'
 
 const ARC_TO = 'data-arc-to'
 
+const GROUP = '[data-slot="feature-group"]'
+
 const clear = (root: Element, name: string): void => {
   for (const one of root.querySelectorAll(`[${name}]`)) one.removeAttribute(name)
 }
@@ -59,8 +61,10 @@ export function lightThread(root: Element | null, id: string): void {
   const near = neighbours(root, id)
   for (const one of root.querySelectorAll(`[${HOVER_ID}]`)) {
     const held = one.getAttribute(HOVER_ID) ?? ''
-    if (held === id) one.setAttribute(LIT, '')
-    else if (near.has(held)) one.setAttribute(NEAR, '')
+    const light = held === id ? LIT : near.has(held) ? NEAR : null
+    if (light === null) continue
+    one.setAttribute(light, '')
+    one.closest(GROUP)?.setAttribute(light, '')
   }
 }
 
@@ -69,8 +73,8 @@ const BOARD = '[data-slot="plan-board"]'
 /**
  * Where a hover's attributes go: the board, and not the whole screen around it.
  *
- * Every rule in `./pointer-css.ts` hangs off `[data-hovering]`, several of them through `:has()`, so
- * setting it makes the browser re-style everything beneath the element it is set on. On the screen's root
+ * Every rule in `./pointer-css.ts` hangs off `[data-hovering]`, so setting it makes the browser re-style
+ * everything beneath the element it is set on. On the screen's root
  * that was the head, the drawer and the table as well as the board — measured at the product's cap, a
  * hover cost 222 ms of style recalculation a frame, most of it on rows nobody was looking at. Everything a
  * hover lights is on the board, so the board is the root it needs; a screen with no board (a test of the

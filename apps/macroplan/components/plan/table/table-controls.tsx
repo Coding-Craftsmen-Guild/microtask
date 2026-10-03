@@ -46,8 +46,8 @@ export function TableFilter({ which, label, options, extra }: FilterProps) {
 /**
  * One row of the column menu: a checkbox that hides the column, and two buttons that move it.
  *
- * The checkbox is the whole of hiding — `./table-css.ts` keys a `:has()` rule on its `id`, so it needs no
- * JavaScript and survives every re-render. The buttons are the one thing CSS cannot do, and they are
+ * The checkbox is the control for hiding — its `value` is the column's key, which the table reads into its
+ * `data-hide` list for `./table-css.ts` — and, uncontrolled, it survives every re-render. The buttons are the one thing CSS cannot do, and they are
  * buttons rather than a draggable header because a keyboard can press them.
  */
 export function ColumnRow({ column }: { readonly column: PlanColumn }) {
@@ -64,7 +64,7 @@ export function ColumnRow({ column }: { readonly column: PlanColumn }) {
   )
   return (
     <div className={TABLE.menuRow} data-slot="column-row">
-      <input defaultChecked id={colId(column.key)} type="checkbox" />
+      <input defaultChecked id={colId(column.key)} type="checkbox" value={column.key} />
       <label className={TABLE.menuName} htmlFor={colId(column.key)}>
         {column.head}
       </label>

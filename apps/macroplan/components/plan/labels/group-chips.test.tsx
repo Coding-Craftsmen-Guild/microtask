@@ -174,11 +174,20 @@ describe('the rule that dims what is not in the chosen group', () => {
     expect(css).not.toContain(ALL_RADIO_ID)
   })
 
-  it('selects the bars and rows of every other group from the plan root, by :has on the radio', () => {
+  // The shell says which group is chosen (`../shell/plan-shell.tsx`), so the rule asks an attribute of one
+  // ancestor rather than `:has()` of a radio — which restyled the whole screen on every hover at the cap.
+  it('selects the bars and rows of every other group from the group the shell says is chosen', () => {
     const css = groupCss(ROWS)
 
-    expect(css).toContain(`${PLAN_ROOT}:has(#${groupRadioId(LABEL_1)}:checked) `)
+    expect(css).toContain(`${PLAN_ROOT}[data-sel-group="${LABEL_1}"] `)
     expect(css).toContain(`:not([data-label-id="${LABEL_1}"]) + text{opacity:${DIMMED_OPACITY}}`)
+    expect(css).not.toContain(':has(')
+  })
+
+  it('gives each radio its group’s id as its value and the All radio none, which is what the shell reads', () => {
+    show(<GroupChips allFit={ALL_FIT} mayAdd={false} planId={null} rows={ROWS} />)
+
+    expect(radios().map((one) => one.value)).toEqual(['', LABEL_1, LABEL_2])
   })
 
   // The canvas draws text again — a point's name and an item's — and the names came back without this,

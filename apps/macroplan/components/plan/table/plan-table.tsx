@@ -125,7 +125,14 @@ export function PlanTable(props: PlanTableProps) {
   const keys = columns.map((column) => column.key).join(',')
   const arranged = useMemo(() => arrangedRows(tableRows(plan), state.narrowed, state.sorted), [plan, state.narrowed, state.sorted])
   return (
-    <div className="contents" data-slot="table-root" onChange={state.onInput} onClick={state.onClick} onInput={state.onInput}>
+    <div
+      className="contents"
+      data-hide={state.hidden.length === 0 ? undefined : state.hidden.join(' ')}
+      data-slot="table-root"
+      onChange={state.onInput}
+      onClick={state.onClick}
+      onInput={state.onInput}
+    >
       <style>{TABLE_CSS}</style>
       <TableToolbar
         groups={optionsOf(plan.labels.map((label) => [label.id, label.name] as const))}

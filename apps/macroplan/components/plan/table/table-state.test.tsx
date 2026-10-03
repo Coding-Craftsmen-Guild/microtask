@@ -216,12 +216,22 @@ describe('ordering the table', () => {
 })
 
 describe('which columns are shown, and in what order', () => {
-  it('hides a column with a checkbox and a rule, and so needs no JavaScript to do it', () => {
+  // The checkbox is still the control, and still all a reader touches; what changed is how the sheet learns
+  // it was unchecked. It asked the checkbox with `:has()`, anchored on a panel of two thousand rows, which
+  // made mounting the table at the cap a style recalculation of every row against nine of them (ADR 0069).
+  it('hides a column with a checkbox, which the table hears and states as one attribute its sheet keys on', () => {
     show()
     const sheets = [...document.querySelectorAll('style')].map((one) => one.textContent ?? '').join('')
     expect(sheets).toContain(TABLE_CSS)
-    expect(document.querySelector(`#${colId('group')}`)).not.toBeNull()
-    expect(TABLE_CSS).toContain(`#${colId('group')}:not(:checked)`)
+    expect(TABLE_CSS).toContain('[data-hide~="group"] [data-col="group"]{display:none}')
+    expect(TABLE_CSS).not.toContain(':has(')
+    const root = document.querySelector('[data-slot="table-root"]')
+    const box = document.querySelector(`#${colId('group')}`)
+    if (!(box instanceof HTMLInputElement)) throw new Error('no checkbox for the group column')
+    fireEvent.click(box)
+    expect(root?.getAttribute('data-hide')?.split(' ')).toContain('group')
+    fireEvent.click(box)
+    expect(root?.getAttribute('data-hide') ?? '').not.toContain('group')
   })
 
   it('names every rendered column in the menu, and every menu row names a column that exists', () => {

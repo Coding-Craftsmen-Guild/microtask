@@ -28,7 +28,7 @@ const ARC = '[data-slot="arc"]'
 const KEPT = ':not([data-lit]):not([data-near])'
 
 const DIMMED = [
-  `[data-hovering] ${GROUP}:not(:has([data-lit])):not(:has([data-near]))`,
+  `[data-hovering] ${GROUP}${KEPT}`,
   `[data-hovering] ${ITEM}${KEPT}`,
   `[data-hovering] ${ITEM}${KEPT} + text`,
 ].join(',')
@@ -38,16 +38,27 @@ const DIMMED = [
  *
  * ### Why an attribute and not a generated rule per feature
  *
- * CSS can ask "is an element with this id hovered" from a common ancestor — `:has()` is how the group
- * chips and the rail selection reach across subtrees — but only with **one rule per feature**, and the
- * selection sheet already writes two of those per feature. A third would be three hundred rules on a
- * plan of a hundred features, generated on every render, to paint something that lasts as long as a
- * pointer rests on it.
+ * CSS could ask "is an element with this id hovered" from a common ancestor, but only with **one rule per
+ * feature**: three hundred rules on a plan of a hundred features, generated on every render, to paint
+ * something that lasts as long as a pointer rests on it.
  *
  * So `./pointer-lights.ts` sets `data-lit` on the handful of elements that share the hovered feature's
- * `data-hover-id`, `data-near` on the features at the other end of its arcs, and `data-hovering` on the
- * root. This paints all three. An attribute toggled on a handful of elements costs nothing and does not
- * scale with the plan.
+ * `data-hover-id`, `data-near` on the features at the other end of its arcs, the same on the
+ * `feature-group` each of those is drawn in, and `data-hovering` on the root. This paints all three.
+ *
+ * ### Why an item mark switches and does not fade
+ *
+ * A group and an arc fade over 0.12s; an item mark does not. There are hundreds of the first two and up to
+ * two thousand of the third, and a hover dims nearly all of them at once — faded, that was thousands of
+ * SVG elements animating opacity, and at the cap the frames after a hover stalled for up to a fifth of a
+ * second painting it. Switched, the same hover holds sixteen milliseconds a frame (ADR 0069).
+ *
+ * ### Why no rule asks `:has()`
+ *
+ * The group rule did: a group was kept bright when it `:has([data-lit])`. A hover restyles every mark under
+ * the root, so that was a question of every group on every hover, and with the selection sheets' own
+ * `:has()` beside it, a quarter of a second a frame at the cap (ADR 0069). The pointer already knows which
+ * marks it lit, so it says so on their group, and every rule here asks an attribute.
  *
  * ### Three levels, and why the board dims at all
  *
@@ -80,7 +91,7 @@ export const POINTER_CSS = [
   `${SHAPES}{opacity:1;stroke-width:2.5px}`,
   `${DIMMED}{opacity:0.35}`,
   `[data-hovering] ${ARC}${KEPT}{opacity:0.12}`,
-  `${GROUP},${ITEM},${ARC}{transition:opacity .12s}`,
+  `${GROUP},${ARC}{transition:opacity .12s}`,
 ].join('')
 
 /**

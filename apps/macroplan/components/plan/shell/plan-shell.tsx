@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { chosenBy, NOTHING_CHOSEN } from './selection'
 import { PLAN_ROOT_SLOT, SHELL } from './shell-css'
 
 /** Props for {@link PlanShell}. */
@@ -37,10 +38,24 @@ export interface PlanShellProps {
  * the bands it was naming — two columns of the same rails at two offsets. The rails are a sticky
  * column *inside* the board's own scroller now (`board/rail-column.tsx`), which makes a rail's name
  * being beside its band structural rather than two panes agreeing about a row height.
+ *
+ * ### What it says about the reader's choice
+ *
+ * The shell is the common ancestor of the group chips, the rail column and every mark they dim, so it is
+ * where the chosen group and the chosen rail are stated: `data-sel-group` and `data-sel-rail`, heard off
+ * whichever radio changed (`./selection.ts`). The two sheets ask these attributes rather than asking the
+ * radios with `:has()`, which made every hover at the product's cap restyle the whole screen (ADR 0069).
  */
 export function PlanShell({ head, children, drawer }: PlanShellProps) {
+  const [chosen, choose] = useState(NOTHING_CHOSEN)
   return (
-    <div className={SHELL.root} data-slot={PLAN_ROOT_SLOT}>
+    <div
+      className={SHELL.root}
+      data-sel-group={chosen.group ?? undefined}
+      data-sel-rail={chosen.rail ?? undefined}
+      data-slot={PLAN_ROOT_SLOT}
+      onChange={(event) => choose((was) => chosenBy(was, event.target))}
+    >
       <div className={SHELL.head}>{head}</div>
       <div className={SHELL.body}>
         <div className={SHELL.main} data-slot="plan-main">

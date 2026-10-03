@@ -74,6 +74,7 @@ export function PlanBoard(props: PlanBoardProps) {
         id={NOTHING_SELECTED_ID}
         name={SELECT_RADIO_NAME}
         type="radio"
+        value=""
       />
       <div className={BOARD.box}>
         <div className={BOARD.headerRow} data-slot="board-head">

@@ -13,8 +13,12 @@ import { planAxis } from './canvas/zoom-view'
 import { PlanScreen, type PlanScreenProps } from './plan-screen'
 import { planScreenModel, type PlanScreenModel } from './plan-screen-model'
 import { PLAN_ROOT } from './shell/shell-css'
-import { NOTHING_SELECTED_ID } from './board/rail-select-css'
-import { atlasPlan, FEATURE_1, ITEM_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
+import { NOTHING_SELECTED_ID, railRadioId } from './board/rail-select-css'
+import { GroupChips } from './labels/group-chips'
+import { ALL_RADIO_ID, groupRadioId } from './labels/group-css'
+import { allWorkFit } from './labels/group-fit'
+import { labelRows } from './labels/label-rows'
+import { atlasPlan, EPIC_1, FEATURE_1, ITEM_1, LABEL_1, PLAN_A, unplacedPlan } from './testing/plan-fixture'
 import { stubActions } from './testing/plan-writes'
 import type { PlanView } from './view-switch'
 
@@ -38,6 +42,7 @@ const MANAGE: ReactNode = <p data-testid="manage-marker">who else may open this 
 const TRAY: ReactNode = <p data-testid="tray-marker">what has no bar</p>
 
 interface Shown {
+  readonly groups?: ReactNode
   readonly controls?: PlanControls
   readonly drawer?: ReactNode
   readonly manage?: ReactNode
@@ -62,7 +67,7 @@ const show = (over: Shown = {}) =>
       controls={over.controls ?? ADMIN_CONTROLS}
       drawer={over.drawer ?? null}
       gestures={null}
-      groups={null}
+      groups={over.groups ?? null}
       manage={over.manage ?? null}
       newRailHref="/plans/p/new/rail?n=1"
       plan={over.plan ?? planScreenModel(atlasPlan())}
@@ -376,6 +381,59 @@ describe('the element both generated selection sheets anchor on', () => {
   })
 })
 
+// Both selection sheets key on two attributes of the shell, which the shell sets from whichever radio
+// changed. They used to ask the radio itself, with `:has(#radio:checked)` anchored on the shell, and that
+// made every hover at the cap restyle the whole screen against every rule: a quarter of a second a frame
+// at 2,200 marks, where an idle frame is sixteen milliseconds (ADR 0069).
+describe('the choice of a rail and of a group, said on the shell', () => {
+  const chips = (): ReactNode => (
+    <GroupChips
+      allFit={allWorkFit(planScreenModel(atlasPlan()))}
+      mayAdd={false}
+      planId={PLAN_A}
+      rows={labelRows(planScreenModel(atlasPlan()))}
+    />
+  )
+
+  const radioNamed = (id: string): HTMLInputElement => {
+    const found = document.getElementById(id)
+    if (!(found instanceof HTMLInputElement)) throw new Error(`no radio ${id}`)
+    return found
+  }
+
+  it('says which rail is chosen on the shell, and nothing once the choice is cleared', () => {
+    show()
+    fireEvent.click(radioNamed(railRadioId(EPIC_1)))
+    expect(shell().getAttribute('data-sel-rail')).toBe(EPIC_1)
+    fireEvent.click(radioNamed(NOTHING_SELECTED_ID))
+    expect(shell().hasAttribute('data-sel-rail')).toBe(false)
+  })
+
+  it('says which group is chosen on the shell, and nothing once All work is', () => {
+    show({ groups: chips() })
+    fireEvent.click(radioNamed(groupRadioId(LABEL_1)))
+    expect(shell().getAttribute('data-sel-group')).toBe(LABEL_1)
+    fireEvent.click(radioNamed(ALL_RADIO_ID))
+    expect(shell().hasAttribute('data-sel-group')).toBe(false)
+  })
+
+  it('keeps the two choices apart, a rail chosen inside a group being both at once', () => {
+    show({ groups: chips() })
+    fireEvent.click(radioNamed(groupRadioId(LABEL_1)))
+    fireEvent.click(radioNamed(railRadioId(EPIC_1)))
+    expect([shell().getAttribute('data-sel-group'), shell().getAttribute('data-sel-rail')]).toEqual([LABEL_1, EPIC_1])
+  })
+
+  it('asks no element on the screen whether it :has() anything, in any sheet it ships', async () => {
+    const { container } = show({ groups: chips() })
+    await tableIn(container)
+    const sheets = [...document.querySelectorAll('style')].map((one) => one.textContent ?? '').join('')
+    expect(sheets).toContain('data-sel-group')
+    expect(sheets).toContain('data-sel-rail')
+    expect(sheets).not.toContain(':has(')
+  })
+})
+
 // The same join the block above exists for, for the hover sheet: `POINTER_CSS` names five slots and
 // paints nothing at all if the screen renders none of them, and a rule that matches nothing is valid
 // CSS. So each slot it names is asserted to be something under the root that listens for the hover.
@@ -400,6 +458,17 @@ describe('the root that listens for a pointer over the plan', () => {
       expect(POINTER_CSS, slot).toContain(`[data-slot="${slot}"][data-lit]`)
       expect(document.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull()
     }
+  })
+
+  // An item mark is the one thing on the board there are thousands of. Faded rather than switched, every
+  // hover animated all of them at once, and at the cap the frames after it stalled for up to a fifth of a
+  // second painting opacity; switched, they hold sixteen milliseconds (ADR 0069). A group and an arc —
+  // hundreds, not thousands — keep their fade.
+  it('fades a group and an arc on a hover, and switches an item mark, there being thousands of those', () => {
+    const rules = POINTER_CSS.split('}').filter((rule) => rule.includes('transition'))
+    expect(rules.join('}')).toContain('[data-slot="feature-group"]')
+    expect(rules.join('}')).toContain('[data-slot="arc"]')
+    expect(rules.join('}')).not.toContain('[data-slot="item-mark"]')
   })
 
   it('tells the root the scale the canvas was actually drawn at, so a zoom anchors where it looks', () => {

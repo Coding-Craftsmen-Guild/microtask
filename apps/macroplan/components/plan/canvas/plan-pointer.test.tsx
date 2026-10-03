@@ -412,6 +412,26 @@ describe('over the canvas the server really renders, rather than a fixture of on
     expect(card()?.textContent).toContain('Auth rewrite')
     expect(lit()).toContain('item-mark')
   })
+
+  // The sheet keeps a feature's group bright while one of its marks is lit, and it asked that with
+  // `:has([data-lit])`: a question of every group on every hover, which at the cap was most of a frame
+  // that should take sixteen milliseconds. The pointer already knows which marks it lit, so it says so on
+  // their group too, and the sheet asks one attribute (ADR 0069).
+  it('lights the group a lit mark is drawn in, and keeps the group of a kept feature, so the sheet asks no :has()', () => {
+    render(
+      <PlanPointer axisX={0} pxPerDay={14} rung="item" zoomTo={zoomTo}>
+        <PlanCanvas at={new Date('2026-10-05T09:00:00.000Z')} place={null} plan={planScreenModel(atlasPlan())} rung="item" />
+      </PlanPointer>,
+    )
+    const groupOf = (id: string): Element | null =>
+      document.querySelector(`[data-slot="feature-bar"][data-hover-id="${id}"]`)?.closest('[data-slot="feature-group"]') ?? null
+    fireEvent.pointerOver(at(`[data-slot="feature-bar"][data-hover-id="${FEATURE_1}"]`), { clientX: 100, clientY: 100 })
+    expect(groupOf(FEATURE_1)?.hasAttribute('data-lit')).toBe(true)
+    expect(groupOf(FEATURE_2)?.hasAttribute('data-lit')).toBe(false)
+    expect(groupOf(FEATURE_2)?.hasAttribute('data-near')).toBe(true)
+    fireEvent.pointerOut(at(`[data-slot="feature-bar"][data-hover-id="${FEATURE_1}"]`), { clientX: 100, clientY: 100 })
+    expect(document.querySelector('[data-slot="feature-group"][data-lit], [data-slot="feature-group"][data-near]')).toBeNull()
+  })
 })
 
 describe('fitting the view to a group when its chip is clicked', () => {

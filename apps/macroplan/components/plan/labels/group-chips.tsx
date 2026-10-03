@@ -94,9 +94,9 @@ const hueOf = (colour: string): CSSProperties => ({ '--chip-hue': colour }) as C
  * them. The dimming itself is the one thing no class can express, and `groupCss` argues at length why it is
  * a generated `<style>` rather than a class or an inline style.
  *
- * `All work` is first and checked, so the plan opens undimmed. It carries no rule of its own: with it
- * checked, no `:has()` in the sheet matches, and every bar is at full opacity because nothing said
- * otherwise.
+ * `All work` is first and checked, so the plan opens undimmed. It carries no rule of its own: its value is
+ * empty, so with it checked the shell names no group, no rule in the sheet matches, and every bar is at
+ * full opacity because nothing said otherwise.
  *
  * ### Why a group chip is tinted and `All work` is filled
  *
@@ -133,7 +133,7 @@ export function GroupChips({ rows, planId, mayAdd, allFit }: GroupChipsProps) {
   const chips = (
     <div className={CHIP.row} data-slot="group-chips">
       <style>{groupCss(rows)}</style>
-      <input className="peer sr-only" defaultChecked id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} type="radio" />
+      <input className="peer sr-only" defaultChecked id={ALL_RADIO_ID} name={GROUP_RADIO_NAME} type="radio" value="" />
       <label className={CHIP.all} htmlFor={ALL_RADIO_ID} {...fitAttributes(allFit)}>
         {GROUP_WORDS.all}
       </label>
@@ -144,6 +144,7 @@ export function GroupChips({ rows, planId, mayAdd, allFit }: GroupChipsProps) {
             id={groupRadioId(row.id)}
             name={GROUP_RADIO_NAME}
             type="radio"
+            value={row.id}
           />
           <label
             aria-label={countTitle(row)}
