@@ -241,4 +241,18 @@ describe('what the chain answers, which is what the store confirms', () => {
   it('answers null where the surface may not create what was drawn', async () => {
     expect(await writeDraw(item(), { ...doubles(), createItem: null })).toBeNull()
   })
+
+  // The store names the draw's placeholders from these, so a write made on the drawn work meanwhile goes
+  // out under an id the API knows (`../store/plan-store.ts`).
+  it('tells made the id of each thing a feature draw created, as each create is answered', async () => {
+    const heard: string[] = []
+    await writeDraw(feature(), doubles(), undefined, (kind, id) => heard.push(`${kind} ${id}`))
+    expect(heard).toEqual([`feature ${ADDED_FEATURE}`, `item ${ADDED_ITEM}`])
+  })
+
+  it('tells made the id of the item an item draw created', async () => {
+    const heard: string[] = []
+    await writeDraw(item(), doubles(), undefined, (kind, id) => heard.push(`${kind} ${id}`))
+    expect(heard).toEqual([`item ${ADDED_ITEM}`])
+  })
 })

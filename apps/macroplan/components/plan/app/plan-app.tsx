@@ -63,7 +63,7 @@ export function PlanApp(props: PlanAppProps) {
     () => ({
       store,
       writes: optimisticActions(actions, store),
-      gestures: planGestures(plan.id, gestureWritesFor(actions, controls.content), store.run),
+      gestures: planGestures(plan.id, gestureWritesFor(actions, controls.content), store),
       controls,
       surface,
       home: homeOf(surface),

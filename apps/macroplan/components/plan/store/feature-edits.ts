@@ -110,17 +110,22 @@ export const removeFeature = (plan: PlanScreenModel, id: string): PlanScreenMode
 /**
  * A feature created at the end of its rail, under an id the caller chose — `FeatureService.add`.
  *
- * The id is a placeholder (`pending:<n>`) until the API's answer replaces this whole plan with one holding
- * the real ULID. It is appended to the array because that is where the API puts a created feature, and the
- * draw gesture reads the last one as the new one. A rail the plan does not hold creates nothing.
+ * The id is a placeholder (`pending:<n>`) until the create is answered, and the real ULID once it has
+ * been (`./plan-store.ts`). It is appended to the array because that is where the API puts a created
+ * feature, and the draw gesture reads the last one as the new one. A rail the plan does not hold creates
+ * nothing.
+ *
+ * An id the plan already holds adds nothing either. A plan the server pushes in the middle of a draw can
+ * already hold the feature the draw's create stored, and the draw is re-applied on top of it under that
+ * feature's real id: adding it again would draw it twice until the draw's last write was answered.
  *
  * @param plan - The plan as it stands.
  * @param draft - What the create sends.
- * @param id - The placeholder id.
+ * @param id - The placeholder id, or the real one once the create has been answered.
  * @returns The plan with the feature added.
  */
 export function addFeature(plan: PlanScreenModel, draft: NewFeature, id: string): PlanScreenModel {
-  if (!plan.epics.some((one) => one.id === draft.epicId)) return plan
+  if (!plan.epics.some((one) => one.id === draft.epicId) || plan.features.some((one) => one.id === id)) return plan
   const created: Feature = {
     id,
     epicId: draft.epicId,

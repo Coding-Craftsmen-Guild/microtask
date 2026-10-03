@@ -9,7 +9,8 @@ import { featurePath, groupPath, itemPath, PLAN_DRAWERS, railPath } from '../../
 import { planCapabilities } from '../../../lib/plan-capabilities'
 import { linkPath, planPath } from '../../../lib/routes'
 import { PlanNavProvider, SHALLOW, type PlanNav } from '../nav/plan-nav'
-import { planScreenModel } from '../plan-screen-model'
+import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
+import { ITEM_ADD_WORDS } from '../drawer/item-add'
 import { LINK_WORDS } from '../drawer/link-field'
 import { seatDoubles } from '../share/testing/seat-doubles'
 import {
@@ -28,6 +29,7 @@ import {
   unplacedPlan,
   type StoredPlan,
 } from '../testing/plan-fixture'
+import { addItem } from '../store/item-edits'
 import { stubActions, stubPlanWrites } from '../testing/plan-writes'
 import { GONE } from './drawer-gone'
 import { PlanApp, type PlanAppProps } from './plan-app'
@@ -513,5 +515,53 @@ describe('the drawers a seat opens', () => {
   it('never opens a drawer at an admin address on a seat, the seat’s root being its token', () => {
     open(featurePath(PLAN_A, FEATURE_1), seat(MANAGE_SEAT_TOKEN, 'manage'))
     expect(screen.queryByRole('heading', { level: 2 })).toBeNull()
+  })
+})
+
+// Opened before its create was answered, the drawer names a placeholder the API never issued; the store
+// learns the real id from the answer (`../store/plan-store.ts`), and the drawer follows it.
+describe('a drawer opened on something created a moment ago', () => {
+  const answeredWith = (): PlanScreenModel => ({
+    ...addItem(planScreenModel(atlasPlan()), { featureId: FEATURE_1, name: 'Audit trail' }, 'REAL_ITEM'),
+    updatedAt: '2026-10-04T00:00:00.000Z',
+  })
+
+  const openedOnNewItem = async () => {
+    const opened = open(featurePath(PLAN_A, FEATURE_1))
+    const answer: { to: (answered: ActionResult<PlanScreenModel>) => void } = { to: () => undefined }
+    vi.mocked(opened.actions.createItem).mockImplementation(() => new Promise((resolve) => (answer.to = resolve)))
+    await opened.user.type(screen.getByRole('textbox', { name: ITEM_ADD_WORDS.label }), 'Audit trail{Enter}')
+    await opened.user.click(screen.getByRole('link', { name: 'Audit trail' }))
+    return { ...opened, answer }
+  }
+
+  it('stays open on the same panel when the create is answered, and moves to the real address', async () => {
+    const { answer } = await openedOnNewItem()
+    expect(window.location.pathname).toMatch(/\/i\/pending%3A\d+$/)
+    const field = screen.getByRole('textbox', { name: 'Item name' })
+    await act(async () => {
+      answer.to({ ok: true, value: answeredWith() })
+      await Promise.resolve()
+    })
+    await settled()
+    expect(gone()).toBe(false)
+    expect(window.location.pathname).toBe(itemPath(PLAN_A, 'REAL_ITEM'))
+    expect(new URLSearchParams(window.location.search).get('open')).toBe(`f:${FEATURE_1},i:REAL_ITEM`)
+    expect(screen.getByRole('textbox', { name: 'Item name' })).toBe(field)
+  })
+
+  it('sends a rename made there before the answer under the id the create was answered with', async () => {
+    const { actions, answer, user } = await openedOnNewItem()
+    const field = screen.getByRole('textbox', { name: 'Item name' })
+    await user.clear(field)
+    await user.type(field, 'Audit log')
+    await user.tab()
+    await act(async () => {
+      answer.to({ ok: true, value: answeredWith() })
+      await Promise.resolve()
+    })
+    await settled()
+    expect(actions.renameItem).toHaveBeenCalledWith(PLAN_A, 'REAL_ITEM', 'Audit log')
+    expect(gone()).toBe(false)
   })
 })

@@ -69,15 +69,15 @@ export const removeItem = (plan: PlanScreenModel, id: string): PlanScreenModel =
  * An item created at the end of its feature, under a placeholder id — `ItemService.add`.
  *
  * Appended to the array for the reason `addFeature` is: the API appends, and the draw gesture reads the
- * last item as the new one.
+ * last item as the new one. An id the plan already holds adds nothing, for the reason `addFeature` gives.
  *
  * @param plan - The plan as it stands.
  * @param draft - What the create sends.
- * @param id - The placeholder id.
+ * @param id - The placeholder id, or the real one once the create has been answered.
  * @returns The plan with the item added, or the plan itself under a feature it does not hold.
  */
 export function addItem(plan: PlanScreenModel, draft: NewItem, id: string): PlanScreenModel {
-  if (!holdsFeature(plan, draft.featureId)) return plan
+  if (!holdsFeature(plan, draft.featureId) || plan.items.some((one) => one.id === id)) return plan
   const created: Item = {
     id,
     featureId: draft.featureId,

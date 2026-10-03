@@ -48,7 +48,7 @@ const railed = () => {
 // because the canvas calls it synchronously on release while the store sends a microtask later: "nothing
 // was drawn" is asked of the spy, which cannot pass early, and "what was written" of the writes, awaited.
 const gestureOf = (raw: ExtendWrites, plan: PlanScreenModel) => {
-  const made = planGestures(PLAN_A, { ...raw, createEpic: null, reorderEpic: null }, createPlanStore(plan).run).draw
+  const made = planGestures(PLAN_A, { ...raw, createEpic: null, reorderEpic: null }, createPlanStore(plan)).draw
   return made === null ? null : vi.fn(made)
 }
 

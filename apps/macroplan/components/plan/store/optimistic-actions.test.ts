@@ -3,8 +3,12 @@ import type { ActionResult } from '../../../actions/result'
 import type { PlanEditActions } from '../edit-actions'
 import { planScreenModel, type PlanScreenModel } from '../plan-screen-model'
 import { atlasPlan, EPIC_1, FEATURE_1, ITEM_1, PLAN_A } from '../testing/plan-fixture'
+import { addFeature } from './feature-edits'
+import { addGroup } from './group-edits'
+import { addItem } from './item-edits'
 import { optimisticActions } from './optimistic-actions'
 import { createPlanStore } from './plan-store'
+import { addRail } from './rail-edits'
 
 type Answer = ActionResult<PlanScreenModel>
 
@@ -71,5 +75,81 @@ describe('optimisticActions puts every write through the store', () => {
     expect(store.getSnapshot().plan.epics).toEqual(before.epics)
     await tick()
     expect(raw.bindEpic).toHaveBeenCalledTimes(1)
+  })
+})
+
+// The plan every write below is answered with: one of each kind of thing minted, each appended where the
+// API appends it, so each create finds its own real id last in its own list.
+const minted = (): PlanScreenModel => {
+  const railed = addRail(atlas(), { name: 'New rail', colour: '#336699' }, 'REAL_E')
+  const grouped = addGroup(railed, { name: 'New group' }, 'REAL_L')
+  const featured = addFeature(grouped, { epicId: EPIC_1, name: 'New feature' }, 'REAL_F')
+  return { ...addItem(featured, { featureId: FEATURE_1, name: 'New item' }, 'REAL_I'), updatedAt: '2026-09-30T00:00:00.000Z' }
+}
+
+const answering = () => harness(() => Promise.resolve<Answer>({ ok: true, value: minted() }))
+
+const lastId = (plan: PlanScreenModel, list: 'epics' | 'labels' | 'features' | 'items'): string =>
+  plan[list].at(-1)?.id ?? ''
+
+const drained = async () => {
+  for (let turn = 0; turn < 8; turn += 1) await tick()
+}
+
+describe('a write queued on something still being created is sent under the id it was created with', () => {
+  it('renames a feature drawn a moment ago under the id its create was answered with', async () => {
+    const { store, raw, writes } = answering()
+    void writes.createFeature(PLAN_A, { epicId: EPIC_1, name: 'New feature' })
+    const placeholder = lastId(store.getSnapshot().plan, 'features')
+    void writes.renameFeature(PLAN_A, placeholder, 'Audit trail')
+    await drained()
+    expect(raw.renameFeature).toHaveBeenCalledWith(PLAN_A, 'REAL_F', 'Audit trail')
+  })
+
+  it('keeps the rename on screen across the answer, on the feature under its real id', async () => {
+    const { store, raw, writes } = harness()
+    let answer: (answered: Answer) => void = () => undefined
+    vi.mocked(raw.createFeature).mockImplementation(() => new Promise<Answer>((resolve) => (answer = resolve)))
+    void writes.createFeature(PLAN_A, { epicId: EPIC_1, name: 'New feature' })
+    const placeholder = lastId(store.getSnapshot().plan, 'features')
+    void writes.renameFeature(PLAN_A, placeholder, 'Audit trail')
+    await tick()
+    answer({ ok: true, value: minted() })
+    await drained()
+    const shown = store.getSnapshot().plan.features
+    expect(shown.find((one) => one.id === 'REAL_F')?.name).toBe('Audit trail')
+    expect(shown.some((one) => one.id === placeholder)).toBe(false)
+  })
+
+  it('resolves the ids inside a write too: a dependency list, a placement, a group, a parent', async () => {
+    const { store, raw, writes } = answering()
+    void writes.createEpic(PLAN_A, { name: 'New rail', colour: '#336699' })
+    const rail = lastId(store.getSnapshot().plan, 'epics')
+    void writes.createLabel(PLAN_A, { name: 'New group' })
+    const group = lastId(store.getSnapshot().plan, 'labels')
+    void writes.createFeature(PLAN_A, { epicId: EPIC_1, name: 'New feature' })
+    const feature = lastId(store.getSnapshot().plan, 'features')
+    void writes.setDependencies(PLAN_A, FEATURE_1, [feature])
+    void writes.placeFeature(PLAN_A, FEATURE_1, { epicId: rail, position: 0 })
+    void writes.labelFeature(PLAN_A, feature, group)
+    void writes.placeItem(PLAN_A, ITEM_1, { featureId: feature, position: 0 })
+    void writes.createItem(PLAN_A, { featureId: feature, name: 'Under it' })
+    void writes.reorderEpic(PLAN_A, rail, 0)
+    await drained()
+    expect(raw.setDependencies).toHaveBeenCalledWith(PLAN_A, FEATURE_1, ['REAL_F'])
+    expect(raw.placeFeature).toHaveBeenCalledWith(PLAN_A, FEATURE_1, { epicId: 'REAL_E', position: 0 })
+    expect(raw.labelFeature).toHaveBeenCalledWith(PLAN_A, 'REAL_F', 'REAL_L')
+    expect(raw.placeItem).toHaveBeenCalledWith(PLAN_A, ITEM_1, { featureId: 'REAL_F', position: 0 })
+    expect(raw.createItem).toHaveBeenCalledWith(PLAN_A, { featureId: 'REAL_F', name: 'Under it' })
+    expect(raw.reorderEpic).toHaveBeenCalledWith(PLAN_A, 'REAL_E', 0)
+  })
+
+  it('sends a write on something whose create was refused as it was made, for the API to refuse', async () => {
+    const { store, raw, writes } = harness(() => Promise.resolve<Answer>({ ok: false, status: 422, detail: 'No.' }))
+    void writes.createFeature(PLAN_A, { epicId: EPIC_1, name: 'New feature' })
+    const placeholder = lastId(store.getSnapshot().plan, 'features')
+    void writes.renameFeature(PLAN_A, placeholder, 'Audit trail')
+    await drained()
+    expect(raw.renameFeature).toHaveBeenCalledWith(PLAN_A, placeholder, 'Audit trail')
   })
 })

@@ -65,13 +65,15 @@ export function removeRail(plan: PlanScreenModel, id: string): PlanScreenModel {
 
 /**
  * A rail created last, unbound, under a placeholder id — `EpicService.add`, including its default colour.
+ * An id the plan already holds adds nothing, for the reason `addFeature` gives.
  *
  * @param plan - The plan as it stands.
  * @param draft - What the create sends.
- * @param id - The placeholder id.
+ * @param id - The placeholder id, or the real one once the create has been answered.
  * @returns The plan with the rail added.
  */
 export function addRail(plan: PlanScreenModel, draft: NewEpic, id: string): PlanScreenModel {
+  if (plan.epics.some((one) => one.id === id)) return plan
   const created: Rail = {
     id,
     name: cleanName(draft.name) ?? draft.name,

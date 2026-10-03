@@ -1,4 +1,4 @@
-import { OPEN_PARAM } from '../drawer/tab-stack'
+import { joinTabs, OPEN_PARAM, splitTabs } from '../drawer/tab-stack'
 
 /** Which drawer an address opens beside the plan, or `null` for none. */
 export type Selection =
@@ -64,4 +64,45 @@ export function selectionOf(root: string, pathname: string, search: Pick<URLSear
   const add = ADDS[second]
   if (add === undefined) return null
   return add === 'new-rail' ? { kind: add, count: countOf(search) } : { kind: add }
+}
+
+/** A selection that names something on the plan by its id: a feature, an item, a rail or a group. */
+export type Named = Extract<NonNullable<Selection>, { readonly id: string }>
+
+const LETTERS: Readonly<Record<Named['kind'], string>> = { feature: 'f', item: 'i', rail: 'r', group: 'g' }
+
+const answeredTabs = (open: string | null, real: (id: string) => string): string | null =>
+  open === null ? null : joinTabs(splitTabs(open).map((tab) => ({ ...tab, id: real(tab.id) })))
+
+/**
+ * A selection with every id it names read through the store: its subject, and each open tab.
+ *
+ * Something created a moment ago is drawn under a placeholder, and a drawer opened on it then names that
+ * placeholder in its address. Once the create has been answered the store reads the placeholder as the real
+ * id (`../store/plan-store.ts`), and this is the drawer reading its own address the same way — so it goes on
+ * finding its subject, and its tabs theirs, after the answer has replaced the placeholder on the plan.
+ *
+ * @param selection - The selection the address names.
+ * @param real - The store's `real`.
+ * @returns The very same selection when none of its ids has been answered, or one naming the real ids.
+ */
+export function answeredSelection(selection: Selection, real: (id: string) => string): Selection {
+  if (selection === null || !('id' in selection)) return selection
+  const id = real(selection.id)
+  if (!('open' in selection)) return id === selection.id ? selection : { ...selection, id }
+  const open = answeredTabs(selection.open, real)
+  return id === selection.id && open === selection.open ? selection : { ...selection, id, open }
+}
+
+/**
+ * Where a selection is opened: {@link selectionOf} the other way round, for every drawer that names
+ * something. A feature's or an item's carries its open tabs; the id is encoded, as every route builder does.
+ *
+ * @param root - The plan's own path: `/plans/<id>` or `/s/<token>`.
+ * @param selection - The drawer and what it names.
+ * @returns The address it is at.
+ */
+export function addressOf(root: string, selection: Named): string {
+  const path = `${root}/${LETTERS[selection.kind]}/${encodeURIComponent(selection.id)}`
+  return 'open' in selection && selection.open !== null ? `${path}?${OPEN_PARAM}=${selection.open}` : path
 }

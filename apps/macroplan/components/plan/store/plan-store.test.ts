@@ -170,3 +170,91 @@ describe('a plan the server pushes replaces what was confirmed', () => {
     expect(estimateOf(store.getSnapshot().plan, ITEM_1)).toBe(7)
   })
 })
+
+// A write outside the queue — a plan rename, which re-renders — can land between two of a chain's steps,
+// and its plan is adopted; an answer stamped before it must not take it back.
+describe('the confirmed plan never moves back in time', () => {
+  const renamed = (stamp: string): PlanScreenModel => ({ ...atlas(), name: 'Renamed', updatedAt: stamp })
+
+  it('keeps a newer plan adopted while a write was out, when that write answers with an older one', async () => {
+    const store = createPlanStore(atlas())
+    const out = deferred()
+    const sent = store.run(op(7, () => out.promise))
+    store.adopt(renamed('2026-09-27T00:00:00.000Z'))
+    out.resolve(answered(7, '2026-09-26T00:00:00.000Z'))
+    await sent
+    expect(store.getSnapshot().plan.name).toBe('Renamed')
+  })
+
+  it('keeps a newer plan adopted mid-chain when the chain is refused part-way', async () => {
+    const store = createPlanStore(atlas())
+    const stored = answered(5, '2026-09-26T00:00:00.000Z')
+    const refusal = deferred()
+    const sent = store.run({
+      apply: sized(9),
+      send: (confirm) => {
+        if (stored.ok) confirm(stored.value)
+        return refusal.promise
+      },
+    })
+    await settle()
+    store.adopt(renamed('2026-09-27T00:00:00.000Z'))
+    refusal.resolve({ ok: false, status: 409, detail: 'Second step refused.' })
+    await sent
+    expect(store.getSnapshot().plan.name).toBe('Renamed')
+    expect(store.getSnapshot().failure).toBe('Second step refused.')
+  })
+})
+
+describe('a placeholder is named by the answer to its create', () => {
+  it('reads every id as itself until something names it', () => {
+    const store = createPlanStore(atlas())
+    expect(store.real('pending:a')).toBe('pending:a')
+    expect(store.real(FEATURE_1)).toBe(FEATURE_1)
+    expect(store.first(FEATURE_1)).toBe(FEATURE_1)
+  })
+
+  it('is named from inside a send, and every queued edit re-applies under the real id at once', async () => {
+    const store = createPlanStore(atlas())
+    const seen: string[] = []
+    const heard = vi.fn()
+    store.subscribe(heard)
+    void store.run({
+      apply: (plan) => {
+        seen.push(store.real('pending:b'))
+        return plan
+      },
+      send: (_confirm, name) => {
+        name('pending:b', 'REAL_B')
+        return deferred().promise
+      },
+    })
+    await settle()
+    expect(store.real('pending:b')).toBe('REAL_B')
+    expect(seen.at(-1)).toBe('REAL_B')
+    expect(heard).toHaveBeenCalledTimes(2)
+  })
+
+  it('remembers the placeholder a real id was first drawn under, which is what keeps a drawer mounted', async () => {
+    const store = createPlanStore(atlas())
+    await store.run({
+      apply: (plan) => plan,
+      send: (_confirm, name) => {
+        name('pending:c', 'REAL_C')
+        return Promise.resolve(answered(3, '2026-09-26T00:00:00.000Z'))
+      },
+    })
+    expect(store.first('REAL_C')).toBe('pending:c')
+    expect(store.first('pending:c')).toBe('pending:c')
+  })
+})
+
+describe('a queued change that changes nothing', () => {
+  it('leaves the plan the same object, so nothing keyed on it recomputes', () => {
+    const store = createPlanStore(atlas())
+    const before = store.getSnapshot().plan
+    void store.run({ apply: (plan) => plan, send: () => deferred().promise })
+    expect(store.getSnapshot().plan).toBe(before)
+    expect(store.getSnapshot().saving).toBe(true)
+  })
+})

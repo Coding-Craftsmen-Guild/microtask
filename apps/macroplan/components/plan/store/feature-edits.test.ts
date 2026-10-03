@@ -116,6 +116,11 @@ describe('addFeature appends a feature at the end of its rail', () => {
     expect(added.features.at(-1)?.id).toBe('pending:1')
   })
 
+  it('adds nothing under an id the plan already holds, so a create re-applied over its own answer draws once', () => {
+    const plan = atlas()
+    expect(addFeature(plan, { epicId: EPIC_1, name: 'New feature' }, FEATURE_1)).toBe(plan)
+  })
+
   it('gives it the next place on its rail and the defaults the API gives', () => {
     expect(featureOf(added, 'pending:1')).toMatchObject({
       epicId: EPIC_1,

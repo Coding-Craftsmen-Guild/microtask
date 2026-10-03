@@ -75,6 +75,11 @@ describe('removeItem, addItem, linkItem', () => {
     expect(addItem(plan, { featureId: 'nope', name: 'x' }, 'pending:3')).toBe(plan)
   })
 
+  it('adds nothing under an id the plan already holds, so a create re-applied over its own answer draws once', () => {
+    const plan = atlas()
+    expect(addItem(plan, { featureId: FEATURE_1, name: 'New item' }, ITEM_1)).toBe(plan)
+  })
+
   it('links an item to a task, and unlinks it with null', () => {
     expect(itemOf(linkItem(atlas(), ITEM_1, 'task-1'), ITEM_1)?.linkedTaskId).toBe('task-1')
     expect(itemOf(linkItem(linkItem(atlas(), ITEM_1, 'task-1'), ITEM_1, null), ITEM_1)?.linkedTaskId).toBeNull()

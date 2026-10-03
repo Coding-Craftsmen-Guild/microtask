@@ -241,7 +241,7 @@ await REFUSING.run({
 const REFUSED_SESSION: PlanSession = {
   store: REFUSING,
   writes: STUB_ACTIONS,
-  gestures: planGestures(PLAN_A, { ...STUB_ACTIONS, createEpic: null, reorderEpic: null }, REFUSING.run),
+  gestures: planGestures(PLAN_A, { ...STUB_ACTIONS, createEpic: null, reorderEpic: null }, REFUSING),
   controls: ADMIN_CONTROLS,
   surface: { kind: 'admin', planId: PLAN_A },
   home: `/plans/${PLAN_A}`,

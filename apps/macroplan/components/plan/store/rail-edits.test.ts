@@ -40,6 +40,13 @@ describe('rail edits mirror EpicService', () => {
     const added = addRail(railed(), { name: 'Ops' }, 'pending:4')
     expect(added.epics.at(-1)).toMatchObject({ id: 'pending:4', name: 'Ops', railOrder: 3, colour: '#3355ff', binding: null })
   })
+
+  it('adds no rail or group under an id the plan already holds, so a re-applied create draws once', () => {
+    const plan = railed()
+    expect(addRail(plan, { name: 'Ops' }, EPIC_1)).toBe(plan)
+    const grouped = atlas()
+    expect(addGroup(grouped, { name: 'Phase 3' }, LABEL_1)).toBe(grouped)
+  })
 })
 
 describe('group edits mirror LabelService', () => {
