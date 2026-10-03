@@ -146,6 +146,28 @@ describe('filtering the table', () => {
     type('sessions')
     expect(visible()).toEqual([`row-${FEATURE_1}`, `row-${ITEM_1}`])
   })
+
+  // A deleted group's option leaves its select, which then reads as every group; the rows have to agree.
+  it('lets go of a group the plan no longer holds, which its filter already shows as every group', () => {
+    const { rerender } = show()
+    pick(TABLE_WORDS.allGroups, LABEL_1)
+    const stored = atlasPlan()
+    const ungrouped = {
+      ...stored,
+      labels: stored.labels.filter((one) => one.id !== LABEL_1),
+      features: stored.features.map((one) => (one.labelId === LABEL_1 ? { ...one, labelId: null } : one)),
+    }
+    rerender(
+      <PlanTable
+        newRailHref="/plans/p/new/rail?n=1"
+        plan={planScreenModel(ungrouped)}
+        root={PLAN_A}
+        routes={ADMIN_DRAWER_ROUTES}
+        writes={EVERYTHING}
+      />,
+    )
+    expect(visible()).toHaveLength(rows().length)
+  })
 })
 
 describe('ordering the table', () => {

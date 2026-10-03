@@ -19,6 +19,28 @@ export interface Narrowed {
   readonly group: string
 }
 
+/**
+ * The narrowing the filters can still say: a rail or a group the plan no longer holds let go of.
+ *
+ * The two filters are uncontrolled selects, and a select whose chosen option leaves it — the rail or the
+ * group was deleted — reads as its first option, which is every rail or every group. Narrowing by the id
+ * that left would hide every row under a filter that says it hides none. So the table narrows by this, and
+ * keeps it: an id let go of is not taken up again if it comes back, as the select would not either.
+ *
+ * @param narrowed - What the reader narrowed to.
+ * @param plan - The plan's rails and groups, which are the options the two filters offer.
+ * @returns The very same narrowing when both filters are still on offer, or one that lets go of the other.
+ */
+export function narrowingIn(
+  narrowed: Narrowed,
+  plan: { readonly epics: readonly { readonly id: string }[]; readonly labels: readonly { readonly id: string }[] },
+): Narrowed {
+  const rail = narrowed.rail === '' || plan.epics.some((one) => one.id === narrowed.rail) ? narrowed.rail : ''
+  const offered = narrowed.group === '' || narrowed.group === 'none' || plan.labels.some((one) => one.id === narrowed.group)
+  const group = offered ? narrowed.group : ''
+  return rail === narrowed.rail && group === narrowed.group ? narrowed : { ...narrowed, rail, group }
+}
+
 /** One row as the table draws it: the row, and whether the search and the filters leave it hidden. */
 export interface ArrangedRow {
   readonly row: TableRow

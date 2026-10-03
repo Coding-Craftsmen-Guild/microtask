@@ -118,7 +118,7 @@ const optionsOf = (pairs: Iterable<readonly [string, string]>): readonly FilterO
 export function PlanTable(props: PlanTableProps) {
   const { plan, progress = NO_PROGRESS, root = '', routes = null, newRailHref = null } = props
   const writes = props.writes ?? NOTHING_WRITABLE
-  const state = useTableState()
+  const state = useTableState(plan)
   const counted = useMemo(() => new Map(progress.map((row) => [row.itemId, row.progress])), [progress])
   const mayEdit = routes !== null && (writes.rename || writes.add || writes.remove)
   const columns = useMemo(() => orderedColumns(columnsFor(mayEdit), state.order), [mayEdit, state.order])

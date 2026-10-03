@@ -1,7 +1,7 @@
 import { useEffect, useState, type MouseEvent } from 'react'
 import { DEFAULT_ORDER, moveColumn } from './columns'
 import { remember, remembered } from './column-memory'
-import { nextSort, type Narrowed, type Sorted } from './table-order'
+import { narrowingIn, nextSort, type Narrowed, type Sorted } from './table-order'
 
 const SEARCH = '[data-slot="table-search"]'
 
@@ -14,6 +14,8 @@ const MOVE = '[data-move]'
 const COLUMN_ROW = '[data-slot="column-row"]'
 
 const NONE_HIDDEN: readonly string[] = []
+
+type Offered = Parameters<typeof narrowingIn>[1]
 
 const NOTHING: Narrowed = { needle: '', rail: '', group: '' }
 
@@ -76,10 +78,16 @@ export interface TableState {
  * **order** is the one thing remembered, because
  * a layout is a preference and a search is a question — `./column-memory.ts` carries that argument.
  *
+ * A rail or a group filtered by and then deleted leaves its select, which then reads as every one; the
+ * state lets go of it then too (`narrowingIn`), so the rows and the select say the same thing.
+ *
+ * @param offered - The plan's rails and groups, which the two filters offer.
  * @returns The state, and the listeners that set it.
  */
-export function useTableState(): TableState {
-  const [narrowed, setNarrowed] = useState<Narrowed>(NOTHING)
+export function useTableState(offered: Offered): TableState {
+  const [chosen, setNarrowed] = useState<Narrowed>(NOTHING)
+  const narrowed = narrowingIn(chosen, offered)
+  if (narrowed !== chosen) setNarrowed(narrowed)
   const [sorted, setSorted] = useState<Sorted | null>(null)
   const [order, setOrder] = useState<readonly string[]>(DEFAULT_ORDER)
   const [hidden, setHidden] = useState<readonly string[]>(NONE_HIDDEN)

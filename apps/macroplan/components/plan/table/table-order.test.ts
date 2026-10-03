@@ -3,7 +3,7 @@ import { planScreenModel } from '../plan-screen-model'
 import { atlasPlan, FEATURE_1, FEATURE_2, ITEM_1, ITEM_2, ITEM_3, LABEL_1, railedPlan, EPIC_2 } from '../testing/plan-fixture'
 import { COLUMNS } from './columns'
 import { tableRows } from './rows'
-import { arrangedRows, orderedColumns, type Narrowed } from './table-order'
+import { arrangedRows, narrowingIn, orderedColumns, type Narrowed } from './table-order'
 
 const EVERYTHING: Narrowed = { needle: '', rail: '', group: '' }
 
@@ -38,6 +38,28 @@ describe('arrangedRows narrows the table by blocks, the way a reader reads it', 
     const desc = arrangedRows(atlasRows(), EVERYTHING, { column: 'feature', direction: 'desc' })
     expect(asc.map((one) => one.row.id)).toEqual([FEATURE_1, ITEM_1, ITEM_2, FEATURE_2, ITEM_3])
     expect(desc.map((one) => one.row.id)).toEqual([FEATURE_2, ITEM_3, FEATURE_1, ITEM_1, ITEM_2])
+  })
+})
+
+describe('narrowingIn lets go of a filter the plan no longer offers', () => {
+  const plan = () => planScreenModel(railedPlan())
+
+  it('hands back the very narrowing when every filter in it is still on offer', () => {
+    const narrowed: Narrowed = { needle: 'x', rail: EPIC_2, group: 'none' }
+    expect(narrowingIn(narrowed, plan())).toBe(narrowed)
+  })
+
+  it('drops a rail and a group the plan no longer holds, keeping the search', () => {
+    expect(narrowingIn({ needle: 'x', rail: 'gone-rail', group: 'gone-group' }, plan())).toEqual({
+      needle: 'x',
+      rail: '',
+      group: '',
+    })
+  })
+
+  it('keeps a group the plan still holds', () => {
+    const narrowed: Narrowed = { ...EVERYTHING, group: LABEL_1 }
+    expect(narrowingIn(narrowed, planScreenModel(atlasPlan()))).toBe(narrowed)
   })
 })
 
