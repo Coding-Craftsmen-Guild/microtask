@@ -131,6 +131,21 @@ describe('a refused or unanswered write is taken back off the screen', () => {
     expect(store.getSnapshot().failure).toBe(NO_ANSWER.detail)
   })
 
+  it('keeps what a chain stored before it was refused part-way', async () => {
+    const store = createPlanStore(atlas())
+    const stored = answered(5, '2026-09-24T00:00:00.000Z')
+    const chain: PlanOp = {
+      apply: sized(9),
+      send: (confirm) => {
+        if (stored.ok) confirm(stored.value)
+        return Promise.resolve({ ok: false, status: 409, detail: 'Second step refused.' })
+      },
+    }
+    await store.run(chain)
+    expect(estimateOf(store.getSnapshot().plan, ITEM_1)).toBe(5)
+    expect(store.getSnapshot().failure).toBe('Second step refused.')
+  })
+
   it('forgets the sentence when it is dismissed', async () => {
     const store = createPlanStore(atlas())
     await store.run(op(7, () => Promise.resolve({ ok: false, status: 409, detail: 'No.' })))

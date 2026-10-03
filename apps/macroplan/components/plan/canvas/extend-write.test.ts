@@ -211,3 +211,34 @@ describe('a feature drawn from the end of another', () => {
     expect(writes.setDependencies).not.toHaveBeenCalled()
   })
 })
+
+describe('what the chain answers, which is what the store confirms', () => {
+  it('answers the last write it made', async () => {
+    const writes = doubles()
+    const last = { ok: true as const, value: planScreenModel(atlasPlan({ name: 'After the edge' })) }
+    writes.setDependencies.mockResolvedValueOnce(last)
+    expect(await writeDraw(feature({ edge: 'new-waits' }), writes)).toBe(last)
+  })
+
+  it('tells confirm each plan it was answered with before a later step', async () => {
+    const writes = doubles()
+    const heard: string[] = []
+    await writeDraw(item({ position: 2 }), writes, (plan) => heard.push(plan.items.at(-1)?.id ?? ''))
+    expect(heard).toEqual([ADDED_ITEM])
+  })
+
+  it('stops at a refused step and answers the refusal, having confirmed what came before it', async () => {
+    const writes = doubles()
+    const refusal = { ok: false as const, status: 409, detail: 'Refused.' }
+    writes.placeFeature.mockResolvedValueOnce(refusal as never)
+    const heard: string[] = []
+    const answer = await writeDraw(feature(), writes, (plan) => heard.push(plan.features.at(-1)?.id ?? ''))
+    expect(answer).toBe(refusal)
+    expect(heard).toEqual([ADDED_FEATURE])
+    expect(writes.labelFeature).not.toHaveBeenCalled()
+  })
+
+  it('answers null where the surface may not create what was drawn', async () => {
+    expect(await writeDraw(item(), { ...doubles(), createItem: null })).toBeNull()
+  })
+})

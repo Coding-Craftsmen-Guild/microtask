@@ -34,82 +34,90 @@ export interface ExtendWrites {
 export const mayExtend = (writes: ExtendWrites): boolean =>
   writes.createFeature !== null || writes.createItem !== null
 
-const addedFeature = (answer: ActionResult<PlanScreenModel>): string | null =>
-  answer.ok ? (answer.value.features.at(-1)?.id ?? null) : null
+type Answered = ActionResult<PlanScreenModel>
 
-const addedItem = (answer: ActionResult<PlanScreenModel>): string | null =>
-  answer.ok ? (answer.value.items.at(-1)?.id ?? null) : null
+/** Hears each plan a chain is answered with on its way, so a refusal part-way keeps what was stored. */
+export type Confirm = (plan: PlanScreenModel) => void
 
-const edgesOf = (answer: ActionResult<PlanScreenModel>, featureId: string): readonly string[] =>
+const unheard: Confirm = () => undefined
+
+const edgesOf = (answer: Answered, featureId: string): readonly string[] =>
   answer.ok ? (answer.value.features.find((one) => one.id === featureId)?.dependsOn ?? []) : []
 
-const writeEdge = async (
-  draft: DrawnWrite,
-  made: string,
-  answer: ActionResult<PlanScreenModel>,
-  writes: ExtendWrites,
-): Promise<void> => {
-  const { setDependencies } = writes
-  if (setDependencies === null || draft.edge === 'none') return
-  const waits = draft.edge === 'new-waits' ? made : draft.featureId
-  const on = draft.edge === 'new-waits' ? draft.featureId : made
-  await orNoAnswer(setDependencies)(draft.planId, waits, [...edgesOf(answer, waits), on])
-}
-
-/** One draw, as the plan it is addressed at and what it drew. */
+/** What one release drew, and the plan it is addressed at. */
 export interface DrawnWrite extends Draft {
-  /** The plan every write below is addressed at. */
+  /** The plan every write is addressed at. */
   readonly planId: string
 }
 
-const addItem = async (draft: DrawnWrite, writes: ExtendWrites): Promise<void> => {
+interface Steps {
+  readonly draft: DrawnWrite
+  readonly made: string
+  readonly answer: Answered
+  readonly writes: ExtendWrites
+}
+
+const edgeStep = ({ draft, made, answer, writes }: Steps): (() => Answer) | null => {
+  const { setDependencies } = writes
+  if (setDependencies === null || draft.edge === 'none') return null
+  const waits = draft.edge === 'new-waits' ? made : draft.featureId
+  const on = draft.edge === 'new-waits' ? draft.featureId : made
+  return () => orNoAnswer(setDependencies)(draft.planId, waits, [...edgesOf(answer, waits), on])
+}
+
+const featureSteps = (steps: Steps): readonly (() => Answer)[] => {
+  const { draft, made, writes } = steps
+  const { placeFeature, labelFeature, createItem } = writes
+  const at = { epicId: draft.epicId, position: draft.position }
+  const item = { estimateDays: draft.days, featureId: made, name: DRAWN_NAMES.item }
+  return [
+    placeFeature === null ? null : () => orNoAnswer(placeFeature)(draft.planId, made, at),
+    draft.labelId === '' || labelFeature === null ? null : () => orNoAnswer(labelFeature)(draft.planId, made, draft.labelId),
+    createItem === null ? null : () => orNoAnswer(createItem)(draft.planId, item),
+    edgeStep(steps),
+  ].filter((step) => step !== null)
+}
+
+const following = async (first: Answered, steps: readonly (() => Answer)[], confirm: Confirm): Promise<Answered> => {
+  let last = first
+  for (const step of steps) {
+    if (!last.ok) return last
+    confirm(last.value)
+    last = await step()
+  }
+  return last
+}
+
+const addItem = async (draft: DrawnWrite, writes: ExtendWrites, confirm: Confirm): Promise<Answered | null> => {
   const { createItem, placeItem } = writes
-  if (createItem === null) return
+  if (createItem === null) return null
   const made = await orNoAnswer(createItem)(draft.planId, {
     estimateDays: draft.days,
     featureId: draft.featureId,
     name: DRAWN_NAMES.item,
   })
-  const id = addedItem(made)
-  if (id === null || placeItem === null) return
-  await orNoAnswer(placeItem)(draft.planId, id, {
-    featureId: draft.featureId,
-    position: draft.position,
-  })
+  const id = made.ok ? made.value.items.at(-1)?.id : undefined
+  if (id === undefined || placeItem === null) return made
+  const at = { featureId: draft.featureId, position: draft.position }
+  return following(made, [() => orNoAnswer(placeItem)(draft.planId, id, at)], confirm)
 }
 
-const addFeature = async (draft: DrawnWrite, writes: ExtendWrites): Promise<void> => {
-  const { createFeature, placeFeature, createItem, labelFeature } = writes
-  if (createFeature === null) return
-  const made = await orNoAnswer(createFeature)(draft.planId, {
+const addFeature = async (draft: DrawnWrite, writes: ExtendWrites, confirm: Confirm): Promise<Answered | null> => {
+  const { createFeature } = writes
+  if (createFeature === null) return null
+  const answer = await orNoAnswer(createFeature)(draft.planId, {
     epicId: draft.epicId,
     estimateDays: draft.days,
     name: DRAWN_NAMES.feature,
     pinSprint: draft.sprint,
   })
-  const id = addedFeature(made)
-  if (id === null) return
-  if (placeFeature !== null) {
-    await orNoAnswer(placeFeature)(draft.planId, id, {
-      epicId: draft.epicId,
-      position: draft.position,
-    })
-  }
-  if (draft.labelId !== '' && labelFeature !== null) {
-    await orNoAnswer(labelFeature)(draft.planId, id, draft.labelId)
-  }
-  if (createItem !== null) {
-    await orNoAnswer(createItem)(draft.planId, {
-      estimateDays: draft.days,
-      featureId: id,
-      name: DRAWN_NAMES.item,
-    })
-  }
-  await writeEdge(draft, id, made, writes)
+  const made = answer.ok ? answer.value.features.at(-1)?.id : undefined
+  if (made === undefined) return answer
+  return following(answer, featureSteps({ answer, draft, made, writes }), confirm)
 }
 
 /**
- * The writes one release makes, in the order a reader would describe them.
+ * The writes one release makes, in the order a reader would describe them, and the last answer they got.
  *
  * A create, then a placement, then the group, then the item that carries the estimate, then the edge.
  * Every one of them is an **existing** action: nothing about drawing on the board is a new route, which
@@ -124,13 +132,23 @@ const addFeature = async (draft: DrawnWrite, writes: ExtendWrites): Promise<void
  * A new feature's own estimate and its one item are both the drawn length, so a feature drawn two days
  * long reads as planned 2d and broken down to 2d rather than as a discrepancy nobody authored.
  *
+ * ### Why it answers, and what `confirm` hears
+ *
+ * The chain is the `send` of **one** optimistic op (`../store/gestures.ts`), so the whole drawing is on
+ * screen the moment the pointer is let go and these writes only persist it (ADR 0069). The answer is the
+ * last one the chain got, which the store confirms; a step that is refused stops the chain there, and the
+ * plan `confirm` heard before it is what the store keeps — the feature the create did store stays on the
+ * board even though its edge was refused.
+ *
  * @param draft - What the release drew, and the plan it is addressed at.
  * @param writes - The actions this surface holds, each `null` where it may not.
+ * @param confirm - Hears each plan the chain was answered with before its last step.
+ * @returns The last answer, or `null` where the surface may not create what was drawn.
  */
-export async function writeDraw(draft: DrawnWrite, writes: ExtendWrites): Promise<void> {
-  if (draft.kind === 'item') {
-    await addItem(draft, writes)
-    return
-  }
-  await addFeature(draft, writes)
+export async function writeDraw(
+  draft: DrawnWrite,
+  writes: ExtendWrites,
+  confirm: Confirm = unheard,
+): Promise<Answered | null> {
+  return draft.kind === 'item' ? addItem(draft, writes, confirm) : addFeature(draft, writes, confirm)
 }

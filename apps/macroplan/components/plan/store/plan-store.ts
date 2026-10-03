@@ -10,8 +10,13 @@ export interface PlanOp {
   /** The change itself, applied to the plan the moment the op is run — pure, and safe to run again. */
   readonly apply: (plan: PlanScreenModel) => PlanScreenModel
 
-  /** The persistence: one Server Action, or a chain of them for a gesture that makes several writes. */
-  readonly send: () => Promise<Answer>
+  /**
+   * The persistence: one Server Action, or a chain of them for a gesture that makes several writes.
+   *
+   * A chain hands `confirm` each plan it is answered with along the way, so that a refusal part-way still
+   * leaves on screen what the server did store — the feature a draw created before its edge was refused.
+   */
+  readonly send: (confirm: (plan: PlanScreenModel) => void) => Promise<Answer>
 }
 
 /** What the plan screen renders from: the plan as it will be, and whether that is settled yet. */
@@ -45,6 +50,7 @@ interface Entry {
   readonly op: PlanOp
   readonly resolve: (answer: Answer) => void
   readonly reject: (error: unknown) => void
+  partial: PlanScreenModel | null
 }
 
 /**
@@ -101,7 +107,7 @@ class OptimisticPlan implements PlanStore {
 
   readonly run = (op: PlanOp): Promise<Answer> =>
     new Promise<Answer>((resolve, reject) => {
-      this.#queue.push({ op, resolve, reject })
+      this.#queue.push({ op, resolve, reject, partial: null })
       this.#publish()
       void this.#pump()
     })
@@ -133,14 +139,19 @@ class OptimisticPlan implements PlanStore {
 
   #settle(entry: Entry, answer: Answer): void {
     if (answer.ok) this.#confirmed = answer.value
-    else this.#failure = answer.detail
+    else this.#refused(entry, answer.detail)
     this.#queue.shift()
     this.#publish()
     entry.resolve(answer)
   }
 
+  #refused(entry: Entry, detail: string): void {
+    this.#confirmed = entry.partial ?? this.#confirmed
+    this.#failure = detail
+  }
+
   #unanswered(entry: Entry, error: unknown): void {
-    this.#failure = NO_ANSWER.detail
+    this.#refused(entry, NO_ANSWER.detail)
     this.#queue.shift()
     this.#publish()
     entry.reject(error)
@@ -152,7 +163,7 @@ class OptimisticPlan implements PlanStore {
     for (let head = this.#queue[0]; head !== undefined; head = this.#queue[0]) {
       const entry = head
       await Promise.resolve()
-        .then(() => entry.op.send())
+        .then(() => entry.op.send((plan) => (entry.partial = plan)))
         .then(
           (answer) => this.#settle(entry, answer),
           (error: unknown) => this.#unanswered(entry, error),
