@@ -177,8 +177,8 @@ Wraps all 28 `PlanEditActions` members. Structural members get an edit; bridge m
   hard reload, back/forward, drag, draw, resize, stepper, rename, dependencies, groups, rail reorder, strip
   drop, delete + failure, zoom (switch, wheel, drill, chip), table sort/filter/columns.
 - [x] Task 25: re-measure against the baseline above (25 and 2,000 items).
-- [ ] Task 26: code review; fix what it finds; re-run the gate.
-- [ ] Task 27: push `feat/macroplan-local-first` (standing authorisation). Never `main`.
+- [x] Task 26: code review; fix what it finds; re-run the gate.
+- [x] Task 27: push `feat/macroplan-local-first` (standing authorisation). Never `main`.
 
 ---
 
@@ -203,3 +203,24 @@ editing the task it differed from.
   reading order. The mount runs as a transition now, which keeps input answering while React builds it.
 - **Verify (Task 24)** covered the feature, item, rail and group drawers in the browser; the two add
   drawers are covered by `app/plan-drawer.test.tsx` only.
+- **Review (Task 26)** was three read-only reviews — the server boundary, the store and its edits, the
+  screen in the browser — and every finding was fixed test-first:
+  - *Placeholders were never replaced* (the one serious finding). Work made a moment ago was drawn under
+    `pending:N`, and whatever was done to it before the answer was queued under that id and refused; its
+    drawer then said it was gone. The store now learns the real id from the create's answer and reads the
+    placeholder as it: writes resolve their ids when sent, the chains do the same, the drawer follows its
+    subject to the real address without remounting, creates are idempotent, a rail's binding queues
+    behind its create.
+  - The confirmed plan could move back in time; it only moves forward now.
+  - A delete's answer closed whatever drawer was open by then; a delete closes its drawer on confirm.
+    A dropped rail's drawer opens at once for the same reason.
+  - A trip to the table left the rail radios saying nothing was chosen; selection radios are drawn
+    checked by what the shell says (`shell/choice-radio.tsx`).
+  - A retime the API would refuse redrew the board (a cleared sprint length divided by zero); the edit
+    holds each setting to the payload's rule, mirrored so the screen ships no schema library.
+  - The screen re-rendered on a dismissed notice or a no-op write; it reads the plan alone (`usePlan`),
+    and a change that changes nothing keeps the plan object.
+  - The "only `PlanApp`" boundary check followed one import; it walks everything the server runs now.
+  - Two older bugs the review noticed: the table's Add item link landed on no element, and a table
+    filter on a deleted rail or group hid every row.
+  Re-verified on a production build with every Server Action delayed 1.5 s; the gate passed (52/52).

@@ -55,22 +55,36 @@ a second before it was sent. A design where a click is a round trip cannot hide 
    with the Server Actions the surface may call. The plan is `planScreenModel`'s reduction, so no share
    token is in it. Everything on the screen — canvas, table, chips, tray, menus, drawers — is drawn in
    the browser from it. A server file may render exactly one client component from the plan subtree,
-   `PlanApp`, and `module-boundaries.test.tsx` fails if a second appears.
+   `PlanApp`, and `module-boundaries.test.tsx` fails if a second appears: it follows every module the
+   server runs, through the `@/` alias and re-exports, so a plan component that draws client fields
+   beneath it counts as well as one imported directly.
 
 2. **An optimistic store holds the plan** (`components/plan/store/plan-store.ts`). It keeps the last
    plan the API answered and a queue of changes on top of it, each a pure edit and the write that
    persists it. The screen renders the queue applied to the answer, with the schedule recomputed by
    `flatSchedule` — `@repo/schedule`, the code the API runs (ADR 0049) — so a drop moves every bar that
-   depends on it in the frame it is made. Writes go out one at a time and in order. Each answer becomes
-   the confirmed plan; a refusal drops its change, which takes it back off the screen, and leaves a
-   sentence the screen shows (`app/plan-notice.tsx`). A plan the server pushes later is adopted unless
-   it is older.
+   depends on it in the frame it is made. Writes go out one at a time and in order: the store's queue
+   guarantees it, not Next, which lets a queued action start when a navigation — every drawer move —
+   discards the one before it. Each answer becomes the confirmed plan; a refusal drops its change, which
+   takes it back off the screen, and leaves a sentence the screen shows (`app/plan-notice.tsx`). A plan
+   the server pushes later is adopted unless it is older, and the confirmed plan only ever moves forward
+   in time: an answer stamped before a plan adopted meanwhile does not take it back.
+
+   Something created is drawn under a placeholder (`pending:N`) until its create is answered. The create
+   then names the real id — the API appends what it creates, so it is the last of its kind in the answer —
+   and the store reads the placeholder as it from then on (`real`), and the other way (`first`). That is
+   what lets the reader act on new work at once: a rename in a just-drawn bar's drawer, an item added
+   under it, a second bar drawn from its end are queued under the placeholder and go out under the id the
+   API minted.
 
 3. **Every write keeps its signature and is applied before it is sent.** `optimistic-actions.ts` wraps
    all 28 writes; each edit (`*-edits.ts`, `edit-order.ts`, `clean-name.ts`) mirrors the domain rule the
-   API will run, and the answer corrects any guess. A gesture that writes several times — a draw, a rail
-   dropped into a gap — is one change whose persistence is the chain it always ran, so the whole drawing
-   is on screen at once and a refusal part-way keeps what was stored.
+   API will run, and the answer corrects any guess. Every id a write carries is read through the store's
+   `real` when it is applied and again when it is sent, never when it was made. A gesture that writes
+   several times — a draw, a rail dropped into a gap — is one change whose persistence is the chain it
+   always ran, so the whole drawing is on screen at once and a refusal part-way keeps what was stored; the
+   chain names what it creates as each create is answered, and a create adds nothing under an id the plan
+   already holds, so a plan pushed in the middle of a draw does not draw it twice.
 
 4. **A plan write answers the reduced plan and re-renders nothing.** It used to answer the API's plan
    as it came, which put every live seat token on the plan into the response of every admin edit; it is
@@ -82,7 +96,11 @@ a second before it was sent. A design where a click is a round trip cannot hide 
    `history.pushState`, which Next's hooks follow, so Back, reload and a pasted link work as before; the
    drawer is drawn from the plan the store holds, and the drawer routes render nothing. An item's
    description and its rail's tasks are not in the plan, so they are read by a Server Action when its
-   drawer opens — with the panel already on screen.
+   drawer opens — with the panel already on screen. A drawer opened on something still being created
+   names its placeholder; once the create is answered it moves to the real address with `replace`, keyed
+   by the id its subject was first drawn under, so the field being typed in is not remounted. A drawer
+   closes when its subject's delete is **confirmed**, not when the delete is answered — by then the reader
+   may have opened another, which the answer would have closed.
 
 6. **The zoom is the screen's state**, remembered in the `mp_zoom` cookie by the browser and read by the
    admin layout on the next load.
@@ -90,7 +108,9 @@ a second before it was sent. A design where a click is a round trip cannot hide 
 7. **The rendering budget is the browser's now, and it is spent deliberately.** Only the chosen view's
    canvas is drawn. The table is the accessible rendering and stays mounted (ADR 0056's floor), but it
    mounts after the first paint, as a transition, renders from a deferred plan while it is off screen,
-   and memoises its rows. Everything derived from a plan is derived once per plan object.
+   and memoises its rows. Everything derived from a plan is derived once per plan object, and the store
+   hands back the same object until the plan changes: the screen reads the plan alone (`usePlan`), so a
+   write that changes nothing, a write starting or landing, or a notice dismissed redraws no mark.
 
 8. **No rule on the screen asks `:has()`.** Selecting a rail or a group asked the radio with
    `:has(#radio:checked)` on the shell, and a hover asked each feature group whether it `:has()` a lit
@@ -119,13 +139,26 @@ stepper, retime, delete, a write with the API down (taken back, and the notice s
 switch, wheel, drill and chip, the table's search, filters, sort and columns, and a manage and a view
 seat whose every link stays on `/s/<token>/`.
 
+After review, again on a production build, with every Server Action held back 1.5 s to stand in for the
+second a request waits on the person's own machine: an item added in a drawer and opened at once (open
+on its placeholder in 179 ms, moved to the real address when the create answered, the same field node
+throughout, and a rename made meanwhile saved under the real id across a reload); a rail dropped from the
+strip (its drawer open in 139 ms, then following the rail to its id); a delete with another drawer opened
+while it was out (left open by the answer); a rail chosen, the table shown and the timeline back (the
+rail's radio still checked); a cleared sprint length (refused, the board still on its 10-day sprints).
+
 What it costs:
 
 - **The browser holds the plan** — about 0.7 MB of JSON at the cap — and the first load ships it once.
   That is the trade: one transfer instead of one per interaction.
+- **The screen is client JavaScript now.** The plan route ships 228 KB of script compressed (741 KB
+  decoded); the plans list, which shares the framework, ships 149 KB (487 KB). The screen's own code is
+  the difference, about 79 KB on the wire.
 - **The edits are mirrors of domain rules.** A divergence shows as a correction when the answer lands,
   never as wrong data: the answer is authoritative and replaces the guess. Each edit has tests of its
-  own, written against the domain's.
+  own, written against the domain's. A value the API would refuse is not drawn at all where drawing it
+  would break the board — a retime holds each setting to the payload's own rule, mirrored rather than
+  imported so the screen ships no schema library, and a test holds the mirror to the contract's schemas.
 - **Two tabs on one plan** see each other's changes on their next answer or reload. Every answer is the
   whole plan, so one write in a tab brings it up to date.
 - **The bridge writes and a plan rename** still cost one round trip, as above.
